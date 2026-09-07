@@ -57,9 +57,10 @@ import hashlib
 import json
 import os
 import shutil
+import unicodedata
 from pathlib import Path
 
-from . import canonical_reference
+from . import canonical_reference, probability_raster
 from .errors import ReferenceDataInvalidError, ReferenceDataMissingError
 from .ktsn_match import _strip_em_tags as _normalize_taxon_full_nm
 
@@ -211,6 +212,50 @@ def _validate_raster_dir(raster_dir: Path) -> None:
         raise ReferenceDataInvalidError(
             f"확률 래스터에 비어 있거나 읽을 수 없는 TIFF 파일이 있습니다: {empty}"
         )
+
+
+def validate_probability_reference(base: str | Path) -> dict | None:
+    """Accept development source TIFFs or a self-contained packaged cache."""
+    base = Path(base)
+    raster_dir = base / RASTER_DIR_RELATIVE_SUBPATH
+    if raster_dir.exists():
+        _validate_raster_dir(raster_dir)
+        return None
+    cache_dir = base / "probability_cache"
+    if not cache_dir.exists():
+        raise ReferenceDataMissingError("출현확률 원본과 다중밴드 캐시가 모두 없습니다.")
+    try:
+        payload = probability_raster.validate_probability_stack_cache(cache_dir)
+        manifest_path = base / FILTERED_MANIFEST_NAME
+        if manifest_path.is_file():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            entries = manifest.get("raster_files") if isinstance(manifest, dict) else None
+            if not isinstance(entries, dict) or not entries:
+                raise ValueError("manifest에 원본 래스터 inventory가 없습니다.")
+            inventory = []
+            for filename, entry in entries.items():
+                match = probability_raster.SPECIES_FILENAME_RE.fullmatch(filename)
+                if match is None:
+                    continue  # Match _inventory: non-species rasters are not stack bands.
+                size = entry.get("size") if isinstance(entry, dict) else None
+                if type(size) is not int or size <= 0:
+                    raise ValueError("manifest의 원본 래스터 inventory가 올바르지 않습니다.")
+                inventory.append({
+                    "name": unicodedata.normalize("NFC", match.group(1)).strip(),
+                    "filename": filename,
+                    "size": size,
+                })
+            inventory.sort(key=lambda item: item["name"])
+            signature = hashlib.sha256(json.dumps(
+                inventory, ensure_ascii=False, separators=(",", ":")
+            ).encode("utf-8")).hexdigest()
+            if payload.get("source_inventory_signature") != signature or payload["mapping"] != {
+                item["name"]: band for band, item in enumerate(inventory, start=1)
+            }:
+                raise ValueError("다중밴드 캐시가 manifest의 원본 inventory와 다릅니다.")
+        return payload
+    except (OSError, ValueError) as exc:
+        raise ReferenceDataInvalidError(str(exc)) from exc
 
 
 def validate_reference_data(reference_data_dir: str) -> tuple[Path, Path]:
@@ -498,6 +543,9 @@ def _validate_filtered_manifest(
                 f"필터링된 번들에 원본 스프레드시트가 포함되어 있습니다: {path}"
             )
     raster_dir = base / RASTER_DIR_RELATIVE_SUBPATH
+    if not raster_dir.exists():
+        validate_probability_reference(base)
+        return lookup, accepted, nibr, raster_dir
     _validate_raster_dir(raster_dir)
     raster_entries = manifest.get("raster_files")
     if require_release_contract and not isinstance(raster_entries, dict):
@@ -1248,6 +1296,13 @@ def bundle_reference_data(
         shutil.copyfile(csv_path, destination / Path(PROJECT_KTSN_LOOKUP_RELPATH).name)
         shutil.copyfile(nibr, destination / Path(PROJECT_NATIONAL_LIST_RELPATH).name)
         if include_probability_rasters:
+            if not raster_dir.exists():
+                result = probability_raster.build_probability_stack(
+                    str(raster_dir), project_dir, cache_dir=str(base / "probability_cache")
+                )
+                if not result["success"]:
+                    raise ReferenceDataInvalidError(result["error_message"])
+                return
             dest_raster_dir = Path(project_dir) / PROJECT_RASTER_DIR_RELPATH
             dest_raster_dir.mkdir(parents=True, exist_ok=True)
             for tif_path in sorted(raster_dir.glob("*.tif")):

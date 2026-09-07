@@ -92,9 +92,36 @@ def reference(tmp_path):
 @pytest.mark.parametrize("survey_type", schemas.SURVEY_TYPES)
 @pytest.mark.parametrize("mode", ["none", "online", "offline"])
 @pytest.mark.parametrize("identification", [False, True])
+@pytest.mark.parametrize("cache_only", [False, True])
 def test_build_and_relocate_without_qgis(
-    tmp_path, monkeypatch, reference, survey_type, mode, identification
+    tmp_path, monkeypatch, reference, survey_type, mode, identification, cache_only
 ):
+    raster_sources = reference / RASTERS
+    if cache_only:
+        shutil.copyfile(
+            raster_sources / "bce_inverse_corrected_probability_소나무.tif",
+            raster_sources / "bce_inverse_corrected_richness_5km_uncalibrated.tif",
+        )
+        packaged = tmp_path / "packaged-reference"
+        reference_bundle.prepare_filtered_reference_bundle(
+            reference / "canonical.xlsx", packaged, raster_dir=raster_sources
+        )
+        result = probability_raster.prepare_probability_stack_cache(
+            str(raster_sources), str(packaged / "probability_cache")
+        )
+        assert result["success"], result
+        shutil.copyfile(reference / "canonical.xlsx", packaged / "canonical.xlsx")
+        shutil.move(str(packaged / "rasters"), str(tmp_path / "build-input-rasters"))
+        reference = packaged
+        assert reference_bundle.validate_filtered_reference_data(reference)[0].is_file()
+
+        def forbidden_rebuild(*args, **kwargs):
+            raise AssertionError("Packaged projects must not rebuild source TIFFs")
+
+        from qfield_builder import standalone_gis
+
+        monkeypatch.setattr(standalone_gis, "_build_probability_stack_gdal", forbidden_rebuild)
+
     with MemoryFile() as image:
         with image.open(driver="PNG", width=256, height=256, count=3, dtype="uint8") as raster:
             raster.write(np.full((3, 256, 256), 255, dtype="uint8"))
@@ -166,8 +193,13 @@ def test_build_and_relocate_without_qgis(
     if identification:
         assert "".join(widget.itertext()).count("import QtQuick 2.15") == 1
         assert probability_raster.inspect_probability_stack(
-            str(destination / probability_raster.STACK_RELPATH), str(reference / RASTERS)
+            str(destination / probability_raster.STACK_RELPATH), str(raster_sources)
         )["valid"]
+        assert len(list((destination / "reference").rglob("*.tif"))) == 1
+        sample = probability_raster.sample_probability_candidate(
+            str(destination), "소나무", {"lon": 127.015, "lat": 37.025}
+        )
+        assert sample["value"] == pytest.approx(0.25), sample
     if mode == "offline":
         assert "test-vworld-key" not in Path(result["qgs_path"]).read_text()
         with rasterio.open(destination / "basemap/offline.mbtiles") as raster:
@@ -187,6 +219,58 @@ def test_build_and_relocate_without_qgis(
     gpkg.rename(gpkg.with_suffix(".missing"))
     assert not validate.validate_project(str(moved))["success"]
     gpkg.with_suffix(".missing").rename(gpkg)
+
+
+@pytest.mark.parametrize("damage", ["missing_stack", "missing_index", "json", "mapping", "pixels"])
+def test_cache_only_rejects_damaged_assets(tmp_path, reference, damage):
+    cache = reference / "probability_cache"
+    result = probability_raster.prepare_probability_stack_cache(
+        str(reference / RASTERS), str(cache)
+    )
+    assert result["success"], result
+    shutil.move(str(reference / "rasters"), str(tmp_path / "source-rasters"))
+    stack, index = cache / probability_raster.CACHE_STACK_FILENAME, cache / (
+        probability_raster.CACHE_INDEX_FILENAME
+    )
+    if damage == "missing_stack":
+        stack.unlink()
+    elif damage == "missing_index":
+        index.unlink()
+    elif damage == "json":
+        index.write_text("[]")
+    elif damage == "mapping":
+        payload = json.loads(index.read_text())
+        payload["mapping"]["소나무"] = 99
+        index.write_text(json.dumps(payload))
+    else:
+        with rasterio.open(stack, "r+") as dataset:
+            dataset.write(np.zeros((4, 4), dtype="float32"), 1)
+    with pytest.raises(reference_bundle.ReferenceDataInvalidError):
+        reference_bundle.validate_probability_reference(reference)
+    output = tmp_path / "output"
+    result = probability_raster.build_probability_stack(
+        str(reference / RASTERS), str(output), cache_dir=str(cache)
+    )
+    assert not result["success"]
+    assert result["error_code"] == "probability_cache_invalid"
+    assert not output.exists()
+
+
+def test_cache_only_rejects_stale_manifest(tmp_path, reference):
+    packaged = tmp_path / "packaged"
+    reference_bundle.prepare_filtered_reference_bundle(
+        reference / "canonical.xlsx", packaged, raster_dir=reference / RASTERS
+    )
+    assert probability_raster.prepare_probability_stack_cache(
+        str(reference / RASTERS), str(packaged / "probability_cache")
+    )["success"]
+    shutil.move(str(packaged / "rasters"), str(tmp_path / "source-rasters"))
+    manifest = packaged / reference_bundle.FILTERED_MANIFEST_NAME
+    payload = json.loads(manifest.read_text())
+    next(iter(payload["raster_files"].values()))["size"] += 1
+    manifest.write_text(json.dumps(payload))
+    with pytest.raises(reference_bundle.ReferenceDataInvalidError, match="inventory"):
+        reference_bundle.validate_filtered_reference_data(packaged)
 
 
 def test_runtime_does_not_discover_qgis():

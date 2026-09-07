@@ -540,9 +540,7 @@ def build_project(
                     )
                 if is_types_1_to_3 or identification_enabled:
                     try:
-                        reference_bundle._validate_raster_dir(
-                            reference_root / reference_bundle.RASTER_DIR_RELATIVE_SUBPATH
-                        )
+                        reference_bundle.validate_probability_reference(reference_root)
                     except BuildError:
                         raise
             elif _legacy_reference_compatibility_requested(config):

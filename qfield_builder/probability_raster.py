@@ -169,6 +169,48 @@ def _cached_stack_matches(
     return stack, index
 
 
+def validate_probability_stack_cache(cache_dir: str | Path) -> dict:
+    """Validate a self-contained packaged stack/index without the source TIFFs."""
+    import rasterio
+
+    from .reference_bundle import _sha256_file
+
+    cache = Path(cache_dir)
+    stack = cache / CACHE_STACK_FILENAME
+    try:
+        payload = json.loads((cache / CACHE_INDEX_FILENAME).read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("밴드 인덱스 형식이 올바르지 않습니다.")
+        mapping = payload.get("mapping")
+        count = payload.get("band_count")
+        if (
+            payload.get("stack_path") != STACK_RELPATH
+            or type(count) is not int
+            or count < 1
+            or not isinstance(mapping, dict)
+            or len(mapping) != count
+            or any(not name.strip() or type(band) is not int for name, band in mapping.items())
+            or set(mapping.values()) != set(range(1, count + 1))
+        ):
+            raise ValueError("종별 밴드 매핑이 올바르지 않습니다.")
+        if payload.get("stack_sha256") != _sha256_file(stack):
+            raise ValueError("다중밴드 TIFF 해시가 인덱스와 다릅니다.")
+        with rasterio.open(stack) as dataset:
+            if (
+                dataset.count != count
+                or not dataset.crs
+                or dataset.transform.determinant == 0
+                or any(value != NODATA_VALUE for value in dataset.nodatavals)
+                or any(dataset.descriptions[band - 1] != name for name, band in mapping.items())
+            ):
+                raise ValueError("다중밴드 TIFF의 밴드/CRS/NoData가 올바르지 않습니다.")
+        return payload
+    except (OSError, ValueError, rasterio.errors.RasterioError) as exc:
+        raise ValueError(
+            f"출현확률 다중밴드 캐시를 사용할 수 없습니다: {exc} 앱을 다시 설치해 주세요."
+        ) from exc
+
+
 def _publish_stack(project: Path, staging_stack: Path, staging_index: Path) -> tuple[Path, Path]:
     """Atomically replace the project's stack/index pair, restoring an older pair on failure."""
     final_stack = project / STACK_RELPATH
@@ -297,7 +339,23 @@ def _validate_sources_gdal(sources: list[dict]) -> dict:
 def build_probability_stack(
     source_dir: str, project_dir: str, *, cache_dir: str | None = None
 ) -> dict:
-    species, excluded, error = _inventory(source_dir)
+    cached = None
+    if cache_dir and not Path(source_dir).exists():
+        # Packaged apps contain only the immutable stack and band index.
+        try:
+            payload = validate_probability_stack_cache(cache_dir)
+        except ValueError as exc:
+            return {
+                "success": False,
+                "error_code": "probability_cache_invalid",
+                "error_message": str(exc),
+            }
+        species, excluded, error = [], [], None
+        species_count = payload["band_count"]
+        cached = (Path(cache_dir) / CACHE_STACK_FILENAME, Path(cache_dir) / CACHE_INDEX_FILENAME)
+    else:
+        species, excluded, error = _inventory(source_dir)
+        species_count = len(species)
     if error is not None:
         return {
             "success": False,
@@ -311,21 +369,21 @@ def build_probability_stack(
     project.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=".qpb-probability-", dir=project.parent))
     try:
-        if cache_dir:
+        if cache_dir and cached is None:
             cached = _cached_stack_matches(Path(cache_dir), species)
-            if cached is not None:
-                staging_stack, staging_index = _stage_cached_stack(*cached, staging)
-                final_stack, final_index = _publish_stack(project, staging_stack, staging_index)
-                return {
-                    "success": True,
-                    "error_code": None,
-                    "error_message": None,
-                    "stack_path": str(final_stack),
-                    "index_path": str(final_index),
-                    "discovered_species_count": len(species),
-                    "excluded_files": excluded,
-                    "cache_reused": True,
-                }
+        if cached is not None:
+            staging_stack, staging_index = _stage_cached_stack(*cached, staging)
+            final_stack, final_index = _publish_stack(project, staging_stack, staging_index)
+            return {
+                "success": True,
+                "error_code": None,
+                "error_message": None,
+                "stack_path": str(final_stack),
+                "index_path": str(final_index),
+                "discovered_species_count": species_count,
+                "excluded_files": excluded,
+                "cache_reused": True,
+            }
 
         staging_stack = staging / CACHE_STACK_FILENAME
         result = _dispatch_gdal(
@@ -365,6 +423,8 @@ def build_probability_stack(
 
 def prepare_probability_stack_cache(source_dir: str, cache_dir: str) -> dict:
     """Create the immutable, package-time cache that makes project generation fast."""
+    from .reference_bundle import _sha256_file
+
     cache = Path(cache_dir)
     cache.parent.mkdir(parents=True, exist_ok=True)
     scratch = Path(tempfile.mkdtemp(prefix=".qpb-probability-cache-", dir=cache.parent))
@@ -377,6 +437,13 @@ def prepare_probability_stack_cache(source_dir: str, cache_dir: str) -> dict:
         staging.mkdir(parents=True)
         os.replace(Path(result["stack_path"]), staging / CACHE_STACK_FILENAME)
         os.replace(Path(result["index_path"]), staging / CACHE_INDEX_FILENAME)
+        index_path = staging / CACHE_INDEX_FILENAME
+        payload = json.loads(index_path.read_text(encoding="utf-8"))
+        payload["stack_sha256"] = _sha256_file(staging / CACHE_STACK_FILENAME)
+        index_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        validate_probability_stack_cache(staging)
         shutil.rmtree(cache, ignore_errors=True)
         os.replace(staging, cache)
         return {

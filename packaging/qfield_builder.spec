@@ -33,7 +33,7 @@ REPO_ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 - PyInstaller-injected
 # this application's own display name, including the PyInstaller packaging configuration's own
 # bundle name.
 APP_NAME = "FieldBuild Standalone"
-APP_VERSION = "0.1.3"
+APP_VERSION = "0.1.4"
 # D-89/D-95: build_macos_app.sh creates this staging directory from validated canonical-derived
 # artifacts before invoking PyInstaller. Keeping the root configurable lets release CI use a clean
 # temporary staging root.
@@ -74,9 +74,8 @@ a = Analysis(
         # explicit read-only candidate needed by the wizard and is never a generated-project file.
         (str(FILTERED_REFERENCE_ROOT / "filtered"), "storage/reference/filtered"),
         (str(FILTERED_REFERENCE_ROOT / "bundle_manifest.json"), "storage/reference"),
-        (str(FILTERED_REFERENCE_ROOT / "rasters"), "storage/reference/rasters"),
-        # The source TIFF collection is already above.  This prebuilt, source-inventory-checked
-        # multiband cache avoids recompressing every raster whenever a project is created.
+        # Source TIFFs remain build inputs only. Ship the self-contained multiband cache
+        # and its band index, which also records the TIFF hash for runtime validation.
         (str(FILTERED_REFERENCE_ROOT / "probability_cache"), "storage/reference/probability_cache"),
         # D-95: the workbook is the canonical source discovered by the wizard at runtime. It is
         # bundled as a read-only candidate; the workbook is never copied into generated projects.

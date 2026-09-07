@@ -22,6 +22,11 @@ and derived caches. Large datasets remain excluded from Git. When cloning elsewh
 the approved rasters under `storage/reference/rasters/bce_inverse_corrected_probability_maps/`
 and copy the canonical workbook to `storage/reference/tables/`.
 
+Packaged apps include only the merged multiband probability TIFF and its band index, not the
+individual source TIFFs. Source TIFFs remain local build inputs and are not deleted. The packaged
+cache is checked against its TIFF hash, band metadata and source inventory; a missing or damaged
+cache requires reinstalling/rebuilding the app, not downloading individual TIFFs at runtime.
+
 ## macOS build
 
 ```sh
