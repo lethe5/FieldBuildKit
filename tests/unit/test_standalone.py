@@ -196,6 +196,8 @@ def test_build_and_relocate_without_qgis(
             str(destination / probability_raster.STACK_RELPATH), str(raster_sources)
         )["valid"]
         assert len(list((destination / "reference").rglob("*.tif"))) == 1
+        with rasterio.open(destination / probability_raster.STACK_RELPATH) as stack:
+            assert stack.compression == rasterio.enums.Compression.deflate
         sample = probability_raster.sample_probability_candidate(
             str(destination), "소나무", {"lon": 127.015, "lat": 37.025}
         )

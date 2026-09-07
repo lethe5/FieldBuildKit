@@ -33,7 +33,7 @@ REPO_ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 - PyInstaller-injected
 # this application's own display name, including the PyInstaller packaging configuration's own
 # bundle name.
 APP_NAME = "FieldBuild Standalone"
-APP_VERSION = "0.1.5"
+APP_VERSION = "0.1.6"
 # D-89/D-95: build_macos_app.sh creates this staging directory from validated canonical-derived
 # artifacts before invoking PyInstaller. Keeping the root configurable lets release CI use a clean
 # temporary staging root.
@@ -87,7 +87,7 @@ a = Analysis(
     runtime_hooks=[],
     # The desktop UI is Widgets-based. Generated QML runs in QField, not this app.
     excludes=[
-        "qgis", "osgeo",
+        "qgis", "osgeo", "PIL",  # Pillow is used to build icons, not by the runtime UI.
         "PySide6.QtPdf", "PySide6.QtPdfWidgets",
         "PySide6.QtQuick", "PySide6.QtQuickWidgets", "PySide6.QtQml",
         "PySide6.QtVirtualKeyboard",
@@ -101,6 +101,23 @@ if sys.platform == "win32":
         for entry in a.binaries
         if entry[0].lower() not in {"icuuc.dll", "icudt78.dll"}
     ]
+
+# Keep Korean/English Qt catalogs and omit build-only artwork copies. BUNDLE below
+# still installs the actual macOS app icon; the on-screen logo remains in resources.
+a.datas = [
+    entry for entry in a.datas
+    if entry[0].replace("\\", "/") not in {
+        "resources/app-icon-glass.icns",
+        "resources/fieldbuild-kit-icon.icns",
+        "resources/fieldbuild-kit-icon-mark.png",
+    }
+    and (
+        not entry[0].replace("\\", "/").startswith((
+            "PySide6/Qt/translations/", "PySide6/translations/",
+        ))
+        or entry[0].endswith(("_ko.qm", "_ko_KR.qm", "_en.qm", "_en_US.qm", "_en_GB.qm"))
+    )
+]
 
 pyz = PYZ(a.pure)
 

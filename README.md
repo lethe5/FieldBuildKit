@@ -26,6 +26,8 @@ Packaged apps include only the merged multiband probability TIFF and its band in
 individual source TIFFs. Source TIFFs remain local build inputs and are not deleted. The packaged
 cache is checked against its TIFF hash, band metadata and source inventory; a missing or damaged
 cache requires reinstalling/rebuilding the app, not downloading individual TIFFs at runtime.
+New multiband TIFFs use lossless DEFLATE compression without changing probability values,
+NoData, band mapping or spatial metadata.
 
 ## macOS build
 
@@ -37,6 +39,9 @@ bash packaging/build_macos_app.sh
 The output is `dist/FieldBuild Standalone.app`, with a separate bundle identifier and credential
 store. It can coexist with FieldBuild Kit. This is an unsigned local trial build; mobile QField
 compatibility still requires device testing before release.
+The app excludes Pillow (retained as an icon-generation build dependency), build-only artwork
+copies and Qt translation catalogs other than Korean/English. UI images use Qt, and reference
+workbooks are read as tabular data without spreadsheet image extraction.
 
 ## Checks
 

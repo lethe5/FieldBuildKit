@@ -91,7 +91,8 @@ def _build_probability_stack_gdal(sources, output_path):
     profile.update(
         driver="GTiff",
         count=len(sources),
-        compress="lzw",
+        compress="deflate",
+        zlevel=9,
         interleave="band",
         predictor=3 if profile["dtype"].startswith("float") else 2,
         BIGTIFF="IF_SAFER",
