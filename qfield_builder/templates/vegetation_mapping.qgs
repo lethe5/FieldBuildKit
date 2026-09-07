@@ -645,7 +645,7 @@
         <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
           <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
         </labelStyle>
-        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="Details" groupBox="1" showLabel="1">
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="상세 정보" groupBox="1" showLabel="1">
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>
@@ -1818,7 +1818,7 @@
         <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
           <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
         </labelStyle>
-        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="Details" groupBox="1" showLabel="1">
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="상세 정보" groupBox="1" showLabel="1">
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>
@@ -1828,7 +1828,7 @@
             </labelStyle>
           </attributeEditorField>
         </attributeEditorContainer>
-        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="Related records" groupBox="1" showLabel="1">
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="관련 기록" groupBox="1" showLabel="1">
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>
@@ -2157,7 +2157,7 @@
         <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
           <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
         </labelStyle>
-        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="Details" groupBox="1" showLabel="1">
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="상세 정보" groupBox="1" showLabel="1">
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>
@@ -2177,7 +2177,7 @@
             </labelStyle>
           </attributeEditorField>
         </attributeEditorContainer>
-        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="Related records" groupBox="1" showLabel="1">
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="관련 기록" groupBox="1" showLabel="1">
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>

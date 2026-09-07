@@ -641,7 +641,7 @@
         <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
           <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
         </labelStyle>
-        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="Details" groupBox="1" showLabel="1">
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="Tab" visibilityExpressionEnabled="0" collapsedExpression="" name="관찰 정보" groupBox="0" showLabel="1">
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>
@@ -670,6 +670,34 @@
               <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
             </labelStyle>
           </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="11" name="leaf_photo_path" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="12" name="flower_photo_path" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="13" name="fruit_photo_path" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="15" name="notes" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorQmlElement verticalStretch="0" horizontalStretch="0" name="Identify attached photos" showLabel="1"><labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle></attributeEditorQmlElement>
+        </attributeEditorContainer>
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="Tab" visibilityExpressionEnabled="0" collapsedExpression="" name="식별 정보" groupBox="0" showLabel="1">
+          <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+            <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+          </labelStyle>
           <attributeEditorField verticalStretch="0" horizontalStretch="0" index="7" name="identification_score" showLabel="1">
             <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
               <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
@@ -690,34 +718,11 @@
               <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
             </labelStyle>
           </attributeEditorField>
-          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="11" name="leaf_photo_path" showLabel="1">
-            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
-              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
-            </labelStyle>
-          </attributeEditorField>
-          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="12" name="flower_photo_path" showLabel="1">
-            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
-              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
-            </labelStyle>
-          </attributeEditorField>
-          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="13" name="fruit_photo_path" showLabel="1">
-            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
-              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
-            </labelStyle>
-          </attributeEditorField>
           <attributeEditorField verticalStretch="0" horizontalStretch="0" index="14" name="identification_status" showLabel="1">
             <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
               <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
             </labelStyle>
           </attributeEditorField>
-          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="15" name="notes" showLabel="1">
-            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
-              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
-            </labelStyle>
-          </attributeEditorField>
-          <attributeEditorQmlElement verticalStretch="0" horizontalStretch="0" name="Identify attached photos" showLabel="1"><labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
-              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
-            </labelStyle></attributeEditorQmlElement>
         </attributeEditorContainer>
       </attributeEditorForm>
       <editable>

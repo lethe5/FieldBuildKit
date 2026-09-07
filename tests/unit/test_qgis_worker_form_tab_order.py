@@ -1,20 +1,20 @@
-"""Regression test for the "Related records" tab order (stakeholder bug report:
+"""Regression test for the "관련 기록" tab order (stakeholder bug report:
 "생성된 레이어에 related records를 Details 뒤에 위치해야 함.
 Details를 먼저 입력하고 daughter 레이어를
-추가하는 방식으로 작업하기 때문임" -- "Related records" must be positioned after "Details", because
+추가하는 방식으로 작업하기 때문임" -- "관련 기록" must be positioned after "상세 정보", because
 the workflow is "fill in Details first, then add daughter/child records").
 
 Confirmed root cause: `qfield_builder.qgis_worker._build_drag_and_drop_form` added the "Related
 records" container (`related_container`) to `invisible_root` *inside* the `if child_relations:`
-block, which ran *before* `invisible_root.addChildElement(root)` (the "Details" container) at the
-end of the function -- so "Related records" ended up as the first top-level tab and "Details" as
-the second. The fix reorders these two `addChildElement` calls so "Details" is always added first.
+block, which ran *before* `invisible_root.addChildElement(root)` (the "상세 정보" container) at the
+end of the function -- so "관련 기록" ended up as the first top-level tab and "상세 정보" as
+the second. The fix reorders these two `addChildElement` calls so "상세 정보" is always added first.
 
 This exercises the real PyQGIS-calling pipeline end-to-end (mirroring
 `test_qgis_worker_drag_and_drop_form.py`'s own convention) and inspects the actual generated `.qgs`
 XML's `<attributeEditorForm>` top-level child order for a layer that genuinely has both containers
 (the "temporary_plots" survey type's "site" layer, which has its own Details columns *and* is
-referenced by "survey" via a foreign key, giving it a non-empty "Related records" tab) --
+referenced by "survey" via a foreign key, giving it a non-empty "관련 기록" tab) --
 confirming `QgsAttributeEditorContainer`'s own `TabLayout` tab order really is determined by
 `addChildElement` call order, which a fake/mocked `pyqgis` dict cannot verify. Skipped when no
 real, bridgeable QGIS/PyQGIS runtime is available, matching that same file's convention.
@@ -90,7 +90,7 @@ def _top_level_container_names(form: ET.Element) -> list[str]:
     return [
         el.get("name")
         for el in form
-        if el.tag == "attributeEditorContainer" and el.get("name") in ("Details", "Related records")
+        if el.tag == "attributeEditorContainer" and el.get("name") in ("상세 정보", "관련 기록")
     ]
 
 
@@ -100,20 +100,20 @@ def test_site_layer_has_both_details_and_related_records_containers(tmp_path: Pa
     root = _build_and_parse_qgs(tmp_path)
     form = _attribute_editor_form_for_layer(root, _LAYER_WITH_BOTH_TABS)
     names = _top_level_container_names(form)
-    assert set(names) == {"Details", "Related records"}, (
-        f"expected both 'Details' and 'Related records' top-level containers; found: {names}"
+    assert set(names) == {"상세 정보", "관련 기록"}, (
+        f"expected both '상세 정보' and '관련 기록' top-level containers; found: {names}"
     )
 
 
 def test_details_tab_appears_before_related_records_tab(tmp_path: Path):
-    """The actual regression assertion: "Details" must be the first top-level tab, "Related
+    """The actual regression assertion: "상세 정보" must be the first top-level tab, "Related
     records" the second -- matching the stakeholder's required "fill Details in first, then add
     daughter records" workflow."""
     root = _build_and_parse_qgs(tmp_path)
     form = _attribute_editor_form_for_layer(root, _LAYER_WITH_BOTH_TABS)
     names = _top_level_container_names(form)
-    assert names == ["Details", "Related records"], (
-        f"expected 'Details' before 'Related records'; actual top-level tab order: {names}"
+    assert names == ["상세 정보", "관련 기록"], (
+        f"expected '상세 정보' before '관련 기록'; actual top-level tab order: {names}"
     )
 
 
@@ -125,16 +125,16 @@ def test_details_and_related_records_keep_the_normal_entry_workflow(tmp_path: Pa
     form = _attribute_editor_form_for_layer(root, _LAYER_WITH_BOTH_TABS)
 
     details_el = next(
-        el for el in form if el.tag == "attributeEditorContainer" and el.get("name") == "Details"
+        el for el in form if el.tag == "attributeEditorContainer" and el.get("name") == "상세 정보"
     )
     related_el = next(
         el
         for el in form
-        if el.tag == "attributeEditorContainer" and el.get("name") == "Related records"
+        if el.tag == "attributeEditorContainer" and el.get("name") == "관련 기록"
     )
 
     table_def = schemas.get_schema(_SURVEY_TYPE)[_LAYER_WITH_BOTH_TABS]
-    expected_column_names = {col.name for col in table_def.columns}
+    expected_column_names = {col.name for col in table_def.columns} - {table_def.uuid_pk}
     details_field_names = {el.get("name") for el in details_el.iter("attributeEditorField")}
     assert expected_column_names <= details_field_names
 

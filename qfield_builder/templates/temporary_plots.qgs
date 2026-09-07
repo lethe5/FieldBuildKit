@@ -912,7 +912,7 @@
         <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
           <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
         </labelStyle>
-        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="Details" groupBox="1" showLabel="1">
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="Tab" visibilityExpressionEnabled="0" collapsedExpression="" name="관찰 정보" groupBox="0" showLabel="1">
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>
@@ -932,26 +932,6 @@
             </labelStyle>
           </attributeEditorField>
           <attributeEditorField verticalStretch="0" horizontalStretch="0" index="5" name="selected_ktsn" showLabel="1">
-            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
-              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
-            </labelStyle>
-          </attributeEditorField>
-          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="6" name="identification_score" showLabel="1">
-            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
-              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
-            </labelStyle>
-          </attributeEditorField>
-          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="7" name="occurrence_probability" showLabel="1">
-            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
-              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
-            </labelStyle>
-          </attributeEditorField>
-          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="8" name="identification_timestamp" showLabel="1">
-            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
-              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
-            </labelStyle>
-          </attributeEditorField>
-          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="9" name="identification_model_version" showLabel="1">
             <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
               <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
             </labelStyle>
@@ -976,11 +956,6 @@
               <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
             </labelStyle>
           </attributeEditorField>
-          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="14" name="identification_status" showLabel="1">
-            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
-              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
-            </labelStyle>
-          </attributeEditorField>
           <attributeEditorField verticalStretch="0" horizontalStretch="0" index="15" name="notes" showLabel="1">
             <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
               <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
@@ -989,6 +964,36 @@
           <attributeEditorQmlElement verticalStretch="0" horizontalStretch="0" name="Identify attached photos" showLabel="1"><labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
               <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
             </labelStyle></attributeEditorQmlElement>
+        </attributeEditorContainer>
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="Tab" visibilityExpressionEnabled="0" collapsedExpression="" name="식별 정보" groupBox="0" showLabel="1">
+          <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+            <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+          </labelStyle>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="6" name="identification_score" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="7" name="occurrence_probability" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="8" name="identification_timestamp" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="9" name="identification_model_version" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="14" name="identification_status" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
         </attributeEditorContainer>
       </attributeEditorForm>
       <editable>
@@ -1825,7 +1830,7 @@
         <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
           <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
         </labelStyle>
-        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="Details" groupBox="1" showLabel="1">
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="상세 정보" groupBox="1" showLabel="1">
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>
@@ -1835,7 +1840,7 @@
             </labelStyle>
           </attributeEditorField>
         </attributeEditorContainer>
-        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="Related records" groupBox="1" showLabel="1">
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="관련 기록" groupBox="1" showLabel="1">
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>
@@ -2236,7 +2241,7 @@
         <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
           <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
         </labelStyle>
-        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="Details" groupBox="1" showLabel="1">
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="상세 정보" groupBox="1" showLabel="1">
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>
@@ -2261,7 +2266,7 @@
             </labelStyle>
           </attributeEditorField>
         </attributeEditorContainer>
-        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="Related records" groupBox="1" showLabel="1">
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="관련 기록" groupBox="1" showLabel="1">
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>
@@ -2609,7 +2614,7 @@
         <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
           <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
         </labelStyle>
-        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="Details" groupBox="1" showLabel="1">
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="상세 정보" groupBox="1" showLabel="1">
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>

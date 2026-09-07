@@ -160,6 +160,14 @@ def test_build_and_relocate_without_qgis(
     # UUID generation must remain active without displaying primary keys in the form.
     for layer in document.findall("./projectlayers/maplayer"):
         table_name = layer.findtext("datasource", "").split("|layername=")[-1]
+        containers = layer.findall("./attributeEditorForm/attributeEditorContainer")
+        names = [container.get("name") for container in containers]
+        assert not {"Details", "Related records"} & set(names)
+        if containers and layer.findtext("layername") != "식물관찰":
+            expected_names = ["상세 정보"]
+            if layer.find(".//attributeEditorRelation") is not None:
+                expected_names.append("관련 기록")
+            assert names == expected_names
         is_reference = layer.findtext("id") in reference_ids
         is_photo = table_name in schemas.photo_tables_for(survey_type)
         assert layer.findtext("flags/Searchable") == (
@@ -188,6 +196,35 @@ def test_build_and_relocate_without_qgis(
             )
             assert widget.get("type") == "RelationReference"
             assert layer.find(f".//attributeEditorField[@name='{foreign_key}']") is not None
+    observation_layers = document.findall("./projectlayers/maplayer[layername='식물관찰']")
+    assert len(observation_layers) == (0 if survey_type == "vegetation_mapping" else 1)
+    for layer in observation_layers:
+        tabs = layer.findall("./attributeEditorForm/attributeEditorContainer")
+        assert [tab.get("name") for tab in tabs] == ["관찰 정보", "식별 정보"]
+        assert all(tab.get("type") == "Tab" and tab.get("groupBox") == "0" for tab in tabs)
+        observation_items = [item for item in tabs[0] if item.tag != "labelStyle"]
+        observation_names = [item.get("name") for item in observation_items]
+        fruit_index = observation_names.index("fruit_photo_path")
+        assert observation_names[fruit_index + 1] == "notes"
+        assert observation_names[fruit_index + 2:] == (
+            ["Identify attached photos"] if identification else []
+        )
+        assert [
+            item.get("name") for item in tabs[1] if item.tag != "labelStyle"
+        ] == [
+            "identification_score",
+            "occurrence_probability",
+            "identification_timestamp",
+            "identification_model_version",
+            "identification_status",
+        ]
+        assert [
+            name for name in observation_names if name.endswith("_photo_path")
+        ] == ["leaf_photo_path", "flower_photo_path", "fruit_photo_path"]
+        # A moved field must not also remain in its previous tab.
+        all_fields = layer.findall("./attributeEditorForm//attributeEditorField")
+        names = [item.get("name") for item in all_fields]
+        assert len(names) == len(set(names))
     widget = document.find(".//attributeEditorQmlElement")
     assert (widget is not None) == identification
     if identification:
