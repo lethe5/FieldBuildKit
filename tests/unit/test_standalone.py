@@ -6,6 +6,8 @@ import builtins
 import json
 import shutil
 import sqlite3
+import subprocess
+import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -310,6 +312,77 @@ def test_cache_only_rejects_stale_manifest(tmp_path, reference):
     manifest.write_text(json.dumps(payload))
     with pytest.raises(reference_bundle.ReferenceDataInvalidError, match="inventory"):
         reference_bundle.validate_filtered_reference_data(packaged)
+
+
+@pytest.mark.parametrize("update", ["pixels", "add", "remove"])
+def test_release_preparation_rebuilds_cache_from_updated_sources(tmp_path, reference, update):
+    """Old hashes never constrain valid updates to the current TIFF input set."""
+    root = Path(__file__).resolve().parents[2]
+    destination = tmp_path / "prepared"
+    command = [
+        sys.executable, str(root / "packaging/prepare_reference_bundle.py"),
+        "--canonical-workbook", str(reference / "canonical.xlsx"),
+        "--raster-dir", str(reference / RASTERS), "--destination", str(destination),
+    ]
+    subprocess.run(command, check=True, capture_output=True, text=True)
+    cache = destination / "probability_cache"
+    before = probability_raster.validate_probability_stack_cache(cache)
+    pine = reference / RASTERS / "bce_inverse_corrected_probability_소나무.tif"
+    if update == "pixels":
+        with rasterio.open(pine, "r+") as raster:
+            pixels = raster.read(1)
+            pixels[1, 1] = 0.5
+            raster.write(pixels, 1)
+    elif update == "add":
+        shutil.copyfile(pine, pine.with_name("bce_inverse_corrected_probability_새종.tif"))
+    else:
+        (reference / RASTERS / "bce_inverse_corrected_probability_참나무.tif").unlink()
+    source_hashes = {
+        path.name: reference_bundle._sha256_file(path)
+        for path in (reference / RASTERS).glob("*.tif")
+    }
+    subprocess.run(command, check=True, capture_output=True, text=True)
+    after = probability_raster.validate_probability_stack_cache(cache)
+    assert before["stack_sha256"] != after["stack_sha256"]
+    assert after["band_count"] == {"pixels": 2, "add": 3, "remove": 1}[update]
+    assert probability_raster.inspect_probability_stack(
+        str(cache / probability_raster.CACHE_STACK_FILENAME), str(reference / RASTERS)
+    )["valid"]
+    manifest = json.loads((destination / "bundle_manifest.json").read_text(encoding="utf-8"))
+    assert {name: entry["sha256"] for name, entry in manifest["raster_files"].items()} == (
+        source_hashes
+    )
+    assert {
+        path.name: reference_bundle._sha256_file(path)
+        for path in (reference / RASTERS).glob("*.tif")
+    } == source_hashes
+
+
+@pytest.mark.parametrize("damage", ["missing_hash", "wrong_hash"])
+def test_spec_rejects_legacy_cache_even_with_original_rasters(
+    tmp_path, reference, monkeypatch, damage
+):
+    root = Path(__file__).resolve().parents[2]
+    destination = tmp_path / "prepared"
+    reference_bundle.prepare_filtered_reference_bundle(
+        str(reference / "canonical.xlsx"), str(destination), raster_dir=reference / RASTERS
+    )
+    cache = destination / "probability_cache"
+    assert probability_raster.prepare_probability_stack_cache(
+        str(reference / RASTERS), str(cache)
+    )["success"]
+    index = cache / probability_raster.CACHE_INDEX_FILENAME
+    payload = json.loads(index.read_text(encoding="utf-8"))
+    if damage == "missing_hash":
+        del payload["stack_sha256"]
+    else:
+        payload["stack_sha256"] = "0" * 64
+    index.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setenv("QPB_FILTERED_REFERENCE_ROOT", str(destination))
+    spec = root / "packaging/qfield_builder.spec"
+    prefix = spec.read_text(encoding="utf-8").split("gis_datas, gis_binaries, gis_imports =")[0]
+    with pytest.raises(SystemExit, match="build_app.py"):
+        exec(compile(prefix, str(spec), "exec"), {"SPECPATH": str(root / "packaging")})
 
 
 def test_runtime_does_not_discover_qgis():

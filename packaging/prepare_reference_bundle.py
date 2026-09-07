@@ -8,16 +8,26 @@ import sys
 from pathlib import Path
 
 # Make the helper executable from a clean checkout without requiring callers to construct a
-# PYTHONPATH. The macOS release script still sets PYTHONPATH explicitly for its chosen interpreter.
+# PYTHONPATH. The shared build entry point uses the same Python interpreter for every step.
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from qfield_builder.probability_raster import (  # noqa: E402
+    prepare_probability_stack_cache,
+    validate_probability_stack_cache,
+)
 from qfield_builder.reference_bundle import (  # noqa: E402
     prepare_filtered_reference_bundle,
     validate_canonical_release_source,
+    validate_filtered_reference_data,
 )
-from qfield_builder.probability_raster import prepare_probability_stack_cache  # noqa: E402
+
+
+def validate_prepared_reference(root: Path) -> None:
+    """Reject stale/missing cache hashes even when individual source TIFFs are present."""
+    validate_probability_stack_cache(root / "probability_cache")
+    validate_filtered_reference_data(root)
 
 
 def main() -> int:
@@ -56,6 +66,7 @@ def main() -> int:
         raise RuntimeError(
             cache_result.get("error_message") or "출현확률 다중밴드 캐시를 생성하지 못했습니다."
         )
+    validate_prepared_reference(args.destination)
     return 0
 
 

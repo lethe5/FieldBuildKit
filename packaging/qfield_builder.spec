@@ -7,9 +7,8 @@ call, which produces a macOS ``.app`` bundle on top of PyInstaller's own OS-agno
 ``COLLECT`` "onedir" output -- is guarded by ``sys.platform == "darwin"`` and simply does not run
 on Windows/Linux, where that same onedir output (a folder containing a native launcher executable)
 is already the appropriate, OS-native packaged artifact; no separate Windows-only spec is needed.
-Actual macOS-specific build *orchestration* (invoking PyInstaller with this spec, then verifying
-the resulting ``.app`` genuinely launches) lives in the sibling, explicitly macOS-scoped
-``packaging/build_macos_app.sh`` -- never in this file.
+Shared build orchestration and output verification live in ``packaging/build_app.py``.
+``packaging/build_macos_app.sh`` is a compatibility wrapper for that entry point.
 
 This is an MVP, unsigned, local-test build: no code-signing identity is available in this
 environment (see the main README's "Opening an unsigned build on macOS" section), and this spec
@@ -33,13 +32,22 @@ REPO_ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 - PyInstaller-injected
 # this application's own display name, including the PyInstaller packaging configuration's own
 # bundle name.
 APP_NAME = "FieldBuild Standalone"
-APP_VERSION = "0.1.9"
-# D-89/D-95: build_macos_app.sh creates this staging directory from validated canonical-derived
-# artifacts before invoking PyInstaller. Keeping the root configurable lets release CI use a clean
-# temporary staging root.
-FILTERED_REFERENCE_ROOT = Path(
-    os.environ.get("QPB_FILTERED_REFERENCE_ROOT", str(REPO_ROOT / "storage" / "reference"))
-).resolve()
+APP_VERSION = "0.1.10"
+# No fallback to storage/reference: copied development caches may predate hash validation.
+if not os.environ.get("QPB_FILTERED_REFERENCE_ROOT"):
+    raise SystemExit("먼저 python packaging/build_app.py로 빌드하세요. 준비된 참조 자료가 필요합니다.")
+FILTERED_REFERENCE_ROOT = Path(os.environ["QPB_FILTERED_REFERENCE_ROOT"]).resolve()
+sys.path.insert(0, str(REPO_ROOT / "packaging"))
+from prepare_reference_bundle import validate_prepared_reference
+from qfield_builder.errors import BuildError
+
+try:
+    validate_prepared_reference(FILTERED_REFERENCE_ROOT)
+except (OSError, ValueError, BuildError) as exc:
+    raise SystemExit(
+        f"패키징할 참조 자료가 유효하지 않습니다: {exc}\n"
+        "python packaging/build_app.py로 현재 원본에서 다시 빌드하세요."
+    ) from exc
 CANONICAL_REFERENCE_SOURCE = Path(
     os.environ.get(
         "QPB_CANONICAL_REFERENCE_SOURCE",
