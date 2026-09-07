@@ -1,6 +1,7 @@
 # Feature: QField Project Builder — Integrated Product Specification
 
 > Status: APPROVED (user approval recorded 2026-09-03)
+> Approved amendment: 2026-09-07 — D-98 removes the application-imposed identification candidate limit. Section 13.2a supersedes all earlier three-result/three-candidate requirements, including the original Requirements Draft; historical text below is retained for provenance.
 > Approved amendment: 2026-09-04 — Category B Decision Log D-97 clarifies the iPhone-QField verification outcome for an online VWorld `Satellite` layer and the project-local SVG contract for QField plugin-toolbar actions. User approval recorded 2026-09-04; it does not alter the approval status of D-95 or any earlier decision.
 > Owner: spec-writer
 > Latest approved revision: 2026-09-03 — Category C Decision Log D-95 replaces the legacy KTSN/국가생물종목록 source pipeline with the user-confirmed `storage/reference/tables/Rpt_2026-08-29_List.xlsx` canonical workbook, adds source-candidate confirmation/upload to project creation, defines the accepted-name/synonym and authority-stripping model, adds a taxonomy reference layer and HTML-report aggregation contract, and records provenance, compatibility, safety, and fail-closed behavior. User approval recorded 2026-09-03.
@@ -571,6 +572,36 @@ This subsection mirrors, for the Pl@ntNet API key, the VWorld online-layer conse
 - Note (partially closes former Open Question O-14; Decision Log D-32): a real Pl@ntNet API key now exists and is available for live-network-gated implementer/test-designer verification via the environment variable `QPB_TEST_PLANTNET_API_KEY`, mirroring the established `QPB_TEST_VWORLD_API_KEY` convention already used in this codebase (see `tests/unit/test_vworld.py`'s `os.environ.get("QPB_TEST_VWORLD_API_KEY")` pattern). This specification does not, and must never, record the literal key value. The existence of a real key unblocks verification work; it does not itself constitute verification. The exact authentication scheme (query parameter vs. header), current endpoint base URL, rate-limit/quota behavior, and response schema described above still need to be actually confirmed against Pl@ntNet's real API as implementer/test-designer work before FR-QPB-104 is treated as implemented — this note does not assert that confirmation has already happened.
 - Note (supersedes only the "still need to be actually confirmed" portion of the note immediately above, which is left unchanged and superseded, not deleted; closes former Open Question O-14; Decision Log D-37): that confirmation has now actually happened. Per `tests/acceptance/qfield_project_builder/HARNESS_CONTRACT.md`'s "Post-MVP: Section 13" section (function 8's "Live-verification note"), the test-designer performed a real live verification against the real Pl@ntNet API on 2026-08-15, using the real key already present locally in `QPB_TEST_PLANTNET_API_KEY` (never written to any file). See Decision Log D-37 for the confirmed facts, quoted verbatim from that note. This is recorded as a **confirmed technical fact from live verification, not a stakeholder product decision** — distinct in kind from D-32 (which recorded that the stakeholder had supplied a key, a stakeholder-provided fact) and from a Category B/C stakeholder-directed spec change.
 - Note (does not supersede or reword FR-QPB-104 above; clarifies which bytes are submitted, without duplicating substance; Decision Log D-52): the byte content submitted as each photo's `images` multipart field is the resized copy produced by FR-QPB-101 (post-MVP; further revised; Decision Log D-52)'s temporary-copy-then-`FileUtils.restrictImageSize()`-then-read-back mechanism (maximum 1280 pixels on the long side) — never the original attachment file's unresized bytes. This note records only where the resize step's mechanics are specified (FR-QPB-101), not a new rule of its own; see Decision Log D-52 for the full finding (a confirmed real-device HTTP 413 rejection when an unresized 6 MB photo was submitted) and rationale.
+
+### 13.2a Candidate cardinality and filtering (D-98; approved 2026-09-07)
+
+This amendment takes precedence over the earlier candidate-count wording in FR-QPB-101,
+FR-QPB-104, FR-QPB-106, FR-QPB-109, AC-QPB-040 and associated acceptance criteria,
+the original Requirements Draft, and historical decisions D-37/D-38/D-54/D-60/D-64.
+Those records remain historical evidence, not an active three-candidate requirement.
+
+- **FR-QPB-104 (D-98):** Omit `nb-results` from the identify request. Do not substitute
+  another fixed result limit. Keep the endpoint, authentication, `include-related-images=true`,
+  organ mapping, five-photo maximum, and error/privacy rules unchanged. "No limit" means
+  no application-imposed limit; it does not promise an unlimited API response, change
+  provider defaults, or require extra requests/pagination.
+- **FR-QPB-101/106/109 (D-98):** Inspect every returned result in response order using the
+  existing canonical-reference matching rules. Exclude unmatched or ambiguous candidates
+  and candidates with no non-blank resolved Korean name. Display every surviving candidate,
+  without truncation before or after filtering. Do not invent Korean names from API labels.
+  Canonical-reference failure remains fail-closed; zero eligible candidates exposes the
+  existing manual-entry option where candidate selection is supported. Explicit selection,
+  persistence, probability enrichment and all other matching behavior remain unchanged.
+- **AC-QPB-040 (D-98):** Both the shipped QML request and the test-only Python request
+  helper omit `nb-results`. A response with more than three eligible candidates retains
+  all of them in API order. A mixed fixture whose first three entries are ineligible and
+  whose later entries contain at least four eligible species must display those later
+  eligible species, excluding unmatched, ambiguous and blank-name entries. Zero and
+  fewer-than-three eligible outcomes must not be padded.
+- **Verification boundary:** Offline tests execute the emitted JavaScript response handler
+  with controlled lookup/probability fixtures and inspect its candidate model; this is not
+  physical-device UI verification. Manual QField QA must confirm every eligible card is
+  reachable and selectable, in response order, including cards beyond the third.
 
 ### 13.3 Reference assets (post-MVP)
 
@@ -2032,6 +2063,18 @@ The four entries below (D-76–D-79) are dated 2026-08-28 and record the stakeho
   **Approval status: APPROVED by the user on 2026-09-04.** A fresh `test-designer` must add acceptance coverage and traceability for AC-QPB-146–148 before any implementation work proceeds. This clarification changes no application source or test file.
 
 **Closing note on the FieldBuild Kit logo asset (2026-08-28):** a confirmed, stakeholder-directed decision to use the newly supplied `resources/fieldbuild-kit-logo.png` asset as (1) a banner in the desktop wizard UI and (2) the source for a regenerated macOS app icon (cropped to its icon-mark sub-region only, replacing `resources/app-icon-glass.icns` in `packaging/qfield_builder.spec`) — a direct follow-on to D-81/D-86's rename above — is recorded in `docs/ui-design-guidelines.md`'s "Branding: logo asset and its two confirmed uses (2026-08-28)" section, not here. Per this project's Category D ("UX/visual-design refinement") routing convention, this is a pure branding/asset-placement decision with no behavioral change to any wizard step, generated project output, or acceptance criterion, and requires no new FR/AC text; this note exists only for traceability from D-81/D-86 to where the resulting asset decision is actually recorded, mirroring this section's own closing note following D-25 above.
+
+- **D-98 (APPROVED; 2026-09-07; Category C — unrestricted candidate count):** The user
+  explicitly requested "명세와 테스트를 후보 제한이 없는 것으로 수정해" after the discrepancy
+  between the current QML behavior and the historical three-result contract was explained.
+  Section 13.2a therefore supersedes the fixed-count portions only; earlier decisions and
+  their rationale are retained, not silently rewritten. The shipped QML already follows
+  this rule. Update the test-only Python request helper, acceptance contract, offline
+  regression coverage, traceability and manual QA instructions to agree.
+  No database/schema migration, new network destination, extra API request or platform-specific
+  behavior is introduced. Existing project files are not rewritten; older generated projects
+  may retain the request behavior embedded when they were created. This reconciliation changes
+  no shipped app behavior, so the app version remains 0.1.9 and no rebuild is required.
 
 ## 20. Open Questions (unresolved items — explicit, not invented)
 

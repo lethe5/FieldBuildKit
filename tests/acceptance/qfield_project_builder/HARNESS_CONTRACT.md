@@ -261,22 +261,26 @@ that is a superset of what is asserted here and would not break these tests.
 
 ### 7. `build_plantnet_identify_request(photo_paths: list[str], organs: list[str], project: str = "all") -> dict`
 
+> **2026-09-07 D-98 amendment:** Omit `nb-results` from both reference helpers and the
+> shipped QML request. No client-side truncation is permitted before or after canonical
+> Korean-name filtering. Historical live observations and D-54 notes below do not impose
+> a current result count. See specification Section 13.2a; provider defaults remain external.
+
 A **pure-Python reference implementation of FR-QPB-104's client-side request-shape rules only**
 — performs no network I/O. It is not the shipped mechanism (Pl@ntNet is called from the embedded
 `QML Widget` via QML's own native `XMLHttpRequest`, FR-QPB-101); it exists so the *rules*
-themselves (exactly 3 results requested, one `organs` value per photo in matching order, at most
+themselves (no application-imposed result limit, one `organs` value per photo in matching order, at most
 five photos, JPEG/PNG only) are verifiable offline against real, test-designer-confirmed API
 behavior (see function 8 below and its live-verification note).
 
-- On success: `{"ok": True, "url": str, "method": "POST", "query": {"project": str, "nb-results": 3}, "organs": list[str], "photo_paths": list[str]}`.
+- On success: `{"ok": True, "url": str, "method": "POST", "query": {"project": str, "include-related-images": True}, "organs": list[str], "photo_paths": list[str]}`.
   `url` must be of the confirmed real endpoint family `https://my-api.plantnet.org/v2/identify/{project}`
   — this exact base URL (not `my.plantnet.org`, which 404s) and the `api-key`/`nb-results`
   query-parameter authentication scheme were live-confirmed by the test-designer against the real
   API on 2026-08-15 using the real key in `QPB_TEST_PLANTNET_API_KEY` (see function 8's
   docstring-equivalent note); this specification note (FR-QPB-104) previously left the base URL
   and auth scheme as "must be confirmed," which this round's live check now resolves.
-  `nb-results` must always be exactly `3` — the function must not accept a caller override for
-  this, per FR-QPB-104's "exactly three results."
+  `nb-results` must be absent (FR-QPB-104, D-98). Do not enforce a replacement fixed count.
 - On rejection: `{"ok": False, "error_code": str, "message": str}`. Required `error_code` values:
   `"organ_count_mismatch"` (`len(organs) != len(photo_paths)`), `"too_many_photos"` (more than 5
   photos), `"unsupported_photo_format"` (an extension other than `.jpg`/`.jpeg`/`.png`).

@@ -1,5 +1,23 @@
 # Traceability Matrix — QField Project Builder, Post-MVP Identification Subsystem (Section 13)
 
+## 2026-09-07 D-98 — current candidate-count contract
+
+This section supersedes all fixed-three-result assertions and mappings retained below.
+Historical verification results are preserved, not current acceptance requirements.
+
+- FR-QPB-104 / AC-QPB-040: `test_requests_without_a_result_count_limit` checks the Python
+  reference request; `test_call_plantnet_identify_requests_include_related_images_true`
+  additionally checks the actual helper URL; `test_identification_widget_qml_does_not_request_a_fixed_result_count`
+  checks the emitted QML request contains no `nb-results` parameter.
+- FR-QPB-101/106/109 / AC-QPB-040: `test_identification_candidates_are_not_truncated_before_or_after_filtering`
+  executes the emitted JavaScript handler with mixed candidates, including more than three
+  eligible results after an ineligible prefix, and zero/one eligible-result variants.
+- `test_plantnet_live_endpoint_authenticates_and_returns_the_confirmed_schema` retains
+  schema/score-order checks without a maximum count; it remains network-gated.
+- `test_ac040_displayed_candidate_card_order_matches_descending_score` records residual
+  physical-QField QA: all eligible cards, including cards beyond the third, are reachable
+  and selectable in response order. Offline model checks do not claim device rendering.
+
 > Specification: `specs/qfield-project-builder.md`, Section 13 (Pl@ntNet / KTSN / Occurrence
 > Probability), specifically the **guaranteed-manual baseline** slice authorized by Decision Log
 > D-31–D-36: FR-QPB-100/101 (project-scoped `.qml` plugin + embedded `QML Widget` action),

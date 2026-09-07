@@ -792,7 +792,7 @@ def test_identification_widget_qml_embeds_the_confirmed_plantnet_endpoint():
 
 def test_identification_widget_qml_does_not_request_a_fixed_result_count():
     content = qml_plugin.render_identification_widget_qml("''")
-    assert "nb-results=3" not in content
+    assert "nb-results" not in content
     assert "for (var i = 0; i < results.length; i++)" in content
 
 
@@ -808,6 +808,64 @@ def test_identification_widget_qml_filters_candidates_without_a_korean_name():
         in handler_body
     )
     assert "국명이 있는 동정 후보를 찾지 못했습니다." in handler_body
+
+
+@pytest.mark.parametrize("eligible_count", [0, 1, 5])
+def test_identification_candidates_are_not_truncated_before_or_after_filtering(eligible_count):
+    """D-98: execute the emitted handler, not a Python reimplementation of its loop."""
+    content = qml_plugin.render_identification_widget_qml("''")
+    handler = _extract_function_body(
+        content,
+        "function qpbHandlePlantNetResponse(response) {",
+        "function qpbPersistIdentification",
+    )
+    names = ["unmatched", "ambiguous", "blank"] + [
+        f"eligible-{i}" for i in range(eligible_count)
+    ]
+    response = {
+        "version": "test-model",
+        "results": [
+            {"score": 1 - i / 20, "species": {"scientificNameWithoutAuthor": name}}
+            for i, name in enumerate(names)
+        ],
+    }
+    harness = """
+var qpbCanonicalReferenceRequired = true;
+var qpbLastLocation = null, qpbLastModelVersion = "";
+var qpbCandidateSelectionEnabled = true;
+var qpbCandidatesModel = [], qpbStatusLabel = {text: ""};
+var qpbManualEntryPanel = {visible: false};
+function qpbLookupCanonicalTaxonomy(name) {
+    return {
+        available: true,
+        matched: name !== "unmatched",
+        ambiguous: name === "ambiguous",
+        selected_korean_name: name === "blank" ? "  " : "국명-" + name,
+        selected_scientific_name: name
+    };
+}
+function qpbFormatProbability(name, location) {
+    return {text: "25%", value: 0.25};
+}
+"""
+    harness += handler
+    harness += "\nqpbHandlePlantNetResponse(" + json.dumps(response) + ");"
+    harness += """
+process.stdout.write(JSON.stringify({
+    candidates: qpbCandidatesModel,
+    manual: qpbManualEntryPanel.visible
+}));
+"""
+    completed = subprocess.run(
+        ["node", "-"], input=harness, capture_output=True, text=True, timeout=10
+    )
+    assert completed.returncode == 0, completed.stderr
+    actual = json.loads(completed.stdout)
+    assert [candidate["scientific_name"] for candidate in actual["candidates"]] == names[3:]
+    assert [candidate["score"] for candidate in actual["candidates"]] == [
+        entry["score"] for entry in response["results"][3:]
+    ]
+    assert actual["manual"] == (eligible_count == 0)
 
 
 def test_identification_widget_qml_embeds_the_supplied_photo_paths_expression():

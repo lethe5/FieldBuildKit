@@ -95,7 +95,7 @@ def test_ac044_exif_gps_is_transformed_to_the_raster_crs_before_sampling():
         "sampled_value_is_exactly_negative_9999_displays_no_probability_data_not_zero_or_a_probability",
         "coordinate_outside_raster_extent_displays_no_probability_data",
         "missing_raster_file_displays_no_probability_data",
-        "no_photo_gps_displays_no_photo_gps_message_and_still_shows_top_three_candidates",
+        "no_photo_gps_displays_no_photo_gps_message_and_still_shows_all_eligible_candidates",
         "sampled_value_of_exactly_0.0_is_displayed_as_a_valid_probability_not_no_probability_data",
         "sampled_value_outside_0_to_1_and_not_negative_9999_is_a_validation_warning_never_clamped",
     ],
@@ -114,7 +114,7 @@ def test_ac044_exif_gps_is_transformed_to_the_raster_crs_before_sampling():
         "(c) missing-raster case: use a candidate Korean name with no matching "
         "bce_inverse_corrected_probability_{name}.tif file present; confirm 'No probability data'. "
         "(d) no-GPS case: attach a photo with no EXIF GPS; confirm the message is the no-GPS "
-        "variant ('No photo GPS -- probability unavailable') and the top-three candidates are "
+        "variant ('No photo GPS -- probability unavailable') and the eligible candidates are "
         "still shown. "
         "(e) 0.0 case: attach a photo whose GPS samples to exactly 0.0; confirm this is displayed "
         "as a valid probability (e.g. '0%'), never as 'No probability data'. "
@@ -207,7 +207,7 @@ def test_ac072_on_device_probability_sampling_while_disconnected_from_desktop():
         "identification_model_version (DR-QPB-052/053) are populated when the API response "
         "supplied them, NULL otherwise. "
         "\n\nManual QA steps -- Sub-case (ii), manual identification entry: "
-        "(7) Repeat steps (1)-(3) for a second brand-new 'Add feature' session. Reject all three "
+        "(7) Repeat steps (1)-(3) for a second brand-new 'Add feature' session. Reject all "
         "displayed candidates and type a scientific and/or Korean name manually, then confirm the "
         "manual entry. Confirm the typed value appears immediately in the still-open, unsaved "
         "form. "
@@ -263,7 +263,7 @@ def test_ac046a_brand_new_unsaved_feature_write_back_persists_for_candidate_sele
         "(4) Reopen the project's GeoPackage (e.g. in QGIS Desktop) and confirm every value "
         "recorded in step (1) is completely unchanged -- the attempted candidate selection had no "
         "effect on the saved record. "
-        "(5) Repeat steps (2)-(4), this time rejecting all three candidates and confirming a "
+        "(5) Repeat steps (2)-(4), this time rejecting all displayed candidates and confirming a "
         "manual entry instead of selecting a candidate. Confirm the same disclosed message "
         "appears and the same previously-saved values remain unchanged afterward. "
         "(6) Do not report either outcome in this test as a defect: per Decision Log D-50, this is "
@@ -300,16 +300,17 @@ def test_fr109_timestamp_and_model_version_persistence_not_testable_pending_sche
 
 @pytest.mark.skip(
     reason=(
-        "AC-QPB-040's request-count half (exactly 3 results requested via nb-results=3) and its "
+        "AC-QPB-040/D-98's request-count rule (no nb-results parameter) and its "
         "response-ordering half (the real Pl@ntNet API already returns results in descending-"
         "score order, live-confirmed during test design) are both covered offline/live in "
         "test_post_mvp_plantnet_request_shape.py. The one remaining, genuinely untestable-here "
-        "half is that the embedded QML Widget actually *renders* the three candidate cards "
+        "half is that the embedded QML Widget actually *renders* all eligible candidate cards "
         "on-screen in that same descending-score order without re-shuffling them -- a QML/UI "
         "rendering behavior with no Python-observable artifact. "
         "\n\nManual QA steps: trigger 'Identify attached photos' on a physical device for a photo "
-        "that yields three distinguishable-confidence candidates; confirm the three displayed "
-        "candidate cards appear in descending Pl@ntNet-score order on-screen."
+        "that yields more than three eligible candidates; confirm all displayed "
+        "candidate cards are reachable and selectable in API score order, "
+        "including beyond the third."
     )
 )
 def test_ac040_displayed_candidate_card_order_matches_descending_score():

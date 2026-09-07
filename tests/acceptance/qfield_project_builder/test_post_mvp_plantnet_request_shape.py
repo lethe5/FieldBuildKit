@@ -3,8 +3,8 @@
 The real, shipped mechanism that calls Pl@ntNet is the embedded `QML Widget`'s own native
 `XMLHttpRequest` (FR-QPB-101) — genuinely QML-runtime behavior this project has no harness for.
 What *is* testable, and what this file tests, is the *request-shape rules* FR-QPB-104 describes
-(endpoint family, exactly 3 results, one `organs` value per photo in matching order, at most 5
-photos, JPEG/PNG only) via a pure-Python reference implementation
+(endpoint family, no application-imposed result count, one `organs` value per photo in matching
+order, at most 5 photos, JPEG/PNG only) via a pure-Python reference implementation
 (`acceptance_api.build_plantnet_identify_request`), plus a live, `network`-marked test that
 actually calls the real Pl@ntNet API (`acceptance_api.call_plantnet_identify`) using the real key
 in `QPB_TEST_PLANTNET_API_KEY` to confirm the authentication scheme/endpoint/response schema
@@ -14,6 +14,8 @@ for the full rationale on why this pure-Python split is appropriate here specifi
 **The literal Pl@ntNet API key value is never written into this file or any other file in this
 repository** — only the environment-variable name `QPB_TEST_PLANTNET_API_KEY` is referenced,
 exactly mirroring the existing `QPB_TEST_VWORLD_API_KEY` convention (`tests/unit/test_vworld.py`).
+
+D-98 (2026-09-07) supersedes the fixed-count requirement in the historical notes below.
 
 Live-verification note (performed during test design, 2026-08-15, using the real key already
 present locally in the gitignored `.env`): confirmed real endpoint family
@@ -86,39 +88,22 @@ def test_endpoint_matches_the_confirmed_real_endpoint_family(build_plantnet_iden
     )
 
 
-def test_requests_exactly_three_results(build_plantnet_identify_request):
+def test_requests_without_a_result_count_limit(build_plantnet_identify_request):
     result = build_plantnet_identify_request(["leaf.jpg"], ["leaf"])
     assert result["ok"], result
-    assert result["query"]["nb-results"] == 3, (
-        "FR-QPB-104: exactly three results must always be requested"
+    assert "nb-results" not in result["query"], (
+        "FR-QPB-104/D-98: no application-imposed result count"
     )
 
 
 def test_requests_related_images_are_included(build_plantnet_identify_request):
-    """AC-QPB-094 (post-MVP; new, Decision Log D-54): FR-QPB-104 (further revised; Decision Log
-    D-54) adds one new request query parameter -- `include-related-images=true` -- alongside the
-    existing `api-key`/`nb-results=3` parameters, so that Pl@ntNet additionally returns, per
-    its own documentation, "a list of most-similar images for each probable species" (used by
-    FR-QPB-109's new per-candidate representative-image display, see
-    test_post_mvp_identification_plugin.py's AC-QPB-095 tests).
-
-    This reference-shape function represents each query parameter using its own natural Python
-    type, mirroring the existing `"nb-results": 3` convention immediately above (an int, not the
-    literal query-string text `"3"`) -- `include-related-images` is represented the same way, as
-    the Python boolean `True`, not the literal lowercase query-string text `"true"` the real,
-    eventual HTTP request must actually carry (a URL-encoding-layer concern downstream of this
-    pure request-shape reference function, exactly like `nb-results`'s own int-to-`"3"`-text
-    conversion). Note also that `api-key` itself is *not* part of this offline function's own
-    return shape (it never has been -- see this file's module docstring/HARNESS_CONTRACT.md
-    function 7: `build_plantnet_identify_request` takes no `api_key` argument at all; the key is
-    supplied only at real call time, exercised by the `network`-marked `call_plantnet_identify`
-    tests below), so this test does not attempt to assert an `api-key` key here."""
+    """D-54 related images remain enabled; D-98 removes only the result count."""
     result = build_plantnet_identify_request(["leaf.jpg"], ["leaf"])
     assert result["ok"], result
     assert result["query"].get("include-related-images") is True, (
         "AC-QPB-094 (FR-QPB-104, further revised; Decision Log D-54): expected the request's "
-        "query parameters to include include-related-images=true, alongside the existing "
-        f"nb-results=3 parameter -- got query={result['query']!r}"
+        "query parameters to include include-related-images=true "
+        f"-- got query={result['query']!r}"
     )
 
 
@@ -198,7 +183,7 @@ def test_plantnet_live_endpoint_authenticates_and_returns_the_confirmed_schema(
     assert isinstance(body, dict)
     assert "results" in body
     results = body["results"]
-    assert 0 < len(results) <= 3, "AC-QPB-040: at most the exactly-three requested results"
+    assert results, "AC-QPB-040: this successful plant fixture must return candidates"
 
     scores = [entry["score"] for entry in results]
     assert all(0.0 <= s <= 1.0 for s in scores), "FR-QPB-104: confidence scores are 0-1"

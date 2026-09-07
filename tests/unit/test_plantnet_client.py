@@ -29,6 +29,7 @@ def test_build_request_query_includes_include_related_images_true(tmp_path):
     result = plantnet_client.build_plantnet_identify_request(["a.jpg"], ["leaf"])
     assert result["ok"] is True
     assert result["query"]["include-related-images"] is True
+    assert "nb-results" not in result["query"]
 
 
 def test_call_plantnet_identify_requests_include_related_images_true(tmp_path, monkeypatch):
@@ -55,6 +56,7 @@ def test_call_plantnet_identify_requests_include_related_images_true(tmp_path, m
     monkeypatch.setattr(plantnet_client.urllib_request, "urlopen", _fake_urlopen)
     plantnet_client.call_plantnet_identify([str(photo)], ["leaf"], "fake-key")
     assert "include-related-images=true" in captured["url"]
+    assert "nb-results" not in captured["url"]
 
 
 def test_call_plantnet_identify_handles_a_network_error_without_raising(tmp_path, monkeypatch):

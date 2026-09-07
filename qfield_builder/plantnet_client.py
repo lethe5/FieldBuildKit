@@ -23,7 +23,7 @@ from urllib import request as urllib_request
 
 PLANTNET_ENDPOINT_TEMPLATE = "https://my-api.plantnet.org/v2/identify/{project}"
 PLANTNET_DEFAULT_PROJECT = "all"
-PLANTNET_NB_RESULTS = 3
+# D-98: no application-imposed candidate count; match the shipped QML request.
 # FR-QPB-104 (further revised; Decision Log D-54; AC-QPB-094): causes Pl@ntNet to additionally
 # return a per-candidate related-images list (organ/author/license/date/citation fields plus an
 # o/m/s size-variant `url` object), consumed by FR-QPB-109's candidate-card image/attribution
@@ -69,7 +69,6 @@ def build_plantnet_identify_request(
         "method": "POST",
         "query": {
             "project": project_name,
-            "nb-results": PLANTNET_NB_RESULTS,
             "include-related-images": PLANTNET_INCLUDE_RELATED_IMAGES,
         },
         "organs": list(organs),
@@ -119,7 +118,7 @@ def call_plantnet_identify(
     body, boundary = _build_multipart_body(photo_paths, organs)
     url = (
         f"{request_shape['url']}"
-        f"?api-key={api_key}&nb-results={PLANTNET_NB_RESULTS}"
+        f"?api-key={api_key}"
         "&include-related-images=true"
     )
     req = urllib_request.Request(
