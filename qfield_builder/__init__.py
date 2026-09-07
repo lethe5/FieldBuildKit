@@ -1,3 +1,3 @@
 """FieldBuild Standalone: independent QField project builder without QGIS Desktop."""
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"

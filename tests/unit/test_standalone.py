@@ -5,6 +5,7 @@ from __future__ import annotations
 import builtins
 import json
 import shutil
+import sqlite3
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -274,6 +275,40 @@ def test_optional_lookup_svg_crs_and_declined_keys(tmp_path):
     assert (
         document.find(".//layer[@class='SvgMarker']//Option[@value='symbols/test.svg']") is not None
     )
+
+
+@pytest.mark.parametrize("invalid_database", [False, True])
+def test_inspect_project_closes_sqlite_connections(tmp_path, monkeypatch, invalid_database):
+    from qfield_builder import gpkg, template_project
+
+    data, project = tmp_path / "data.gpkg", tmp_path / "project.qgs"
+    gpkg.build_geopackage(str(data), "simple_inventory", "test")
+    template_project.build_qgis_project(
+        str(data), str(project), "simple_inventory", "EPSG:4326", None
+    )
+    if invalid_database:
+        data.write_bytes(b"not a SQLite database")
+    connections = []
+    connect = sqlite3.connect
+
+    def track_connection(*args, **kwargs):
+        conn = connect(*args, **kwargs)
+        connections.append(conn)  # Retain references so GC cannot hide an unclosed connection.
+        return conn
+
+    monkeypatch.setattr(template_project.sqlite3, "connect", track_connection)
+    try:
+        valid, _, issues = template_project.inspect_project(str(project))
+        assert valid is not invalid_database
+        if invalid_database:
+            assert any(issue["code"] == "project_structure_invalid" for issue in issues)
+        assert connections
+        for conn in connections:
+            with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+                conn.execute("SELECT 1")
+    finally:
+        for conn in connections:
+            conn.close()
 
 
 def test_app_runtime_check_does_not_start_wizard(monkeypatch):

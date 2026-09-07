@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 import xml.etree.ElementTree as ET
+from contextlib import closing
 from pathlib import Path
 
 from rasterio.crs import CRS
@@ -296,7 +297,9 @@ def inspect_project(qgs_path: str) -> tuple[bool, bool, list[dict]]:
                 continue
             if provider == "ogr":
                 table = source.split("|layername=")[-1]
-                with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True) as conn:
+                with closing(
+                    sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+                ) as conn:
                     columns = {
                         row[1]
                         for row in conn.execute("SELECT * FROM pragma_table_info(?)", (table,))
