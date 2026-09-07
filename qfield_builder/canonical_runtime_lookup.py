@@ -12,6 +12,7 @@ import json
 import os
 import sqlite3
 import tempfile
+from contextlib import closing
 from pathlib import Path
 
 
@@ -37,7 +38,7 @@ def _required_text(value: object, field: str) -> str:
 def _projection_rows(gpkg_path: str) -> list[dict]:
     """Read and verify the minimal mapping from the newly built canonical GPKG table."""
     try:
-        with sqlite3.connect(gpkg_path) as connection:
+        with closing(sqlite3.connect(gpkg_path)) as connection:
             rows = connection.execute(
                 f"SELECT source_row, ktsn, taxon_status, scientific_name_without_authority, "
                 f"accepted_ktsn, korean_name, scientific_name FROM {CANONICAL_TABLE_NAME} "

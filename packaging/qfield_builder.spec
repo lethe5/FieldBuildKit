@@ -32,7 +32,7 @@ REPO_ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 - PyInstaller-injected
 # this application's own display name, including the PyInstaller packaging configuration's own
 # bundle name.
 APP_NAME = "FieldBuild Standalone"
-APP_VERSION = "0.1.10"
+APP_VERSION = "0.1.11"
 # No fallback to storage/reference: copied development caches may predate hash validation.
 if not os.environ.get("QPB_FILTERED_REFERENCE_ROOT"):
     raise SystemExit("먼저 python packaging/build_app.py로 빌드하세요. 준비된 참조 자료가 필요합니다.")
