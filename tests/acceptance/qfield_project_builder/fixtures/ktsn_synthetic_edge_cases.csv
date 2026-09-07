@@ -1,0 +1,8 @@
+ktsn,rank_id,rank_nm,rank_korean_nm,comm_group_cd,comm_group_nm,taxon_nm,taxon_full_nm,taxon_kor_nm,p_ktsn,p_rank_id,p_rank_nm,p_rank_korean_nm,p_taxon_nm,species_type_cd,species_type_nm,taxon_jm_nm,status,status_nm,identifiers,identifiers_year,original_identifiers,identifiers_identifiers_year,taxon_full_nm_author,taxon_full_nm_author_year,r200_nm,r200_knm,r300_nm,r300_knm,r310_nm,r310_knm,r400_nm,r400_knm,r500_nm,r500_knm,r600_nm,r600_knm,r610_nm,r610_knm,r700_nm,r700_knm,r710_nm,r710_knm,r720_nm,r720_knm,r730_nm,r730_knm,man_list_nm,origin_list,synonym_list,original_list,correct_list,job_excn_id
+900000000001,,,,,,,<em>Testus</em> <em>acceptus</em>,테스트정명종,,,,,,,,정명,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,[],
+900000000002,,,,,,,<em>Testus</em> <em>nokeyus</em>,,,,,,,,,이명,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"[{""RANK_NM"": ""Species""}]",
+900000000003,,,,,,,<em>Testus</em> <em>malformedus</em>,,,,,,,,,이명,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,NOT VALID JSON{{{,
+900000000004,,,,,,,<em>Testus</em> <em>conflictus</em>,,,,,,,,,이명,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"[{""KTSN"": ""900000000001"", ""KTNS"": ""900000000099""}]",
+900000000005,,,,,,,<em>Testus</em> <em>legacyus</em>,,,,,,,,,이명,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"[{""KTNS"": ""900000000001""}]",
+900000000006,,,,,,,<em>Testus</em> <em>samevalueus</em>,,,,,,,,,이명,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"[{""KTSN"": ""900000000001"", ""KTNS"": ""900000000001""}]",
+900000000007,,,,,,,<em>Testus</em> <em>danglingus</em>,,,,,,,,,이명,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"[{""KTSN"": ""900000000999""}]",

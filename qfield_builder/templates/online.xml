@@ -1,0 +1,207 @@
+<fragment><maplayer hasScaleBasedVisibilityFlag="0" autoRefreshMode="Disabled" autoRefreshTime="0" type="raster" legendPlaceholderImage="" minScale="1e+08" refreshOnNotifyEnabled="0" maxScale="0" styleCategories="AllStyleCategories" refreshOnNotifyMessage="">
+      <extent>
+        <xmin>-20037508.34278924390673637</xmin>
+        <ymin>-20037508.34278924763202667</ymin>
+        <xmax>20037508.34278924390673637</xmax>
+        <ymax>20037508.34278924763202667</ymax>
+      </extent>
+      <wgs84extent>
+        <xmin>-180</xmin>
+        <ymin>-85.05112877980660357</ymin>
+        <xmax>180</xmax>
+        <ymax>85.05112877980660357</ymax>
+      </wgs84extent>
+      <id>VWorld_Base__online__d96a227e_ecc7_48c0_8efa_3f026a5056c6</id>
+      <datasource>type=xyz&amp;url=https://api.vworld.kr/req/wmts/1.0.0/TEMPLATE_KEY/Base/{z}/{y}/{x}.png&amp;zmin=0&amp;zmax=19</datasource>
+      <layername>VWorld Base (online)</layername>
+      <srs>
+        <spatialrefsys nativeFormat="Wkt">
+          <wkt>PROJCRS["WGS 84 / Pseudo-Mercator",BASEGEOGCRS["WGS 84",ENSEMBLE["World Geodetic System 1984 ensemble",MEMBER["World Geodetic System 1984 (Transit)"],MEMBER["World Geodetic System 1984 (G730)"],MEMBER["World Geodetic System 1984 (G873)"],MEMBER["World Geodetic System 1984 (G1150)"],MEMBER["World Geodetic System 1984 (G1674)"],MEMBER["World Geodetic System 1984 (G1762)"],MEMBER["World Geodetic System 1984 (G2139)"],MEMBER["World Geodetic System 1984 (G2296)"],ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]],ENSEMBLEACCURACY[2.0]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]],CONVERSION["Popular Visualisation Pseudo-Mercator",METHOD["Popular Visualisation Pseudo Mercator",ID["EPSG",1024]],PARAMETER["Latitude of natural origin",0,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8801]],PARAMETER["Longitude of natural origin",0,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8802]],PARAMETER["False easting",0,LENGTHUNIT["metre",1],ID["EPSG",8806]],PARAMETER["False northing",0,LENGTHUNIT["metre",1],ID["EPSG",8807]]],CS[Cartesian,2],AXIS["easting (X)",east,ORDER[1],LENGTHUNIT["metre",1]],AXIS["northing (Y)",north,ORDER[2],LENGTHUNIT["metre",1]],USAGE[SCOPE["Web mapping and visualisation."],AREA["World between 85.06°S and 85.06°N."],BBOX[-85.06,-180,85.06,180]],ID["EPSG",3857]]</wkt>
+          <proj4>+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs</proj4>
+          <srsid>3857</srsid>
+          <srid>3857</srid>
+          <authid>EPSG:3857</authid>
+          <description>WGS 84 / Pseudo-Mercator</description>
+          <projectionacronym>merc</projectionacronym>
+          <ellipsoidacronym>EPSG:7030</ellipsoidacronym>
+          <geographicflag>false</geographicflag>
+        </spatialrefsys>
+      </srs>
+      <resourceMetadata>
+        <identifier />
+        <parentidentifier />
+        <language />
+        <type>dataset</type>
+        <title />
+        <abstract>This basemap uses the Ministry of Land, Infrastructure and Transport VWorld WMTS/TMS API under the Korea Open Government License Type 1 (attribution required). https://www.vworld.kr</abstract>
+        <links />
+        <dates />
+        <fees />
+        <encoding />
+        <crs>
+          <spatialrefsys nativeFormat="Wkt">
+            <wkt />
+            <proj4 />
+            <srsid>0</srsid>
+            <srid>0</srid>
+            <authid />
+            <description />
+            <projectionacronym />
+            <ellipsoidacronym />
+            <geographicflag>false</geographicflag>
+          </spatialrefsys>
+        </crs>
+        <extent />
+      </resourceMetadata>
+      <abstract>This basemap uses the Ministry of Land, Infrastructure and Transport VWorld WMTS/TMS API under the Korea Open Government License Type 1 (attribution required). https://www.vworld.kr</abstract>
+      <provider>wms</provider>
+      <noData>
+        <noDataList useSrcNoData="0" bandNo="1" />
+      </noData>
+      <map-layer-style-manager current="default">
+        <map-layer-style name="default" />
+      </map-layer-style-manager>
+      <flags>
+        <Identifiable>1</Identifiable>
+        <Removable>1</Removable>
+        <Searchable>1</Searchable>
+        <Private>0</Private>
+      </flags>
+      <temporal enabled="0" bandNumber="1" mode="0" fetchMode="0">
+        <fixedRange>
+          <start />
+          <end />
+        </fixedRange>
+      </temporal>
+      <elevation enabled="0" zoffset="0" mode="RepresentsElevationSurface" symbology="Line" zscale="1" band="1">
+        <data-defined-properties>
+          <Option type="Map">
+            <Option type="QString" value="" name="name" />
+            <Option name="properties" />
+            <Option type="QString" value="collection" name="type" />
+          </Option>
+        </data-defined-properties>
+        <profileLineSymbol>
+          <symbol alpha="1" clip_to_extent="1" type="line" frame_rate="10" force_rhr="0" is_animated="0" name="">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option type="QString" value="" name="name" />
+                <Option name="properties" />
+                <Option type="QString" value="collection" name="type" />
+              </Option>
+            </data_defined_properties>
+            <layer enabled="1" id="{c7d64940-e194-4459-a826-3d892e328989}" locked="0" pass="0" class="SimpleLine">
+              <Option type="Map">
+                <Option type="QString" value="0" name="align_dash_pattern" />
+                <Option type="QString" value="square" name="capstyle" />
+                <Option type="QString" value="5;2" name="customdash" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="customdash_map_unit_scale" />
+                <Option type="QString" value="MM" name="customdash_unit" />
+                <Option type="QString" value="0" name="dash_pattern_offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="dash_pattern_offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="dash_pattern_offset_unit" />
+                <Option type="QString" value="0" name="draw_inside_polygon" />
+                <Option type="QString" value="bevel" name="joinstyle" />
+                <Option type="QString" value="213,180,60,255,rgb:0.8352941,0.7058824,0.2352941,1" name="line_color" />
+                <Option type="QString" value="solid" name="line_style" />
+                <Option type="QString" value="0.6" name="line_width" />
+                <Option type="QString" value="MM" name="line_width_unit" />
+                <Option type="QString" value="0" name="offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="offset_unit" />
+                <Option type="QString" value="0" name="ring_filter" />
+                <Option type="QString" value="0" name="trim_distance_end" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="trim_distance_end_map_unit_scale" />
+                <Option type="QString" value="MM" name="trim_distance_end_unit" />
+                <Option type="QString" value="0" name="trim_distance_start" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="trim_distance_start_map_unit_scale" />
+                <Option type="QString" value="MM" name="trim_distance_start_unit" />
+                <Option type="QString" value="0" name="tweak_dash_pattern_on_corners" />
+                <Option type="QString" value="0" name="use_custom_dash" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="width_map_unit_scale" />
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option type="QString" value="" name="name" />
+                  <Option name="properties" />
+                  <Option type="QString" value="collection" name="type" />
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </profileLineSymbol>
+        <profileFillSymbol>
+          <symbol alpha="1" clip_to_extent="1" type="fill" frame_rate="10" force_rhr="0" is_animated="0" name="">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option type="QString" value="" name="name" />
+                <Option name="properties" />
+                <Option type="QString" value="collection" name="type" />
+              </Option>
+            </data_defined_properties>
+            <layer enabled="1" id="{87f5bf15-2d46-4953-98b7-a8e7f70052d3}" locked="0" pass="0" class="SimpleFill">
+              <Option type="Map">
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="border_width_map_unit_scale" />
+                <Option type="QString" value="213,180,60,255,rgb:0.8352941,0.7058824,0.2352941,1" name="color" />
+                <Option type="QString" value="bevel" name="joinstyle" />
+                <Option type="QString" value="0,0" name="offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="offset_unit" />
+                <Option type="QString" value="35,35,35,255,rgb:0.1372549,0.1372549,0.1372549,1" name="outline_color" />
+                <Option type="QString" value="no" name="outline_style" />
+                <Option type="QString" value="0.26" name="outline_width" />
+                <Option type="QString" value="MM" name="outline_width_unit" />
+                <Option type="QString" value="solid" name="style" />
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option type="QString" value="" name="name" />
+                  <Option name="properties" />
+                  <Option type="QString" value="collection" name="type" />
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </profileFillSymbol>
+      </elevation>
+      <customproperties>
+        <Option type="Map">
+          <Option type="QString" value="Undefined" name="identify/format" />
+        </Option>
+      </customproperties>
+      <mapTip enabled="1" />
+      <pipe-data-defined-properties>
+        <Option type="Map">
+          <Option type="QString" value="" name="name" />
+          <Option name="properties" />
+          <Option type="QString" value="collection" name="type" />
+        </Option>
+      </pipe-data-defined-properties>
+      <pipe>
+        <provider>
+          <resampling enabled="false" zoomedOutResamplingMethod="nearestNeighbour" zoomedInResamplingMethod="nearestNeighbour" maxOversampling="2" />
+        </provider>
+        <rasterrenderer alphaBand="-1" nodataColor="" type="singlebandcolordata" opacity="1" band="1">
+          <rasterTransparency />
+          <minMaxOrigin>
+            <limits>None</limits>
+            <extent>WholeRaster</extent>
+            <statAccuracy>Estimated</statAccuracy>
+            <cumulativeCutLower>0.02</cumulativeCutLower>
+            <cumulativeCutUpper>0.98</cumulativeCutUpper>
+            <stdDevFactor>2</stdDevFactor>
+          </minMaxOrigin>
+        </rasterrenderer>
+        <brightnesscontrast contrast="0" brightness="0" gamma="1" />
+        <huesaturation colorizeRed="255" colorizeOn="0" grayscaleMode="0" invertColors="0" saturation="0" colorizeGreen="128" colorizeBlue="128" colorizeStrength="100" />
+        <rasterresampler maxOversampling="2" />
+        <resamplingStage>resamplingFilter</resamplingStage>
+      </pipe>
+      <blendMode>0</blendMode>
+    </maplayer>
+    <layer-tree-layer checked="Qt::Checked" id="VWorld_Base__online__d96a227e_ecc7_48c0_8efa_3f026a5056c6" providerKey="wms" patch_size="-1,-1" legend_split_behavior="0" expanded="1" source="type=xyz&amp;url=https://api.vworld.kr/req/wmts/1.0.0/TEMPLATE_KEY/Base/{z}/{y}/{x}.png&amp;zmin=0&amp;zmax=19" legend_exp="" name="VWorld Base (online)">
+        <customproperties>
+          <Option />
+        </customproperties>
+      </layer-tree-layer>
+      </fragment>

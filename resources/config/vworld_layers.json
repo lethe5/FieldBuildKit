@@ -1,0 +1,17 @@
+{
+  "layers": ["Base", "White", "Midnight", "Hybrid", "Satellite"],
+  "url_template": "https://api.vworld.kr/req/wmts/1.0.0/{key}/{layer}/{z}/{y}/{x}.png",
+  "default_wmts_crs": "EPSG:3857",
+  "default_wmts_tile_matrix_set": "EPSG:900913",
+  "default_wmts_format": "image/png",
+  "default_wmts_style": "default",
+  "wmts_fallbacks": {
+    "Satellite": {
+      "tile_matrix_set": "GoogleMapsCompatible",
+      "crs": "EPSG:3857",
+      "format": "image/jpeg",
+      "style": "default"
+    }
+  },
+  "notes": "FR-QPB-072 (revised; Decision Log D-29): the generated project's ONLINE VWorld layer now connects via QGIS's native WMTS provider against the capabilities endpoint URL (see qfield_builder.vworld.build_wmts_layer_uri/resolve_wmts_layer_details); 'url_template' and 'build_gettile_url'/'build_tile_request_url' remain configuration for the OFFLINE MBTiles per-tile downloader only (qfield_builder/vworld_tiles.py, qfield_builder/mbtiles.py), which is unaffected by this revision. The generic default_wmts_* values are used when a live VWorld capabilities query cannot be completed and no layer-specific fallback is listed. wmts_fallbacks preserves native connection values for layers such as Satellite, whose GoogleMapsCompatible/EPSG:3857 JPEG service must not be flattened to the generic EPSG:900913 PNG fallback. The 'layers' list here is only the fallback/default set (see qfield_builder.vworld.supported_layers) -- FR-QPB-071 (revised; Decision Log D-26) requires the authoritative layer set to be discovered live from the VWorld WMTS capabilities endpoint via qfield_builder.vworld.fetch_supported_layers. NFR-QPB-059: VWorld/MOLIT provider terms, quotas, and licensing can change and should be rechecked for each release."
+}

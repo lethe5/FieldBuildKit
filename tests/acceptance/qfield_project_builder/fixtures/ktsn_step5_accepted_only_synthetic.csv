@@ -1,0 +1,4 @@
+ktsn,p_ktsn,rank_id,r200_nm,taxon_full_nm,taxon_kor_nm,taxon_jm_nm,correct_list
+900000000101,120000098391,700,Magnoliophyta,<em>Testus</em> <em>acceptus</em>,테스트정명종,정명,
+900000000102,120000098391,700,Magnoliophyta,<em>Testus</em> <em>blankstatus</em>,테스트공백상태종,,
+090000000103,120000098391,700,Magnoliophyta,<em>Testus</em> <em>leadingzero</em>,테스트리딩제로종,정명,

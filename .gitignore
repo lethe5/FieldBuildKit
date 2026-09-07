@@ -1,0 +1,43 @@
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Claude Code local (per-machine) settings — not shared, may embed local paths
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Local environment files (never commit real secrets/paths)
+.env
+.env.local
+!.env.example
+
+# Runtime data under storage/: reference datasets, user uploads, work-in-progress
+# processing files, and generated QField project packages. This is data, not code,
+# and can be large, user-specific, or machine-generated — none of it belongs in Git.
+# .gitkeep files are re-included so the directory structure itself stays tracked.
+storage/**
+!storage/**/
+!storage/**/.gitkeep

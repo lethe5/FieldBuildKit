@@ -1,0 +1,7 @@
+ktsn,p_ktsn,rank_id,r200_nm,taxon_full_nm,taxon_kor_nm,taxon_jm_nm,correct_list
+200000000101,120000098391,700,Magnoliophyta,<em>Testus</em> <em>speciesrank</em>,,정명,
+200000000102,120000098391,710,Magnoliophyta,<em>Testus</em> <em>subspeciesrank</em>,,정명,
+200000000103,120000098391,600,Magnoliophyta,<em>Testus</em> <em>genusrank</em>,,정명,
+200000000104,120000098391,500,Magnoliophyta,<em>Testus</em> <em>familyrank</em>,,정명,
+200000000105,120000098391,,Magnoliophyta,<em>Testus</em> <em>missingrank</em>,,정명,
+200000000106,120000098391,abc,Magnoliophyta,<em>Testus</em> <em>nonnumericrank</em>,,정명,

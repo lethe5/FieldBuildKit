@@ -1,0 +1,4 @@
+ktsn,p_ktsn,rank_id,r200_nm,taxon_full_nm,taxon_kor_nm,taxon_jm_nm,correct_list
+120000526319,120000098391,700,Magnoliophyta,<em>Carex</em> <em>hirta</em>,,정명,
+120000528986,120000098391,730,Magnoliophyta,<em>Commelina</em> <em>communis</em> f. <em>minor</em>,애기닭의장풀,이명,"[{""KTSN"":120000232966,""RANK_KOREAN_NM"":""종"",""TAXON_FULL_NM"":""<em>Commelina</em> <em>minor</em>"",""TAXON_FULL_NM_AUTHOR_YEAR"":""<em>Commelina</em> <em>minor</em> Y.N. Lee & Y.C. Oh"",""RANK_NM"":""Species"",""TAXON_FULL_NM_AUTHOR"":""<em>Commelina</em> <em>minor</em> Y.N. Lee & Y.C. Oh"",""TAXON_KOR_NM"":""애기닭의장풀""}]"
+012345678901,120000098391,700,Magnoliophyta,<em>Testus</em> <em>leadingzeroktsn</em>,테스트리딩제로종,정명,

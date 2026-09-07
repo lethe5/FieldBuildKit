@@ -1,0 +1,7 @@
+ktsn,p_ktsn,rank_id,r200_nm,taxon_full_nm,taxon_kor_nm,taxon_jm_nm,correct_list
+200000000001,120000098391,700,Magnoliophyta,<em>Testus</em> <em>directchild</em>,,정명,
+200000000002,200000000001,700,Magnoliophyta,<em>Testus</em> <em>grandchild</em>,,정명,
+200000000003,,700,Magnoliophyta,<em>Testus</em> <em>chainterminates</em>,,정명,
+200000000004,900000000099,700,Magnoliophyta,<em>Testus</em> <em>chainbroken</em>,,정명,
+200000000005,200000000006,700,,<em>Testus</em> <em>otherkingdomchild</em>,,정명,
+200000000006,,100,,<em>Testus</em> <em>otherkingdomroot</em>,,정명,

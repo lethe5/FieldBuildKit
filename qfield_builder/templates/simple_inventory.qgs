@@ -1,0 +1,1654 @@
+<?xml version='1.0' encoding='utf-8'?>
+<qgis projectname="" version="3.44.13-Solothurn">
+  <homePath path="" />
+  <title />
+  <transaction mode="AutomaticGroups" />
+  <projectFlags set="EvaluateDefaultValuesOnProviderSide" />
+  <projectCrs>
+    <spatialrefsys nativeFormat="Wkt">
+      <wkt>PROJCRS["KGD2002 / Central Belt 2010",BASEGEOGCRS["KGD2002",DATUM["Korean Geodetic Datum 2002",ELLIPSOID["GRS 1980",6378137,298.257222101,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4737]],CONVERSION["Korea Central Belt 2010",METHOD["Transverse Mercator",ID["EPSG",9807]],PARAMETER["Latitude of natural origin",38,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8801]],PARAMETER["Longitude of natural origin",127,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8802]],PARAMETER["Scale factor at natural origin",1,SCALEUNIT["unity",1],ID["EPSG",8805]],PARAMETER["False easting",200000,LENGTHUNIT["metre",1],ID["EPSG",8806]],PARAMETER["False northing",600000,LENGTHUNIT["metre",1],ID["EPSG",8807]]],CS[Cartesian,2],AXIS["northing (X)",north,ORDER[1],LENGTHUNIT["metre",1]],AXIS["easting (Y)",east,ORDER[2],LENGTHUNIT["metre",1]],USAGE[SCOPE["Cadastre, topographic mapping."],AREA["Republic of Korea (South Korea) - onshore between 126°E and 128°E."],BBOX[33.14,126,38.33,128]],ID["EPSG",5186]]</wkt>
+      <proj4>+proj=tmerc +lat_0=38 +lon_0=127 +k=1 +x_0=200000 +y_0=600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs</proj4>
+      <srsid>28050</srsid>
+      <srid>5186</srid>
+      <authid>EPSG:5186</authid>
+      <description>KGD2002 / Central Belt 2010</description>
+      <projectionacronym>tmerc</projectionacronym>
+      <ellipsoidacronym>EPSG:7019</ellipsoidacronym>
+      <geographicflag>false</geographicflag>
+    </spatialrefsys>
+  </projectCrs>
+  <verticalCrs>
+    <spatialrefsys nativeFormat="Wkt">
+      <wkt />
+      <proj4 />
+      <srsid>0</srsid>
+      <srid>0</srid>
+      <authid />
+      <description />
+      <projectionacronym />
+      <ellipsoidacronym />
+      <geographicflag>false</geographicflag>
+    </spatialrefsys>
+  </verticalCrs>
+  <elevation-shading-renderer light-altitude="45" combined-method="0" hillshading-z-factor="1" edl-strength="1000" hillshading-is-active="0" edl-distance="0.5" light-azimuth="315" is-active="0" hillshading-is-multidirectional="0" edl-is-active="1" edl-distance-unit="0" />
+  <layer-tree-group>
+    <customproperties>
+      <Option />
+    </customproperties>
+    <layer-tree-group checked="Qt::Checked" expanded="1" groupLayer="" name="Reference">
+      <customproperties>
+        <Option />
+      </customproperties>
+      <layer-tree-layer checked="Qt::Checked" id="qpb_canonical_taxonomy_6a634b58_538d_4598_ad4c_71300847bebb" providerKey="ogr" patch_size="-1,-1" legend_split_behavior="0" expanded="1" source="./data/template.gpkg|layername=ktsn_taxonomy_reference" legend_exp="" name="식물 분류 참조표">
+        <customproperties>
+          <Option />
+        </customproperties>
+      </layer-tree-layer>
+      <layer-tree-layer checked="Qt::Checked" id="ktsn_lookup_d24a69e9_8aa5_4812_ba27_da240cd6380b" providerKey="ogr" patch_size="-1,-1" legend_split_behavior="0" expanded="1" source="./data/template.gpkg|layername=ktsn_lookup" legend_exp="" name="인정 국명 조회표">
+        <customproperties>
+          <Option />
+        </customproperties>
+      </layer-tree-layer>
+    </layer-tree-group>
+    <layer-tree-group checked="Qt::Checked" expanded="1" groupLayer="" name="Survey data">
+      <customproperties>
+        <Option />
+      </customproperties>
+      <layer-tree-layer checked="Qt::Checked" id="inventory_observation_db293ff9_36c8_4740_9360_05e693db5bb7" providerKey="ogr" patch_size="-1,-1" legend_split_behavior="0" expanded="1" source="./data/template.gpkg|layername=inventory_observation" legend_exp="" name="식물관찰">
+        <customproperties>
+          <Option />
+        </customproperties>
+      </layer-tree-layer>
+    </layer-tree-group>
+    <layer-tree-group checked="Qt::Checked" expanded="1" groupLayer="" name="Basemap">
+      <customproperties>
+        <Option />
+      </customproperties>
+    </layer-tree-group>
+    <custom-order enabled="0">
+      <item>inventory_observation_db293ff9_36c8_4740_9360_05e693db5bb7</item>
+      <item>qpb_canonical_taxonomy_6a634b58_538d_4598_ad4c_71300847bebb</item>
+      <item>ktsn_lookup_d24a69e9_8aa5_4812_ba27_da240cd6380b</item>
+    </custom-order>
+  </layer-tree-group>
+  <snapping-settings enabled="0" tolerance="12" unit="1" mode="2" type="1" intersection-snapping="0" minScale="0" self-snapping="0" maxScale="0" scaleDependencyMode="0">
+    <individual-layer-settings>
+      <layer-setting id="inventory_observation_db293ff9_36c8_4740_9360_05e693db5bb7" enabled="1" tolerance="12" type="1" units="1" minScale="0" maxScale="0" />
+    </individual-layer-settings>
+  </snapping-settings>
+  <relations />
+  <polymorphicRelations />
+  <main-annotation-layer hasScaleBasedVisibilityFlag="0" autoRefreshMode="Disabled" autoRefreshTime="0" type="annotation" legendPlaceholderImage="" minScale="1e+08" refreshOnNotifyEnabled="0" maxScale="0" styleCategories="AllStyleCategories" refreshOnNotifyMessage="">
+    <id>Annotations_aa0b0cfa_224d_4ee8_ab45_3399a8e9c58e</id>
+    <datasource />
+    <layername>Annotations</layername>
+    <srs>
+      <spatialrefsys nativeFormat="Wkt">
+        <wkt>PROJCRS["KGD2002 / Central Belt 2010",BASEGEOGCRS["KGD2002",DATUM["Korean Geodetic Datum 2002",ELLIPSOID["GRS 1980",6378137,298.257222101,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4737]],CONVERSION["Korea Central Belt 2010",METHOD["Transverse Mercator",ID["EPSG",9807]],PARAMETER["Latitude of natural origin",38,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8801]],PARAMETER["Longitude of natural origin",127,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8802]],PARAMETER["Scale factor at natural origin",1,SCALEUNIT["unity",1],ID["EPSG",8805]],PARAMETER["False easting",200000,LENGTHUNIT["metre",1],ID["EPSG",8806]],PARAMETER["False northing",600000,LENGTHUNIT["metre",1],ID["EPSG",8807]]],CS[Cartesian,2],AXIS["northing (X)",north,ORDER[1],LENGTHUNIT["metre",1]],AXIS["easting (Y)",east,ORDER[2],LENGTHUNIT["metre",1]],USAGE[SCOPE["Cadastre, topographic mapping."],AREA["Republic of Korea (South Korea) - onshore between 126°E and 128°E."],BBOX[33.14,126,38.33,128]],ID["EPSG",5186]]</wkt>
+        <proj4>+proj=tmerc +lat_0=38 +lon_0=127 +k=1 +x_0=200000 +y_0=600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs</proj4>
+        <srsid>28050</srsid>
+        <srid>5186</srid>
+        <authid>EPSG:5186</authid>
+        <description>KGD2002 / Central Belt 2010</description>
+        <projectionacronym>tmerc</projectionacronym>
+        <ellipsoidacronym>EPSG:7019</ellipsoidacronym>
+        <geographicflag>false</geographicflag>
+      </spatialrefsys>
+    </srs>
+    <resourceMetadata>
+      <identifier />
+      <parentidentifier />
+      <language />
+      <type />
+      <title />
+      <abstract />
+      <links />
+      <dates />
+      <fees />
+      <encoding />
+      <crs>
+        <spatialrefsys nativeFormat="Wkt">
+          <wkt />
+          <proj4 />
+          <srsid>0</srsid>
+          <srid>0</srid>
+          <authid />
+          <description />
+          <projectionacronym />
+          <ellipsoidacronym />
+          <geographicflag>false</geographicflag>
+        </spatialrefsys>
+      </crs>
+      <extent />
+    </resourceMetadata>
+    <items />
+    <flags>
+      <Identifiable>1</Identifiable>
+      <Removable>1</Removable>
+      <Searchable>1</Searchable>
+      <Private>0</Private>
+    </flags>
+    <customproperties>
+      <Option />
+    </customproperties>
+    <layerOpacity>1</layerOpacity>
+    <blendMode>0</blendMode>
+    <paintEffect />
+  </main-annotation-layer>
+  <projectlayers>
+    <maplayer simplifyAlgorithm="0" simplifyDrawingHints="1" maxScale="0" symbologyReferenceScale="-1" autoRefreshTime="0" minScale="100000000" wkbType="Point" styleCategories="AllStyleCategories" refreshOnNotifyEnabled="0" autoRefreshMode="Disabled" refreshOnNotifyMessage="" legendPlaceholderImage="" simplifyMaxScale="1" geometry="Point" labelsEnabled="0" simplifyLocal="1" readOnly="0" hasScaleBasedVisibilityFlag="0" simplifyDrawingTol="1" type="vector">
+      <id>inventory_observation_db293ff9_36c8_4740_9360_05e693db5bb7</id>
+      <datasource>./data/template.gpkg|layername=inventory_observation</datasource>
+      <layername>식물관찰</layername>
+      <srs>
+        <spatialrefsys nativeFormat="Wkt">
+          <wkt>GEOGCRS["WGS 84",ENSEMBLE["World Geodetic System 1984 ensemble",MEMBER["World Geodetic System 1984 (Transit)"],MEMBER["World Geodetic System 1984 (G730)"],MEMBER["World Geodetic System 1984 (G873)"],MEMBER["World Geodetic System 1984 (G1150)"],MEMBER["World Geodetic System 1984 (G1674)"],MEMBER["World Geodetic System 1984 (G1762)"],MEMBER["World Geodetic System 1984 (G2139)"],MEMBER["World Geodetic System 1984 (G2296)"],ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]],ENSEMBLEACCURACY[2.0]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],USAGE[SCOPE["Horizontal component of 3D system."],AREA["World."],BBOX[-90,-180,90,180]],ID["EPSG",4326]]</wkt>
+          <proj4>+proj=longlat +datum=WGS84 +no_defs</proj4>
+          <srsid>3452</srsid>
+          <srid>4326</srid>
+          <authid>EPSG:4326</authid>
+          <description>WGS 84</description>
+          <projectionacronym>longlat</projectionacronym>
+          <ellipsoidacronym>EPSG:7030</ellipsoidacronym>
+          <geographicflag>true</geographicflag>
+        </spatialrefsys>
+      </srs>
+      <resourceMetadata>
+        <identifier />
+        <parentidentifier />
+        <language />
+        <type>dataset</type>
+        <title />
+        <abstract />
+        <links />
+        <dates />
+        <fees />
+        <encoding />
+        <crs>
+          <spatialrefsys nativeFormat="Wkt">
+            <wkt>GEOGCRS["WGS 84",ENSEMBLE["World Geodetic System 1984 ensemble",MEMBER["World Geodetic System 1984 (Transit)"],MEMBER["World Geodetic System 1984 (G730)"],MEMBER["World Geodetic System 1984 (G873)"],MEMBER["World Geodetic System 1984 (G1150)"],MEMBER["World Geodetic System 1984 (G1674)"],MEMBER["World Geodetic System 1984 (G1762)"],MEMBER["World Geodetic System 1984 (G2139)"],MEMBER["World Geodetic System 1984 (G2296)"],ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]],ENSEMBLEACCURACY[2.0]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],USAGE[SCOPE["Horizontal component of 3D system."],AREA["World."],BBOX[-90,-180,90,180]],ID["EPSG",4326]]</wkt>
+            <proj4>+proj=longlat +datum=WGS84 +no_defs</proj4>
+            <srsid>3452</srsid>
+            <srid>4326</srid>
+            <authid>EPSG:4326</authid>
+            <description>WGS 84</description>
+            <projectionacronym>longlat</projectionacronym>
+            <ellipsoidacronym>EPSG:7030</ellipsoidacronym>
+            <geographicflag>true</geographicflag>
+          </spatialrefsys>
+        </crs>
+        <extent />
+      </resourceMetadata>
+      <provider encoding="UTF-8">ogr</provider>
+      <vectorjoins />
+      <layerDependencies />
+      <dataDependencies />
+      <expressionfields />
+      <map-layer-style-manager current="default">
+        <map-layer-style name="default" />
+      </map-layer-style-manager>
+      <auxiliaryLayer />
+      <flags>
+        <Identifiable>1</Identifiable>
+        <Removable>1</Removable>
+        <Searchable>1</Searchable>
+        <Private>0</Private>
+      </flags>
+      <temporal durationUnit="min" enabled="0" fixedDuration="0" accumulate="0" startField="" mode="0" startExpression="" limitMode="0" durationField="" endField="" endExpression="">
+        <fixedRange>
+          <start />
+          <end />
+        </fixedRange>
+      </temporal>
+      <elevation customToleranceEnabled="0" showMarkerSymbolInSurfacePlots="0" zoffset="0" extrusionEnabled="0" type="IndividualFeatures" clamping="Terrain" zscale="1" extrusion="0" symbology="Line" binding="Centroid" respectLayerSymbol="1">
+        <data-defined-properties>
+          <Option type="Map">
+            <Option type="QString" value="" name="name" />
+            <Option name="properties" />
+            <Option type="QString" value="collection" name="type" />
+          </Option>
+        </data-defined-properties>
+        <profileLineSymbol>
+          <symbol alpha="1" clip_to_extent="1" type="line" frame_rate="10" force_rhr="0" is_animated="0" name="">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option type="QString" value="" name="name" />
+                <Option name="properties" />
+                <Option type="QString" value="collection" name="type" />
+              </Option>
+            </data_defined_properties>
+            <layer enabled="1" id="{494d9f65-75b4-410a-a227-80938a322f13}" locked="0" pass="0" class="SimpleLine">
+              <Option type="Map">
+                <Option type="QString" value="0" name="align_dash_pattern" />
+                <Option type="QString" value="square" name="capstyle" />
+                <Option type="QString" value="5;2" name="customdash" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="customdash_map_unit_scale" />
+                <Option type="QString" value="MM" name="customdash_unit" />
+                <Option type="QString" value="0" name="dash_pattern_offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="dash_pattern_offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="dash_pattern_offset_unit" />
+                <Option type="QString" value="0" name="draw_inside_polygon" />
+                <Option type="QString" value="bevel" name="joinstyle" />
+                <Option type="QString" value="145,82,45,255,rgb:0.5686275,0.3215686,0.1764706,1" name="line_color" />
+                <Option type="QString" value="solid" name="line_style" />
+                <Option type="QString" value="0.6" name="line_width" />
+                <Option type="QString" value="MM" name="line_width_unit" />
+                <Option type="QString" value="0" name="offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="offset_unit" />
+                <Option type="QString" value="0" name="ring_filter" />
+                <Option type="QString" value="0" name="trim_distance_end" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="trim_distance_end_map_unit_scale" />
+                <Option type="QString" value="MM" name="trim_distance_end_unit" />
+                <Option type="QString" value="0" name="trim_distance_start" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="trim_distance_start_map_unit_scale" />
+                <Option type="QString" value="MM" name="trim_distance_start_unit" />
+                <Option type="QString" value="0" name="tweak_dash_pattern_on_corners" />
+                <Option type="QString" value="0" name="use_custom_dash" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="width_map_unit_scale" />
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option type="QString" value="" name="name" />
+                  <Option name="properties" />
+                  <Option type="QString" value="collection" name="type" />
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </profileLineSymbol>
+        <profileFillSymbol>
+          <symbol alpha="1" clip_to_extent="1" type="fill" frame_rate="10" force_rhr="0" is_animated="0" name="">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option type="QString" value="" name="name" />
+                <Option name="properties" />
+                <Option type="QString" value="collection" name="type" />
+              </Option>
+            </data_defined_properties>
+            <layer enabled="1" id="{ff1ffa7c-2be1-4ebd-858b-6226e1d3952e}" locked="0" pass="0" class="SimpleFill">
+              <Option type="Map">
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="border_width_map_unit_scale" />
+                <Option type="QString" value="145,82,45,255,rgb:0.5686275,0.3215686,0.1764706,1" name="color" />
+                <Option type="QString" value="bevel" name="joinstyle" />
+                <Option type="QString" value="0,0" name="offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="offset_unit" />
+                <Option type="QString" value="104,59,32,255,rgb:0.4061494,0.2296788,0.1260395,1" name="outline_color" />
+                <Option type="QString" value="solid" name="outline_style" />
+                <Option type="QString" value="0.2" name="outline_width" />
+                <Option type="QString" value="MM" name="outline_width_unit" />
+                <Option type="QString" value="solid" name="style" />
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option type="QString" value="" name="name" />
+                  <Option name="properties" />
+                  <Option type="QString" value="collection" name="type" />
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </profileFillSymbol>
+        <profileMarkerSymbol>
+          <symbol alpha="1" clip_to_extent="1" type="marker" frame_rate="10" force_rhr="0" is_animated="0" name="">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option type="QString" value="" name="name" />
+                <Option name="properties" />
+                <Option type="QString" value="collection" name="type" />
+              </Option>
+            </data_defined_properties>
+            <layer enabled="1" id="{326b6cb7-725a-451e-bc4f-b838ff367d1f}" locked="0" pass="0" class="SimpleMarker">
+              <Option type="Map">
+                <Option type="QString" value="0" name="angle" />
+                <Option type="QString" value="square" name="cap_style" />
+                <Option type="QString" value="145,82,45,255,rgb:0.5686275,0.3215686,0.1764706,1" name="color" />
+                <Option type="QString" value="1" name="horizontal_anchor_point" />
+                <Option type="QString" value="bevel" name="joinstyle" />
+                <Option type="QString" value="diamond" name="name" />
+                <Option type="QString" value="0,0" name="offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="offset_unit" />
+                <Option type="QString" value="104,59,32,255,rgb:0.4061494,0.2296788,0.1260395,1" name="outline_color" />
+                <Option type="QString" value="solid" name="outline_style" />
+                <Option type="QString" value="0.2" name="outline_width" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="outline_width_map_unit_scale" />
+                <Option type="QString" value="MM" name="outline_width_unit" />
+                <Option type="QString" value="diameter" name="scale_method" />
+                <Option type="QString" value="3" name="size" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="size_map_unit_scale" />
+                <Option type="QString" value="MM" name="size_unit" />
+                <Option type="QString" value="1" name="vertical_anchor_point" />
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option type="QString" value="" name="name" />
+                  <Option name="properties" />
+                  <Option type="QString" value="collection" name="type" />
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </profileMarkerSymbol>
+      </elevation>
+      <renderer-v2 enableorderby="0" forceraster="0" symbollevels="0" type="singleSymbol" referencescale="-1">
+        <symbols>
+          <symbol alpha="1" clip_to_extent="1" type="marker" frame_rate="10" force_rhr="0" is_animated="0" name="0">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option type="QString" value="" name="name" />
+                <Option name="properties" />
+                <Option type="QString" value="collection" name="type" />
+              </Option>
+            </data_defined_properties>
+            <layer enabled="1" id="{bedddd1b-63a4-401a-a883-5d8f97bb488c}" locked="0" pass="0" class="SimpleMarker">
+              <Option type="Map">
+                <Option type="QString" value="0" name="angle" />
+                <Option type="QString" value="square" name="cap_style" />
+                <Option type="QString" value="49,130,189,255,rgb:0.1921569,0.5098039,0.7411765,1" name="color" />
+                <Option type="QString" value="1" name="horizontal_anchor_point" />
+                <Option type="QString" value="bevel" name="joinstyle" />
+                <Option type="QString" value="circle" name="name" />
+                <Option type="QString" value="0,0" name="offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="offset_unit" />
+                <Option type="QString" value="20,20,20,255,rgb:0.0784314,0.0784314,0.0784314,1" name="outline_color" />
+                <Option type="QString" value="solid" name="outline_style" />
+                <Option type="QString" value="0.4" name="outline_width" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="outline_width_map_unit_scale" />
+                <Option type="QString" value="MM" name="outline_width_unit" />
+                <Option type="QString" value="diameter" name="scale_method" />
+                <Option type="QString" value="3" name="size" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="size_map_unit_scale" />
+                <Option type="QString" value="MM" name="size_unit" />
+                <Option type="QString" value="1" name="vertical_anchor_point" />
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option type="QString" value="" name="name" />
+                  <Option name="properties" />
+                  <Option type="QString" value="collection" name="type" />
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </symbols>
+        <rotation />
+        <sizescale />
+        <data-defined-properties>
+          <Option type="Map">
+            <Option type="QString" value="" name="name" />
+            <Option name="properties" />
+            <Option type="QString" value="collection" name="type" />
+          </Option>
+        </data-defined-properties>
+      </renderer-v2>
+      <selection mode="Default">
+        <selectionColor invalid="1" />
+      </selection>
+      <customproperties>
+        <Option />
+      </customproperties>
+      <blendMode>0</blendMode>
+      <featureBlendMode>0</featureBlendMode>
+      <layerOpacity>1</layerOpacity>
+      <geometryOptions removeDuplicateNodes="0" geometryPrecision="0">
+        <activeChecks type="StringList">
+          <Option type="QString" value="" />
+        </activeChecks>
+        <checkConfiguration />
+      </geometryOptions>
+      <legend type="default-vector" showLabelLegend="0" />
+      <referencedLayers />
+      <referencingLayers />
+      <fieldConfiguration>
+        <field configurationFlags="NoFlag" name="fid">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="inventory_id">
+          <editWidget type="Hidden">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="observed_at">
+          <editWidget type="DateTime">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="surveyor">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="selected_korean_name">
+          <editWidget type="ValueRelation">
+            <config>
+              <Option type="Map">
+                <Option type="bool" value="false" name="AllowMulti" />
+                <Option type="bool" value="true" name="AllowNull" />
+                <Option type="QString" value="" name="FilterExpression" />
+                <Option type="QString" value="taxon_kor_nm" name="Key" />
+                <Option type="QString" value="ktsn_lookup_d24a69e9_8aa5_4812_ba27_da240cd6380b" name="Layer" />
+                <Option type="int" value="1" name="NofColumns" />
+                <Option type="bool" value="true" name="OrderByValue" />
+                <Option type="bool" value="true" name="UseCompleter" />
+                <Option type="QString" value="taxon_kor_nm" name="Value" />
+              </Option>
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="selected_scientific_name">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="selected_ktsn">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="identification_score">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="occurrence_probability">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="identification_timestamp">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="identification_model_version">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="leaf_photo_path">
+          <editWidget type="ExternalResource">
+            <config>
+              <Option type="Map">
+                <Option type="int" value="1" name="DocumentViewer" />
+                <Option type="bool" value="true" name="FileWidget" />
+                <Option type="int" value="1" name="RelativeStorage" />
+              </Option>
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="flower_photo_path">
+          <editWidget type="ExternalResource">
+            <config>
+              <Option type="Map">
+                <Option type="int" value="1" name="DocumentViewer" />
+                <Option type="bool" value="true" name="FileWidget" />
+                <Option type="int" value="1" name="RelativeStorage" />
+              </Option>
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="fruit_photo_path">
+          <editWidget type="ExternalResource">
+            <config>
+              <Option type="Map">
+                <Option type="int" value="1" name="DocumentViewer" />
+                <Option type="bool" value="true" name="FileWidget" />
+                <Option type="int" value="1" name="RelativeStorage" />
+              </Option>
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="identification_status">
+          <editWidget type="ValueMap">
+            <config>
+              <Option type="Map">
+                <Option type="Map" name="map">
+                  <Option type="QString" value="complete" name="complete" />
+                  <Option type="QString" value="failed" name="failed" />
+                  <Option type="QString" value="manual" name="manual" />
+                  <Option type="QString" value="not_requested" name="not_requested" />
+                  <Option type="QString" value="pending" name="pending" />
+                </Option>
+              </Option>
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="notes">
+          <editWidget type="TextEdit">
+            <config>
+              <Option type="Map">
+                <Option type="bool" value="true" name="IsMultiline" />
+              </Option>
+            </config>
+          </editWidget>
+        </field>
+      </fieldConfiguration>
+      <aliases>
+        <alias field="fid" index="0" name="" />
+        <alias field="inventory_id" index="1" name="" />
+        <alias field="observed_at" index="2" name="관찰일시" />
+        <alias field="surveyor" index="3" name="조사자" />
+        <alias field="selected_korean_name" index="4" name="국명" />
+        <alias field="selected_scientific_name" index="5" name="학명" />
+        <alias field="selected_ktsn" index="6" name="KTSN" />
+        <alias field="identification_score" index="7" name="식별 신뢰도" />
+        <alias field="occurrence_probability" index="8" name="출현 확률" />
+        <alias field="identification_timestamp" index="9" name="식별 일시" />
+        <alias field="identification_model_version" index="10" name="식별 모델 버전" />
+        <alias field="leaf_photo_path" index="11" name="잎 사진" />
+        <alias field="flower_photo_path" index="12" name="꽃 사진" />
+        <alias field="fruit_photo_path" index="13" name="열매 사진" />
+        <alias field="identification_status" index="14" name="식별 상태" />
+        <alias field="notes" index="15" name="비고" />
+      </aliases>
+      <defaults>
+        <default applyOnUpdate="0" expression="" field="fid" />
+        <default applyOnUpdate="0" expression="uuid('WithoutBraces')" field="inventory_id" />
+        <default applyOnUpdate="1" expression="now()" field="observed_at" />
+        <default applyOnUpdate="0" expression="" field="surveyor" />
+        <default applyOnUpdate="0" expression="" field="selected_korean_name" />
+        <default applyOnUpdate="1" expression="attribute(get_feature('ktsn_lookup_d24a69e9_8aa5_4812_ba27_da240cd6380b', 'taxon_kor_nm', &quot;selected_korean_name&quot;), 'taxon_full_nm')" field="selected_scientific_name" />
+        <default applyOnUpdate="1" expression="attribute(get_feature('ktsn_lookup_d24a69e9_8aa5_4812_ba27_da240cd6380b', 'taxon_kor_nm', &quot;selected_korean_name&quot;), 'ktsn')" field="selected_ktsn" />
+        <default applyOnUpdate="0" expression="" field="identification_score" />
+        <default applyOnUpdate="0" expression="" field="occurrence_probability" />
+        <default applyOnUpdate="0" expression="" field="identification_timestamp" />
+        <default applyOnUpdate="0" expression="" field="identification_model_version" />
+        <default applyOnUpdate="0" expression="" field="leaf_photo_path" />
+        <default applyOnUpdate="0" expression="" field="flower_photo_path" />
+        <default applyOnUpdate="0" expression="" field="fruit_photo_path" />
+        <default applyOnUpdate="0" expression="'not_requested'" field="identification_status" />
+        <default applyOnUpdate="0" expression="" field="notes" />
+      </defaults>
+      <constraints>
+        <constraint exp_strength="0" constraints="3" notnull_strength="1" field="fid" unique_strength="1" />
+        <constraint exp_strength="0" constraints="3" notnull_strength="1" field="inventory_id" unique_strength="1" />
+        <constraint exp_strength="0" constraints="1" notnull_strength="1" field="observed_at" unique_strength="0" />
+        <constraint exp_strength="1" constraints="5" notnull_strength="1" field="surveyor" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="selected_korean_name" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="selected_scientific_name" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="selected_ktsn" unique_strength="0" />
+        <constraint exp_strength="1" constraints="4" notnull_strength="0" field="identification_score" unique_strength="0" />
+        <constraint exp_strength="1" constraints="4" notnull_strength="0" field="occurrence_probability" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="identification_timestamp" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="identification_model_version" unique_strength="0" />
+        <constraint exp_strength="1" constraints="4" notnull_strength="0" field="leaf_photo_path" unique_strength="0" />
+        <constraint exp_strength="1" constraints="4" notnull_strength="0" field="flower_photo_path" unique_strength="0" />
+        <constraint exp_strength="1" constraints="4" notnull_strength="0" field="fruit_photo_path" unique_strength="0" />
+        <constraint exp_strength="1" constraints="5" notnull_strength="1" field="identification_status" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="notes" unique_strength="0" />
+      </constraints>
+      <constraintExpressions>
+        <constraint exp="" field="fid" desc="" />
+        <constraint exp="" field="inventory_id" desc="" />
+        <constraint exp="" field="observed_at" desc="" />
+        <constraint exp="length(trim(surveyor)) &gt; 0" field="surveyor" desc="surveyor" />
+        <constraint exp="" field="selected_korean_name" desc="" />
+        <constraint exp="" field="selected_scientific_name" desc="" />
+        <constraint exp="" field="selected_ktsn" desc="" />
+        <constraint exp="identification_score IS NULL OR (identification_score &gt;= 0.0 AND identification_score &lt;= 1.0)" field="identification_score" desc="reserved; nullable/inactive until post-MVP identification subsystem ships" />
+        <constraint exp="occurrence_probability IS NULL OR (occurrence_probability &gt;= 0.0 AND occurrence_probability &lt;= 1.0)" field="occurrence_probability" desc="reserved; nullable/inactive until post-MVP identification subsystem ships" />
+        <constraint exp="" field="identification_timestamp" desc="" />
+        <constraint exp="" field="identification_model_version" desc="" />
+        <constraint exp="leaf_photo_path IS NULL OR (length(trim(leaf_photo_path)) &gt; 0 AND NOT regexp_match(leaf_photo_path, '^/') AND NOT regexp_match(leaf_photo_path, '^[A-Za-z]:[\\\\/]') AND NOT regexp_match(leaf_photo_path, '^\\\\') AND NOT regexp_match(leaf_photo_path, '^[A-Za-z][A-Za-z0-9+.-]*://'))" field="leaf_photo_path" desc="must be a well-formed relative attachment path" />
+        <constraint exp="flower_photo_path IS NULL OR (length(trim(flower_photo_path)) &gt; 0 AND NOT regexp_match(flower_photo_path, '^/') AND NOT regexp_match(flower_photo_path, '^[A-Za-z]:[\\\\/]') AND NOT regexp_match(flower_photo_path, '^\\\\') AND NOT regexp_match(flower_photo_path, '^[A-Za-z][A-Za-z0-9+.-]*://'))" field="flower_photo_path" desc="must be a well-formed relative attachment path" />
+        <constraint exp="fruit_photo_path IS NULL OR (length(trim(fruit_photo_path)) &gt; 0 AND NOT regexp_match(fruit_photo_path, '^/') AND NOT regexp_match(fruit_photo_path, '^[A-Za-z]:[\\\\/]') AND NOT regexp_match(fruit_photo_path, '^\\\\') AND NOT regexp_match(fruit_photo_path, '^[A-Za-z][A-Za-z0-9+.-]*://'))" field="fruit_photo_path" desc="must be a well-formed relative attachment path" />
+        <constraint exp="identification_status IN ('not_requested', 'pending', 'complete', 'failed', 'manual')" field="identification_status" desc="not_requested in MVP; post-MVP adds pending/complete/failed/manual" />
+        <constraint exp="" field="notes" desc="" />
+      </constraintExpressions>
+      <expressionfields />
+      <attributeactions />
+      <attributetableconfig sortOrder="0" actionWidgetStyle="dropDown" sortExpression="">
+        <columns />
+      </attributetableconfig>
+      <conditionalstyles>
+        <rowstyles />
+        <fieldstyles />
+      </conditionalstyles>
+      <storedexpressions />
+      <editform tolerant="1" />
+      <editforminit />
+      <editforminitcodesource>0</editforminitcodesource>
+      <editforminitfilepath />
+      <editforminitcode />
+      <featformsuppress>0</featformsuppress>
+      <editorlayout>tablayout</editorlayout>
+      <attributeEditorForm>
+        <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+          <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+        </labelStyle>
+        <attributeEditorContainer columnCount="1" collapsed="0" visibilityExpression="" verticalStretch="0" collapsedExpressionEnabled="0" horizontalStretch="0" type="GroupBox" visibilityExpressionEnabled="0" collapsedExpression="" name="Details" groupBox="1" showLabel="1">
+          <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+            <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+          </labelStyle>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="1" name="inventory_id" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="2" name="observed_at" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="3" name="surveyor" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="4" name="selected_korean_name" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="5" name="selected_scientific_name" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="6" name="selected_ktsn" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="7" name="identification_score" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="8" name="occurrence_probability" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="9" name="identification_timestamp" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="10" name="identification_model_version" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="11" name="leaf_photo_path" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="12" name="flower_photo_path" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="13" name="fruit_photo_path" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="14" name="identification_status" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="15" name="notes" showLabel="1">
+            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle>
+          </attributeEditorField>
+          <attributeEditorQmlElement verticalStretch="0" horizontalStretch="0" name="Identify attached photos" showLabel="1"><labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
+              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
+            </labelStyle></attributeEditorQmlElement>
+        </attributeEditorContainer>
+      </attributeEditorForm>
+      <editable>
+        <field name="inventory_id" editable="0" />
+        <field name="selected_ktsn" editable="0" />
+        <field name="selected_scientific_name" editable="0" />
+      </editable>
+      <labelOnTop />
+      <reuseLastValue />
+      <dataDefinedFieldProperties />
+      <widgets />
+      <previewExpression>coalesce(selected_korean_name, selected_scientific_name, 'Inventory record')</previewExpression>
+      <mapTip enabled="1" />
+    </maplayer>
+    <maplayer hasScaleBasedVisibilityFlag="0" autoRefreshMode="Disabled" autoRefreshTime="0" type="vector" legendPlaceholderImage="" wkbType="NoGeometry" minScale="1e+08" refreshOnNotifyEnabled="0" readOnly="1" maxScale="0" styleCategories="AllStyleCategories" geometry="No geometry" refreshOnNotifyMessage="">
+      <id>ktsn_lookup_d24a69e9_8aa5_4812_ba27_da240cd6380b</id>
+      <datasource>./data/template.gpkg|layername=ktsn_lookup</datasource>
+      <layername>인정 국명 조회표</layername>
+      <srs>
+        <spatialrefsys nativeFormat="Wkt">
+          <wkt />
+          <proj4 />
+          <srsid>0</srsid>
+          <srid>0</srid>
+          <authid />
+          <description />
+          <projectionacronym />
+          <ellipsoidacronym />
+          <geographicflag>false</geographicflag>
+        </spatialrefsys>
+      </srs>
+      <resourceMetadata>
+        <identifier />
+        <parentidentifier />
+        <language />
+        <type>dataset</type>
+        <title />
+        <abstract />
+        <links />
+        <dates />
+        <fees />
+        <encoding />
+        <crs>
+          <spatialrefsys nativeFormat="Wkt">
+            <wkt />
+            <proj4 />
+            <srsid>0</srsid>
+            <srid>0</srid>
+            <authid />
+            <description />
+            <projectionacronym />
+            <ellipsoidacronym />
+            <geographicflag>false</geographicflag>
+          </spatialrefsys>
+        </crs>
+        <extent />
+      </resourceMetadata>
+      <provider encoding="UTF-8">ogr</provider>
+      <vectorjoins />
+      <layerDependencies />
+      <dataDependencies />
+      <expressionfields />
+      <map-layer-style-manager current="default">
+        <map-layer-style name="default" />
+      </map-layer-style-manager>
+      <auxiliaryLayer />
+      <flags>
+        <Identifiable>0</Identifiable>
+        <Removable>1</Removable>
+        <Searchable>1</Searchable>
+        <Private>0</Private>
+      </flags>
+      <temporal durationUnit="min" enabled="0" fixedDuration="0" accumulate="0" startField="" mode="0" startExpression="" limitMode="0" durationField="" endField="" endExpression="">
+        <fixedRange>
+          <start />
+          <end />
+        </fixedRange>
+      </temporal>
+      <elevation customToleranceEnabled="1" showMarkerSymbolInSurfacePlots="0" zoffset="0" extrusionEnabled="0" type="IndividualFeatures" clamping="Terrain" zscale="1" extrusion="0" symbology="Line" binding="Centroid" respectLayerSymbol="1">
+        <data-defined-properties>
+          <Option type="Map">
+            <Option type="QString" value="" name="name" />
+            <Option name="properties" />
+            <Option type="QString" value="collection" name="type" />
+          </Option>
+        </data-defined-properties>
+        <profileLineSymbol>
+          <symbol alpha="1" clip_to_extent="1" type="line" frame_rate="10" force_rhr="0" is_animated="0" name="">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option type="QString" value="" name="name" />
+                <Option name="properties" />
+                <Option type="QString" value="collection" name="type" />
+              </Option>
+            </data_defined_properties>
+            <layer enabled="1" id="{a3c2de9b-7363-48ab-aa45-e805fc60c024}" locked="0" pass="0" class="SimpleLine">
+              <Option type="Map">
+                <Option type="QString" value="0" name="align_dash_pattern" />
+                <Option type="QString" value="square" name="capstyle" />
+                <Option type="QString" value="5;2" name="customdash" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="customdash_map_unit_scale" />
+                <Option type="QString" value="MM" name="customdash_unit" />
+                <Option type="QString" value="0" name="dash_pattern_offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="dash_pattern_offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="dash_pattern_offset_unit" />
+                <Option type="QString" value="0" name="draw_inside_polygon" />
+                <Option type="QString" value="bevel" name="joinstyle" />
+                <Option type="QString" value="164,113,88,255,rgb:0.6431373,0.4431373,0.345098,1" name="line_color" />
+                <Option type="QString" value="solid" name="line_style" />
+                <Option type="QString" value="0.6" name="line_width" />
+                <Option type="QString" value="MM" name="line_width_unit" />
+                <Option type="QString" value="0" name="offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="offset_unit" />
+                <Option type="QString" value="0" name="ring_filter" />
+                <Option type="QString" value="0" name="trim_distance_end" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="trim_distance_end_map_unit_scale" />
+                <Option type="QString" value="MM" name="trim_distance_end_unit" />
+                <Option type="QString" value="0" name="trim_distance_start" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="trim_distance_start_map_unit_scale" />
+                <Option type="QString" value="MM" name="trim_distance_start_unit" />
+                <Option type="QString" value="0" name="tweak_dash_pattern_on_corners" />
+                <Option type="QString" value="0" name="use_custom_dash" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="width_map_unit_scale" />
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option type="QString" value="" name="name" />
+                  <Option name="properties" />
+                  <Option type="QString" value="collection" name="type" />
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </profileLineSymbol>
+        <profileFillSymbol>
+          <symbol alpha="1" clip_to_extent="1" type="fill" frame_rate="10" force_rhr="0" is_animated="0" name="">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option type="QString" value="" name="name" />
+                <Option name="properties" />
+                <Option type="QString" value="collection" name="type" />
+              </Option>
+            </data_defined_properties>
+            <layer enabled="1" id="{595998b2-ba61-4647-a608-176cb016a7fc}" locked="0" pass="0" class="SimpleFill">
+              <Option type="Map">
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="border_width_map_unit_scale" />
+                <Option type="QString" value="164,113,88,255,rgb:0.6431373,0.4431373,0.345098,1" name="color" />
+                <Option type="QString" value="bevel" name="joinstyle" />
+                <Option type="QString" value="0,0" name="offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="offset_unit" />
+                <Option type="QString" value="117,81,63,255,rgb:0.4593729,0.3165332,0.2464942,1" name="outline_color" />
+                <Option type="QString" value="solid" name="outline_style" />
+                <Option type="QString" value="0.2" name="outline_width" />
+                <Option type="QString" value="MM" name="outline_width_unit" />
+                <Option type="QString" value="solid" name="style" />
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option type="QString" value="" name="name" />
+                  <Option name="properties" />
+                  <Option type="QString" value="collection" name="type" />
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </profileFillSymbol>
+        <profileMarkerSymbol>
+          <symbol alpha="1" clip_to_extent="1" type="marker" frame_rate="10" force_rhr="0" is_animated="0" name="">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option type="QString" value="" name="name" />
+                <Option name="properties" />
+                <Option type="QString" value="collection" name="type" />
+              </Option>
+            </data_defined_properties>
+            <layer enabled="1" id="{56be343b-c443-44d4-887f-2d501a035cb0}" locked="0" pass="0" class="SimpleMarker">
+              <Option type="Map">
+                <Option type="QString" value="0" name="angle" />
+                <Option type="QString" value="square" name="cap_style" />
+                <Option type="QString" value="164,113,88,255,rgb:0.6431373,0.4431373,0.345098,1" name="color" />
+                <Option type="QString" value="1" name="horizontal_anchor_point" />
+                <Option type="QString" value="bevel" name="joinstyle" />
+                <Option type="QString" value="diamond" name="name" />
+                <Option type="QString" value="0,0" name="offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="offset_unit" />
+                <Option type="QString" value="117,81,63,255,rgb:0.4593729,0.3165332,0.2464942,1" name="outline_color" />
+                <Option type="QString" value="solid" name="outline_style" />
+                <Option type="QString" value="0.2" name="outline_width" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="outline_width_map_unit_scale" />
+                <Option type="QString" value="MM" name="outline_width_unit" />
+                <Option type="QString" value="diameter" name="scale_method" />
+                <Option type="QString" value="3" name="size" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="size_map_unit_scale" />
+                <Option type="QString" value="MM" name="size_unit" />
+                <Option type="QString" value="1" name="vertical_anchor_point" />
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option type="QString" value="" name="name" />
+                  <Option name="properties" />
+                  <Option type="QString" value="collection" name="type" />
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </profileMarkerSymbol>
+      </elevation>
+      <customproperties>
+        <Option />
+      </customproperties>
+      <geometryOptions removeDuplicateNodes="0" geometryPrecision="0">
+        <activeChecks type="StringList">
+          <Option type="QString" value="" />
+        </activeChecks>
+        <checkConfiguration />
+      </geometryOptions>
+      <legend type="default-vector" showLabelLegend="0" />
+      <referencedLayers />
+      <referencingLayers />
+      <fieldConfiguration>
+        <field configurationFlags="NoFlag" name="fid">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="ktsn">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="taxon_kor_nm">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="taxon_full_nm">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+      </fieldConfiguration>
+      <aliases>
+        <alias field="fid" index="0" name="" />
+        <alias field="ktsn" index="1" name="" />
+        <alias field="taxon_kor_nm" index="2" name="" />
+        <alias field="taxon_full_nm" index="3" name="" />
+      </aliases>
+      <defaults>
+        <default applyOnUpdate="0" expression="" field="fid" />
+        <default applyOnUpdate="0" expression="" field="ktsn" />
+        <default applyOnUpdate="0" expression="" field="taxon_kor_nm" />
+        <default applyOnUpdate="0" expression="" field="taxon_full_nm" />
+      </defaults>
+      <constraints>
+        <constraint exp_strength="0" constraints="3" notnull_strength="1" field="fid" unique_strength="1" />
+        <constraint exp_strength="0" constraints="1" notnull_strength="1" field="ktsn" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="taxon_kor_nm" unique_strength="0" />
+        <constraint exp_strength="0" constraints="1" notnull_strength="1" field="taxon_full_nm" unique_strength="0" />
+      </constraints>
+      <constraintExpressions>
+        <constraint exp="" field="fid" desc="" />
+        <constraint exp="" field="ktsn" desc="" />
+        <constraint exp="" field="taxon_kor_nm" desc="" />
+        <constraint exp="" field="taxon_full_nm" desc="" />
+      </constraintExpressions>
+      <expressionfields />
+      <attributeactions />
+      <attributetableconfig sortOrder="0" actionWidgetStyle="dropDown" sortExpression="">
+        <columns />
+      </attributetableconfig>
+      <conditionalstyles>
+        <rowstyles />
+        <fieldstyles />
+      </conditionalstyles>
+      <storedexpressions />
+      <editform tolerant="1" />
+      <editforminit />
+      <editforminitcodesource>0</editforminitcodesource>
+      <editforminitfilepath />
+      <editforminitcode />
+      <featformsuppress>0</featformsuppress>
+      <editorlayout>generatedlayout</editorlayout>
+      <editable />
+      <labelOnTop />
+      <reuseLastValue />
+      <dataDefinedFieldProperties />
+      <widgets />
+      <previewExpression>taxon_kor_nm</previewExpression>
+      <mapTip enabled="1" />
+    </maplayer>
+    <maplayer hasScaleBasedVisibilityFlag="0" autoRefreshMode="Disabled" autoRefreshTime="0" type="vector" legendPlaceholderImage="" wkbType="NoGeometry" minScale="1e+08" refreshOnNotifyEnabled="0" readOnly="1" maxScale="0" styleCategories="AllStyleCategories" geometry="No geometry" refreshOnNotifyMessage="">
+      <id>qpb_canonical_taxonomy_6a634b58_538d_4598_ad4c_71300847bebb</id>
+      <datasource>./data/template.gpkg|layername=ktsn_taxonomy_reference</datasource>
+      <layername>식물 분류 참조표</layername>
+      <srs>
+        <spatialrefsys nativeFormat="Wkt">
+          <wkt />
+          <proj4 />
+          <srsid>0</srsid>
+          <srid>0</srid>
+          <authid />
+          <description />
+          <projectionacronym />
+          <ellipsoidacronym />
+          <geographicflag>false</geographicflag>
+        </spatialrefsys>
+      </srs>
+      <resourceMetadata>
+        <identifier />
+        <parentidentifier />
+        <language />
+        <type>dataset</type>
+        <title />
+        <abstract />
+        <links />
+        <dates />
+        <fees />
+        <encoding />
+        <crs>
+          <spatialrefsys nativeFormat="Wkt">
+            <wkt />
+            <proj4 />
+            <srsid>0</srsid>
+            <srid>0</srid>
+            <authid />
+            <description />
+            <projectionacronym />
+            <ellipsoidacronym />
+            <geographicflag>false</geographicflag>
+          </spatialrefsys>
+        </crs>
+        <extent />
+      </resourceMetadata>
+      <provider encoding="UTF-8">ogr</provider>
+      <vectorjoins />
+      <layerDependencies />
+      <dataDependencies />
+      <expressionfields />
+      <map-layer-style-manager current="default">
+        <map-layer-style name="default" />
+      </map-layer-style-manager>
+      <auxiliaryLayer />
+      <flags>
+        <Identifiable>0</Identifiable>
+        <Removable>1</Removable>
+        <Searchable>1</Searchable>
+        <Private>0</Private>
+      </flags>
+      <temporal durationUnit="min" enabled="0" fixedDuration="0" accumulate="0" startField="" mode="0" startExpression="" limitMode="0" durationField="" endField="" endExpression="">
+        <fixedRange>
+          <start />
+          <end />
+        </fixedRange>
+      </temporal>
+      <elevation customToleranceEnabled="1" showMarkerSymbolInSurfacePlots="0" zoffset="0" extrusionEnabled="0" type="IndividualFeatures" clamping="Terrain" zscale="1" extrusion="0" symbology="Line" binding="Centroid" respectLayerSymbol="1">
+        <data-defined-properties>
+          <Option type="Map">
+            <Option type="QString" value="" name="name" />
+            <Option name="properties" />
+            <Option type="QString" value="collection" name="type" />
+          </Option>
+        </data-defined-properties>
+        <profileLineSymbol>
+          <symbol alpha="1" clip_to_extent="1" type="line" frame_rate="10" force_rhr="0" is_animated="0" name="">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option type="QString" value="" name="name" />
+                <Option name="properties" />
+                <Option type="QString" value="collection" name="type" />
+              </Option>
+            </data_defined_properties>
+            <layer enabled="1" id="{b8dc18bd-f64e-4fd3-b3ff-e41a0416ace2}" locked="0" pass="0" class="SimpleLine">
+              <Option type="Map">
+                <Option type="QString" value="0" name="align_dash_pattern" />
+                <Option type="QString" value="square" name="capstyle" />
+                <Option type="QString" value="5;2" name="customdash" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="customdash_map_unit_scale" />
+                <Option type="QString" value="MM" name="customdash_unit" />
+                <Option type="QString" value="0" name="dash_pattern_offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="dash_pattern_offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="dash_pattern_offset_unit" />
+                <Option type="QString" value="0" name="draw_inside_polygon" />
+                <Option type="QString" value="bevel" name="joinstyle" />
+                <Option type="QString" value="133,182,111,255,rgb:0.5215686,0.7137255,0.4352941,1" name="line_color" />
+                <Option type="QString" value="solid" name="line_style" />
+                <Option type="QString" value="0.6" name="line_width" />
+                <Option type="QString" value="MM" name="line_width_unit" />
+                <Option type="QString" value="0" name="offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="offset_unit" />
+                <Option type="QString" value="0" name="ring_filter" />
+                <Option type="QString" value="0" name="trim_distance_end" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="trim_distance_end_map_unit_scale" />
+                <Option type="QString" value="MM" name="trim_distance_end_unit" />
+                <Option type="QString" value="0" name="trim_distance_start" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="trim_distance_start_map_unit_scale" />
+                <Option type="QString" value="MM" name="trim_distance_start_unit" />
+                <Option type="QString" value="0" name="tweak_dash_pattern_on_corners" />
+                <Option type="QString" value="0" name="use_custom_dash" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="width_map_unit_scale" />
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option type="QString" value="" name="name" />
+                  <Option name="properties" />
+                  <Option type="QString" value="collection" name="type" />
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </profileLineSymbol>
+        <profileFillSymbol>
+          <symbol alpha="1" clip_to_extent="1" type="fill" frame_rate="10" force_rhr="0" is_animated="0" name="">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option type="QString" value="" name="name" />
+                <Option name="properties" />
+                <Option type="QString" value="collection" name="type" />
+              </Option>
+            </data_defined_properties>
+            <layer enabled="1" id="{2aa1e530-a862-4c3d-8f59-83c3dca636de}" locked="0" pass="0" class="SimpleFill">
+              <Option type="Map">
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="border_width_map_unit_scale" />
+                <Option type="QString" value="133,182,111,255,rgb:0.5215686,0.7137255,0.4352941,1" name="color" />
+                <Option type="QString" value="bevel" name="joinstyle" />
+                <Option type="QString" value="0,0" name="offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="offset_unit" />
+                <Option type="QString" value="95,130,79,255,rgb:0.372549,0.5098039,0.3109178,1" name="outline_color" />
+                <Option type="QString" value="solid" name="outline_style" />
+                <Option type="QString" value="0.2" name="outline_width" />
+                <Option type="QString" value="MM" name="outline_width_unit" />
+                <Option type="QString" value="solid" name="style" />
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option type="QString" value="" name="name" />
+                  <Option name="properties" />
+                  <Option type="QString" value="collection" name="type" />
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </profileFillSymbol>
+        <profileMarkerSymbol>
+          <symbol alpha="1" clip_to_extent="1" type="marker" frame_rate="10" force_rhr="0" is_animated="0" name="">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option type="QString" value="" name="name" />
+                <Option name="properties" />
+                <Option type="QString" value="collection" name="type" />
+              </Option>
+            </data_defined_properties>
+            <layer enabled="1" id="{0067ce71-576d-432f-9734-b27ce87f5d45}" locked="0" pass="0" class="SimpleMarker">
+              <Option type="Map">
+                <Option type="QString" value="0" name="angle" />
+                <Option type="QString" value="square" name="cap_style" />
+                <Option type="QString" value="133,182,111,255,rgb:0.5215686,0.7137255,0.4352941,1" name="color" />
+                <Option type="QString" value="1" name="horizontal_anchor_point" />
+                <Option type="QString" value="bevel" name="joinstyle" />
+                <Option type="QString" value="diamond" name="name" />
+                <Option type="QString" value="0,0" name="offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="offset_unit" />
+                <Option type="QString" value="95,130,79,255,rgb:0.372549,0.5098039,0.3109178,1" name="outline_color" />
+                <Option type="QString" value="solid" name="outline_style" />
+                <Option type="QString" value="0.2" name="outline_width" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="outline_width_map_unit_scale" />
+                <Option type="QString" value="MM" name="outline_width_unit" />
+                <Option type="QString" value="diameter" name="scale_method" />
+                <Option type="QString" value="3" name="size" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="size_map_unit_scale" />
+                <Option type="QString" value="MM" name="size_unit" />
+                <Option type="QString" value="1" name="vertical_anchor_point" />
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option type="QString" value="" name="name" />
+                  <Option name="properties" />
+                  <Option type="QString" value="collection" name="type" />
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </profileMarkerSymbol>
+      </elevation>
+      <customproperties>
+        <Option />
+      </customproperties>
+      <geometryOptions removeDuplicateNodes="0" geometryPrecision="0">
+        <activeChecks type="StringList">
+          <Option type="QString" value="" />
+        </activeChecks>
+        <checkConfiguration />
+      </geometryOptions>
+      <legend type="default-vector" showLabelLegend="0" />
+      <referencedLayers />
+      <referencingLayers />
+      <fieldConfiguration>
+        <field configurationFlags="NoFlag" name="ktsn">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="source_no">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="taxon_status">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="korean_name">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="scientific_name">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="scientific_name_normalized">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="scientific_name_without_authority">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="authority">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="naming_year">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="phylum_scientific_name">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="phylum_korean_name">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="class_scientific_name">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="class_korean_name">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="order_scientific_name">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="order_korean_name">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="family_scientific_name">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="family_korean_name">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="genus_scientific_name">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="genus_korean_name">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="accepted_ktsn">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="source_url">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="content_available">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+        <field configurationFlags="NoFlag" name="source_row">
+          <editWidget type="">
+            <config>
+              <Option />
+            </config>
+          </editWidget>
+        </field>
+      </fieldConfiguration>
+      <aliases>
+        <alias field="ktsn" index="0" name="" />
+        <alias field="source_no" index="1" name="" />
+        <alias field="taxon_status" index="2" name="" />
+        <alias field="korean_name" index="3" name="" />
+        <alias field="scientific_name" index="4" name="" />
+        <alias field="scientific_name_normalized" index="5" name="" />
+        <alias field="scientific_name_without_authority" index="6" name="" />
+        <alias field="authority" index="7" name="" />
+        <alias field="naming_year" index="8" name="" />
+        <alias field="phylum_scientific_name" index="9" name="" />
+        <alias field="phylum_korean_name" index="10" name="" />
+        <alias field="class_scientific_name" index="11" name="" />
+        <alias field="class_korean_name" index="12" name="" />
+        <alias field="order_scientific_name" index="13" name="" />
+        <alias field="order_korean_name" index="14" name="" />
+        <alias field="family_scientific_name" index="15" name="" />
+        <alias field="family_korean_name" index="16" name="" />
+        <alias field="genus_scientific_name" index="17" name="" />
+        <alias field="genus_korean_name" index="18" name="" />
+        <alias field="accepted_ktsn" index="19" name="" />
+        <alias field="source_url" index="20" name="" />
+        <alias field="content_available" index="21" name="" />
+        <alias field="source_row" index="22" name="" />
+      </aliases>
+      <defaults>
+        <default applyOnUpdate="0" expression="" field="ktsn" />
+        <default applyOnUpdate="0" expression="" field="source_no" />
+        <default applyOnUpdate="0" expression="" field="taxon_status" />
+        <default applyOnUpdate="0" expression="" field="korean_name" />
+        <default applyOnUpdate="0" expression="" field="scientific_name" />
+        <default applyOnUpdate="0" expression="" field="scientific_name_normalized" />
+        <default applyOnUpdate="0" expression="" field="scientific_name_without_authority" />
+        <default applyOnUpdate="0" expression="" field="authority" />
+        <default applyOnUpdate="0" expression="" field="naming_year" />
+        <default applyOnUpdate="0" expression="" field="phylum_scientific_name" />
+        <default applyOnUpdate="0" expression="" field="phylum_korean_name" />
+        <default applyOnUpdate="0" expression="" field="class_scientific_name" />
+        <default applyOnUpdate="0" expression="" field="class_korean_name" />
+        <default applyOnUpdate="0" expression="" field="order_scientific_name" />
+        <default applyOnUpdate="0" expression="" field="order_korean_name" />
+        <default applyOnUpdate="0" expression="" field="family_scientific_name" />
+        <default applyOnUpdate="0" expression="" field="family_korean_name" />
+        <default applyOnUpdate="0" expression="" field="genus_scientific_name" />
+        <default applyOnUpdate="0" expression="" field="genus_korean_name" />
+        <default applyOnUpdate="0" expression="" field="accepted_ktsn" />
+        <default applyOnUpdate="0" expression="" field="source_url" />
+        <default applyOnUpdate="0" expression="" field="content_available" />
+        <default applyOnUpdate="0" expression="" field="source_row" />
+      </defaults>
+      <constraints>
+        <constraint exp_strength="0" constraints="3" notnull_strength="1" field="ktsn" unique_strength="1" />
+        <constraint exp_strength="0" constraints="1" notnull_strength="1" field="source_no" unique_strength="0" />
+        <constraint exp_strength="0" constraints="1" notnull_strength="1" field="taxon_status" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="korean_name" unique_strength="0" />
+        <constraint exp_strength="0" constraints="1" notnull_strength="1" field="scientific_name" unique_strength="0" />
+        <constraint exp_strength="0" constraints="1" notnull_strength="1" field="scientific_name_normalized" unique_strength="0" />
+        <constraint exp_strength="0" constraints="1" notnull_strength="1" field="scientific_name_without_authority" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="authority" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="naming_year" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="phylum_scientific_name" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="phylum_korean_name" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="class_scientific_name" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="class_korean_name" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="order_scientific_name" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="order_korean_name" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="family_scientific_name" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="family_korean_name" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="genus_scientific_name" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="genus_korean_name" unique_strength="0" />
+        <constraint exp_strength="0" constraints="1" notnull_strength="1" field="accepted_ktsn" unique_strength="0" />
+        <constraint exp_strength="0" constraints="1" notnull_strength="1" field="source_url" unique_strength="0" />
+        <constraint exp_strength="0" constraints="0" notnull_strength="0" field="content_available" unique_strength="0" />
+        <constraint exp_strength="0" constraints="1" notnull_strength="1" field="source_row" unique_strength="0" />
+      </constraints>
+      <constraintExpressions>
+        <constraint exp="" field="ktsn" desc="" />
+        <constraint exp="" field="source_no" desc="" />
+        <constraint exp="" field="taxon_status" desc="" />
+        <constraint exp="" field="korean_name" desc="" />
+        <constraint exp="" field="scientific_name" desc="" />
+        <constraint exp="" field="scientific_name_normalized" desc="" />
+        <constraint exp="" field="scientific_name_without_authority" desc="" />
+        <constraint exp="" field="authority" desc="" />
+        <constraint exp="" field="naming_year" desc="" />
+        <constraint exp="" field="phylum_scientific_name" desc="" />
+        <constraint exp="" field="phylum_korean_name" desc="" />
+        <constraint exp="" field="class_scientific_name" desc="" />
+        <constraint exp="" field="class_korean_name" desc="" />
+        <constraint exp="" field="order_scientific_name" desc="" />
+        <constraint exp="" field="order_korean_name" desc="" />
+        <constraint exp="" field="family_scientific_name" desc="" />
+        <constraint exp="" field="family_korean_name" desc="" />
+        <constraint exp="" field="genus_scientific_name" desc="" />
+        <constraint exp="" field="genus_korean_name" desc="" />
+        <constraint exp="" field="accepted_ktsn" desc="" />
+        <constraint exp="" field="source_url" desc="" />
+        <constraint exp="" field="content_available" desc="" />
+        <constraint exp="" field="source_row" desc="" />
+      </constraintExpressions>
+      <expressionfields />
+      <attributeactions />
+      <attributetableconfig sortOrder="0" actionWidgetStyle="dropDown" sortExpression="">
+        <columns />
+      </attributetableconfig>
+      <conditionalstyles>
+        <rowstyles />
+        <fieldstyles />
+      </conditionalstyles>
+      <storedexpressions />
+      <editform tolerant="1" />
+      <editforminit />
+      <editforminitcodesource>0</editforminitcodesource>
+      <editforminitfilepath />
+      <editforminitcode />
+      <featformsuppress>0</featformsuppress>
+      <editorlayout>generatedlayout</editorlayout>
+      <editable />
+      <labelOnTop />
+      <reuseLastValue />
+      <dataDefinedFieldProperties />
+      <widgets />
+      <previewExpression>korean_name</previewExpression>
+      <mapTip enabled="1" />
+    </maplayer>
+  </projectlayers>
+  <layerorder>
+    <layer id="inventory_observation_db293ff9_36c8_4740_9360_05e693db5bb7" />
+    <layer id="qpb_canonical_taxonomy_6a634b58_538d_4598_ad4c_71300847bebb" />
+    <layer id="ktsn_lookup_d24a69e9_8aa5_4812_ba27_da240cd6380b" />
+  </layerorder>
+  <labelEngineSettings />
+  <properties>
+    <Digitizing>
+      <AvoidIntersectionsMode type="int">0</AvoidIntersectionsMode>
+    </Digitizing>
+    <Gui>
+      <CanvasColorBluePart type="int">255</CanvasColorBluePart>
+      <CanvasColorGreenPart type="int">255</CanvasColorGreenPart>
+      <CanvasColorRedPart type="int">255</CanvasColorRedPart>
+      <SelectionColorAlphaPart type="int">255</SelectionColorAlphaPart>
+      <SelectionColorBluePart type="int">0</SelectionColorBluePart>
+      <SelectionColorGreenPart type="int">255</SelectionColorGreenPart>
+      <SelectionColorRedPart type="int">255</SelectionColorRedPart>
+    </Gui>
+    <Measurement>
+      <AreaUnits type="QString">m2</AreaUnits>
+      <DistanceUnits type="QString">meters</DistanceUnits>
+      <ScaleMethod type="QString">HorizontalMiddle</ScaleMethod>
+    </Measurement>
+    <PAL>
+      <CandidatesLinePerCM type="double">5</CandidatesLinePerCM>
+      <CandidatesPolygonPerCM type="double">2.5</CandidatesPolygonPerCM>
+      <DrawLabelMetrics type="bool">false</DrawLabelMetrics>
+      <DrawRectOnly type="bool">false</DrawRectOnly>
+      <DrawUnplaced type="bool">false</DrawUnplaced>
+      <PlacementEngineVersion type="int">1</PlacementEngineVersion>
+      <SearchMethod type="int">0</SearchMethod>
+      <ShowingAllLabels type="bool">false</ShowingAllLabels>
+      <ShowingCandidates type="bool">false</ShowingCandidates>
+      <ShowingPartialsLabels type="bool">true</ShowingPartialsLabels>
+      <TextFormat type="int">0</TextFormat>
+      <UnplacedColor type="QString">255,0,0,255,rgb:1,0,0,1</UnplacedColor>
+    </PAL>
+    <Paths>
+      <Absolute type="bool">false</Absolute>
+    </Paths>
+    <PositionPrecision>
+      <Automatic type="bool">true</Automatic>
+      <DecimalPlaces type="int">2</DecimalPlaces>
+    </PositionPrecision>
+    <SpatialRefSys>
+      <ProjectionsEnabled type="int">1</ProjectionsEnabled>
+    </SpatialRefSys>
+  </properties>
+  <dataDefinedServerProperties>
+    <Option type="Map">
+      <Option type="QString" value="" name="name" />
+      <Option name="properties" />
+      <Option type="QString" value="collection" name="type" />
+    </Option>
+  </dataDefinedServerProperties>
+  <visibility-presets />
+  <transformContext />
+  <projectMetadata>
+    <identifier />
+    <parentidentifier />
+    <language />
+    <type />
+    <title />
+    <abstract>This basemap uses the Ministry of Land, Infrastructure and Transport VWorld WMTS/TMS API under the Korea Open Government License Type 1 (attribution required). https://www.vworld.kr
+본 배경지도는 국토교통부 VWorld WMTS/TMS API를 공공누리 제1유형(출처표시) 조건에 따라 사용합니다. https://www.vworld.kr</abstract>
+    <links />
+    <dates /><author /><creation /></projectMetadata>
+  <Annotations />
+  <Layouts />
+  <mapViewDocks3D />
+  <Bookmarks />
+  <Sensors />
+  <ProjectViewSettings UseProjectScales="0" rotation="0">
+    <Scales />
+  </ProjectViewSettings>
+  <ProjectStyleSettings DefaultSymbolOpacity="1" RandomizeDefaultSymbolColor="1" iccProfileId="attachment:///" colorModel="Rgb" projectStyleId="attachment:///devixr_styles.db">
+    <databases />
+  </ProjectStyleSettings>
+  <ProjectTimeSettings cumulativeTemporalRange="0" frameRate="1" timeStepUnit="h" totalMovieFrames="100" timeStep="1" />
+  <ElevationProperties FilterInvertSlider="0">
+    <terrainProvider type="flat">
+      <TerrainProvider scale="1" offset="0" />
+    </terrainProvider>
+  </ElevationProperties>
+  <ProjectDisplaySettings CoordinateType="MapCrs" CoordinateAxisOrder="Default">
+    <BearingFormat id="bearing">
+      <Option type="Map">
+        <Option type="invalid" name="decimal_separator" />
+        <Option type="int" value="6" name="decimals" />
+        <Option type="int" value="0" name="direction_format" />
+        <Option type="int" value="0" name="rounding_type" />
+        <Option type="bool" value="false" name="show_plus" />
+        <Option type="bool" value="true" name="show_thousand_separator" />
+        <Option type="bool" value="false" name="show_trailing_zeros" />
+        <Option type="invalid" name="thousand_separator" />
+      </Option>
+    </BearingFormat>
+    <GeographicCoordinateFormat id="geographiccoordinate">
+      <Option type="Map">
+        <Option type="QString" value="DecimalDegrees" name="angle_format" />
+        <Option type="invalid" name="decimal_separator" />
+        <Option type="int" value="6" name="decimals" />
+        <Option type="int" value="0" name="rounding_type" />
+        <Option type="bool" value="false" name="show_leading_degree_zeros" />
+        <Option type="bool" value="false" name="show_leading_zeros" />
+        <Option type="bool" value="false" name="show_plus" />
+        <Option type="bool" value="false" name="show_suffix" />
+        <Option type="bool" value="true" name="show_thousand_separator" />
+        <Option type="bool" value="false" name="show_trailing_zeros" />
+        <Option type="invalid" name="thousand_separator" />
+      </Option>
+    </GeographicCoordinateFormat>
+    <CoordinateCustomCrs>
+      <spatialrefsys nativeFormat="Wkt">
+        <wkt>GEOGCRS["WGS 84",ENSEMBLE["World Geodetic System 1984 ensemble",MEMBER["World Geodetic System 1984 (Transit)"],MEMBER["World Geodetic System 1984 (G730)"],MEMBER["World Geodetic System 1984 (G873)"],MEMBER["World Geodetic System 1984 (G1150)"],MEMBER["World Geodetic System 1984 (G1674)"],MEMBER["World Geodetic System 1984 (G1762)"],MEMBER["World Geodetic System 1984 (G2139)"],MEMBER["World Geodetic System 1984 (G2296)"],ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]],ENSEMBLEACCURACY[2.0]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],USAGE[SCOPE["Horizontal component of 3D system."],AREA["World."],BBOX[-90,-180,90,180]],ID["EPSG",4326]]</wkt>
+        <proj4>+proj=longlat +datum=WGS84 +no_defs</proj4>
+        <srsid>3452</srsid>
+        <srid>4326</srid>
+        <authid>EPSG:4326</authid>
+        <description>WGS 84</description>
+        <projectionacronym>longlat</projectionacronym>
+        <ellipsoidacronym>EPSG:7030</ellipsoidacronym>
+        <geographicflag>true</geographicflag>
+      </spatialrefsys>
+    </CoordinateCustomCrs>
+  </ProjectDisplaySettings>
+  <ProjectGpsSettings destinationFollowsActiveLayer="1" destinationLayer="" autoAddTrackVertices="0" autoCommitFeatures="0">
+    <timeStampFields />
+  </ProjectGpsSettings>
+</qgis>

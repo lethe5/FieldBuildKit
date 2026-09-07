@@ -1,0 +1,66 @@
+[project]
+name = "fieldbuild-standalone"
+version = "0.1.0"
+description = "Independent desktop app for generating QField survey projects without QGIS Desktop."
+requires-python = ">=3.10"
+dependencies = [
+    "rasterio>=1.4,<2",
+    "fiona>=1.10,<2",
+    # Decision Log D-53: application-managed, password-derived, locally-encrypted "remember this
+    # key" storage (PBKDF2-HMAC-SHA256 + Fernet) -- replaces the prior `keyring` (OS credential
+    # store) dependency entirely; see qfield_builder/credential_store.py.
+    "cryptography>=42.0",
+    # Post-MVP Section 13 (FR-QPB-113, Decision Log D-41): reads the NIBR accepted-taxon
+    # national-list .xlsx at build time to extract its KTSN column. A real, permanent build-time
+    # requirement (not a one-off investigation), so it is declared as a proper runtime dependency
+    # rather than an ad hoc pip install.
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+ui = [
+    "PySide6>=6.5",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "PySide6>=6.5",
+]
+# Optional, packaging-time-only dependency group: builds a standalone desktop application bundle
+# from the `qfield_builder.ui.app:main` entry point (e.g. a macOS .app -- see
+# `packaging/build_macos_app.sh`). Not a runtime dependency of the application itself, and not
+# required to run or test qfield_builder -- only to package it for distribution.
+packaging = [
+    "pyinstaller>=6.0",
+    # packaging/generate_app_icon.py only (Category D branding decision,
+    # docs/ui-design-guidelines.md "Branding..."): crops/resizes the FieldBuild Kit logo's
+    # icon-mark sub-region into the macOS .icns iconset. Not a runtime dependency of the
+    # application itself, and not required to run or test qfield_builder.
+    "Pillow>=10.0",
+]
+
+[project.scripts]
+fieldbuild-standalone = "qfield_builder.ui.app:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["qfield_builder*"]
+
+[tool.setuptools.package-data]
+qfield_builder = ["templates/*.qgs", "templates/*.xml", "templates/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+exclude = ["tests/acceptance"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

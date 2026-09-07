@@ -1,0 +1,52 @@
+<renderer-v2 enableorderby="0" forceraster="0" symbollevels="0" type="singleSymbol" referencescale="-1">
+        <symbols>
+          <symbol alpha="1" clip_to_extent="1" type="marker" frame_rate="10" force_rhr="0" is_animated="0" name="0">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option type="QString" value="" name="name" />
+                <Option name="properties" />
+                <Option type="QString" value="collection" name="type" />
+              </Option>
+            </data_defined_properties>
+            <layer enabled="1" id="{b5e6c40c-d344-4bf5-b96c-8d3e8ccca39e}" locked="0" pass="0" class="SvgMarker">
+              <Option type="Map">
+                <Option type="QString" value="0" name="angle" />
+                <Option type="QString" value="35,35,35,255,rgb:0.1372549,0.1372549,0.1372549,1" name="color" />
+                <Option type="QString" value="0" name="fixedAspectRatio" />
+                <Option type="QString" value="1" name="horizontal_anchor_point" />
+                <Option type="QString" value="symbols/template.svg" name="name" />
+                <Option type="QString" value="0,0" name="offset" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="offset_map_unit_scale" />
+                <Option type="QString" value="MM" name="offset_unit" />
+                <Option type="QString" value="35,35,35,255,rgb:0.1372549,0.1372549,0.1372549,1" name="outline_color" />
+                <Option type="QString" value="0.2" name="outline_width" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="outline_width_map_unit_scale" />
+                <Option type="QString" value="MM" name="outline_width_unit" />
+                <Option name="parameters" />
+                <Option type="QString" value="diameter" name="scale_method" />
+                <Option type="QString" value="6" name="size" />
+                <Option type="QString" value="3x:0,0,0,0,0,0" name="size_map_unit_scale" />
+                <Option type="QString" value="MM" name="size_unit" />
+                <Option type="QString" value="1" name="vertical_anchor_point" />
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option type="QString" value="" name="name" />
+                  <Option name="properties" />
+                  <Option type="QString" value="collection" name="type" />
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </symbols>
+        <rotation />
+        <sizescale />
+        <data-defined-properties>
+          <Option type="Map">
+            <Option type="QString" value="" name="name" />
+            <Option name="properties" />
+            <Option type="QString" value="collection" name="type" />
+          </Option>
+        </data-defined-properties>
+      </renderer-v2>
+      

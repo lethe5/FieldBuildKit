@@ -1,0 +1,10 @@
+ktsn,p_ktsn,rank_id,r200_nm,taxon_full_nm,taxon_kor_nm,taxon_jm_nm,correct_list
+300000000001,120000098391,700,Magnoliophyta,<em>Testus</em> <em>resolvablus</em>,,이명,
+300000000002,120000098391,700,Magnoliophyta,<em>Testus</em> <em>resolvablus</em>,,이명,
+300000000011,120000098391,700,Magnoliophyta,<em>Testus</em> <em>notfoundus</em>,,이명,
+300000000012,120000098391,700,Magnoliophyta,<em>Testus</em> <em>notfoundus</em>,,이명,
+300000000021,120000098391,700,Magnoliophyta,<em>Testus</em> <em>multimatchus</em>,,이명,
+300000000022,120000098391,700,Magnoliophyta,<em>Testus</em> <em>multimatchus</em>,,이명,
+300000000031,120000098391,700,Magnoliophyta,<em>Testus</em> <em>mismatchus</em>,,이명,
+300000000032,120000098391,700,Magnoliophyta,<em>Testus</em> <em>mismatchus</em>,,이명,
+300000000041,120000098391,700,Magnoliophyta,<em>Testus</em> <em>singleton</em>,,정명,

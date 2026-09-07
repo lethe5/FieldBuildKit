@@ -1,0 +1,9 @@
+{
+  "schema_revision": 1,
+  "survey_types": [
+    "simple_inventory",
+    "temporary_plots",
+    "permanent_plots",
+    "vegetation_mapping"
+  ]
+}
