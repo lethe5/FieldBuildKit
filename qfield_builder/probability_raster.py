@@ -575,9 +575,9 @@ def _sample_probability_gdal(stack_path: str, band: int, lon: float, lat: float)
     value = float(struct.unpack("=f", raw)[0])
     if not math.isfinite(value) or value == NODATA_VALUE:
         return {"ok": False, "reason": "raster_missing_nodata_or_outside_extent"}
-    if value < 0.0 or value > 1.0:
+    if value > 1.0:
         return {"ok": False, "reason": "raster_invalid_value"}
-    return {"ok": True, "value": value}
+    return {"ok": True, "value": max(0.0, value)}
 
 
 def inspect_probability_project(project_dir: str) -> dict:

@@ -17,6 +17,34 @@ from qfield_builder.wkt import (
     wkt_to_wkb,
 )
 
+
+def test_nested_polygon_serialization_does_not_recopy_growing_buffers(monkeypatch):
+    """Count immutable concatenation work instead of relying on machine-dependent timings."""
+    from qfield_builder import wkt
+
+    original_pack = struct.pack
+    copied = 0
+
+    class TrackedBytes(bytes):
+        def __add__(self, other):
+            nonlocal copied
+            copied += len(self) + len(other)
+            return TrackedBytes(super().__add__(other))
+
+    ring = [(float(i), float(i % 2)) for i in range(1024)]
+    ring.append(ring[0])
+    packed_ring = original_pack("<I", len(ring)) + b"".join(
+        original_pack("<dd", *point) for point in ring
+    )
+    body = original_pack("<I", 8) + packed_ring * 8
+    polygon = original_pack("<BI", 1, 3) + body
+    expected = original_pack("<BII", 1, 6, 4) + polygon * 4
+    monkeypatch.setattr(wkt.struct, "pack", lambda *args: TrackedBytes(original_pack(*args)))
+    actual = wkt._wkb_multipolygon([[ring] * 8] * 4)
+    assert actual == expected
+    assert type(actual) is bytes
+    assert copied <= len(expected) * 4
+
 VALID_MULTIPOLYGON = (
     "MULTIPOLYGON(((127.00 37.00, 127.01 37.00, 127.01 37.01, 127.00 37.01, 127.00 37.00)))"
 )

@@ -158,9 +158,9 @@ def _sample_probability_gdal(stack_path, band, lon, lat):
         value = float(source.read(band, window=Window(col, row, 1, 1))[0, 0])
         if not math.isfinite(value) or value == source.nodatavals[band - 1]:
             return {"ok": False, "reason": "raster_missing_nodata_or_outside_extent"}
-        if not 0 <= value <= 1:
+        if value > 1:
             return {"ok": False, "reason": "raster_invalid_value"}
-        return {"ok": True, "value": value}
+        return {"ok": True, "value": max(0.0, value)}
 
 
 def _inspect_probability_project_pyqgis(project_dir):

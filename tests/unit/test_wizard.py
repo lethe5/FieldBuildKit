@@ -3032,7 +3032,7 @@ def test_symbol_styling_page_debounces_the_preview_fetch_dispatch_across_a_keyst
 
     dispatch_calls: list[list[str]] = []
 
-    def _counting_dispatch(names: list[str]) -> dict:
+    def _counting_dispatch(names: list[str], **kwargs) -> dict:
         dispatch_calls.append(list(names))
         return {
             "requested_names": names,
@@ -3073,7 +3073,7 @@ def test_symbol_styling_page_search_and_selection_remain_functional_when_every_p
     page = SymbolStylingPage()
     page.tabler_radio.setChecked(True)
 
-    def _always_failing_dispatch(names: list[str]) -> dict:
+    def _always_failing_dispatch(names: list[str], **kwargs) -> dict:
         return {
             "requested_names": names,
             "previews": {n: {"success": False, "svg_content": None, "error": "network_error"}
@@ -3268,12 +3268,73 @@ def test_wizard_window_title_shows_the_currently_running_version():
 
 
 def test_wizard_page_hierarchy_shows_independent_app_banner():
-    """The independent app must not display the inherited FieldBuild Kit wordmark."""
+    """Use the original logo artwork while retaining the independent window title."""
     wizard = ProjectBuilderWizard()
     banner_labels = [
         label
         for label in wizard.findChildren(QLabel)
-        if label.objectName() == "fieldbuild_standalone_logo_banner"
+        if label.objectName() == "fieldbuild_kit_logo_banner"
     ]
     assert banner_labels
-    assert all(label.text() == "FieldBuild Standalone" for label in banner_labels)
+    assert all(not label.pixmap().isNull() for label in banner_labels)
+    assert all(label.text() == "" for label in banner_labels)
+    assert all(label.accessibleName() == "FieldBuild Kit" for label in banner_labels)
+
+
+def test_tabler_search_renders_preview_before_batch_finishes():
+    from threading import Event
+
+    release = Event()
+    page = SymbolStylingPage()
+    page.tabler_radio.setChecked(True)
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+           '<path d="M3 3L21 21M3 21L21 3" stroke="currentColor" stroke-width="2"/></svg>')
+
+    def dispatch(names, on_result):
+        preview = {"success": True, "svg_content": svg, "error": None}
+        on_result(names[0], preview)
+        release.wait(3)
+        return {"previews": {names[0]: preview}}
+
+    page._preview_fetch_dispatch = dispatch
+    page.search_edit.setText("leaf")
+    page._preview_debounce_timer.stop()
+    page._dispatch_preview_fetch()
+    worker = page._preview_worker
+    try:
+        for _ in range(100):
+            QTest.qWait(10)
+            if not page.results_list.item(0).icon().isNull():
+                break
+        icon = page.results_list.item(0).icon()
+        assert not icon.isNull()
+        image = icon.pixmap(24, 24).toImage()
+        assert any(image.pixelColor(x, y).alpha() for x in range(24) for y in range(24))
+        assert worker.isRunning(), "preview should arrive before the batch completes"
+    finally:
+        release.set()
+        assert worker.wait(2000)
+        QTest.qWait(20)
+        page.close()
+
+
+def test_wizard_close_cancels_build_without_destroying_a_running_thread():
+    wizard = ProjectBuilderWizard()
+    review = wizard.page(6)
+    cancelled = []
+
+    class RunningWorker:
+        def isRunning(self):
+            return True
+
+        def cancel(self):
+            cancelled.append(True)
+
+    review._worker_thread = RunningWorker()
+    wizard.show()
+    wizard.close()
+    assert cancelled == [True]
+    assert wizard.isVisible()
+    review._worker_thread = None
+    wizard.close()
+    assert not wizard.isVisible()

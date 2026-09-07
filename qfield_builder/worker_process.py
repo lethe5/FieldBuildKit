@@ -132,6 +132,16 @@ def run_job_in_subprocess(
                     outcome = message
                     break
                 except queue.Empty:
+                    if not process.is_alive():
+                        outcome = {
+                            "ok": False,
+                            "error_code": "worker_process_failed",
+                            "error": (
+                                "작업 프로세스가 결과 없이 종료되었습니다 "
+                                f"(종료 코드: {process.exitcode})."
+                            ),
+                        }
+                        break
                     continue
         except Exception:  # noqa: BLE001 - an IPC failure must not hang the UI.
             timed_out = True

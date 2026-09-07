@@ -272,11 +272,11 @@ function sample(job) {
         return { ok: false, reason: "raster_missing_nodata_or_outside_extent" };
     }
     var byteOffset = (y * width + x) * 4, value = f32(raw, byteOffset);
-    if (!isFinite(value) || value === -9999 || value < 0 || value > 1) {
+    if (!isFinite(value) || value === -9999 || value > 1) {
         return { ok: false, reason: value === -9999 ?
             "raster_missing_nodata_or_outside_extent" : "raster_invalid_value" };
     }
-    return { ok: true, value: value };
+    return { ok: true, value: Math.max(0, value) };
 }
 WorkerScript.onMessage = function(message) {
     var result;
@@ -6084,20 +6084,21 @@ Column {{
     // WorkerScript samples the local TIFF.
     function qpbFormatProbability(koreanName, location, candidateIndex) {{
         // Keep the value contract in one small validator used by the asynchronous completion
-        // path.  NoData (-9999), null, malformed and out-of-range samples are never converted to
-        // zero; a missing sampling capability remains a candidate-local unavailable state.
+        // path. Clamp finite negative probabilities to zero; NoData (-9999), null,
+        // non-finite and >1 samples remain unavailable, never fabricated zero probabilities.
         function qpbValidateProbabilitySample(sample) {{
             if (sample === null || sample === undefined) {{
                 return {{ available: false, value: null, reason: "raster_missing_nodata_or_outside_extent" }};
             }}
+            sample = Number(sample);
             if (sample === -9999) {{
                 return {{ available: false, value: null, reason: "raster_missing_nodata_or_outside_extent" }};
             }}
             if (!isFinite(Number(sample))) {{
                 return {{ available: false, value: null, reason: "raster_invalid_value" }};
             }}
-            if (sample >= 0.0 && sample <= 1.0) {{
-                return {{ available: true, value: Number(sample) }};
+            if (sample <= 1.0) {{
+                return {{ available: true, value: Math.max(0, sample) }};
             }}
             return {{ available: false, value: null, reason: "raster_invalid_value" }};
         }}

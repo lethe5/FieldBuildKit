@@ -190,7 +190,7 @@ class _FakeHTTPResponse:
 def test_fetch_tabler_icon_svg_real_sends_a_compliant_identifying_user_agent_header(monkeypatch):
     captured_requests = []
 
-    def _fake_urlopen(request, timeout=None):
+    def _fake_urlopen(request, timeout=None, context=None):
         captured_requests.append(request)
         return _FakeHTTPResponse(200, b"<svg></svg>")
 
@@ -213,7 +213,7 @@ def test_fetch_tabler_icon_svg_real_makes_exactly_one_attempt_on_failure_no_auto
 ):
     call_count = 0
 
-    def _fake_urlopen(request, timeout=None):
+    def _fake_urlopen(request, timeout=None, context=None):
         nonlocal call_count
         call_count += 1
         raise urllib.error.URLError("simulated network failure")
@@ -230,7 +230,7 @@ def test_fetch_tabler_icon_svg_real_makes_exactly_one_attempt_on_failure_no_auto
 
 
 def test_fetch_tabler_icon_svg_real_reports_a_non_200_http_status_as_http_error(monkeypatch):
-    def _fake_urlopen(request, timeout=None):
+    def _fake_urlopen(request, timeout=None, context=None):
         raise urllib.error.HTTPError(
             "https://example.invalid/x.svg", 404, "Not Found", None, None
         )
@@ -258,7 +258,7 @@ def test_fetch_tabler_icon_svg_real_rejects_a_malformed_icon_name_without_any_ne
 
 
 def test_fetch_tabler_icon_svg_returns_the_response_shape_for_a_successful_fetch(monkeypatch):
-    def _fake_urlopen(request, timeout=None):
+    def _fake_urlopen(request, timeout=None, context=None):
         return _FakeHTTPResponse(200, b"<svg>content</svg>", content_type="image/svg+xml")
 
     monkeypatch.setattr(symbol_styling.urllib.request, "urlopen", _fake_urlopen)
@@ -270,7 +270,7 @@ def test_fetch_tabler_icon_svg_returns_the_response_shape_for_a_successful_fetch
 
 
 def test_fetch_tabler_icon_svg_reports_network_level_failure_as_status_zero(monkeypatch):
-    def _fake_urlopen(request, timeout=None):
+    def _fake_urlopen(request, timeout=None, context=None):
         raise urllib.error.URLError("simulated failure")
 
     monkeypatch.setattr(symbol_styling.urllib.request, "urlopen", _fake_urlopen)
@@ -355,6 +355,38 @@ def test_dispatch_preview_fetches_real_bounds_concurrency_below_firing_all_names
     )
 
 
+def test_preview_dispatch_delivers_fast_icon_before_slow_request_finishes():
+    from threading import Event
+
+    first_delivered = Event()
+
+    def fetch_one(name):
+        if name == "leaf":
+            assert first_delivered.wait(2), "fast preview was held until the entire batch finished"
+        return {"success": True, "svg_content": "<svg/>", "error": None}
+
+    result = symbol_styling.dispatch_preview_fetches_real(
+        ["leaf", "map-pin"], fetch_one=fetch_one,
+        on_result=lambda name, preview: first_delivered.set() if name == "map-pin" else None,
+    )
+    assert all(preview["success"] for preview in result["previews"].values())
+
+
+def test_https_context_has_verified_trust_without_developer_ca_files(monkeypatch, tmp_path):
+    import ssl
+
+    monkeypatch.setenv("SSL_CERT_FILE", str(tmp_path / "missing.pem"))
+    monkeypatch.setenv("SSL_CERT_DIR", str(tmp_path / "missing-certs"))
+    symbol_styling._https_context.cache_clear()
+    try:
+        context = symbol_styling._https_context()
+        assert context.verify_mode == ssl.CERT_REQUIRED
+        assert context.check_hostname
+        assert context.cert_store_stats()["x509_ca"] > 0
+    finally:
+        symbol_styling._https_context.cache_clear()
+
+
 def test_dispatch_preview_fetches_real_one_name_raising_never_blocks_or_omits_its_siblings():
     """NFR-QPB-080(8)/AC-QPB-117, at the real dispatch mechanism's own level: one name's fetch
     raising unexpectedly must never crash the batch or drop any other name's own result."""
@@ -387,7 +419,7 @@ def test_dispatch_preview_fetches_real_uses_the_same_compliant_user_agent_as_the
     construction."""
     captured_requests = []
 
-    def _fake_urlopen(request, timeout=None):
+    def _fake_urlopen(request, timeout=None, context=None):
         captured_requests.append(request)
         return _FakeHTTPResponse(200, b"<svg></svg>")
 

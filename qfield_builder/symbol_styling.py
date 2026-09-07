@@ -63,10 +63,13 @@ runtime network operation.
 from __future__ import annotations
 
 import re
+import ssl
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
+
+import certifi
 
 from .resource_paths import resource_path
 
@@ -125,6 +128,14 @@ def search_bundled_tabler_icon_names(query: str) -> dict:
     return {"matches": matches, "total_bundled_names": len(names)}
 
 
+@lru_cache(maxsize=1)
+def _https_context() -> ssl.SSLContext:
+    """Keep platform trust and bundle public CAs for machines without Python's CA files."""
+    context = ssl.create_default_context()
+    context.load_verify_locations(cafile=certifi.where())
+    return context
+
+
 def _http_get(url: str, timeout: float) -> tuple[int, str | None, bytes | None]:
     """One, single-attempt HTTPS GET (NFR-QPB-080(2): no automatic retry loop), carrying the
     compliant, identifying User-Agent header NFR-QPB-080(1) requires. Returns
@@ -135,7 +146,9 @@ def _http_get(url: str, timeout: float) -> tuple[int, str | None, bytes | None]:
     """
     request = urllib.request.Request(url, headers={"User-Agent": TABLER_USER_AGENT})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+        with urllib.request.urlopen(  # noqa: S310
+            request, timeout=timeout, context=_https_context()
+        ) as response:
             status = getattr(response, "status", None) or response.getcode()
             content_type = response.headers.get("Content-Type")
             body = response.read()
@@ -282,6 +295,7 @@ def dispatch_preview_fetches_real(
     icon_names: list[str],
     fetch_one=None,
     max_workers: int = PREVIEW_FETCH_MAX_CONCURRENCY,
+    on_result=None,
 ) -> dict:
     """The real, production live-preview-fetch dispatch mechanism
     (FR-QPB-011(d)(ii)/NFR-QPB-080 clauses (5)-(8); Decision Log D-76) -- called by the wizard's
@@ -326,4 +340,6 @@ def dispatch_preview_fetches_real(
                     "svg_content": None,
                     "error": f"unexpected_error:{exc}",
                 }
+            if on_result is not None:
+                on_result(name, previews[name])
     return {"requested_names": list(icon_names), "previews": previews}

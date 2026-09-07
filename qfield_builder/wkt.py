@@ -219,10 +219,11 @@ def envelope_of(wkt: str, expected_type: str) -> Envelope:
 
 
 def _pack_ring(ring: Ring) -> bytes:
-    out = struct.pack("<I", len(ring))
+    # Mutable accumulation keeps million-vertex boundary serialization linear, not quadratic.
+    out = bytearray(struct.pack("<I", len(ring)))
     for x, y in ring:
         out += struct.pack("<dd", x, y)
-    return out
+    return bytes(out)
 
 
 def _wkb_point(x: float, y: float) -> bytes:
@@ -230,10 +231,10 @@ def _wkb_point(x: float, y: float) -> bytes:
 
 
 def _wkb_polygon_body(rings: list[Ring]) -> bytes:
-    out = struct.pack("<I", len(rings))
+    out = bytearray(struct.pack("<I", len(rings)))
     for ring in rings:
         out += _pack_ring(ring)
-    return out
+    return bytes(out)
 
 
 def _wkb_polygon(rings: list[Ring]) -> bytes:
@@ -241,10 +242,10 @@ def _wkb_polygon(rings: list[Ring]) -> bytes:
 
 
 def _wkb_multipolygon(polygons: list[list[Ring]]) -> bytes:
-    out = struct.pack("<BI", 1, WKB_MULTIPOLYGON) + struct.pack("<I", len(polygons))
+    out = bytearray(struct.pack("<BI", 1, WKB_MULTIPOLYGON) + struct.pack("<I", len(polygons)))
     for rings in polygons:
         out += struct.pack("<BI", 1, WKB_POLYGON) + _wkb_polygon_body(rings)
-    return out
+    return bytes(out)
 
 
 def wkt_to_wkb(wkt: str, expected_type: str) -> bytes:

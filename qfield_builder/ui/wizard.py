@@ -78,7 +78,7 @@ from ..offline_estimate import (
     OFFLINE_HARD_LIMIT_BYTES,
     estimate_offline_basemap_size,
 )
-from ..resource_paths import reference_path
+from ..resource_paths import reference_path, resource_path
 from ..vworld import supported_layers
 from ..wkt import InvalidGeometryError, validate_geometry
 from .build_worker import BuildWorkerThread
@@ -99,19 +99,22 @@ APP_DISPLAY_NAME = "FieldBuild Standalone"
 _PAGE_MARGINS = (12, 8, 12, 8)
 _PAGE_SPACING = 8
 
-# Independent app wordmark shown on the first page.
+# User-requested FieldBuild Kit artwork, independent of the app's name and settings namespace.
 _LOGO_BANNER_HEIGHT_PX = 44
 
 
 def _build_logo_banner_label() -> QLabel:
-    """Use the independent app name instead of the inherited product wordmark."""
-    label = QLabel(APP_DISPLAY_NAME)
-    label.setObjectName("fieldbuild_standalone_logo_banner")
-    font = label.font()
-    font.setPointSize(18)
-    font.setBold(True)
-    label.setFont(font)
-    label.setMinimumHeight(_LOGO_BANNER_HEIGHT_PX)
+    """Display the original FieldBuild Kit logo on each wizard page."""
+    label = QLabel()
+    label.setObjectName("fieldbuild_kit_logo_banner")
+    path = resource_path("fieldbuild-kit-logo.png")
+    label.setProperty("bannerSourcePath", str(path))
+    label.setAccessibleName("FieldBuild Kit")
+    pixmap = QPixmap(str(path))
+    if not pixmap.isNull():
+        label.setPixmap(pixmap.scaledToHeight(
+            _LOGO_BANNER_HEIGHT_PX, Qt.TransformationMode.SmoothTransformation
+        ))
     label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
     return label
 
@@ -2144,7 +2147,12 @@ class _TablerPreviewFetchWorker(QThread):
 
     def run(self) -> None:
         try:
-            result = self._dispatch_fn(self._icon_names)
+            result = self._dispatch_fn(
+                self._icon_names,
+                on_result=lambda name, preview: self.result_ready.emit(
+                    [name], {"previews": {name: preview}}
+                ),
+            )
         except Exception as exc:  # noqa: BLE001 - a failing preview batch must never crash.
             result = {
                 "requested_names": self._icon_names,
@@ -2228,17 +2236,19 @@ class SymbolStylingPage(QWizardPage):
         layout.addWidget(self.minimalist_radio)
         layout.addWidget(self.tabler_radio)
 
-        self.tabler_group = QGroupBox("Tabler 아이콘 검색 (오프라인 검색, 선택 시에만 다운로드)")
+        self.tabler_group = QGroupBox("Tabler 아이콘 검색 (이름 검색 + 온라인 미리보기)")
         tabler_layout = QVBoxLayout()
         tabler_layout.setSpacing(8)
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("아이콘 이름으로 검색 (예: leaf, map-pin)")
         self.search_edit.textChanged.connect(self._on_search_text_changed)
         self.results_list = QListWidget()
+        self.results_list.setIconSize(QSize(24, 24))
         self.results_list.currentTextChanged.connect(self._on_icon_selected)
         self.selected_icon_label = QLabel("선택된 아이콘 없음")
         tabler_note_label = QLabel(
-            "검색은 앱에 내장된 아이콘 이름 목록에서 오프라인으로 이루어집니다. 목록에서 "
+            "이름은 앱에 내장된 목록에서 검색하며, 미리보기 이미지는 온라인으로 불러옵니다. "
+            "목록에서 "
             "아이콘을 하나 선택하면, 그 아이콘의 SVG 파일 하나만 Tabler로부터 다운로드하여 "
             "프로젝트에 포함시킵니다. 다운로드에 실패하거나(네트워크 없음 등) 아이콘을 선택하지 "
             "않으면, 기본 미니멀 점 기호가 그대로 사용되며 프로젝트 생성은 계속 진행됩니다."
@@ -2933,6 +2943,15 @@ class ProjectBuilderWizard(QWizard):
         self.setMinimumSize(*_WIZARD_MIN_SIZE)
         self.setMaximumSize(*_WIZARD_MAX_SIZE)
         self.resize(*_WIZARD_INITIAL_SIZE)
+
+    def done(self, result: int) -> None:
+        """Keep a running build's QThread alive until cancellation has cleaned up its worker."""
+        review = self.page(6)
+        worker = review._worker_thread if review is not None else None
+        if worker is not None and worker.isRunning():
+            review._cancel_build()
+            return
+        super().done(result)
 
     def setCurrentId(self, page_id: int) -> None:  # noqa: N802 - Qt API name.
         """Allow inspection callers to show an arbitrary page without filling earlier fields.

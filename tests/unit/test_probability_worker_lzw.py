@@ -76,10 +76,10 @@ process.stdout.write(JSON.stringify(mode === 'lzw'
     return json.loads(completed.stdout)
 
 
-def _small_lzw_tiff() -> bytes:
+def _small_lzw_tiff(second_value=0.75) -> bytes:
     # Two little-endian float32 pixels: 0.25 and 0.75.  The compressed strip is
     # intentionally encoded MSB-first, as required by TIFF 6.0 LZW.
-    pixels = struct.pack("<ff", 0.25, 0.75)
+    pixels = struct.pack("<ff", 0.25, second_value)
     compressed = bytes(_encode_msb_lzw(pixels))
     ifd_offset = 8
     entry_count = 12
@@ -138,6 +138,18 @@ def test_worker_samples_little_endian_float32_from_lzw_tiff():
         {"bytes": list(_small_lzw_tiff()), "lon": 129.5, "lat": 37.5},
     )
     assert result == {"ok": True, "value": pytest.approx(0.75)}
+
+
+@pytest.mark.parametrize("value", [-0.25, -0.00001, -12000, 0, 0.75, 1, -9999, 1.25])
+def test_worker_clamps_negative_probability_but_preserves_nodata(value):
+    result = _run_worker_value(
+        qml_plugin.PROBABILITY_WORKER_SCRIPT, "sample",
+        {"bytes": list(_small_lzw_tiff(value)), "lon": 129.5, "lat": 37.5},
+    )
+    if value == -9999 or value > 1:
+        assert not result["ok"]
+    else:
+        assert result == {"ok": True, "value": pytest.approx(max(0, value))}
 
 
 def test_real_bundled_tiff_matches_independent_rasterio_value():

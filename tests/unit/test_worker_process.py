@@ -18,6 +18,41 @@ from qfield_builder.worker_process import run_job_in_subprocess
 _QGIS_AVAILABLE = check_runtime()["available"]
 
 
+def test_exited_worker_is_reported_without_waiting_for_the_idle_timeout(monkeypatch):
+    import queue
+
+    from qfield_builder import worker_process
+
+    class EmptyQueue:
+        def get(self, timeout):
+            raise queue.Empty
+
+    class DeadProcess:
+        exitcode = -11
+
+        def start(self):
+            pass
+
+        def is_alive(self):
+            return False
+
+        def join(self, timeout):
+            pass
+
+    class Context:
+        def Queue(self):
+            return EmptyQueue()
+
+        def Process(self, **kwargs):
+            return DeadProcess()
+
+    monkeypatch.setattr(worker_process.mp, "get_context", lambda _: Context())
+    outcome = worker_process.run_job_in_subprocess("check_runtime", {}, timeout_seconds=1800)
+    assert not outcome["ok"]
+    assert outcome["error_code"] == "worker_process_failed"
+    assert "-11" in outcome["error"]
+
+
 def test_check_runtime_job_runs_in_a_genuinely_separate_process():
     outcome = run_job_in_subprocess("check_runtime", {"force_missing": True}, timeout_seconds=30)
     assert outcome["ok"] is True

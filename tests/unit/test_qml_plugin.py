@@ -1661,7 +1661,8 @@ def test_probability_display_rules_match_fr_qpb_108_dr_qpb_070():
     assert "확률 데이터가 없습니다." in content
     assert "현재 조사 위치가 없어 확률을 계산할 수 없습니다." in content
     assert "sample === -9999" in content
-    assert "sample >= 0.0 && sample <= 1.0" in content
+    assert "sample <= 1.0" in content
+    assert "value: Math.max(0, sample)" in content
     assert "raster_invalid_value" in content
     assert "warning: false" in content
 

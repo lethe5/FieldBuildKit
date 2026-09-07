@@ -463,6 +463,7 @@ def build_project(
             raise BuildCancelledError(
                 "빌드가 취소되었습니다. 다시 생성하려면 '생성'을 눌러 주세요."
             )
+        report_stage("사이트 경계 읽기 및 좌표 변환")
         seed_sites = _resolve_seed_sites(config, work_dir=temp_root)
         seed_plots = _resolve_seed_plots(config) if survey_type == "permanent_plots" else []
         seed_temp_points = (
