@@ -33,7 +33,7 @@ REPO_ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 - PyInstaller-injected
 # this application's own display name, including the PyInstaller packaging configuration's own
 # bundle name.
 APP_NAME = "FieldBuild Standalone"
-APP_VERSION = "0.1.4"
+APP_VERSION = "0.1.5"
 # D-89/D-95: build_macos_app.sh creates this staging directory from validated canonical-derived
 # artifacts before invoking PyInstaller. Keeping the root configurable lets release CI use a clean
 # temporary staging root.
@@ -82,10 +82,16 @@ a = Analysis(
         (str(CANONICAL_REFERENCE_SOURCE), "storage/reference/tables"),
     ] + gis_datas + collect_data_files("qfield_builder", includes=["templates/*"]),
     hiddenimports=gis_imports,
-    hookspath=[],
+    hookspath=[str(REPO_ROOT / "packaging" / "hooks")],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["qgis", "osgeo"],
+    # The desktop UI is Widgets-based. Generated QML runs in QField, not this app.
+    excludes=[
+        "qgis", "osgeo",
+        "PySide6.QtPdf", "PySide6.QtPdfWidgets",
+        "PySide6.QtQuick", "PySide6.QtQuickWidgets", "PySide6.QtQml",
+        "PySide6.QtVirtualKeyboard",
+    ],
     noarchive=False,
 )
 # Exclude ICU DLLs that conflict with Qt in Windows builds.
