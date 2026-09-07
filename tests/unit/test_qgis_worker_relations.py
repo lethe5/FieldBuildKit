@@ -103,12 +103,12 @@ def test_every_relation_name_is_the_confirmed_korean_display_name(tmp_path: Path
         )
 
 
-def test_related_record_project_keeps_deferred_fk_transaction_groups(tmp_path: Path):
-    """Nested daughters need deferred FKs and UUID defaults available before child creation."""
+def test_related_record_project_uses_buffered_transaction_groups(tmp_path: Path):
+    """Use grouped buffered editing while preserving provider-side default evaluation."""
     project_dir = Path(_build_project(tmp_path, "permanent_plots"))
     project_xml = ET.parse(project_dir / "permanent_plots.qgs").getroot()
 
-    assert project_xml.find("transaction").get("mode") == "AutomaticGroups"
+    assert project_xml.find("transaction").get("mode") == "BufferedGroups"
     assert "EvaluateDefaultValuesOnProviderSide" in (
         project_xml.find("projectFlags").get("set") or ""
     )

@@ -33,7 +33,7 @@ REPO_ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 - PyInstaller-injected
 # this application's own display name, including the PyInstaller packaging configuration's own
 # bundle name.
 APP_NAME = "FieldBuild Standalone"
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.1.2"
 # D-89/D-95: build_macos_app.sh creates this staging directory from validated canonical-derived
 # artifacts before invoking PyInstaller. Keeping the root configurable lets release CI use a clean
 # temporary staging root.

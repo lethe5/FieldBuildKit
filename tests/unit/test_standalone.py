@@ -122,6 +122,44 @@ def test_build_and_relocate_without_qgis(
     result = build.build_project(config, str(destination))
     assert result["success"], json.dumps(result, ensure_ascii=False, indent=2)
     document = ET.parse(result["qgs_path"])
+    assert document.find("transaction").get("mode") == "BufferedGroups"
+    reference_ids = {
+        node.get("id")
+        for node in document.findall(
+            "./layer-tree-group/layer-tree-group[@name='Reference']//layer-tree-layer"
+        )
+    }
+    # UUID generation must remain active without displaying primary keys in the form.
+    for layer in document.findall("./projectlayers/maplayer"):
+        table_name = layer.findtext("datasource", "").split("|layername=")[-1]
+        is_reference = layer.findtext("id") in reference_ids
+        is_photo = table_name in schemas.photo_tables_for(survey_type)
+        assert layer.findtext("flags/Searchable") == (
+            "0" if is_reference or is_photo else "1"
+        ), table_name
+        if is_reference or is_photo:
+            # Only search participation changes, not visibility, access or identification.
+            assert layer.findtext("flags/Identifiable") == ("0" if is_reference else "1")
+            assert layer.findtext("flags/Removable") == "1"
+            assert layer.findtext("flags/Private") == "0"
+        table = schemas.get_schema(survey_type).get(table_name)
+        if table is None:
+            continue
+        field = table.uuid_pk
+        widget = layer.find(f"./fieldConfiguration/field[@name='{field}']/editWidget")
+        assert widget.get("type") == "UuidGenerator", (table_name, field)
+        default = layer.find(f"./defaults/default[@field='{field}']")
+        assert default.get("expression") == "uuid('WithoutBraces')"
+        assert default.get("applyOnUpdate") == "0"
+        assert layer.findtext("editorlayout") == "tablayout"
+        assert layer.find(f".//attributeEditorField[@name='{field}']") is None
+        if table.foreign_key:
+            foreign_key = table.foreign_key.column
+            widget = layer.find(
+                f"./fieldConfiguration/field[@name='{foreign_key}']/editWidget"
+            )
+            assert widget.get("type") == "RelationReference"
+            assert layer.find(f".//attributeEditorField[@name='{foreign_key}']") is not None
     widget = document.find(".//attributeEditorQmlElement")
     assert (widget is not None) == identification
     if identification:

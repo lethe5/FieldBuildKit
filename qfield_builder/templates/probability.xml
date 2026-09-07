@@ -63,7 +63,7 @@
       <flags>
         <Identifiable>0</Identifiable>
         <Removable>1</Removable>
-        <Searchable>1</Searchable>
+        <Searchable>0</Searchable>
         <Private>0</Private>
       </flags>
       <temporal enabled="0" bandNumber="1" mode="0" fetchMode="0">

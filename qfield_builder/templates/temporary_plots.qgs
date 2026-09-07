@@ -2,7 +2,7 @@
 <qgis projectname="" version="3.44.13-Solothurn">
   <homePath path="" />
   <title />
-  <transaction mode="AutomaticGroups" />
+  <transaction mode="BufferedGroups" />
   <projectFlags set="EvaluateDefaultValuesOnProviderSide" />
   <projectCrs>
     <spatialrefsys nativeFormat="Wkt">
@@ -220,7 +220,7 @@
       <flags>
         <Identifiable>0</Identifiable>
         <Removable>1</Removable>
-        <Searchable>1</Searchable>
+        <Searchable>0</Searchable>
         <Private>0</Private>
       </flags>
       <temporal durationUnit="min" enabled="0" fixedDuration="0" accumulate="0" startField="" mode="0" startExpression="" limitMode="0" durationField="" endField="" endExpression="">
@@ -673,7 +673,7 @@
           </editWidget>
         </field>
         <field configurationFlags="NoFlag" name="observation_id">
-          <editWidget type="Hidden">
+          <editWidget type="UuidGenerator">
             <config>
               <Option />
             </config>
@@ -916,11 +916,6 @@
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>
-          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="1" name="observation_id" showLabel="1">
-            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
-              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
-            </labelStyle>
-          </attributeEditorField>
           <attributeEditorField verticalStretch="0" horizontalStretch="0" index="2" name="survey_id" showLabel="1">
             <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
               <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
@@ -1063,7 +1058,7 @@
       <flags>
         <Identifiable>0</Identifiable>
         <Removable>1</Removable>
-        <Searchable>1</Searchable>
+        <Searchable>0</Searchable>
         <Private>0</Private>
       </flags>
       <temporal durationUnit="min" enabled="0" fixedDuration="0" accumulate="0" startField="" mode="0" startExpression="" limitMode="0" durationField="" endField="" endExpression="">
@@ -1775,7 +1770,7 @@
           </editWidget>
         </field>
         <field configurationFlags="NoFlag" name="site_id">
-          <editWidget type="Hidden">
+          <editWidget type="UuidGenerator">
             <config>
               <Option />
             </config>
@@ -1834,11 +1829,6 @@
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>
-          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="1" name="site_id" showLabel="1">
-            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
-              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
-            </labelStyle>
-          </attributeEditorField>
           <attributeEditorField verticalStretch="0" horizontalStretch="0" index="2" name="site_name" showLabel="1">
             <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
               <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
@@ -2153,7 +2143,7 @@
           </editWidget>
         </field>
         <field configurationFlags="NoFlag" name="survey_id">
-          <editWidget type="Hidden">
+          <editWidget type="UuidGenerator">
             <config>
               <Option />
             </config>
@@ -2250,11 +2240,6 @@
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>
-          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="1" name="survey_id" showLabel="1">
-            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
-              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
-            </labelStyle>
-          </attributeEditorField>
           <attributeEditorField verticalStretch="0" horizontalStretch="0" index="2" name="site_id" showLabel="1">
             <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
               <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
@@ -2359,7 +2344,7 @@
       <flags>
         <Identifiable>1</Identifiable>
         <Removable>1</Removable>
-        <Searchable>1</Searchable>
+        <Searchable>0</Searchable>
         <Private>0</Private>
       </flags>
       <temporal durationUnit="min" enabled="0" fixedDuration="0" accumulate="0" startField="" mode="0" startExpression="" limitMode="0" durationField="" endField="" endExpression="">
@@ -2525,7 +2510,7 @@
           </editWidget>
         </field>
         <field configurationFlags="NoFlag" name="photo_id">
-          <editWidget type="Hidden">
+          <editWidget type="UuidGenerator">
             <config>
               <Option />
             </config>
@@ -2628,11 +2613,6 @@
           <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
             <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
           </labelStyle>
-          <attributeEditorField verticalStretch="0" horizontalStretch="0" index="1" name="photo_id" showLabel="1">
-            <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
-              <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
-            </labelStyle>
-          </attributeEditorField>
           <attributeEditorField verticalStretch="0" horizontalStretch="0" index="2" name="survey_id" showLabel="1">
             <labelStyle overrideLabelColor="0" labelColor="" overrideLabelFont="0">
               <labelFont bold="0" underline="0" style="" strikethrough="0" italic="0" description=".AppleSystemUIFont,12,-1,5,50,0,0,0,0,0" />
