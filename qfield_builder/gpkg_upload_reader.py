@@ -17,8 +17,10 @@ uploads FR-QPB-025/026 require.
 """
 from __future__ import annotations
 
+import math
 import sqlite3
 import struct
+from pathlib import Path
 
 from .errors import BuildError
 from .gpkg_functions import _wkb_envelope, envelope_from_gpkg_blob, strip_gpkg_geometry_header
@@ -26,22 +28,100 @@ from .wkt import (
     WKB_MULTIPOLYGON,
     WKB_POLYGON,
     _reject_if_z_or_m,
+    _wkb_type_info,
     wkb_to_multipolygon_wkb,
     wkb_to_wkt,
 )
 
 
 def _open(gpkg_path: str) -> sqlite3.Connection:
+    conn = None
     try:
-        conn = sqlite3.connect(gpkg_path)
+        conn = sqlite3.connect(Path(gpkg_path).resolve().as_uri() + "?mode=ro", uri=True)
         # Force a real read so a non-SQLite file fails fast, inside this function's own
         # error handling, rather than surfacing an unguarded sqlite3.DatabaseError later.
         conn.execute("PRAGMA schema_version;")
     except sqlite3.Error as exc:
+        if conn is not None:
+            conn.close()
         raise BuildError(
             "malformed_upload", f"업로드한 GeoPackage를 열 수 없었습니다: {exc}"
         ) from exc
     return conn
+
+
+def read_feature_layer_envelope(gpkg_path: str) -> dict:
+    """Read per-feature header extents, then convert the union to WGS84 for map selection.
+
+    This is an extent preview, not a substitute for full build-time geometry validation.
+    Only envelope-less or collection geometries need the existing complete decoder.
+    """
+    from rasterio.crs import CRS
+    from rasterio.errors import RasterioError
+    from rasterio.warp import transform_bounds
+
+    conn = _open(gpkg_path)
+    try:
+        table = _first_feature_table(conn)
+        geom = _geometry_column(conn, table)
+        qt = '"' + table.replace('"', '""') + '"'
+        qg = '"' + geom.replace('"', '""') + '"'
+        srs_id = conn.execute(
+            "SELECT srs_id FROM gpkg_geometry_columns WHERE table_name = ?", (table,)
+        ).fetchone()[0]
+        if srs_id == 4326:
+            crs = CRS.from_epsg(4326)
+        else:
+            srs = conn.execute(
+                "SELECT organization, organization_coordsys_id, definition "
+                "FROM gpkg_spatial_ref_sys WHERE srs_id = ?", (srs_id,)
+            ).fetchone()
+            if not srs:
+                raise ValueError("원본 좌표계를 확인할 수 없습니다.")
+            crs = (CRS.from_epsg(int(srs[1])) if str(srs[0]).upper() == "EPSG"
+                   else CRS.from_wkt(srs[2]))
+        bounds = None
+        for rowid, prefix in conn.execute(
+            f"SELECT rowid, substr({qg}, 1, 77) FROM {qt} WHERE {qg} IS NOT NULL"
+        ):
+            if len(prefix) < 8 or prefix[:2] != b"GP":
+                raise ValueError("GeoPackage geometry 헤더가 올바르지 않습니다.")
+            envelope_type = (prefix[3] >> 1) & 7
+            if envelope_type not in range(5):
+                raise ValueError("GeoPackage envelope 유형이 올바르지 않습니다.")
+            wkb_header = strip_gpkg_geometry_header(prefix)
+            if len(wkb_header) < 5 or wkb_header[0] not in (0, 1):
+                raise ValueError("WKB geometry 헤더가 잘렸거나 올바르지 않습니다.")
+            raw_type = struct.unpack_from("<I" if wkb_header[0] else ">I", wkb_header, 1)[0]
+            base_type, _, _ = _wkb_type_info(raw_type)
+            if envelope_type and base_type in (WKB_POLYGON, WKB_MULTIPOLYGON):
+                envelope = envelope_from_gpkg_blob(prefix)
+            else:
+                blob = conn.execute(
+                    f"SELECT {qg} FROM {qt} WHERE rowid = ?", (rowid,)
+                ).fetchone()[0]
+                normalized = wkb_to_multipolygon_wkb(strip_gpkg_geometry_header(blob))
+                envelope = _wkb_envelope(normalized)
+            if envelope is None:
+                continue
+            values = (envelope.min_x, envelope.min_y, envelope.max_x, envelope.max_y)
+            if (not all(math.isfinite(v) for v in values)
+                    or values[0] > values[2] or values[1] > values[3]):
+                raise ValueError("도형 범위 값이 올바르지 않습니다.")
+            bounds = values if bounds is None else (
+                min(bounds[0], values[0]), min(bounds[1], values[1]),
+                max(bounds[2], values[2]), max(bounds[3], values[3]),
+            )
+        if bounds is None:
+            raise BuildError("empty_upload", "이 파일에는 범위를 계산할 feature가 없습니다.")
+        west, south, east, north = transform_bounds(crs, "EPSG:4326", *bounds)
+        if not (-180 <= west <= east <= 180 and -90 <= south <= north <= 90):
+            raise ValueError("경위도로 변환한 도형 범위가 올바르지 않습니다.")
+        return {"min_lon": west, "min_lat": south, "max_lon": east, "max_lat": north}
+    except (sqlite3.Error, ValueError, struct.error, RasterioError) as exc:
+        raise BuildError("malformed_upload", f"GeoPackage 범위를 읽을 수 없습니다: {exc}") from exc
+    finally:
+        conn.close()
 
 
 def _first_feature_table(conn: sqlite3.Connection) -> str:

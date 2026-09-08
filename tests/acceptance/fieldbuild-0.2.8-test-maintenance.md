@@ -115,3 +115,45 @@ Baseline: `90ff823`. Branch: `codex/0.2.8-shp-preview`.
 - Windows build: `dist/windows-0.2.8-shp`; previous builds preserved. The new EXE's
   `--check-runtime` exited **0** outside the repository. Version declarations remain **0.2.8**.
   No macOS/QField device/live-API run or remote release publication was performed.
+
+## GPKG loading follow-up (same 0.2.8)
+
+Baseline: `9a91007`. Branch: `codex/0.2.8-gpkg-loading`.
+
+- Attribute previews already use a row limit and do not decode geometry. The redundant
+  geometry walk was in offline-map extent selection. It now reads each feature's header
+  extent and transforms the combined bounds from the source CRS into WGS84. Missing
+  envelopes and collection geometries retain the existing full-decoder fallback. Full
+  build-time geometry validation is unchanged; a successful preview is not validation.
+- Source connections are read-only, including Unicode/URI-special-character paths. A
+  nonexistent selected file no longer creates an empty SQLite file.
+- Only one preview worker runs at a time; rapid changes retain only the latest pending
+  request. A request ID rejects stale results even for A -> B -> A selection. Closing the
+  wizard discards queued requests and waits for the active worker without blocking Qt.
+- Supplied `BND_SIDO_PG.gpkg`: 87,314,432 bytes, 17 regions, EPSG:5186. Original standalone
+  attribute preview: **0.0994 s**. Original extent calculation: **2.2876 s**, incorrectly
+  returning projected coordinates as longitude/latitude. Updated extent calls in the UI
+  process: **0.6461 s first call**, then **0.1135 / 0.1108 / 0.1123 s**. A separate cold
+  process took **1.4438 s**, including first rasterio/PROJ imports. Do not describe the warm
+  result as cold-start performance or as the speedup of the already-light attribute preview.
+- Updated UI measurement: selection handler returned in **0.000265 s**, asynchronous
+  completion in **0.7747 s**, name-field change in **0.000220 s**, with 17 preview rows.
+  These are individual source-code Windows measurements, not EXE benchmarks. Header reads
+  still scale with feature count/I/O; envelope-less geometries still require full parsing.
+- Correct WGS84 extent: approximately **124.5891, 33.0286, 131.9578, 38.6216**.
+  Actual-file generation completed in **7.0145 s**, retained all **17 sites**, and passed
+  validation after moving the generated folder. Original size/mtime were unchanged. The
+  temporary generated project was cleaned up, not retained as a release artifact.
+- **137 passed** in the GPKG/SHP/optional-input/standalone regression run, including invalid
+  headers/bounds/CRS, envelope fallback, Qt responsiveness, stale-result rejection, shutdown,
+  and 75-feature GPKG generation despite the 50-row preview limit followed by relocation.
+  Logs: `build/0.2.8-gpkg-regression.log`, `build/0.2.8-gpkg-real-generation.log`.
+  Initial new-test mistakes (survey-type and destination-table names) were corrected and
+  the complete scoped run was rerun; failed attempts are not counted as passed.
+- Reader/helper/new-test files pass Ruff. Wizard diagnostics remain **13 -> 13**, with
+  no new diagnostics. Previously recorded unrelated legacy failures remain separate; this
+  is not a claim that the whole GUI/repository test suite is green.
+- Windows build: `dist/windows-0.2.8-gpkg`, preserving previous build folders. Its EXE's
+  `--check-runtime` exited **0** outside the repository. All three version declarations
+  remain **0.2.8 -> 0.2.8**, explicitly requested. No macOS/QField/live-API execution,
+  remote push, tag, or release publication was performed.

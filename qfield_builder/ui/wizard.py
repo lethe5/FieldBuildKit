@@ -585,15 +585,17 @@ class _GpkgUploadPreviewWorker(QThread):
 
     result_ready = Signal(str, dict)
 
-    def __init__(self, path: str, parent=None):
+    def __init__(self, path: str, parent=None, *, request_id: int = 0):
         super().__init__(parent)
         self._path = path
+        self.request_id = request_id
 
     def run(self) -> None:
         try:
             result = {"success": True, "summary": site_upload.preview_summary("gpkg", self._path)}
         except Exception as exc:  # noqa: BLE001 - return a user-facing upload error on the GUI thread.
             result = {"success": False, "error": str(exc)}
+        result["request_id"] = self.request_id
         self.result_ready.emit(self._path, result)
 
 
@@ -687,6 +689,8 @@ class SiteInputPage(QWizardPage):
         self._gpkg_preview_worker: _GpkgUploadPreviewWorker | None = None
         self._gpkg_preview_path: str | None = None
         self._gpkg_preview_summary: dict | None = None
+        self._gpkg_preview_request = 0
+        self._gpkg_preview_pending: tuple | None = None
         self._shp_preview_summary: dict | None = None
         self._shp_preview_key: tuple | None = None
 
@@ -965,6 +969,10 @@ class SiteInputPage(QWizardPage):
             self.upload_path_edit.setText(path)
 
     def _on_upload_path_changed(self, path: str) -> None:
+        self._gpkg_preview_request += 1
+        self._gpkg_preview_pending = None
+        self._gpkg_preview_path = None
+        self._gpkg_preview_summary = None
         self._shp_preview_summary = None
         self._shp_preview_key = None
         self.site_name_field_combo.blockSignals(True)
@@ -1000,10 +1008,8 @@ class SiteInputPage(QWizardPage):
             self._gpkg_preview_path = None
             self._gpkg_preview_summary = None
             self.upload_status_label.setText("GeoPackage 정보를 확인하는 중입니다…")
-            worker = _GpkgUploadPreviewWorker(path, self)
-            worker.result_ready.connect(self._on_gpkg_preview_ready)
-            self._gpkg_preview_worker = worker
-            worker.start()
+            self._gpkg_preview_pending = (self._gpkg_preview_request, path)
+            self._start_pending_gpkg_preview()
             return
 
         is_shapefile = upload_format in ("shapefile", "zipped_shapefile")
@@ -1051,9 +1057,31 @@ class SiteInputPage(QWizardPage):
             )
         self._update_preview()
 
+    def _start_pending_gpkg_preview(self) -> None:
+        if self.wizard() and getattr(self.wizard(), "_gpkg_close_pending", False):
+            self._gpkg_preview_pending = None
+            return
+        if self._gpkg_preview_worker is not None or self._gpkg_preview_pending is None:
+            return
+        request_id, path = self._gpkg_preview_pending
+        self._gpkg_preview_pending = None
+        worker = _GpkgUploadPreviewWorker(path, self, request_id=request_id)
+        worker.result_ready.connect(self._on_gpkg_preview_ready)
+        worker.finished.connect(self._on_gpkg_preview_finished)
+        self._gpkg_preview_worker = worker
+        worker.start()
+
+    def _on_gpkg_preview_finished(self) -> None:
+        worker = self._gpkg_preview_worker
+        self._gpkg_preview_worker = None
+        if worker is not None:
+            worker.deleteLater()
+        self._start_pending_gpkg_preview()
+
     def _on_gpkg_preview_ready(self, path: str, result: dict) -> None:
         """Apply an attribute-only GPKG preview if it still belongs to the selected path."""
-        if path != self.upload_path_edit.text():
+        if (path != self.upload_path_edit.text()
+                or result.get("request_id") != self._gpkg_preview_request):
             return
         if not result.get("success"):
             self.site_name_field_combo.setEnabled(False)
@@ -3059,6 +3087,16 @@ class ProjectBuilderWizard(QWizard):
 
     def done(self, result: int) -> None:
         """Keep a running build's QThread alive until cancellation has cleaned up its worker."""
+        upload_page = self.page(2)
+        upload_worker = upload_page._gpkg_preview_worker
+        upload_page._gpkg_preview_pending = None
+        upload_page._gpkg_preview_request += 1
+        if upload_worker is not None and upload_worker.isRunning():
+            if not getattr(self, "_gpkg_close_pending", False):
+                self._gpkg_close_pending = True
+                upload_worker.finished.connect(lambda: self.done(result))
+            return
+        self._gpkg_close_pending = False
         reference_worker = self.page(4)._reference_preview_worker
         if reference_worker is not None and reference_worker.isRunning():
             if not getattr(self, "_reference_close_pending", False):

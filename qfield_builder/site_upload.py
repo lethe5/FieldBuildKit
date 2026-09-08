@@ -143,18 +143,7 @@ def read_upload_envelope(fmt: str, path: str, encoding: str = "cp949") -> dict:
     MultiPolygon (this offline-extent source only supports those two types, per FR-QPB-080).
     """
     if fmt == "gpkg":
-        raw_features = gpkg_upload_reader.read_first_feature_layer_raw(path)
-        envelopes = [feature["envelope"] for feature in raw_features if feature.get("envelope")]
-        if not envelopes:
-            raise BuildError(
-                "empty_upload", "이 파일에는 범위를 계산할 feature가 없습니다."
-            )
-        return {
-            "min_lon": min(env.min_x for env in envelopes),
-            "min_lat": min(env.min_y for env in envelopes),
-            "max_lon": max(env.max_x for env in envelopes),
-            "max_lat": max(env.max_y for env in envelopes),
-        }
+        return gpkg_upload_reader.read_feature_layer_envelope(path)
     features = read_upload_features(fmt, path, encoding)
     if not features:
         raise BuildError(
