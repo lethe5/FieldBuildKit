@@ -2320,6 +2320,9 @@ __QPB_REPORT_CORE_JS__
         // unsuffixed logical source id is retained only as provenance; it is never used as a
         // second output key after a collision has been allocated.
         function add(sourceColumnId, label, sourceTable, sourceField, semanticIdentity) {
+            // UUID/FK values stay in record parts for joins and diagnostics, not report columns.
+            if (/(?:^|_)(?:id|uuid|fid|fk)(?:$|_)/i.test(sourceField || sourceColumnId) ||
+                sourceField === "integrity") { return; }
             if (seen[sourceColumnId]) { return; }
             seen[sourceColumnId] = true;
             var base = sourceTable && sourceField ?
@@ -2350,13 +2353,13 @@ __QPB_REPORT_CORE_JS__
         // inventory_observation, so site/plot/survey aliases would otherwise look like
         // fabricated joined columns even though their values are empty.
         if (hasTable("site")) {
-            add("site_name", "조사지"); add("site_id", "조사지 UUID");
+            add("site_name", "조사지", "site", "site_name", "site_name");
         }
         if (hasTable("plot")) {
-            add("plot_name", "조사구"); add("plot_id", "조사구 UUID");
+            add("plot_name", "조사구", "plot", "plot_name", "plot_name");
         }
         if (hasTable("survey")) {
-            add("survey_date", "조사 날짜"); add("survey_id", "조사 UUID");
+            add("survey_date", "조사일자", "survey", "survey_date", "survey_date");
         }
         if (hasTable("observation") || hasTable("inventory_observation")) {
             var observationSourceTable = hasTable("observation") ? "observation" : "inventory_observation";
@@ -2376,14 +2379,17 @@ __QPB_REPORT_CORE_JS__
                 var field = table.fields[f];
                 var semanticIdentity = field.semantic_identity ||
                     ((field.source_field || field.name) === "notes" ? "notes" :
-                    (/^selected_(?:korean_name|scientific_name|ktsn)$/.test(field.source_field || field.name) ?
+                    (/^(?:selected_(?:korean_name|scientific_name|ktsn)|site_name|plot_name|survey_date)$/.test(field.source_field || field.name) ?
                         (field.source_field || field.name) : null));
                 add(field.source_column_id || (table.name + "__" + field.name),
                     field.label || "필드", field.source_table || table.name,
                     field.source_field || field.name, semanticIdentity);
             }
         }
-        add("integrity", "무결성 상태", "report", "integrity");
+        if (d.survey_type !== "vegetation_mapping") {
+            add("report__latitude", "위도 (WGS84)", "report", "latitude");
+            add("report__longitude", "경도 (WGS84)", "report", "longitude");
+        }
         // Every output header has one identity and one position.  Duplicate aliases are retained
         // as deterministic suffixed headers instead of silently overwriting joined values.
         var headerSet = new Set();
@@ -2436,6 +2442,22 @@ __QPB_REPORT_CORE_JS__
             }
         }
         for (var p = 0; p < parts.length; p++) { attach(parts[p].name, parts[p].record); }
+        // Use the same authoritative geometry as the map; never turn polygons into centroids.
+        var geometryRecord = row.parts.inventory_observation || row.parts.community ||
+            (qpbReportDefinition.survey_type === "permanent_plots" ? row.parts.plot : row.parts.survey);
+        if (qpbReportDefinition.survey_type === "permanent_plots" &&
+            (!geometryRecord || !geometryRecord._qpbGeometry || !geometryRecord._qpbGeometry.valid)) {
+            geometryRecord = row.parts.survey;
+        }
+        var geometry = geometryRecord && geometryRecord._qpbGeometry;
+        if (geometry && geometry.valid && geometry.geojson && geometry.geojson.type === "Point") {
+            var xy = geometry.geojson.coordinates;
+            if (xy && typeof xy[0] === "number" && typeof xy[1] === "number" &&
+                isFinite(xy[0]) && isFinite(xy[1]) && Math.abs(xy[0]) <= 180 && Math.abs(xy[1]) <= 90) {
+                logicalValues.report__latitude = xy[1].toFixed(8);
+                logicalValues.report__longitude = xy[0].toFixed(8);
+            }
+        }
         row.source_values = logicalValues;
         row.values = qpbProjectSourceValues(logicalValues, columns);
         return row;
@@ -3554,6 +3576,12 @@ __QPB_MAP_FEATURE_DISPATCH__
                 source_values:row.source_values || {}, original:row};
         }));
         columns = integratedProjection.columns;
+        for (var labelIndex = 0; labelIndex < columns.length; labelIndex++) {
+            var reportColumn = columns[labelIndex];
+            reportColumn.label = qpbKoreanFieldLabel(
+                reportColumn.source_table, reportColumn.source_field, reportColumn.label);
+            reportColumn.header = reportColumn.label;
+        }
         for (var projectedJoinIndex = 0; projectedJoinIndex < joined.length; projectedJoinIndex++) {
             joined[projectedJoinIndex].values = integratedProjection.rows[projectedJoinIndex].values;
         }
@@ -3954,7 +3982,7 @@ function renderCharts(){var charts=qpbChartValues();qpbDrawChart("#occurrenceCha
     # making the visible surface Korean-only and the CSV header machine-stable.
     report_contract_runtime = r'''
 function qpbKoreanTableLabel(tableName,label){var aliases={site:"조사지",plot:"조사구",survey:"조사",surveys:"조사",observation:"관찰",inventory_observation:"식물관찰",community:"군락",survey_photo:"조사 사진",plot_photo:"조사구 사진"};var name=String(tableName||"").toLowerCase();if(aliases[name])return aliases[name];var candidate=String(label||"");return /[가-힣]/.test(candidate)?candidate:"공간 자료";}
-function qpbKoreanFieldLabel(tableName,key,label){var aliases={id:"식별자",uuid:"고정 UUID",inventory_id:"조사 ID",observed_at:"관찰일시",survey_date:"조사일자",surveyor:"조사자",site_id:"조사지 UUID",site_name:"조사지",plot_id:"조사구 UUID",plot_name:"조사구",survey_id:"조사 UUID",selected_korean_name:"국명",selected_scientific_name:"학명",selected_ktsn:"KTSN",identification_score:"식별 신뢰도",occurrence_probability:"출현 확률",identification_timestamp:"식별 일시",identification_model_version:"식별 모델 버전",identification_status:"식별 상태",leaf_photo_path:"잎 사진",flower_photo_path:"꽃 사진",fruit_photo_path:"열매 사진",integrity:"무결성 상태",cover:"피도",notes:"비고",community_name:"군락명",dominant_species:"우점종",is_field_checked:"현장 확인 여부",captured_at:"촬영일시",path:"사진 경로"};var table=String(tableName||"").toLowerCase();var field=String(key||"");if(field.indexOf("__")>=0){var parts=field.split("__");if(!table)table=parts[0].toLowerCase();field=parts[parts.length-1];}if(table==="surveys")table="survey";if(field==="notes"&&table==="survey")return "조사 비고";if(field==="notes"&&(table==="observation"||table==="inventory_observation"))return "관찰 비고";if(aliases[field])return aliases[field];var candidate=String(label||"");return /[가-힣]/.test(candidate)?candidate:"필드";}
+function qpbKoreanFieldLabel(tableName,key,label){var aliases={id:"식별자",uuid:"고정 UUID",inventory_id:"조사 ID",observed_at:"관찰일시",survey_date:"조사일자",surveyor:"조사자",site_id:"조사지 UUID",site_name:"조사지",plot_id:"조사구 UUID",plot_name:"조사구",survey_id:"조사 UUID",selected_korean_name:"국명",selected_scientific_name:"학명",selected_ktsn:"KTSN",identification_score:"식별 신뢰도",occurrence_probability:"출현 확률",identification_timestamp:"식별 일시",identification_model_version:"식별 모델 버전",identification_status:"식별 상태",leaf_photo_path:"잎 사진",flower_photo_path:"꽃 사진",fruit_photo_path:"열매 사진",latitude:"위도 (WGS84)",longitude:"경도 (WGS84)",integrity:"무결성 상태",cover:"피도",notes:"비고",community_name:"군락명",dominant_species:"우점종",is_field_checked:"현장 확인 여부",captured_at:"촬영일시",path:"사진 경로"};var table=String(tableName||"").toLowerCase();var field=String(key||"");if(field.indexOf("__")>=0){var parts=field.split("__");if(!table)table=parts[0].toLowerCase();field=parts[parts.length-1];}if(table==="surveys")table="survey";if(field==="notes"&&table==="plot")return "조사구 비고";if(field==="notes"&&table==="survey")return "조사 비고";if(field==="notes"&&(table==="observation"||table==="inventory_observation"))return "관찰 비고";if(aliases[field])return aliases[field];var candidate=String(label||"");return /[가-힣]/.test(candidate)?candidate:"필드";}
 function qpbVisibleLabel(tableName,key){var basisLabels={site:"조사지 원본의 고유 기록 수",plot:"조사구 원본의 고유 기록 수",survey:"조사 원본의 고유 기록 수",observation:"관찰 원본의 고유 기록 수"};if(key==="__basis__"&&basisLabels[tableName])return basisLabels[tableName];for(var i=0;i<(data.tables||[]).length;i++){if(data.tables[i].name!==tableName)continue;if(key==="__table__")return qpbKoreanTableLabel(tableName,data.tables[i].display_name);for(var j=0;j<(data.tables[i].fields||[]).length;j++){var field=data.tables[i].fields[j];if(field.name===key)return qpbKoreanFieldLabel(tableName,field.source_field||field.source_column_id||field.name,field.label);}}return qpbKoreanFieldLabel(tableName,key,"");}
 function qpbCard(level,label){var levels=(data.summary_stats&&data.summary_stats.levels)||{},item=levels[level]||{value:"해당 레벨 부재"};return "<div class='card'><span>"+label+" · "+esc(qpbVisibleLabel(level,"__basis__"))+"</span><b>"+esc(item.value)+"</b><small>"+(item.applicable===false?"해당 레벨 부재":"원본 수준의 고유 기록 수")+"</small></div>";}
 function qpbSemanticCollisionDetails(notices){var ordered=(notices||[]).slice().sort(function(left,right){return String((left||{}).semantic_identity||"").localeCompare(String((right||{}).semantic_identity||""),"en");}),items=[];for(var i=0;i<ordered.length;i++){var notice=ordered[i]||{},semantic=String(notice.semantic_identity||"알 수 없는 의미 항목");items.push("<li><code>"+esc(semantic)+"</code>: 같은 의미의 원본 값이 달라 원본 출처별 열에 각각 유지했습니다. 통합 표와 CSV에서 두 값을 확인할 수 있습니다.</li>");}if(!items.length)return "";return "<details class='limitation-details' aria-label='의미 충돌 세부 사항'><summary>의미가 같은 원본 열의 값 충돌: "+items.length+"건</summary><p>값을 하나로 선택하거나 덮어쓰지 않았습니다. 값은 원본 출처별 열에 보존됩니다.</p><ul>"+items.join("")+"</ul></details>";}
@@ -3970,6 +3998,13 @@ function renderCharts(){var stats=(data.summary_stats&&data.summary_stats.chart_
   function detailForFeature(t,r){var html="<strong>"+esc(t.display_name)+"</strong><br>고정 UUID: "+esc(r.uuid);for(var i=0;i<t.fields.length;i++){var f=t.fields[i];if((r.attrs||{})[f.name]!==undefined)html+="<br>"+esc(f.label||"필드")+": "+esc((r.attrs||{})[f.name]);}return html;}
   function qpbMapFeatureDetail(mapFeature){var properties=mapFeature.properties||{},anchorTable=String(properties.anchor_table||mapFeature.anchor_table||""),source=mapFeature.source||properties.source||{},siteName=qpbPopupRead(source.site,"site",["site_name"]);if(anchorTable==="site")return siteName.found&&String(siteName.value).trim()!==""?esc(siteName.value):"";var fields=["조사일","조사자","국명","학명"],related=mapFeature.related_observations||properties.related_observations||[],observations=[],fallback=source.survey||null;if(anchorTable==="observation"||anchorTable==="inventory_observation"){var direct=source[anchorTable];if(direct)observations=Array.isArray(direct)?direct:[direct];}if(related.length)observations=related;if(!observations.length)return "";var html="";for(var i=0;i<observations.length;i++)html+=qpbPopupObservation(observations[i],observations[i].survey_context||fallback);return html;}
 '''
+    label_start, label_end = _js_function_span(report_contract_runtime, 0, "qpbKoreanFieldLabel")
+    shared_report_labels = report_contract_runtime[label_start:label_end]
+    # The collector never exports attachments; keep those browser-only aliases out of it.
+    shared_report_labels = re.sub(
+        r'(?:leaf_photo_path|flower_photo_path|fruit_photo_path|path):"[^"]*",?',
+        "", shared_report_labels,
+    )
     interaction_script = interaction_script.replace("function qpbInitializeReport(){", report_contract_runtime + "\nfunction qpbInitializeReport(){", 1)
     interaction_script = interaction_script.replace(
         "renderCards();renderSummaries();renderSpecies();renderJoined();renderMap();",
@@ -4113,7 +4148,7 @@ function qpbRunRenderer(renderer,label){try{renderer();}catch(error){var host=do
     template = re.sub(r"\.map-popup\{[^{}]*\}", "", template)
     rendered_template = (
         template.replace("__QPB_REPORT_DEFINITION__", report_definition)
-        .replace("__QPB_REPORT_CORE_JS__", REPORT_CORE_JS)
+        .replace("__QPB_REPORT_CORE_JS__", REPORT_CORE_JS + "\n    " + shared_report_labels)
         .replace("__QPB_MAP_FEATURE_DISPATCH__", map_feature_dispatch)
         .replace("__QPB_JOINED_ROW_DISPATCH__", joined_row_dispatch)
         .replace(

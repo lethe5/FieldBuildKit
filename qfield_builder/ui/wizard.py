@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import math
 import shutil
-import sys
 from pathlib import Path
 
 from PySide6.QtCore import Property, QByteArray, QSize, Qt, QThread, QTimer, Signal
@@ -92,22 +91,8 @@ MIB = 1024 * 1024
 
 
 def _get_open_file_name(parent, caption, directory="", filter=""):
-    """Use a widget picker for macOS uploads, where native panels lose folder clicks."""
-    if sys.platform != "darwin":
-        return QFileDialog.getOpenFileName(parent, caption, directory, filter)
-    dialog = QFileDialog(parent, caption, directory, filter)
-    dialog.setOption(QFileDialog.Option.DontUseNativeDialog)
-    dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
-    dialog.setViewMode(QFileDialog.ViewMode.List)
-    # Qt's path-completion popup can crash the Cocoa accessibility bridge on navigation.
-    # Plain path entry and folder browsing still work without that popup.
-    dialog.findChild(QLineEdit, "fileNameEdit").setCompleter(None)
-    try:
-        if dialog.exec() == QFileDialog.DialogCode.Accepted:
-            return dialog.selectedFiles()[0], dialog.selectedNameFilter()
-        return "", ""
-    finally:
-        dialog.deleteLater()
+    """Use the platform-native picker, like the parent-directory selection in step 1."""
+    return QFileDialog.getOpenFileName(parent, caption, directory, filter)
 
 
 #: FR-QPB-131 (Decision Log D-81/D-86): the application's own display name, superseding "QField

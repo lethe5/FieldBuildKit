@@ -337,6 +337,7 @@ _PRODUCTION_FUNCTIONS = (
     "qpbSqliteBridge",
     "qpbExecuteSql",
     "qpbBytes",
+    "qpbGpkgEnvelopeGeoJson",
     "qpbTransformGeoJson",
     "qpbDecodeGpkgGeometry",
     "qpbCollectGpkgSpatialRows",
@@ -347,7 +348,7 @@ _PRODUCTION_FUNCTIONS = (
     "qpbStrictCalendarDate",
     "qpbIndex",
     "qpbParentRecord",
-    "qpbJoinedColumns",
+    "qpbKoreanFieldLabel", "qpbJoinedColumns",
     "qpbMakeJoinedRow",
     "qpbBuildJoinedRowsRuntime",
     "qpbBuildJoinedRows",
@@ -736,7 +737,9 @@ def _run_production_report_fixture(runtime_input: dict) -> dict:
         production_runtime = "\n\n".join(
             _production_function(source, name) for name in _PRODUCTION_FUNCTIONS
         )
-        runner = REPORT_CORE_JS + "\n" + production_runtime + "\n" + _ACCEPTANCE_ADAPTER_JS
+        geometry_limit = re.search(r"readonly property int qpbReportFullGeometryMaxBytes: (\d+)", source)
+        runner = "var qpbReportFullGeometryMaxBytes = " + geometry_limit.group(1) + ";\n"
+        runner += REPORT_CORE_JS + "\n" + production_runtime + "\n" + _ACCEPTANCE_ADAPTER_JS
         with tempfile.TemporaryDirectory(prefix="qpb-html-report-") as temp_dir:
             runner_path = Path(temp_dir) / "production_report_adapter.js"
             runner_path.write_text(runner, encoding="utf-8")

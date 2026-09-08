@@ -2240,8 +2240,9 @@ outputs. The user requested a fully shareable GitHub checkout without `storage` 
   selected data fails atomically. Unselected data never resolves from storage/environment/cache.
 - App packaging and ordinary tests need no private datasets. Source data stays local; generated
   projects remain portable by materializing only selected inputs. Existing projects need no migration.
-- Agent-operated desktop QField verification is required; user assistance is limited to unlocking
-  secrets or unavoidable permissions. Test macOS locally; never claim unperformed Windows/device tests.
+- QField application verification is performed by the user (responsibility updated by user request
+  on 2026-09-08). The agent performs automated tests, build and generated-output checks; direct
+  QField operation is not a required agent task. Never claim unperformed runtime/device tests.
 
 Acceptance: `tests/unit/test_optional_reference_inputs.py`, updated packaging/source-boundary
 regressions, and `docs/qfield-runtime-verification.md` for direct runtime evidence.

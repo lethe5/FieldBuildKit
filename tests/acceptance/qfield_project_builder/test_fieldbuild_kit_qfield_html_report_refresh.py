@@ -405,3 +405,108 @@ def _assert_private_values_absent(result: dict[str, Any]) -> None:
 )
 def test_ac001_iphone_qfield_loaded_layer_geometry_gate_requires_privacy_safe_manual_evidence():
     raise AssertionError("should never run while skipped — see skip reason")
+
+
+@pytest.mark.parametrize("collection_path", ["direct", "fallback"])
+@pytest.mark.parametrize("survey_type", ["simple_inventory", "temporary_plots", "permanent_plots", "vegetation_mapping"])
+def test_report_csv_uses_visible_columns_and_authoritative_wgs84_points(
+    render_html_report_refresh_fixture, survey_type, collection_path
+):
+    import csv
+    import io
+
+    fixture, _, _ = _anchor_fixture(survey_type, collection_path)
+    fixture["html_runtime"]["actions"] = ["csv:all"]
+    # CSV must remain rectangular when user data contains delimiters, quotes and newlines.
+    leaf = {"simple_inventory": "inventory_observation", "vegetation_mapping": "community"}.get(
+        survey_type, "observation"
+    )
+    layers = fixture["qgis_provider"]["loaded_layers"]
+    layer = next(item for item in layers if item["name"] == leaf)
+    if "notes" not in layer["fields"]:
+        layer["fields"].append("notes")
+    note = '메모, "인용"\n다음 줄'
+    layer["features"][0]["attributes"]["notes"] = note
+    duplicate = copy.deepcopy(layer["features"][0])
+    uuid_field = {"inventory_observation": "inventory_id", "community": "community_id"}.get(leaf, "observation_id")
+    duplicate["attributes"][uuid_field] += "-second"
+    layer["features"].append(duplicate)
+    fixture["qgis_provider"]["direct_gpkg"]["tables"] = _direct_tables(layers)
+    result = _run(render_html_report_refresh_fixture, fixture)
+    payload = _payload(result)
+    primary_text = result["bridge"]["qml"]["csv_text"]
+    primary = list(csv.reader(io.StringIO(primary_text.lstrip("\ufeff"), newline="")))
+    browser_text = _html(result)["csv"]["downloads"][0]
+    browser = list(csv.reader(io.StringIO(browser_text.lstrip("\ufeff"), newline="")))
+    assert primary == browser
+    assert len(primary) == 3  # Two observations sharing parents must remain two rows.
+    headers = primary[0]
+    assert len(headers) == len(set(headers))
+    assert all(len(row) == len(headers) for row in primary)
+    assert not any("UUID" in h or "무결성" in h or "__" in h for h in headers)
+    assert all(note in row for row in primary[1:])
+    assert [column["label"] for column in payload["columns"]] == headers
+    assert [f["label"] for f in _html(result)["table"]["rows"][0]["fields"]] == headers
+    if survey_type == "vegetation_mapping":
+        assert "위도 (WGS84)" not in headers and "경도 (WGS84)" not in headers
+    else:
+        latitude, longitude = ((30, 120) if survey_type == "simple_inventory" else (37.2, 127.2))
+        for row in primary[1:]:
+            assert row[headers.index("위도 (WGS84)")] == f"{latitude:.8f}"
+            assert row[headers.index("경도 (WGS84)")] == f"{longitude:.8f}"
+    if survey_type != "simple_inventory":
+        assert headers.count("조사지") == 1 and headers.count("조사일자") == 1
+        assert all(row[headers.index("조사지")] == "조사지 A" for row in primary[1:])
+
+
+def test_point_coordinates_follow_plot_geometry_and_do_not_rescue_missing_geometry(
+    render_html_report_refresh_fixture,
+):
+    fixture, _, _ = _anchor_fixture("permanent_plots", "direct")
+    layers = fixture["qgis_provider"]["loaded_layers"]
+    plot = next(layer for layer in layers if layer["name"] == "plot")
+    plot["features"][0]["geometry"] = {
+        "isNull": False, "isEmpty": False,
+        "asJson": {"return": {"type": "Point", "coordinates": [128.12345678, 36.87654321, 50]}},
+    }
+    fixture["qgis_provider"]["direct_gpkg"]["tables"] = _direct_tables(layers)
+    result = _run(render_html_report_refresh_fixture, fixture)
+    values = _payload(result)["joined"][0]["values"]
+    assert values["report__latitude"] == "36.87654321"
+    assert values["report__longitude"] == "128.12345678"
+    # If plot and survey geometry are missing, nearby site polygons cannot invent a coordinate.
+    for layer in layers:
+        if layer["name"] in {"plot", "survey"}:
+            layer["features"][0]["geometry"] = None
+    fixture["qgis_provider"]["direct_gpkg"]["tables"] = _direct_tables(layers)
+    result = _run(render_html_report_refresh_fixture, fixture)
+    values = _payload(result)["joined"][0]["values"]
+    assert not values.get("report__latitude") and not values.get("report__longitude")
+    assert len(_payload(result)["joined"]) == 1
+
+
+def test_missing_parent_diagnostic_survives_removal_of_integrity_column(
+    render_html_report_refresh_fixture,
+):
+    fixture, _, _ = _anchor_fixture("temporary_plots", "fallback")
+    next(layer for layer in fixture["qgis_provider"]["loaded_layers"] if layer["name"] == "site")["features"] = []
+    result = _run(render_html_report_refresh_fixture, fixture)
+    payload = _payload(result)
+    assert len(payload["joined"]) == 1
+    assert "missing parent: site" in payload["joined"][0]["integrity"]
+    assert payload["summary_stats"]["orphanCount"] == 1
+    assert all(column["source_field"] != "integrity" for column in payload["columns"])
+
+
+def test_untransformable_projected_point_does_not_export_metres_as_degrees(
+    render_html_report_refresh_fixture,
+):
+    fixture, _, _ = _anchor_fixture("simple_inventory", "fallback")
+    layer = fixture["qgis_provider"]["loaded_layers"][0]
+    layer["crs_authid"] = "EPSG:3857"
+    layer["features"][0]["geometry"]["asJson"]["return"]["coordinates"] = [14137575, 4495009]
+    result = _run(render_html_report_refresh_fixture, fixture)
+    row = _payload(result)["joined"][0]
+    assert not row["values"].get("report__latitude")
+    assert not row["values"].get("report__longitude")
+    assert _geometry_by_uuid(result)["inventory-01"]["valid"] is False

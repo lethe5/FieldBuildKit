@@ -36,7 +36,7 @@ not runtime fallbacks. They cannot rescue a missing or broken standalone depende
 
 ## Trial build and verification
 
-The local macOS ARM64 trial bundle is `dist/FieldBuild Standalone.app` (0.2.3).
+The local macOS ARM64 trial bundle is `dist/FieldBuild Standalone.app` (0.2.4).
 It is built in this independent repository. It includes the small fictional workbook sample and independent GIS libraries; private
 workbooks, probability rasters and caches are excluded. The bundle is unsigned for
 distribution; its executable supports `--check-runtime` without opening the wizard.
@@ -63,6 +63,14 @@ From 0.2.3, generated projects store an initial and full map extent in the selec
 CRS, using survey geometry, then offline map coverage, then Korea as the fallback. This avoids
 opening worldwide imagery at an unsuitable scale in EPSG:5186. Verification and the user's
 confirmation are recorded in `docs/qfield-runtime-verification.md`.
+
+From 0.2.4, file uploads again use the platform-native file picker, matching step 1's native
+directory picker. Report tables and both CSV exports omit UUID/FK and integrity display columns,
+coalesce repeated hierarchy aliases, and use Korean headers. Internal identities and missing-parent
+diagnostics remain available. Point-based rows include latitude/longitude in WGS84 decimal degrees
+with eight decimal places; absent, invalid, untransformable, and non-point geometry never produces
+invented coordinates. This applies to projects generated with the new app. The user confirmed
+verification of the delivered build; evidence is recorded in `docs/qfield-runtime-verification.md`.
 
 Standalone tests pass with QGIS and OSGeo imports forbidden. In the source branch before
 repository separation, all 24 generated project combinations were separately opened by

@@ -345,3 +345,23 @@ extended report specifications named in this document header.
 This specification is **DRAFT**. It requires the user's explicit approval before a fresh
 test-designer may create acceptance tests and traceability. Implementation must additionally wait
 for approval of those acceptance artifacts.
+
+## 2026-09-08 user-requested report export correction (0.2.4)
+
+This change supersedes prior requirements for machine-key CSV headers and visible UUID/integrity
+columns. The integrated table, primary QField CSV and supplementary browser CSV must expose the
+same readable columns and values. Preserve IDs internally for foreign-key joins and diagnostics.
+Coalesce repeated aliases for site name, plot name and survey date by semantic identity; never
+collapse distinct observations or overwrite conflicting source values. Missing-parent indicators
+remain in the existing report limitations/diagnostic data instead of a dedicated table column.
+
+For point-based survey types, add `위도 (WGS84)` and `경도 (WGS84)` as eight-place decimal degrees.
+Use normalized WGS84 geometry: inventory point for Type 1, survey point for Type 2, plot point for
+Type 3 (the associated survey point when plot geometry is unavailable). Leave coordinates blank
+when the authoritative geometry is missing, invalid, untransformable or not a Point. Do not derive
+polygon centroids. Type 4's polygon report does not add point-coordinate columns.
+
+CSV must retain quoted delimiters, quotes, newlines and Unicode without creating extra cells;
+multiple observations sharing a parent must remain separate rows. Acceptance is exercised through
+`test_fieldbuild_kit_qfield_html_report_refresh.py`, using the emitted production collector,
+primary CSV serializer and generated browser download function.

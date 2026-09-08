@@ -31,7 +31,7 @@ REPO_ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 - PyInstaller-injected
 # this application's own display name, including the PyInstaller packaging configuration's own
 # bundle name.
 APP_NAME = "FieldBuild Standalone"
-APP_VERSION = "0.2.3"
+APP_VERSION = "0.2.4"
 gis_datas, gis_binaries, gis_imports = [], [], []
 for package in ("rasterio", "fiona"):
     package_datas, package_binaries, package_imports = collect_all(package)

@@ -29,14 +29,12 @@ Use repository quality checks appropriate to the requested changes.
 - Verify that these three values match and report the old and new versions in the completion summary. Any distributed build must be built from the updated version declarations.
 - A version bump does not itself authorize a commit, push, tag, or GitHub release; perform those only when requested.
 
-## QField runtime verification
+## Verification responsibilities
 
-- For changes affecting generated projects, the agent must open newly generated projects in
-  `/Applications/qfield.app` on macOS and exercise the affected forms, edits, save/reopen,
-  project plugin and relevant layers. On Windows use the installed QField desktop application.
-- Do not delegate routine manual testing to the user or mark static XML/unit checks as a QField
-  runtime pass. Record the QField version, scenarios exercised, evidence and any concrete blocker.
-  Desktop verification does not establish iOS/Android compatibility.
+- The user performs QField application verification. The agent is responsible for appropriate
+  automated tests, build checks and generated-output checks; operating QField is not a required
+  agent task. Record user-reported QField results separately from automated test results and
+  never claim unperformed runtime checks as passed.
 - Verify optional inputs both omitted and supplied, using small synthetic fixtures; test a
   relocated generated folder to catch absolute source-path dependencies.
 - For live Pl@ntNet/VWorld checks, use the application's existing encrypted credential store.
