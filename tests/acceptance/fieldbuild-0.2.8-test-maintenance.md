@@ -312,3 +312,37 @@ of bounding rectangles.
   Prior outputs are preserved. Generated projects need the updated QML
   to use the new report exporter; replacing the builder alone does not patch existing files.
   Actual QField/browser/mobile/macOS checks and remote publication were not performed.
+
+## Type 2/3 plot popup tables (same 0.2.8)
+
+Baseline: `9da7ccd`. Branch: `codex/0.2.8-popup-tables`.
+
+- Reused the existing Leaflet popup and logical-field readers. Survey/plot anchors now show
+  available site/plot names above a table with `번호`, `조사일`, `조사자`, `국명`, `학명`.
+  One observation is one row; each observation retains its own survey context. No merging,
+  sorting, record truncation, identifier exposure or changes to source records/CSV occur.
+  Missing values show an em dash; empty plots show an explicit no-observations message.
+  Site-name-only and Type 1 observation popups retain their existing behavior.
+- Added scoped popup styles: row borders/striping, sticky column headings, keyboard-focusable
+  scrolling and a bounded table height. Plot popup dimensions are capped by the map size;
+  wide tables scroll horizontally on narrow screens. The general report table minimum width
+  does not override the popup's narrower table rule. Existing theme variables are reused.
+- Removed a duplicate popup renderer definition, leaving one effective implementation in the
+  generated script. Initial tests exposed the older duplicate taking precedence; that result
+  was corrected before rebuilding. Tests also now recognize a single column heading and the
+  additional Leaflet size-options argument rather than expecting the old repeated text.
+- Report/plugin checks: **196 passed, 4 pre-existing skips, 4 deselected**. The same four
+  previously documented baseline failures remain separate. Optional-input/build/relocation:
+  **88 passed**. New executable tests cover 120 rows for both anchor types, mixed survey
+  contexts, missing names, HTML escaping, input immutability, empty plots, unchanged other
+  popups and 240/900-pixel map widths. Shipped embedded scripts pass syntax checks.
+- `build/popup-qa/popup-preview.html` uses the emitted popup functions/styles with synthetic
+  Type 2 (four rows) and Type 3 (three survey dates, twelve rows) examples. This is a static
+  layout preview, not evidence of an actual browser/QField interaction. Production and new
+  UI tests pass Ruff; legacy test-file lint debt is unchanged. `git diff --check` passed.
+- Build: `dist/windows-0.2.8-popup/FieldBuild Standalone`; `--check-runtime` exited **0**
+  outside the repository. All three declarations remain **0.2.8 -> 0.2.8**. Earlier apps,
+  projects and reports were preserved. Existing projects need the updated generated QML,
+  followed by report re-export; installing the builder does not alter old QML/HTML files.
+  No dependency was added. No browser/QField/macOS/live-service run or remote publication
+  was performed.

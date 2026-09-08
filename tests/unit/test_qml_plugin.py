@@ -659,7 +659,8 @@ def test_type3_observation_popup_uses_minimal_fields_for_each_related_observatio
     )
     assert completed.returncode == 0, completed.stderr
     result = json.loads(completed.stdout)
-    assert result["html"].count("조사일") == 2
+    assert result["html"].count("조사일") == 1  # One header, two distinct observation rows.
+    assert result["html"].count("scope='row'") == 2
     assert "조사일" in result["html"]
     assert "조사자" in result["html"]
     assert "국명" in result["html"]

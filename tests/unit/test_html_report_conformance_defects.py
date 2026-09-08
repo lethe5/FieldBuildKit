@@ -149,7 +149,7 @@ def test_map_feature_click_opens_only_the_leaflet_popup():
         )
     )
     render_map = _function_source(runtime, "renderMap")
-    assert "l.bindPopup(detail)" in render_map
+    assert "l.bindPopup(detail," in render_map
     assert "l.on(\"click\",function(){if(l.openPopup)l.openPopup();})" in render_map
     assert "qpbShowMapDetail" not in runtime
     assert "qpbMapPopup" not in runtime
@@ -182,7 +182,7 @@ def test_generated_report_svg_paths_are_interactive_with_popup_and_no_label_cont
     render_map = _function_source(runtime, "renderMap")
 
     assert ".leaflet-overlay-pane svg .leaflet-interactive{pointer-events:auto}" in source
-    assert "l.bindPopup(detail)" in render_map
+    assert "l.bindPopup(detail," in render_map
     assert "l.on(\"click\",function(){if(l.openPopup)l.openPopup();})" in render_map
     assert "qpbPopupRead" in runtime
     assert "bindTooltip" not in render_map
@@ -196,7 +196,7 @@ def test_map_features_do_not_bind_permanent_labels():
         )
     )
     render_map = _function_source(runtime, "renderMap")
-    assert "l.bindPopup(detail)" in render_map
+    assert "l.bindPopup(detail," in render_map
     assert "l.on(\"click\",function(){if(l.openPopup)l.openPopup();})" in render_map
     assert "bindTooltip" not in render_map
     assert "qpb-map-label" not in render_map

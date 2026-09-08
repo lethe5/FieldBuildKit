@@ -3853,31 +3853,22 @@ function qpbAddVworldBackground(map,key){try{var leaflet=window.L;if(!leaflet)th
     if(!result||result.value===undefined||result.value===null||String(result.value).trim()==="")return html;
     return html+"<br>"+esc(label)+": "+esc(result.value);
   }
-  function qpbPopupObservation(snapshot,fallback){
+  function qpbPopupObservation(snapshot,fallback,rowNumber){
     var html="",date=qpbPopupRead(snapshot,"observation",["survey_date","observed_at"]);
     if(!date.found&&fallback)date=qpbPopupRead(fallback,"survey",["survey_date","observed_at"]);
-    html=qpbPopupAppend(html,"조사일",date);
     var surveyor=qpbPopupRead(snapshot,"observation",["surveyor"]);
     if(!surveyor.found&&fallback)surveyor=qpbPopupRead(fallback,"survey",["surveyor"]);
+    if(rowNumber!==undefined){
+      var cells=[date,surveyor,qpbPopupRead(snapshot,"observation",["selected_korean_name"]),
+        qpbPopupRead(snapshot,"observation",["selected_scientific_name"])];
+      return "<tr><th scope='row'>"+esc(rowNumber)+"</th>"+cells.map(function(cell){
+        return "<td>"+esc(cell.found?cell.value:"—")+"</td>";
+      }).join("")+"</tr>";
+    }
+    html=qpbPopupAppend(html,"조사일",date);
     html=qpbPopupAppend(html,"조사자",surveyor);
     html=qpbPopupAppend(html,"국명",qpbPopupRead(snapshot,"observation",["selected_korean_name"]));
     return qpbPopupAppend(html,"학명",qpbPopupRead(snapshot,"observation",["selected_scientific_name"]));
-  }
-  function qpbMapFeatureDetail(mapFeature){
-    var properties=mapFeature.properties||{},anchorTable=String(properties.anchor_table||mapFeature.anchor_table||""),
-      source=mapFeature.source||properties.source||{},siteName=qpbPopupRead(source.site,"site",["site_name"]);
-    if(anchorTable==="site")return siteName.found&&String(siteName.value).trim()!==""?esc(siteName.value):"";
-    var fields=["조사일","조사자","국명","학명"],related=mapFeature.related_observations||properties.related_observations||[],
-      observations=[],fallback=source.survey||null;
-    if(anchorTable==="observation"||anchorTable==="inventory_observation"){
-      var direct=source[anchorTable];
-      if(direct)observations=Array.isArray(direct)?direct:[direct];
-    }
-    if(related.length)observations=related;
-    if(!observations.length)return "";
-    var html="";
-    for(var i=0;i<observations.length;i++)html+=qpbPopupObservation(observations[i],observations[i].survey_context||fallback);
-    return html;
   }
   function renderMap(){
     var L=window.L,mapEl=document.getElementById("map"),features=data.map_features||[],count=0,
@@ -4085,7 +4076,36 @@ function qpbDrawPieChart(selector,values,kind){var host=document.querySelector(s
 function qpbValidateChartInitialization(charts){var stored=data.chart_validation||{},valid=!!(window.d3&&typeof d3.select==="function"&&typeof d3.scaleBand==="function"&&typeof d3.pie==="function"&&Array.isArray(charts.occurrence)&&Array.isArray(charts.cover)&&Array.isArray(charts.area)&&stored.initialized&&stored.values_and_keys_unique);data.chart_validation={d3_local:!!window.d3,initialized:valid,source_row_aggregation:stored.source_row_aggregation||false,values_and_keys_unique:stored.values_and_keys_unique||false,occurrence_initialized:Array.isArray(charts.occurrence),cover_initialized:Array.isArray(charts.cover),area_initialized:Array.isArray(charts.area),state:valid?"validated":"limited",limitations:stored.limitations||[]};return valid;}
 function renderCharts(){var stats=(data.summary_stats&&data.summary_stats.chart_stats)||{},occurrence=(data.summary_stats&&data.summary_stats.species||[]).map(function(s){return{name:s.korean||s.key||"미동정",value:Number(s.count)||0};}),cover=qpbCoverChartValues(),area=stats.area||[],composition=(data.summary_stats&&data.summary_stats.communitySpecies||[]).map(function(name){return{name:name,value:1};}),charts={occurrence:occurrence,cover:cover,area:area};if(!qpbValidateChartInitialization(charts)){document.getElementById("charts").insertAdjacentHTML("afterbegin","<p class='chart-empty'>차트 분석 사용 불가 · 초기화 제한</p>");return charts;}qpbDrawBarChart("#occurrenceChart",occurrence,"종별 출현");qpbDrawBarChart("#coverChart",cover,"평균 피도");qpbDrawPieChart("#areaChart",area,"군락별 면적");qpbDrawPieChart("#compositionChart",composition,"군락 구성");return charts;}
   function detailForFeature(t,r){var html="<strong>"+esc(t.display_name)+"</strong><br>고정 UUID: "+esc(r.uuid);for(var i=0;i<t.fields.length;i++){var f=t.fields[i];if((r.attrs||{})[f.name]!==undefined)html+="<br>"+esc(f.label||"필드")+": "+esc((r.attrs||{})[f.name]);}return html;}
-  function qpbMapFeatureDetail(mapFeature){var properties=mapFeature.properties||{},anchorTable=String(properties.anchor_table||mapFeature.anchor_table||""),source=mapFeature.source||properties.source||{},siteName=qpbPopupRead(source.site,"site",["site_name"]);if(anchorTable==="site")return siteName.found&&String(siteName.value).trim()!==""?esc(siteName.value):"";var fields=["조사일","조사자","국명","학명"],related=mapFeature.related_observations||properties.related_observations||[],observations=[],fallback=source.survey||null;if(anchorTable==="observation"||anchorTable==="inventory_observation"){var direct=source[anchorTable];if(direct)observations=Array.isArray(direct)?direct:[direct];}if(related.length)observations=related;if(!observations.length)return "";var html="";for(var i=0;i<observations.length;i++)html+=qpbPopupObservation(observations[i],observations[i].survey_context||fallback);return html;}
+  function qpbMapFeatureDetail(mapFeature){
+    var properties=mapFeature.properties||{},anchorTable=String(properties.anchor_table||mapFeature.anchor_table||""),
+      source=mapFeature.source||properties.source||{},siteName=qpbPopupRead(source.site,"site",["site_name"]);
+    if(anchorTable==="site")return siteName.found&&String(siteName.value).trim()!==""?esc(siteName.value):"";
+    var related=mapFeature.related_observations||properties.related_observations||[],observations=[],
+      fallback=source.survey||null;
+    if(anchorTable==="observation"||anchorTable==="inventory_observation"){
+      var direct=source[anchorTable];if(direct)observations=Array.isArray(direct)?direct:[direct];
+    }
+    if(related.length)observations=related;
+    var html="";
+    if(anchorTable==="survey"||anchorTable==="plot"){
+      var plotName=qpbPopupRead(source.plot||source.survey,"plot",["plot_name"]);
+      html="<div class='qpb-plot-popup'><h3>방형구 관찰 기록</h3><dl class='qpb-popup-context'>";
+      if(siteName.found)html+="<dt>조사지</dt><dd>"+esc(siteName.value)+"</dd>";
+      if(plotName.found)html+="<dt>방형구</dt><dd>"+esc(plotName.value)+"</dd>";
+      html+="</dl>";
+      if(!observations.length)return html+"<p class='empty'>등록된 관찰 기록이 없습니다.</p></div>";
+      html+="<div class='qpb-popup-scroll' role='region' aria-label='방형구 관찰 기록 표' tabindex='0'>"+
+        "<table><caption>관찰 목록 ("+observations.length+"건)</caption><thead><tr>"+
+        "<th scope='col'>번호</th><th scope='col'>조사일</th><th scope='col'>조사자</th>"+
+        "<th scope='col'>국명</th><th scope='col'>학명</th></tr></thead><tbody>";
+      for(var row=0;row<observations.length;row++)
+        html+=qpbPopupObservation(observations[row],observations[row].survey_context||fallback,row+1);
+      return html+"</tbody></table></div></div>";
+    }
+    for(var i=0;i<observations.length;i++)
+      html+=qpbPopupObservation(observations[i],observations[i].survey_context||fallback);
+    return html;
+  }
 '''
     label_start, label_end = _js_function_span(report_contract_runtime, 0, "qpbKoreanFieldLabel")
     shared_report_labels = report_contract_runtime[label_start:label_end]
@@ -4231,7 +4251,7 @@ function renderSummaries(){
   document.getElementById("summaries").innerHTML=out||"<p class='empty'>해당 조사 단계의 기록이 없습니다.</p>";
 }
 function renderJoined(){var cols=(data.columns||[]).filter(qpbNormalColumn),out="<table><thead><tr>";for(var i=0;i<cols.length;i++){var visibleLabel=qpbKoreanFieldLabel(cols[i].source_table||"",cols[i].source_field||cols[i].key,cols[i].label);out+="<th data-sort='"+esc(cols[i].key)+"' tabindex='0' role='button' aria-label='"+esc(visibleLabel)+" 열 정렬'>"+esc(visibleLabel)+"</th>";}out+="</tr></thead><tbody>";for(var j=0;j<visibleRows.length;j++){out+="<tr>";for(var k=0;k<cols.length;k++)out+="<td>"+esc(val(visibleRows[j],cols[k].key))+"</td>";out+="</tr>";}if(!visibleRows.length)out+="<tr><td class='empty' colspan='"+Math.max(1,cols.length)+"'>기록 없음</td></tr>";out+="</tbody></table>";document.getElementById("joinedTable").innerHTML=out;document.getElementById("visibleCount").textContent="표시 중인 행 수: "+visibleRows.length+" / "+allRows.length;var heads=document.querySelectorAll("#joinedTable th[data-sort]");for(var n=0;n<heads.length;n++){heads[n].addEventListener("click",function(){var key=this.getAttribute("data-sort");sortDesc=sortKey===key?!sortDesc:false;sortKey=key;visibleRows.sort(function(a,b){return String(val(a,key)).localeCompare(String(val(b,key)),"ko")*(sortDesc?-1:1);});renderJoined();});heads[n].addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();this.click();}});}}
-function renderMap(){var L=window.L,mapEl=document.getElementById("map"),features=data.map_features||[],count=0,minLat=Infinity,minLng=Infinity,maxLat=-Infinity,maxLng=-Infinity;if(!mapEl||!L)return;function extendCoordinates(value){if(!Array.isArray(value))return;if(value.length>=2&&typeof value[0]==="number"&&typeof value[1]==="number"){var lng=Number(value[0]),lat=Number(value[1]);if(isFinite(lat)&&isFinite(lng)&&lat>=-90&&lat<=90&&lng>=-180&&lng<=180){minLat=Math.min(minLat,lat);minLng=Math.min(minLng,lng);maxLat=Math.max(maxLat,lat);maxLng=Math.max(maxLng,lng);}return;}for(var coordinateIndex=0;coordinateIndex<value.length;coordinateIndex++)extendCoordinates(value[coordinateIndex]);}for(var featureIndex=0;featureIndex<features.length;featureIndex++){var geometry=features[featureIndex]&&features[featureIndex].geometry;if(geometry&&geometry.valid&&geometry.geojson)extendCoordinates(geometry.geojson.coordinates);}mapEl.innerHTML="<div class='map-empty'>표시 가능한 도형을 확인 중입니다.</div>";var map=L.map("map",{preferCanvas:false}).setView([36.3,127.8],7);window.__QPB_MAP=map;qpbSelectBackground(map);for(var i=0;i<features.length;i++){var mf=features[i];if(!mf.geometry||!mf.geometry.valid)continue;count++;(function(feature){var detail=qpbMapFeatureDetail(feature),properties={},source=feature.properties||{};Object.keys(source).forEach(function(key){properties[key]=source[key];});properties.__qpb_anchor_uuid=String(feature.anchor_uuid||"");L.geoJSON({type:"Feature",geometry:feature.geometry.geojson,properties:properties},{style:function(){return{color:"#1b8067",weight:2,fillOpacity:.3};},pointToLayer:function(f,latlng){return L.circleMarker(latlng,{radius:9,fillColor:"#d85f35",color:"#ffffff",weight:3,fillOpacity:1,opacity:1});},onEachFeature:function(f,l){if(detail){l.bindPopup(detail);l.on("click",function(){if(l.openPopup)l.openPopup();});}}}).addTo(map);})(mf);}if(minLat!==Infinity){if(minLat===maxLat&&minLng===maxLng)map.setView([minLat,minLng],17);else map.fitBounds([[minLat,minLng],[maxLat,maxLng]],{padding:[24,24],maxZoom:17});}var placeholder=mapEl.querySelector(".map-empty");if(placeholder&&placeholder.parentNode)placeholder.parentNode.removeChild(placeholder);var g=data.geometry_limitations||{},o=g.outcomes||{},hidden=(o.serialization_failure||0)+(o.transform_failure||0)+(o.malformed_xy||0)+(o.unsupported_geometry||0),mapStatus="지도 표시 "+count+"건"+((o.actual_empty||0)?" · 빈 도형 "+o.actual_empty+"건":"")+(hidden?" · 좌표 제한 "+hidden+"건":""),collectionStatus=document.getElementById("collectionStatus"),mapFeatureStatus=document.getElementById("mapFeatureStatus");if(collectionStatus)collectionStatus.textContent=qpbCollectionStatus();if(mapFeatureStatus)mapFeatureStatus.textContent=mapStatus;if(!count)mapEl.insertAdjacentHTML("beforeend","<p class='empty'>표시 가능한 도형이 없습니다 · "+mapStatus+".</p>");}
+function renderMap(){var L=window.L,mapEl=document.getElementById("map"),features=data.map_features||[],count=0,minLat=Infinity,minLng=Infinity,maxLat=-Infinity,maxLng=-Infinity;if(!mapEl||!L)return;function extendCoordinates(value){if(!Array.isArray(value))return;if(value.length>=2&&typeof value[0]==="number"&&typeof value[1]==="number"){var lng=Number(value[0]),lat=Number(value[1]);if(isFinite(lat)&&isFinite(lng)&&lat>=-90&&lat<=90&&lng>=-180&&lng<=180){minLat=Math.min(minLat,lat);minLng=Math.min(minLng,lng);maxLat=Math.max(maxLat,lat);maxLng=Math.max(maxLng,lng);}return;}for(var coordinateIndex=0;coordinateIndex<value.length;coordinateIndex++)extendCoordinates(value[coordinateIndex]);}for(var featureIndex=0;featureIndex<features.length;featureIndex++){var geometry=features[featureIndex]&&features[featureIndex].geometry;if(geometry&&geometry.valid&&geometry.geojson)extendCoordinates(geometry.geojson.coordinates);}mapEl.innerHTML="<div class='map-empty'>표시 가능한 도형을 확인 중입니다.</div>";var map=L.map("map",{preferCanvas:false}).setView([36.3,127.8],7);window.__QPB_MAP=map;qpbSelectBackground(map);for(var i=0;i<features.length;i++){var mf=features[i];if(!mf.geometry||!mf.geometry.valid)continue;count++;(function(feature){var detail=qpbMapFeatureDetail(feature),properties={},source=feature.properties||{};Object.keys(source).forEach(function(key){properties[key]=source[key];});properties.__qpb_anchor_uuid=String(feature.anchor_uuid||"");L.geoJSON({type:"Feature",geometry:feature.geometry.geojson,properties:properties},{style:function(){return{color:"#1b8067",weight:2,fillOpacity:.3};},pointToLayer:function(f,latlng){return L.circleMarker(latlng,{radius:9,fillColor:"#d85f35",color:"#ffffff",weight:3,fillOpacity:1,opacity:1});},onEachFeature:function(f,l){if(detail){l.bindPopup(detail,(feature.anchor_table==="plot"||feature.anchor_table==="survey")?{maxWidth:Math.max(120,Math.min(640,(mapEl.clientWidth||360)-64)),maxHeight:Math.max(120,Math.min(320,(mapEl.clientHeight||400)-80))}:{});l.on("click",function(){if(l.openPopup)l.openPopup();});}}}).addTo(map);})(mf);}if(minLat!==Infinity){if(minLat===maxLat&&minLng===maxLng)map.setView([minLat,minLng],17);else map.fitBounds([[minLat,minLng],[maxLat,maxLng]],{padding:[24,24],maxZoom:17});}var placeholder=mapEl.querySelector(".map-empty");if(placeholder&&placeholder.parentNode)placeholder.parentNode.removeChild(placeholder);var g=data.geometry_limitations||{},o=g.outcomes||{},hidden=(o.serialization_failure||0)+(o.transform_failure||0)+(o.malformed_xy||0)+(o.unsupported_geometry||0),mapStatus="지도 표시 "+count+"건"+((o.actual_empty||0)?" · 빈 도형 "+o.actual_empty+"건":"")+(hidden?" · 좌표 제한 "+hidden+"건":""),collectionStatus=document.getElementById("collectionStatus"),mapFeatureStatus=document.getElementById("mapFeatureStatus");if(collectionStatus)collectionStatus.textContent=qpbCollectionStatus();if(mapFeatureStatus)mapFeatureStatus.textContent=mapStatus;if(!count)mapEl.insertAdjacentHTML("beforeend","<p class='empty'>표시 가능한 도형이 없습니다 · "+mapStatus+".</p>");}
 function qpbRenderAnalyticsCards(){var type=data.definition&&data.definition.survey_type||"",stats=data.summary_stats||{},chart=stats.chart_stats||{},cards=[],species=(stats.species||[]).map(function(s){return{name:s.korean||s.key,value:s.count};}),cover=qpbCoverChartValues(),area=chart.area||[],composition=(stats.communitySpecies||[]).map(function(v){return{name:v,value:1};});if(type!=="vegetation_mapping"&&species.length)cards.push({id:"occurrenceChart",title:"종별 출현",basis:"관찰 기록의 종별 출현 횟수",values:species});if((type==="temporary_plots"||type==="permanent_plots")&&cover.length)cards.push({id:"coverChart",title:"평균 피도",basis:"유효한 숫자 피도의 산술 평균",values:cover});if(type==="vegetation_mapping"&&area.length)cards.push({id:"areaChart",title:"군락 면적",basis:"유효한 군락 면적의 합계",values:area});if(type==="vegetation_mapping"&&composition.length)cards.push({id:"compositionChart",title:"군락 구성",basis:"군락 우점종 기록의 출현",values:composition});var section=document.getElementById("species-section"),host=document.getElementById("charts"),toc=document.querySelector(".toc a[href='#species-section']"),speciesTable=document.getElementById("species"),taxonomy=document.getElementById("taxonomy-reference-report");if(section)section.hidden=!cards.length;if(toc)toc.hidden=!cards.length;if(speciesTable)speciesTable.hidden=type==="vegetation_mapping"||!cards.length;if(taxonomy)taxonomy.hidden=type==="vegetation_mapping"||!cards.length;if(!host)return;host.innerHTML=cards.map(function(c){return"<article class='chart-card'><h3>"+esc(c.title)+"</h3><p class='chart-basis'>"+esc(c.basis)+"</p><div id='"+esc(c.id)+"' class='chart-graphic'></div><details class='chart-text-equivalent'><summary>값 표 보기</summary><table><tbody>"+c.values.map(function(v){return"<tr><th>"+esc(v.name)+"</th><td>"+esc(v.value)+"</td></tr>";}).join("")+"</tbody></table></details></article>";}).join("");}
 function qpbKoreanBasis(basis){var value=String(basis||"");return /피도/.test(value)?"유효한 피도 기록 기준":(/면적/.test(value)?"유효한 군락 면적 기록 기준":(/종|KTSN/.test(value)?"수집된 종 기록 기준":"수집된 현장 기록 기준"));}
 function renderCards(){var a=data.summary_stats||{},overview=a.overview_cards||[],cards="",type1Labels=["총 조사일 수","관찰 수","총 종수"];if(data.definition&&data.definition.survey_type==="simple_inventory"){for(var type1Index=0;type1Index<type1Labels.length;type1Index++){var type1Card=null;for(var overviewIndex=0;overviewIndex<overview.length;overviewIndex++)if(overview[overviewIndex]&&overview[overviewIndex].label===type1Labels[type1Index]){type1Card=overview[overviewIndex];break;}if(!type1Card){var type1Fallback=[a.observationDays,a.observationCount,a.speciesCount][type1Index];type1Card={label:type1Labels[type1Index],value:type1Fallback===undefined?0:type1Fallback,basis:"수집된 현장 기록 기준"};}cards+="<div class='card'><span>"+esc(type1Card.label)+"</span><b>"+esc(type1Card.value)+"</b><small>"+esc(qpbKoreanBasis(type1Card.basis))+"</small></div>";}}else{for(var cardIndex=0;cardIndex<overview.length;cardIndex++){var card=overview[cardIndex]||{};cards+="<div class='card'><span>"+esc(card.label||"개요")+"</span><b>"+esc(card.value)+"</b><small>"+esc(qpbKoreanBasis(card.basis))+"</small></div>";}}document.getElementById("cards").innerHTML=cards;var note=[];if(a.orphanCount)note.push("상위 기록 연결 제한: "+a.orphanCount+"건");if(a.unknownDates)note.push("날짜 확인 불가: "+a.unknownDates+"건");if(a.chart_stats&&(a.chart_stats.invalid_cover||a.chart_stats.invalid_area))note.push("유효하지 않은 값 제외: 피도 "+(a.chart_stats.invalid_cover||0)+"건, 면적 "+(a.chart_stats.invalid_area||0)+"건");var limitationHost=document.getElementById("limitations");limitationHost.innerHTML="<p class='limitation-summary' role='status' aria-live='polite'>"+esc(note.join(" · ")||"표시할 자료 제한이 없습니다")+"</p>"+qpbSemanticCollisionDetails(data.semantic_collision_notices||[]);}
@@ -4256,6 +4276,19 @@ function qpbRunRenderer(renderer,label){try{renderer();}catch(error){var host=do
     # compatibility cleanup cannot alter user-provided field content.
     template = template.replace("<div id='qpbMapPopup' class='map-popup' hidden></div>", "")
     template = re.sub(r"\.map-popup\{[^{}]*\}", "", template)
+    popup_table_css = (
+        ".qpb-plot-popup h3{margin:0 0 .5rem;font-size:1rem}"
+        ".qpb-popup-context{display:grid;grid-template-columns:auto 1fr;gap:.3rem .7rem;margin:.5rem 0}"
+        ".qpb-popup-context dt{font-weight:700}.qpb-popup-context dd{margin:0}"
+        ".qpb-popup-scroll{max-width:100%;max-height:230px;overflow:auto;overscroll-behavior:contain}"
+        ".qpb-popup-scroll table{min-width:560px;font-size:12px}"
+        ".qpb-popup-scroll caption{text-align:left;padding:.4rem;font-weight:700}"
+        ".qpb-popup-scroll th,.qpb-popup-scroll td{padding:.5rem;border:1px solid var(--border)}"
+        ".qpb-popup-scroll thead th{position:sticky;top:0;z-index:1;background:var(--surface-alt)}"
+        ".qpb-popup-scroll tbody th{background:transparent}"
+        ".qpb-popup-scroll tbody tr:nth-child(even){background:var(--surface-alt)}"
+    )
+    template = template.replace("</style></head>", popup_table_css + "</style></head>", 1)
     rendered_template = (
         template.replace("__QPB_REPORT_DEFINITION__", report_definition)
         .replace("__QPB_REPORT_CORE_JS__", REPORT_CORE_JS + "\n    " + shared_report_labels)
