@@ -830,7 +830,7 @@
         <alias field="occurrence_probability" index="7" name="출현 확률" />
         <alias field="identification_timestamp" index="8" name="식별 일시" />
         <alias field="identification_model_version" index="9" name="식별 모델 버전" />
-        <alias field="cover" index="10" name="피도" />
+        <alias field="cover" index="10" name="피도(%)" />
         <alias field="leaf_photo_path" index="11" name="잎 사진" />
         <alias field="flower_photo_path" index="12" name="꽃 사진" />
         <alias field="fruit_photo_path" index="13" name="열매 사진" />

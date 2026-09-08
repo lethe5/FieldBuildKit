@@ -598,7 +598,7 @@ _TYPE2_3_OBSERVATION_ALIASES = {
     "selected_korean_name": "국명",
     "selected_scientific_name": "학명",
     "selected_ktsn": "KTSN",
-    "cover": "피도",
+    "cover": "피도(%)",
     "identification_score": "식별 신뢰도",
     "occurrence_probability": "출현 확률",
     "identification_status": "식별 상태",

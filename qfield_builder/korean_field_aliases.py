@@ -63,7 +63,7 @@ FIELD_ALIASES_BY_TABLE: dict[str, dict[str, str]] = {
     "observation": {
         "survey_id": "조사",
         "qpb_plot_geometry_wkt": "조사구 위치 정보 (자동)",
-        "cover": "피도",
+        "cover": "피도(%)",
         # DR-QPB-077 (Decision Log D-74, 2026-08-28): reuses Type 1's `inventory_observation`
         # aliases verbatim -- these replace the now-removed `observation_photo` child table for
         # Type 2/3.

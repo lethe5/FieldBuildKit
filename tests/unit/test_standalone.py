@@ -137,6 +137,8 @@ def test_build_and_relocate_without_qgis(
     # UUID generation must remain active without displaying primary keys in the form.
     for layer in document.findall("./projectlayers/maplayer"):
         table_name = layer.findtext("datasource", "").split("|layername=")[-1]
+        if table_name == "observation" and survey_type in {"temporary_plots", "permanent_plots"}:
+            assert layer.find("./aliases/alias[@field='cover']").get("name") == "피도(%)"
         containers = layer.findall("./attributeEditorForm/attributeEditorContainer")
         names = [container.get("name") for container in containers]
         assert not {"Details", "Related records"} & set(names)

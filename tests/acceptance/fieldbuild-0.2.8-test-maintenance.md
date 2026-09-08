@@ -346,3 +346,30 @@ Baseline: `9da7ccd`. Branch: `codex/0.2.8-popup-tables`.
   followed by report re-export; installing the builder does not alter old QML/HTML files.
   No dependency was added. No browser/QField/macOS/live-service run or remote publication
   was performed.
+
+## Scientific-name chart fallback and cover form units (same 0.2.8)
+
+Baseline: `fb849a5`. Branch: `codex/0.2.8-species-labels`.
+
+- Species occurrence and mean-cover charts use one display rule: trimmed Korean name,
+  otherwise trimmed scientific name, otherwise `미동정`. The accessible value tables use
+  the same rule. The X-axis title is now `종명 (국명/학명)`. Internal species identity,
+  aggregation keys, counts and cover values are unchanged; identifiers are not a name fallback.
+- Cover statistics retain separate Korean/scientific display fields. The existing composite
+  key remains intact. Legacy composite-label payloads (including the old `국명 미입력`
+  placeholder) also support scientific-name fallback. Species data itself is not overwritten.
+- Changed the common observation `cover` alias and both Type 2/3 packaged QGS templates
+  to `피도(%)`. Updated matching unit/acceptance expectations. This is a display-alias change,
+  not a renamed database column or conversion of stored numeric values.
+- Checks: **210 passed, 4 pre-existing skips, 4 deselected** in the report/plugin/alias group;
+  the four baseline failures remain as documented above. Independent optional-input/build/
+  relocation tests: **88 passed**, now also asserting `피도(%)` in real generated QGS files
+  while QGIS imports/bridge calls are forbidden. New chart tests cover null, missing and
+  whitespace-only names, Korean priority, scientific fallback, both names missing, legacy
+  labels, consistent value tables and input immutability. All four survey types' embedded
+  report scripts pass syntax checks. Changed production/unit files pass Ruff and diff checks.
+- Windows build: `dist/windows-0.2.8-labels/FieldBuild Standalone`; packaged
+  `--check-runtime` exited **0** outside the repository. All three version declarations stay
+  **0.2.8 -> 0.2.8**. Existing generated projects/reports remain unchanged: form aliases need
+  updated project settings, and reports need the updated QML followed by re-export.
+  No new dependency, browser/QField/macOS/live-service execution or remote publication.

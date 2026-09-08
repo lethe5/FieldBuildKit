@@ -35,7 +35,7 @@ def run(runtime, names, script):
 
 
 def test_chart_axes_and_korean_labels_keep_distinct_species(runtime):
-    result = run(runtime, ["qpbCoverChartValues", "qpbDrawBarChart"], r'''
+    result = run(runtime, ["qpbSpeciesChartLabel", "qpbCoverChartValues", "qpbDrawBarChart"], r'''
 var data={summary_stats:{chart_stats:{cover:[
     {name:"나팔꽃 · Ipomoea nil · 120000083551",value:5},
     {name:"나팔꽃 · another species · 2",korean:"나팔꽃",value:11}]}}};
@@ -168,3 +168,35 @@ def test_popup_styles_override_wide_report_tables_and_keep_scroll_headers():
     assert "max-height:230px;overflow:auto" in source
     assert ".qpb-popup-scroll thead th{position:sticky;top:0;" in source
     assert ".qpb-popup-scroll tbody tr:nth-child(even)" in source
+
+
+def test_species_charts_and_value_tables_fall_back_to_scientific_names(runtime):
+    result = run(runtime, ["esc", "qpbSpeciesChartLabel", "qpbCoverChartValues",
+                           "renderCharts", "qpbRenderAnalyticsCards"], r'''
+var species=[{korean:" 소나무 ",scientific:"Pinus densiflora",key:"private-1",count:2},
+    {korean:null,scientific:" Quercus acutissima ",key:"private-2",count:1},
+    {korean:"   ",scientific:"Ipomoea nil",key:"private-3",count:1},
+    {scientific:" ",key:"private-4",count:1}];
+var cover=species.map(function(s,i){return {name:" · "+(s.scientific||"")+" · private-"+i,
+    korean:s.korean,scientific:s.scientific,value:i};});
+var data={definition:{survey_type:"temporary_plots"},summary_stats:{species:species,
+    chart_stats:{cover:cover}}},hosts={};
+var document={getElementById:function(id){return hosts[id]||(hosts[id]={innerHTML:""});},
+    querySelector:()=>({})};
+function qpbValidateChartInitialization(){return true;}
+function qpbDrawBarChart(){}function qpbDrawPieChart(){}
+var before=JSON.stringify(data),charts=renderCharts();qpbRenderAnalyticsCards();
+var unchanged=before===JSON.stringify(data);
+data.summary_stats.chart_stats.cover=[{name:" · Legacy species · 123",
+    korean:"국명 미입력",value:5}];
+process.stdout.write(JSON.stringify({charts:charts,html:hosts.charts.innerHTML,
+    legacy:qpbCoverChartValues(),originalCover:cover,unchanged:unchanged}));
+''')
+    expected = ["소나무", "Quercus acutissima", "Ipomoea nil", "미동정"]
+    assert result["unchanged"]
+    assert [s["name"] for s in result["charts"]["occurrence"]] == expected
+    assert [s["name"] for s in result["charts"]["cover"]] == expected
+    assert all(name in result["html"] for name in expected)
+    assert "private-" not in result["html"]
+    assert result["legacy"][0]["name"] == "Legacy species"
+    assert result["originalCover"][2]["korean"] == "   "  # Display-only fallback.
