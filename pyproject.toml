@@ -1,5 +1,5 @@
 [project]
-name = "fieldbuild-standalone"
+name = "fieldbuild-kit"
 version = "0.2.8"
 description = "Independent desktop app for generating QField survey projects without QGIS Desktop."
 requires-python = ">=3.10"
@@ -41,7 +41,7 @@ packaging = [
 ]
 
 [project.scripts]
-fieldbuild-standalone = "qfield_builder.ui.app:main"
+fieldbuild-kit = "qfield_builder.ui.app:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

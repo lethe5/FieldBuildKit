@@ -1,23 +1,23 @@
-# FieldBuild Standalone
+# FieldBuild Kit
 
 [한국어](README.md) · **English**
 
 A desktop application for **creating ecological field-survey projects for QField without
 installing QGIS Desktop**. Its Korean-language wizard configures survey types, basemaps and
 optional reference data, then generates a project folder with forms and relationships.
-This guide describes **app version 0.2.7**.
+This guide describes **app version 0.2.8**.
 
 ## Install and run
 
 Check the files attached to the relevant version on
-[GitHub Releases](https://github.com/lethe5/fieldbuild_standalone/releases).
+[GitHub Releases](https://github.com/lethe5/FieldBuildKit/releases).
 Choose a package matching your operating system and CPU architecture. GitHub's `Source code`
 archives contain source files, not a runnable app bundle.
 
-- **macOS**: Extract the distribution archive, move `FieldBuild Standalone.app` to Applications
+- **macOS**: Extract the distribution archive, move `FieldBuild Kit.app` to Applications
   and open it. The currently verified local build targets Apple Silicon (ARM64).
 - **Windows**: When a release provides a Windows package, extract it and run
-  `FieldBuild Standalone.exe` while keeping the entire folder, including `_internal`.
+  `FieldBuild Kit.exe` while keeping the entire folder, including `_internal`.
   Moving only the executable will not work. Native Windows build instructions are below;
   consult the release notes for actual package availability and verification status.
 
@@ -156,13 +156,13 @@ repository. Neither `storage/` nor private reference data is required.
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -e '.[ui,dev,packaging]'
-.venv/bin/fieldbuild-standalone
+.venv/bin/fieldbuild-kit
 
 # Build the distributable app and check its runtime
 .venv/bin/python packaging/build_app.py
 ```
 
-The output is `dist/FieldBuild Standalone.app`. The separate `dist/FieldBuild Standalone/`
+The output is `dist/FieldBuild Kit.app`. The separate `dist/FieldBuild Kit/`
 build output need not accompany the macOS app. `bash packaging/build_macos_app.sh` invokes
 the same build workflow.
 
@@ -171,13 +171,13 @@ the same build workflow.
 ```powershell
 py -m venv .venv-win
 .\.venv-win\Scripts\python.exe -m pip install -e ".[ui,dev,packaging]"
-.\.venv-win\Scripts\fieldbuild-standalone.exe
+.\.venv-win\Scripts\fieldbuild-kit.exe
 
 # Build natively on Windows
 .\.venv-win\Scripts\python.exe packaging/build_app.py
 ```
 
-Distribute the entire `dist/FieldBuild Standalone/` output folder. Create a fresh environment
+Distribute the entire `dist/FieldBuild Kit/` output folder. Create a fresh environment
 on the target operating system instead of copying another operating system's virtual environment.
 
 Packaging uses a fresh PyInstaller work directory and runs `--check-runtime` on the completed
@@ -203,7 +203,7 @@ scope and limitations.
 - [Standalone implementation and change history](docs/standalone.md)
 - [App separation background](docs/independence.md)
 - [Verification record](docs/qfield-runtime-verification.md)
-- [Report an issue](https://github.com/lethe5/fieldbuild_standalone/issues): Include app, operating
+- [Report an issue](https://github.com/lethe5/FieldBuildKit/issues): Include app, operating
   system and QField versions with reproduction steps. Do not post API keys or personal data.
 
 The `specs/` directory and older acceptance documents also retain requirements from earlier

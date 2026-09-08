@@ -39,7 +39,7 @@ def test_repo_or_bundle_root_ignores_frozen_flag_without_meipass(monkeypatch):
 
 def test_repo_or_bundle_root_uses_bundle_parent_for_bridge_source_layout(monkeypatch, tmp_path):
     """The QGIS bridge imports its loose package copy from ``<bundle>/qfield_builder_src``."""
-    bundle_root = tmp_path / "FieldBuild Standalone.app" / "Contents" / "MacOS"
+    bundle_root = tmp_path / "FieldBuild Kit.app" / "Contents" / "MacOS"
     source_package = bundle_root / "qfield_builder_src" / "qfield_builder"
     source_package.mkdir(parents=True)
     (bundle_root / "resources" / "vendor").mkdir(parents=True)

@@ -508,7 +508,7 @@ def _assert_korean_report_copy(source: str) -> None:
     for text in required:
         assert text in code, f"required Korean report meaning is missing: {text}"
     for phrase in _FORBIDDEN_VISIBLE_ENGLISH:
-        assert phrase.lower() not in code.lower(), f"untranslated FieldBuild Standalone copy remains: {phrase}"
+        assert phrase.lower() not in code.lower(), f"untranslated FieldBuild Kit copy remains: {phrase}"
 
 
 @pytest.mark.parametrize("survey_type", TYPE_1_TO_3 + ("vegetation_mapping",))
@@ -532,7 +532,7 @@ def test_ac008_proper_names_and_internal_keys_remain_distinct_secondary_metadata
     acceptance_api, tmp_path
 ):
     source = _strip_js_comments(_sidecar(_build(acceptance_api, tmp_path, "simple_inventory")))
-    for proper_name in ("VWorld", "OpenStreetMap", "FieldBuild Standalone", "KTSN"):
+    for proper_name in ("VWorld", "OpenStreetMap", "FieldBuild Kit", "KTSN"):
         assert proper_name in source
     assert re.search(r"f\.label[\s\S]{0,180}f\.name|field\.label[\s\S]{0,180}field\.name", source)
     assert re.search(r"qpbEscapeHtml|escapeHtml", source)
@@ -759,7 +759,7 @@ def test_ac009_ac010_ac011_immediate_identification_and_boundaries_on_device():
 @pytest.mark.manual
 @pytest.mark.skip(
     reason=(
-        "AC-RWF-007/008 requires visual review of every FieldBuild Standalone-authored report, related "
+        "AC-RWF-007/008 requires visual review of every FieldBuild Kit-authored report, related "
         "identification, and desktop wizard surface. Verify natural Korean for all headings, buttons, "
         "statuses, empty states, table controls, detail/limitation/capability copy; allow only the "
         "spec-approved proper names, scientific names, file-format terms, and clearly identified "

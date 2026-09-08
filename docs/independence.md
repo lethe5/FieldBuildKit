@@ -1,6 +1,8 @@
 # Independent application
 
-FieldBuild Standalone starts at version 0.1.0 with a fresh local Git repository and no remote.
+This independent application began as FieldBuild Standalone at version 0.1.0.
+From 0.2.8, its product name is **FieldBuild Kit** and its repository is
+[lethe5/FieldBuildKit](https://github.com/lethe5/FieldBuildKit).
 Its initial source snapshot was derived from FieldBuild Kit commit
 `b7c6c14` (QGIS-free experimental branch). The original repository and installed app are retained.
 The inherited `qfield_builder` Python package name and QPB survey-format identifiers remain
@@ -9,16 +11,22 @@ original repository.
 
 | Identity | Independent value |
 | --- | --- |
-| App name | FieldBuild Standalone |
-| Python distribution / command | fieldbuild-standalone |
+| App name | FieldBuild Kit |
+| Python distribution / command | fieldbuild-kit |
 | macOS bundle ID | kr.re.nie.fieldbuild-standalone |
 | Initial version | 0.1.0 |
 | macOS app data | ~/Library/Application Support/FieldBuild Standalone |
 | Windows app data | %APPDATA%/FieldBuild Standalone |
 | App-data override | FIELDBUILD_STANDALONE_APP_DATA_DIR |
 
-The application never automatically reads or imports credentials from FieldBuild Kit or
-QField Project Builder. First launch establishes its own password and remembered API keys.
+The bundle ID, app-data directory, diagnostic environment variable and encrypted-store verifier
+retain their existing values across the 0.2.8 product rename. Existing users keep their password
+and remembered API keys without migration or re-entry. These are internal compatibility
+identifiers, not the displayed product name.
+
+The application never automatically reads or imports credentials from the original source
+application (also named FieldBuild Kit) or QField Project Builder. A fresh installation
+establishes its own password and remembered API keys.
 
 The local reference raster collection, filtered lookup data and probability cache were copied
 as independent regular files into `storage/reference`; no hard links or source-repository

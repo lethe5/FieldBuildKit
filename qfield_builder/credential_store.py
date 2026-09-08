@@ -1,4 +1,4 @@
-"""Independent encrypted API-key storage for FieldBuild Standalone.
+"""Independent encrypted API-key storage for FieldBuild Kit.
 
 Keys are session-only unless remembered. Remembered values are encrypted with
 PBKDF2-HMAC-SHA256 (600,000 iterations and a random salt) and Fernet.
@@ -19,11 +19,8 @@ from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-#: A-QPB-005: this application's own, newly introduced application-data-directory convention --
-#: no such convention existed anywhere in this specification/codebase before Decision Log D-53.
-#: Renamed by Decision Log D-81/D-86 (FR-QPB-131's application rename to "FieldBuild Standalone") from
-#: this constant's own prior value -- see `_LEGACY_APP_DATA_DIR_NAME` below and NFR-QPB-081's
-#: required one-time migration.
+# Keep the Standalone storage namespace after the 0.2.8 display-name change so existing
+# passwords and API keys remain usable, separate from the original FieldBuild Kit app.
 _APP_DATA_DIR_NAME = "FieldBuild Standalone"
 
 #: NFR-QPB-081 (Decision Log D-81/D-86): this application's application-data-directory name prior
@@ -53,6 +50,7 @@ _DERIVED_KEY_LENGTH_BYTES = 32
 #: A fixed, non-secret plaintext, encrypted once at `establish_password()` time and stored
 #: alongside the salt, so a later `unlock_session()` call can verify a supplied password is
 #: correct (AC-QPB-093) even before any key has ever actually been remembered.
+# Persisted encryption format: changing this value would invalidate existing passwords.
 _VERIFIER_PLAINTEXT = b"fieldbuild-standalone-credential-store-verifier-v1"
 
 _VWORLD_FIELD = "vworld_api_key"

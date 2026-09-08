@@ -1,4 +1,4 @@
-"""Acceptance coverage for the approved FieldBuild Standalone follow-up defect corrections.
+"""Acceptance coverage for the approved FieldBuild Kit follow-up defect corrections.
 
 The tests in this file use only the existing acceptance API and shared fixtures.  The Python
 harness can exercise deterministic offline builds and generated-artifact structure, but it does

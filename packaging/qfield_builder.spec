@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec for FieldBuild Standalone (entry point: ``qfield_builder.ui.app:main``).
+"""PyInstaller spec for FieldBuild Kit (entry point: ``qfield_builder.ui.app:main``).
 
 Cross-platform by design (per this project's packaging requirement): this spec file itself
 contains no macOS-only assumption. The macOS-specific step below -- the ``BUNDLE(...)``
@@ -27,10 +27,10 @@ from PyInstaller.utils.hooks import collect_all, collect_data_files
 # containing the spec file itself) into the spec's execution namespace -- that is the documented,
 # supported way a `.spec` file is meant to locate itself and its own repository root.
 REPO_ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 - PyInstaller-injected spec global.
-# FR-QPB-131 (Decision Log D-81/D-86): "FieldBuild Standalone" supersedes "QField Project Builder" as
+# FR-QPB-131 (Decision Log D-81/D-86): "FieldBuild Kit" supersedes "QField Project Builder" as
 # this application's own display name, including the PyInstaller packaging configuration's own
 # bundle name.
-APP_NAME = "FieldBuild Standalone"
+APP_NAME = "FieldBuild Kit"
 APP_VERSION = "0.2.8"
 gis_datas, gis_binaries, gis_imports = [], [], []
 for package in ("rasterio", "fiona"):
@@ -136,6 +136,7 @@ if sys.platform == "darwin":
         # see packaging/generate_app_icon.py, which produced this file from
         # resources/fieldbuild-kit-icon-mark.png.
         icon=str(REPO_ROOT / "resources" / "fieldbuild-kit-icon.icns"),
+        # Stable upgrade identity; only the product display name changes.
         bundle_identifier="kr.re.nie.fieldbuild-standalone",
         info_plist={
             "CFBundleName": APP_NAME,
@@ -143,6 +144,6 @@ if sys.platform == "darwin":
             "CFBundleShortVersionString": APP_VERSION,
             "CFBundleVersion": APP_VERSION,
             "NSHighResolutionCapable": True,
-            "NSHumanReadableCopyright": "FieldBuild Standalone",
+            "NSHumanReadableCopyright": "FieldBuild Kit",
         },
     )

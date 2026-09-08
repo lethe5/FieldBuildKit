@@ -2,11 +2,11 @@
 """Regenerates the packaged macOS app's own icon from the icon-mark sub-region of
 ``resources/fieldbuild-kit-logo.png`` -- see ``docs/ui-design-guidelines.md``'s "Branding: logo
 asset and its two confirmed uses" section, and Decision Log D-81/D-86 (the application rename to
-"FieldBuild Standalone") in ``specs/qfield-project-builder.md``.
+"FieldBuild Kit") in ``specs/qfield-project-builder.md``.
 
 That guidelines section confirms the logo asset's own composition (a wide, ~3:1 horizontal lockup:
 a roughly-square icon mark -- layered map tiles with a location pin -- on the left, and the
-"FieldBuild Standalone" wordmark to its right) and requires the regenerated app icon to be cropped from
+"FieldBuild Kit" wordmark to its right) and requires the regenerated app icon to be cropped from
 *only* the icon-mark sub-region, never the full wide lockup and never the wordmark text, but
 deliberately leaves the exact crop rectangle/pixel dimensions to the implementer.
 

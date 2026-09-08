@@ -1,6 +1,6 @@
 # Architectural Decisions
 
-Current application: **FieldBuild Standalone**, an independent, QGIS-free app.
+Current application: **FieldBuild Kit**, an independent, QGIS-free app.
 See [current runtime](standalone.md) and [independent app identity](independence.md).
 The records below are inherited source-project history; their QGIS installation and
 credential-migration requirements do not apply to this app.

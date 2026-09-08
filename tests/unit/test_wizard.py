@@ -3259,12 +3259,13 @@ def test_draw_map_canvas_keeps_its_full_320x240_usable_minimum_size():
 # ---------------------------------------------------------------------------------------------
 
 
-def test_wizard_window_title_uses_standalone_and_not_the_old_product_name():
+def test_wizard_window_title_uses_fieldbuild_kit_and_not_the_old_product_name():
     """FR-QPB-131 (Decision Log D-81/D-86): the wizard's own window title -- this application's
-    own UI -- names the application "FieldBuild Standalone," never the superseded "QField Project
+    own UI -- names the application "FieldBuild Kit," never the superseded "QField Project
     Builder.\""""
     wizard = ProjectBuilderWizard()
-    assert "FieldBuild Standalone" in wizard.windowTitle()
+    assert "FieldBuild Kit" in wizard.windowTitle()
+    assert "FieldBuild Standalone" not in wizard.windowTitle()
     assert "QField Project Builder" not in wizard.windowTitle()
 
 

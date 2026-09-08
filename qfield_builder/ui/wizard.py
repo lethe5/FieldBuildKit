@@ -98,7 +98,7 @@ def _get_open_file_name(parent, caption, directory="", filter=""):
 
 #: FR-QPB-131 (Decision Log D-81/D-86): the application's own display name, superseding "QField
 #: Project Builder" everywhere in this application's own UI.
-APP_DISPLAY_NAME = "FieldBuild Standalone"
+APP_DISPLAY_NAME = "FieldBuild Kit"
 
 # Consistent page-level spacing/margins applied to every wizard page's top-level and nested
 # layouts (visual-polish pass): a single, reused set of numbers rather than ad hoc
@@ -394,7 +394,7 @@ class ProjectBasicsPage(QWizardPage):
 
         layout = QFormLayout()
         _polish_layout(layout)
-        # Category D branding decision (`docs/ui-design-guidelines.md`): the FieldBuild Standalone logo
+        # Category D branding decision (`docs/ui-design-guidelines.md`): the FieldBuild Kit logo
         # banner, shown once at the top of the wizard's first page.
         self.logo_banner_label = _build_logo_banner_label()
         layout.addRow(self.logo_banner_label)
@@ -3020,7 +3020,7 @@ def _initialize_safe_wizard_pixmaps(wizard: QWizard) -> None:
     ``NSBundle.bundleWithURL`` when the wizard is shown.  That Objective-C exception is not
     catchable from Python and terminates the process.  Supplying a valid, application-owned
     pixmap for every role prevents the fallback lookup while keeping the wizard's actual branding
-    in its page widgets (the FieldBuild Standalone logo banner is independent of QWizard's decoration
+    in its page widgets (the FieldBuild Kit logo banner is independent of QWizard's decoration
     pixmaps).  A transparent pixel is intentional: it is a valid local pixmap, not a path to a
     missing resource, and ModernStyle does not need a watermark/background image.
     """

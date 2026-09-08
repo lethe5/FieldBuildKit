@@ -11,12 +11,13 @@ _real_app_data_dir = credential_store.app_data_dir
 def test_distribution_command_bundle_and_version_are_independent():
     root = Path(__file__).resolve().parents[2]
     project = (root / "pyproject.toml").read_text()
-    assert 'name = "fieldbuild-standalone"' in project
+    assert 'name = "fieldbuild-kit"' in project
     assert f'version = "{__version__}"' in project
     assert f'APP_VERSION = "{__version__}"' in (root / "packaging/qfield_builder.spec").read_text()
-    assert 'fieldbuild-standalone = "qfield_builder.ui.app:main"' in project
-    assert wizard.APP_DISPLAY_NAME == "FieldBuild Standalone"
+    assert 'fieldbuild-kit = "qfield_builder.ui.app:main"' in project
+    assert wizard.APP_DISPLAY_NAME == "FieldBuild Kit"
     spec = (root / "packaging/qfield_builder.spec").read_text()
+    # Preserve the installed app identity and encrypted settings across the display-name change.
     assert 'bundle_identifier="kr.re.nie.fieldbuild-standalone"' in spec
 
 
@@ -46,4 +47,4 @@ def test_application_startup_never_migrates_old_credentials(monkeypatch):
     monkeypatch.setattr(app, "maybe_prompt_for_first_launch_password", lambda: None)
     monkeypatch.setattr(app, "ProjectBuilderWizard", FakeWizard)
     monkeypatch.setattr(credential_store, "migrate_legacy_credentials", forbidden)
-    assert app.main(["fieldbuild-standalone"]) == 0
+    assert app.main(["fieldbuild-kit"]) == 0

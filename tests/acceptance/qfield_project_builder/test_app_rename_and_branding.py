@@ -1,11 +1,11 @@
-"""Application rename ("FieldBuild Standalone") and branding (Decision Log D-81/D-82/D-86;
+"""Application rename ("FieldBuild Kit") and branding (Decision Log D-81/D-82/D-86;
 `docs/ui-design-guidelines.md`'s "Branding: logo asset and its two confirmed uses").
 
 Covers, with real, automated, offscreen-safe tests (plain text/AST inspection of static
 repository files -- no Qt, no QGIS, no PyInstaller execution, no invocation of any
 `qfield_builder` runtime module):
 
-- FR-QPB-131 (Section 5.1): the application's own display name is "FieldBuild Standalone," superseding
+- FR-QPB-131 (Section 5.1): the application's own display name is "FieldBuild Kit," superseding
   "QField Project Builder," as shown in `README.md` and the PyInstaller packaging configuration's
   own bundle name (`packaging/qfield_builder.spec`).
 - The Category D logo decision's macOS-icon half (`docs/ui-design-guidelines.md`, "Branding: logo
@@ -49,7 +49,7 @@ README_PATH = REPO_ROOT / "README.md"
 PACKAGING_SPEC_PATH = REPO_ROOT / "packaging" / "qfield_builder.spec"
 
 OLD_APP_NAME = "QField Project Builder"
-NEW_APP_NAME = "FieldBuild Standalone"
+NEW_APP_NAME = "FieldBuild Kit"
 OLD_ICON_FILENAME = "app-icon-glass.icns"
 
 
@@ -123,7 +123,7 @@ def _stringify_expr_best_effort(expr: ast.expr) -> str:
 
 # ---------------------------------------------------------------------------------------------
 # FR-QPB-131: README.md no longer names the application "QField Project Builder"; it is named
-# "FieldBuild Standalone" instead.
+# "FieldBuild Kit" instead.
 # ---------------------------------------------------------------------------------------------
 
 
@@ -140,7 +140,7 @@ def test_readme_uses_fieldbuild_kit_and_not_the_old_product_name():
 
 
 # ---------------------------------------------------------------------------------------------
-# FR-QPB-131: the PyInstaller packaging configuration's own bundle name is "FieldBuild Standalone".
+# FR-QPB-131: the PyInstaller packaging configuration's own bundle name is "FieldBuild Kit".
 # ---------------------------------------------------------------------------------------------
 
 
@@ -267,7 +267,7 @@ def test_packaging_spec_icon_references_an_icns_file_under_resources():
         "or view it in Finder icon view / the Dock after opening it. (3) Confirm the displayed "
         "icon is a square, layered-map-tiles-with-a-location-pin graphic (matching the icon-mark "
         "sub-region described in docs/ui-design-guidelines.md), NOT the prior glass-sphere icon "
-        "(resources/app-icon-glass.icns) and NOT the full wide 'FieldBuild Standalone' wordmark lockup "
+        "(resources/app-icon-glass.icns) and NOT the full wide 'FieldBuild Kit' wordmark lockup "
         "image. (4) Confirm the icon renders cleanly (no visible stray whitespace/padding from "
         "the original wide lockup image, no partial/cut-off wordmark text bleeding into the "
         "crop) at both a large ('Get Info' preview) and small (Dock) size."
@@ -288,15 +288,15 @@ def test_macos_packaged_app_icon_shows_only_the_icon_mark_not_the_old_glass_icon
         "../qfield_project_builder_app_rename_version_and_branding.traceability.md's routed "
         "contract table for tests/unit/test_wizard.py) -- but whether that image actually "
         "*renders correctly on screen* (not stretched/squashed out of its original aspect ratio, "
-        "not cut off, recognizable as the FieldBuild Standalone logo lockup to a human looking at it) "
+        "not cut off, recognizable as the FieldBuild Kit logo lockup to a human looking at it) "
         "is a real, on-screen visual-rendering fact this harness cannot confirm through widget "
         "construction alone, mirroring the same distinction this suite's own Decision "
         "Log D-54/AC-QPB-096 precedent draws between 'a QML Image element exists in the source' "
         "(structural, automatable) and 'the image actually displays correctly once rendered' "
         "(manual-only)."
         "\n\nManual QA steps: (1) Launch the desktop wizard. (2) Confirm a banner image showing "
-        "the FieldBuild Standalone logo (the layered-map-tiles-with-pin icon mark plus the "
-        "'FieldBuild Standalone' wordmark, per resources/fieldbuild-kit-logo.png) is visibly displayed "
+        "the FieldBuild Kit logo (the layered-map-tiles-with-pin icon mark plus the "
+        "'FieldBuild Kit' wordmark, per resources/fieldbuild-kit-logo.png) is visibly displayed "
         "wherever the implementer placed it (every page, or only the first page). (3) Confirm "
         "the image is not visibly distorted (stretched/squashed out of its original ~3:1 "
         "aspect ratio), not cropped in a way that cuts off the wordmark or icon mark, and "

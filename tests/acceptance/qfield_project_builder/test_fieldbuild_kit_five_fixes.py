@@ -1,4 +1,4 @@
-"""Acceptance coverage for the approved FieldBuild Standalone five-fix specification.
+"""Acceptance coverage for the approved FieldBuild Kit five-fix specification.
 
 The generated-project checks use the existing acceptance harness.  Wizard, browser, and QField
 runtime behavior is recorded as explicit manual/device acceptance gates because this repository's
@@ -49,7 +49,7 @@ def inspect_display_expressions(acceptance_api):
 
 
 def _build(acceptance_api, tmp_path: Path, survey_type: str, *, identification: bool = False):
-    config = make_base_config(survey_type, display_name="FieldBuild Standalone five-fix acceptance")
+    config = make_base_config(survey_type, display_name="FieldBuild Kit five-fix acceptance")
     config["identification_enabled"] = identification
     result = acceptance_api.build_project(config, str(tmp_path / f"fixes_{survey_type}"))
     assert result["success"], result.get("error_message")

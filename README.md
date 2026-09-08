@@ -1,23 +1,23 @@
-# FieldBuild Standalone
+# FieldBuild Kit
 
 **한국어** · [English](README.en.md)
 
 QGIS Desktop을 설치하지 않고 **QField 현장 생태조사 프로젝트를 만드는 데스크톱 앱**입니다.
 한국어 마법사에서 조사 유형, 배경지도, 선택 참조 자료를 설정하면 조사 폼과 관계가 구성된
-프로젝트 폴더를 생성합니다. 이 문서는 **앱 0.2.7**을 기준으로 합니다.
+프로젝트 폴더를 생성합니다. 이 문서는 **앱 0.2.8**을 기준으로 합니다.
 
-▶ [웹 발표자료에서 주요 기능과 사용 흐름 보기](https://lethe5.github.io/fieldbuild_standalone/)
+▶ [웹 발표자료에서 주요 기능과 사용 흐름 보기](https://lethe5.github.io/FieldBuildKit/)
 
 ## 설치 및 실행
 
-배포 파일은 [GitHub Releases](https://github.com/lethe5/fieldbuild_standalone/releases)의
+배포 파일은 [GitHub Releases](https://github.com/lethe5/FieldBuildKit/releases)의
 해당 버전에 첨부된 파일을 확인하세요. 운영체제와 CPU 종류에 맞는 파일을 선택합니다.
 GitHub의 `Source code` 압축파일은 실행 앱이 아닌 소스 코드입니다.
 
-- **macOS**: 배포 압축파일을 풀고 `FieldBuild Standalone.app`을 응용 프로그램 폴더로
+- **macOS**: 배포 압축파일을 풀고 `FieldBuild Kit.app`을 응용 프로그램 폴더로
   옮긴 뒤 실행합니다. 현재 로컬 빌드 검증 환경은 Apple Silicon(ARM64)입니다.
 - **Windows**: Windows 배포 파일이 제공되는 버전에서는 압축을 푼 폴더 전체를 유지한 채
-  `FieldBuild Standalone.exe`를 실행합니다. `_internal` 폴더를 포함해야 하며 `.exe`만
+  `FieldBuild Kit.exe`를 실행합니다. `_internal` 폴더를 포함해야 하며 `.exe`만
   옮기면 실행되지 않습니다. Windows용 빌드 방법은 아래에 있으며, 실제 배포·검증 여부는
   해당 릴리스 안내를 확인하세요.
 
@@ -147,13 +147,13 @@ Python 3.12입니다. 저장소를 내려받은 폴더에서 실행하세요. `s
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -e '.[ui,dev,packaging]'
-.venv/bin/fieldbuild-standalone
+.venv/bin/fieldbuild-kit
 
 # 배포 앱 생성 및 실행 환경 검사
 .venv/bin/python packaging/build_app.py
 ```
 
-출력은 `dist/FieldBuild Standalone.app`입니다. `dist/FieldBuild Standalone/`은 별도 빌드 산출물이므로
+출력은 `dist/FieldBuild Kit.app`입니다. `dist/FieldBuild Kit/`은 별도 빌드 산출물이므로
 macOS 앱 배포에 함께 넣지 않아도 됩니다. `bash packaging/build_macos_app.sh`도 같은 빌드 절차를 실행합니다.
 
 ### Windows PowerShell
@@ -161,13 +161,13 @@ macOS 앱 배포에 함께 넣지 않아도 됩니다. `bash packaging/build_mac
 ```powershell
 py -m venv .venv-win
 .\.venv-win\Scripts\python.exe -m pip install -e ".[ui,dev,packaging]"
-.\.venv-win\Scripts\fieldbuild-standalone.exe
+.\.venv-win\Scripts\fieldbuild-kit.exe
 
 # Windows 환경에서 직접 빌드
 .\.venv-win\Scripts\python.exe packaging/build_app.py
 ```
 
-출력인 `dist/FieldBuild Standalone/` 폴더 전체를 배포합니다. 다른 운영체제에서 만든 가상환경을
+출력인 `dist/FieldBuild Kit/` 폴더 전체를 배포합니다. 다른 운영체제에서 만든 가상환경을
 복사하지 말고, 배포할 운영체제에서 새로 환경을 구성하세요.
 
 빌드는 매번 새 PyInstaller 작업 폴더에서 진행하고, 완성된 실행 파일의 `--check-runtime` 검사를
@@ -192,7 +192,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests/unit/test_optional
 - [독립 실행 구현 및 변경 기록](docs/standalone.md)
 - [앱 분리 배경](docs/independence.md)
 - [검증 기록](docs/qfield-runtime-verification.md)
-- [문제 신고](https://github.com/lethe5/fieldbuild_standalone/issues): 앱·운영체제·QField 버전과
+- [문제 신고](https://github.com/lethe5/FieldBuildKit/issues): 앱·운영체제·QField 버전과
   재현 순서를 적어 주세요. API 키와 개인정보가 포함된 자료는 공개 게시하지 마세요.
 
 `specs/`와 과거 acceptance 문서에는 이전 구현의 요구 사항도 남아 있습니다.

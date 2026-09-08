@@ -1,4 +1,4 @@
-# FieldBuild Standalone (0.1.0)
+# FieldBuild Kit
 
 Independent repository, branch `main`; see [app identity and separation](independence.md).
 This app replaces the installed-QGIS requirement in the earlier MVP specification.
@@ -37,7 +37,7 @@ not runtime fallbacks. They cannot rescue a missing or broken standalone depende
 
 ## Trial build and verification
 
-The local macOS ARM64 trial bundle is `dist/FieldBuild Standalone.app` (0.2.7).
+The local macOS ARM64 trial bundle is `dist/FieldBuild Kit.app` (0.2.8).
 It is built in this independent repository. It includes the small fictional workbook sample and independent GIS libraries; private
 workbooks, probability rasters and caches are excluded. The bundle is unsigned for
 distribution; its executable supports `--check-runtime` without opening the wizard.

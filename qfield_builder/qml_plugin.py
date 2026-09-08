@@ -3774,7 +3774,7 @@ __QPB_MAP_FEATURE_DISPATCH__
         var json = qpbSafeJson(htmlPayload);
         html.push("<!DOCTYPE html><html lang='ko'><head><meta charset='utf-8'>");
         html.push("<meta name='viewport' content='width=device-width,initial-scale=1'>");
-        html.push("<meta name='description' content='FieldBuild Standalone 현장 조사 HTML 보고서'>");
+        html.push("<meta name='description' content='FieldBuild Kit 현장 조사 HTML 보고서'>");
         html.push("<title>" + qpbEscapeHtml(d.project_display_name) + " - HTML 보고서</title>");
         html.push("<style>\n"
             + ":root[data-theme='dark'] .primary-action{color:#10251d}\n"

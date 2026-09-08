@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-APP_NAME = "FieldBuild Standalone"
+APP_NAME = "FieldBuild Kit"
 
 
 def main() -> int:

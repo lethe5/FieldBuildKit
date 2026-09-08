@@ -57,7 +57,7 @@ def _packaged_app_path() -> Path | None:
     if configured:
         path = Path(configured)
     else:
-        path = REPO_ROOT / "dist" / "FieldBuild Standalone.app"
+        path = REPO_ROOT / "dist" / "FieldBuild Kit.app"
     return path if path.exists() else None
 
 
