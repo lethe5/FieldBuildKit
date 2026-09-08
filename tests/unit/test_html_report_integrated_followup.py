@@ -147,9 +147,9 @@ def test_integrated_report_bounds_large_geopackage_geometries_without_serializin
     source = qml_plugin.render_project_plugin_qml("demo", survey_type="temporary_plots")
     collector = source[source.index("function qpbCollectGpkgSpatialRows") : source.index("function qpbInspectCurrentGpkgSpatialMetadata")]
 
-    assert "QPB_REPORT_FULL_GEOMETRY_MAX_BYTES = 524288" in source
+    assert "readonly property int qpbReportFullGeometryMaxBytes: 524288" in source
     assert "function qpbGpkgEnvelopeGeoJson" in source
-    assert "geometryByteLength > QPB_REPORT_FULL_GEOMETRY_MAX_BYTES" in collector
+    assert "geometryByteLength > qpbReportFullGeometryMaxBytes" in collector
     assert 'outcome:"simplified_envelope"' in collector
     assert "length(\" + quotedGeometry + \")" in collector
     assert "substr(\" + quotedGeometry + \", 1, 40)" in collector

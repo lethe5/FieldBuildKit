@@ -273,7 +273,8 @@ def test_project_plugin_uses_a_qml_property_for_the_report_geometry_limit():
 
     assert "readonly property int qpbReportFullGeometryMaxBytes: 524288" in content
     assert "var QPB_REPORT_FULL_GEOMETRY_MAX_BYTES" not in content
-    assert content.count("qpbReportFullGeometryMaxBytes") == 4
+    assert "id: qpbReportGeometryEvaluator" in content
+    assert "num_points(@g) > 16384" in content
 
 
 def test_project_plugin_qml_embeds_real_build_metadata_and_schema_without_scoped_out_fields():

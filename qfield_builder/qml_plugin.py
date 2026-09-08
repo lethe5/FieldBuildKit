@@ -1310,6 +1310,11 @@ def _render_html_report_members(report_definition: str) -> str:
     // the current QField layers at export time.  No report Timer or background collection exists.
     readonly property var qpbReportDefinition: (__QPB_REPORT_DEFINITION__)
 
+    ExpressionEvaluator {
+        id: qpbReportGeometryEvaluator
+        project: qgisProject
+    }
+
     // D-95: taxonomy aggregation is resolved from ktsn_taxonomy_reference after collecting
     // ordinary observation rows. Missing legacy data reports taxonomy_reference_unavailable;
     // it never reads tb_leco_nib_ktsn_dtl_gat.csv or a source workbook as a fallback.
@@ -1545,6 +1550,38 @@ __QPB_REPORT_CORE_JS__
     function qpbGeometryToGeoJson(feature, layer, table) {
         if (!table.geometry_field) { return {valid: false, outcome:"unsupported_geometry", reason: "지원하지 않는 도형"}; }
         try {
+            // Count and bound in native QGIS BEFORE asWkt/asJson crosses into JavaScript.
+            // The saved-SQLite guard does not protect this loaded-layer fallback.
+            if (typeof qpbReportGeometryEvaluator !== "undefined") {
+                var evaluated;
+                try {
+                    qpbReportGeometryEvaluator.layer = layer;
+                    qpbReportGeometryEvaluator.feature = feature;
+                    evaluated = qpbReportGeometryEvaluator.evaluate(
+                        "with_variable('g', $geometry, " +
+                        "with_variable('large', num_points(@g) > 16384, " +
+                        "map('empty', is_empty_or_null(@g), 'simplified', @large, 'wkt', " +
+                        "geom_to_wkt(transform(if(@large, bounds(@g), @g), " +
+                        "@layer_crs, 'EPSG:4326'), 8))))"
+                    );
+                } finally {
+                    qpbReportGeometryEvaluator.feature = FeatureUtils.createBlankFeature();
+                    qpbReportGeometryEvaluator.layer = null;
+                }
+                if (evaluated && evaluated.empty === true) {
+                    return {valid:false, outcome:"actual_empty", reason:"원본 도형이 비어 있음"};
+                }
+                if (!evaluated || typeof evaluated.wkt !== "string" || !evaluated.wkt) {
+                    return {valid:false, outcome:"serialization_failure", reason:"안전한 도형 변환에 실패함"};
+                }
+                if (evaluated.wkt.length > 2 * qpbReportFullGeometryMaxBytes) {
+                    return {valid:false, outcome:"serialization_failure", reason:"보고서 도형 크기 제한 초과"};
+                }
+                return {valid:true, outcome:evaluated.simplified ? "simplified_envelope" : "valid",
+                    reason:evaluated.simplified ? "대형 도형을 범위로 단순화하여 표시" : "표시 가능한 도형",
+                    geojson:qpbNormalizeGeoJsonXY(qpbWktToGeoJson(evaluated.wkt), true),
+                    crs:"EPSG:4326", simplified:!!evaluated.simplified};
+            }
             if (!feature || feature.geometry === undefined || feature.geometry === null) {
                 return {valid: false, outcome:"serialization_failure", reason: "도형을 읽지 못함"};
             }
@@ -1585,6 +1622,9 @@ __QPB_REPORT_CORE_JS__
             // than treating a missing convenience method as proof that a geometry is empty.
             var jsonAccessor = geometry.asJson;
             var raw = typeof jsonAccessor === "function" ? jsonAccessor.call(geometry) : jsonAccessor;
+            if (typeof raw === "string" && raw.length > 2 * qpbReportFullGeometryMaxBytes) {
+                throw new Error("report geometry size limit");
+            }
             var geojson = null;
             if (raw !== undefined && raw !== null && raw !== "") {
                 geojson = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -1599,6 +1639,9 @@ __QPB_REPORT_CORE_JS__
                     var wktAccessor = geometry.asWkt || geometry.wkt;
                     var wkt = typeof wktAccessor === "function" ? wktAccessor.call(geometry) : wktAccessor;
                     if (wkt !== undefined && wkt !== null && String(wkt).trim() !== "") {
+                        if (String(wkt).length > 2 * qpbReportFullGeometryMaxBytes) {
+                            throw new Error("report geometry size limit");
+                        }
                         geojson = qpbWktToGeoJson(wkt);
                     }
                 }
@@ -1780,7 +1823,7 @@ __QPB_REPORT_CORE_JS__
     // return object rows or positional rows; both are normalized here.
     function qpbBytes(value) {
         if (Array.isArray(value)) { return value; }
-        if (value && typeof value.length === "number") {
+        if (typeof value !== "string" && value && typeof value.length === "number") {
             var array = []; for (var i = 0; i < value.length; i++) { array.push(Number(value[i]) & 255); }
             return array;
         }
@@ -1809,7 +1852,7 @@ __QPB_REPORT_CORE_JS__
     function qpbBinaryPrefix(value, length) {
         var count = Math.max(0, Number(length) || 0), output = [];
         if (Array.isArray(value)) { return value.slice(0, count); }
-        if (value && typeof value.length === "number") {
+        if (typeof value !== "string" && value && typeof value.length === "number") {
             for (var index = 0; index < Math.min(count, value.length); index++) {
                 output.push(Number(value[index]) & 255);
             }

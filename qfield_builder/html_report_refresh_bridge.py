@@ -38,6 +38,7 @@ def _function(source: str, name: str) -> str:
 _FUNCTIONS = (
     "qpbEscapeHtml", "qpbFindDomainLayer", "qpbIsSensitiveReportField", "qpbReportAttribute",
     "qpbFormatReportValue", "qpbLayerCrs", "qpbIsWgs84Crs", "qpbGeometryToGeoJson",
+    "qpbWktToGeoJson", "qpbBinaryPrefix",
     "qpbAddReportCollectionLimitation", "qpbRegisterReportFallback", "qpbAddFallbackSuccess",
     "qpbAddKnownFallbackOmission", "qpbPublishFallbackLimitation", "qpbGpkgTableIdentifier",
     "qpbSavedGpkgPath", "qpbRowsFromSqlResult", "qpbSqliteBridge", "qpbExecuteSql",

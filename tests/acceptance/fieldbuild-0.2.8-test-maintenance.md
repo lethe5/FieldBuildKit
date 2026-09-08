@@ -157,3 +157,60 @@ Baseline: `9a91007`. Branch: `codex/0.2.8-gpkg-loading`.
   `--check-runtime` exited **0** outside the repository. All three version declarations
   remain **0.2.8 -> 0.2.8**, explicitly requested. No macOS/QField/live-API execution,
   remote push, tag, or release publication was performed.
+
+## Large-polygon HTML report follow-up (same 0.2.8)
+
+Baseline: `09d7591`. Branch: `codex/0.2.8-large-report`.
+
+- Root cause: the existing 512 KiB SQL/BLOB guard only covered direct GeoPackage access.
+  The loaded-layer fallback could serialize the entire geometry to WKT/JSON, expand it into
+  JavaScript coordinates, and duplicate it into the report. A JavaScript exception handler
+  cannot recover from a native/V8 out-of-memory termination.
+- The plugin now uses QField's native `ExpressionEvaluator` with the current feature/layer.
+  QGIS counts vertices before serialization; above 16,384 vertices it bounds the geometry
+  natively, then transforms the small rectangle to WGS84. Smaller shapes retain their rings
+  and coordinates (WKT output precision: eight decimal places). The evaluator releases the
+  current feature after every row. The original geometry/attributes are never edited.
+  The API was checked against the [QField 4.2.4 evaluator header](https://github.com/opengisch/QField/blob/v4.2.4/src/core/expressionevaluator.h).
+- This is **report-display approximation**, not geometry simplification in the saved project.
+  Existing report limitation details disclose the approximate rectangles. Missing/invalid
+  geometry stays in non-spatial records; native evaluation failures do not retry an unsafe
+  full serialization. Legacy text serializers reject oversized strings before parsing.
+- Fixed the hex-string branch in the byte/prefix readers: strings were previously treated
+  as generic array-like values before their hexadecimal decoder could run. Test adapters
+  now include the production WKT/prefix helpers instead of silently omitting them.
+- Actual source: `BND_SIDO_PG.gpkg`, 87,314,432 bytes, 17 regions, EPSG:5186. A local QA run
+  executed the emitted expression using installed QGIS 3.44.13 against all 17 real features,
+  then supplied its native results/attributes to the emitted loaded-layer collector and HTML
+  builder. This is an offline integration bridge, **not an actual QField application run**.
+- The largest real feature has **2,604,179 vertices**. The old serializer, with its real WGS84
+  WKT, terminated with **JavaScript heap out of memory**, exit **134**, in an isolated Node
+  process limited to 128 MiB. The updated pipeline succeeded at the same limit: **17/17 valid
+  map features**, **12 approximate rectangles / 5 detailed shapes**, HTML **5,309,699 bytes**,
+  JavaScript heap **33,887,160 bytes after generation** (not peak/RSS). Source size/mtime stayed
+  unchanged. Evidence: `build/large-report-qa/results.json`, `baseline-stderr.log`,
+  `large-report.html`, and `build/0.2.8-large-report-real.log`.
+- Focused report/plugin checks: **183 passed, 4 existing skips, 4 deselected**. Independent
+  optional-input/build/relocation checks: **88 passed**. New executable tests cover guarding
+  before serialization, releasing feature references, empty/failure/next-row distinction,
+  retaining a small polygon hole, and decoding array/hex header envelopes.
+- The four deselections were first run and failed with both current and baseline code:
+  manual-entry write-back's historical KTSN expectation, plus three HTML source-text tests
+  for renderer ordering, function ordering, and the old CSV `c.header` spelling. They remain
+  failures, not fixed/skipped tests. Logs: `0.2.8-large-report-baseline-test.log`,
+  `0.2.8-large-report-baseline-html.log`, `0.2.8-large-report-verified.log`, and
+  `0.2.8-large-report-build-regression.log` under `build/`. The initial combined native/Qt
+  run exited `-1073740791` before finishing; it is not counted as a pass. The same native
+  termination reproduced with baseline production code in `0.2.8-large-report-baseline-combined.log`.
+  Separate scoped processes completed as above; the underlying combined-process issue was
+  not fixed here.
+- New tests and production plugin pass Ruff; the other touched files have no additional
+  Ruff diagnostics relative to baseline. `git diff --check` passed. An outdated constant-name
+  assertion in the size-guard test was aligned with the existing QML property name.
+- Windows build: `dist/windows-0.2.8-report`; EXE `--check-runtime` exited **0** outside the
+  repository. Version declarations stay **0.2.8 -> 0.2.8**, as requested. Earlier builds and
+  existing user projects/reports were not overwritten. Existing generated QML/HTML does not
+  update just by replacing the builder EXE; new exports need the updated project plugin.
+- Browser UI verification was blocked by the in-app browser's local-file URL security policy;
+  no alternate browser/server workaround was used and no browser interaction is claimed.
+  QField device/macOS/live API checks and remote publication were not performed.
