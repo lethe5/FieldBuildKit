@@ -37,7 +37,7 @@ not runtime fallbacks. They cannot rescue a missing or broken standalone depende
 
 ## Trial build and verification
 
-The local macOS ARM64 trial bundle is `dist/FieldBuild Standalone.app` (0.2.6).
+The local macOS ARM64 trial bundle is `dist/FieldBuild Standalone.app` (0.2.7).
 It is built in this independent repository. It includes the small fictional workbook sample and independent GIS libraries; private
 workbooks, probability rasters and caches are excluded. The bundle is unsigned for
 distribution; its executable supports `--check-runtime` without opening the wizard.
@@ -88,6 +88,8 @@ normalize NaN to -9999 while preserving valid values and leaving source files un
 From 0.2.6, the taxonomy upload box permanently displays the instruction to upload the national
 vascular-plant species list including synonyms; validation and clear-selection messages do not
 replace this instruction.
+From 0.2.7, this fixed notice also warns that uploading the reference restricts plant-name
+entry to accepted names in the national species list.
 
 Standalone tests pass with QGIS and OSGeo imports forbidden. In the source branch before
 repository separation, all 24 generated project combinations were separately opened by

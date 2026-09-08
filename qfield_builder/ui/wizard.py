@@ -1865,7 +1865,8 @@ class IdentificationTogglePage(QWizardPage):
         reference_group = QGroupBox("식물 분류 참조 자료 (선택 사항)")
         reference_layout = QVBoxLayout()
         reference_upload_note = QLabel(
-            "이명정보를 포함한 국가생물종목록(관속식물류) Excel(.xlsx) 파일을 업로드하세요."
+            "이명정보를 포함한 국가생물종목록(관속식물류) Excel(.xlsx) 파일을 업로드하세요.\n"
+            "주의: 참조 자료를 업로드하면 식물 이름은 국가생물종목록에 있는 정명만 입력할 수 있습니다."
         )
         reference_upload_note.setWordWrap(True)
         reference_layout.addWidget(reference_upload_note)
