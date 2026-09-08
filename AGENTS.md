@@ -1,5 +1,21 @@
 Use repository quality checks appropriate to the requested changes.
 
+## Branch and merge workflow
+
+- For every new change, create a dedicated working branch from `main` before editing; do not
+  make changes directly on `main`. Continue related work on its existing working branch.
+- Implement, review the diff, and run checks appropriate to the change on that branch.
+  Documentation-only changes require a content review and `git diff --check`, not app tests.
+- Commit and merge the completed change into local `main` only after the relevant checks pass
+  and no known issue or required verification remains unresolved for that change. If verification
+  is blocked or fails, keep the work on its branch and report the blocker; do not treat it as passed.
+- Record pre-existing unrelated test failures separately. Never silently waive a failing check
+  or merge incomplete work merely to finish the task.
+- The user has authorized this local branch, test, commit, and merge workflow for future changes.
+  Pushes, tags, GitHub releases, and remote repository settings still require a user request.
+- Preserve existing user work and shared history; do not reset or rewrite `main` to establish
+  this workflow. After merging, report the branch, commit, verification result, and merge status.
+
 ## App version policy
 
 - The baseline when this policy was introduced was `0.1.0`. Future increments start from the current version declarations, not from this historical baseline.
