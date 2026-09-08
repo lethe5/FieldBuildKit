@@ -1023,6 +1023,9 @@
     .front-cover-tags { display:flex; gap:12px; margin-top:38px; }
     .front-cover-tags span { padding:11px 16px; border:2px solid rgba(255,255,255,.28); border-radius:999px; color:#fff; font-size:16px; font-weight:850; letter-spacing:.04em; }
     .front-cover-tags .accent { border-color:var(--lime); background:var(--lime); color:var(--moss-dark); }
+    .front-download { display:inline-flex; align-items:center; align-self:flex-start; gap:12px; margin-top:26px; padding:15px 20px; border-radius:14px; background:var(--paper); color:var(--moss-dark); font-size:19px; font-weight:900; text-decoration:none; box-shadow:8px 9px 0 rgba(0,0,0,.25); transition:transform .18s ease, box-shadow .18s ease; }
+    .front-download:hover, .front-download:focus-visible { transform:translateY(-3px); box-shadow:8px 12px 0 rgba(0,0,0,.25); }
+    .front-download span { display:grid; place-items:center; width:32px; height:32px; border-radius:50%; background:var(--lime); font-size:22px; }
     .front-cover-visual { position:relative; display:grid; place-items:center; overflow:hidden; }
     .front-window { width:760px; height:620px; padding:16px; border-radius:28px; background:#fff; box-shadow:30px 36px 0 rgba(0,0,0,.25); transform:rotate(2.2deg); }
     .front-window-bar { height:42px; display:flex; align-items:center; gap:10px; padding:0 10px; }
@@ -1051,6 +1054,7 @@
             <h1 class="reveal delay-2" data-editable>생태조사<br>전자야장 생성기</h1>
             <p class="front-cover-lede reveal delay-3" data-editable>QGIS 호환 조사 프로젝트를 자동 생성하고, QField로 현장 기록하는 독립 실행형 데스크톱 앱</p>
             <div class="front-cover-tags reveal delay-4"><span class="accent">STANDALONE</span><span>4 SURVEY TEMPLATES</span><span>QFIELD READY</span></div>
+            <a class="front-download reveal delay-4" href="https://github.com/lethe5/fieldbuild_standalone/releases/latest" target="_blank" rel="noopener noreferrer" aria-label="FieldBuild Standalone 최신 버전 다운로드"><span aria-hidden="true">↓</span>앱 다운로드 · GitHub Releases</a>
           </div>
           <div class="front-cover-visual reveal-right delay-2">
             <div class="front-window"><div class="front-window-bar"><i></i><i></i><i></i></div><img src="assets/standalone-step-1.png?v=20260908" alt="FieldBuild Standalone 독립 실행형 앱 화면"></div>
@@ -1416,7 +1420,7 @@
       setupClickNav() {
         this.stage.addEventListener('click', (event) => {
           if (window.deckEditor && window.deckEditor.isActive) return;
-          if (event.target.closest('button, [contenteditable="true"]')) return;
+          if (event.target.closest('button, a, [contenteditable="true"]')) return;
           const rect = this.stage.getBoundingClientRect();
           const relativeX = (event.clientX - rect.left) / rect.width;
           if (relativeX > .72) this.next();
