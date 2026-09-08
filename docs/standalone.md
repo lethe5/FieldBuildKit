@@ -36,10 +36,19 @@ not runtime fallbacks. They cannot rescue a missing or broken standalone depende
 
 ## Trial build and verification
 
-The local macOS ARM64 trial bundle is `dist/FieldBuild Standalone.app` (0.2.0).
+The local macOS ARM64 trial bundle is `dist/FieldBuild Standalone.app` (0.2.1).
 It is built in this independent repository. It includes the small fictional workbook sample and independent GIS libraries; private
 workbooks, probability rasters and caches are excluded. The bundle is unsigned for
 distribution; its executable supports `--check-runtime` without opening the wizard.
+
+In 0.2.1, macOS file uploads use a Qt file picker to work around native open panels that
+ignore folder double-clicks. Excel, site and offline-extent uploads share this picker.
+Path entry remains available without the completion popup, which caused a Cocoa accessibility
+crash during verification. Save dialogs and directory pickers retain their existing behavior.
+Verification: 66 related tests passed (4 unrelated DPI variants skipped), including real
+dialog navigation into a Korean-named folder, file selection/cancellation and platform fallback.
+The macOS GUI check also reached the sample workbook preview and enabled Next after confirmation;
+the packaged runtime check passed. No generated-project behavior changed in this fix.
 
 Standalone tests pass with QGIS and OSGeo imports forbidden. In the source branch before
 repository separation, all 24 generated project combinations were separately opened by

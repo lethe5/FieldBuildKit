@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import math
 import shutil
+import sys
 from pathlib import Path
 
 from PySide6.QtCore import Property, QByteArray, QSize, Qt, QThread, QTimer, Signal
@@ -88,6 +89,25 @@ from .credential_password_dialogs import prompt_for_unlock_password
 from .map_canvas import MAX_ZOOM, MIN_ZOOM, MapCanvas
 
 MIB = 1024 * 1024
+
+
+def _get_open_file_name(parent, caption, directory="", filter=""):
+    """Use a widget picker for macOS uploads, where native panels lose folder clicks."""
+    if sys.platform != "darwin":
+        return QFileDialog.getOpenFileName(parent, caption, directory, filter)
+    dialog = QFileDialog(parent, caption, directory, filter)
+    dialog.setOption(QFileDialog.Option.DontUseNativeDialog)
+    dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+    dialog.setViewMode(QFileDialog.ViewMode.List)
+    # Qt's path-completion popup can crash the Cocoa accessibility bridge on navigation.
+    # Plain path entry and folder browsing still work without that popup.
+    dialog.findChild(QLineEdit, "fileNameEdit").setCompleter(None)
+    try:
+        if dialog.exec() == QFileDialog.DialogCode.Accepted:
+            return dialog.selectedFiles()[0], dialog.selectedNameFilter()
+        return "", ""
+    finally:
+        dialog.deleteLater()
 
 
 #: FR-QPB-131 (Decision Log D-81/D-86): the application's own display name, superseding "QField
@@ -927,7 +947,7 @@ class SiteInputPage(QWizardPage):
         return sites
 
     def _browse_upload(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
+        path, _ = _get_open_file_name(
             self,
             "사이트/조사구 파일 선택",
             filter="GeoPackage 또는 Shapefile (*.gpkg *.shp *.zip)",
@@ -1581,7 +1601,7 @@ class ConnectivityBasemapPage(QWizardPage):
         self._offline_clear_button.setVisible(not use_upload)
 
     def _browse_offline_upload(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
+        path, _ = _get_open_file_name(
             self,
             "오프라인 배경지도 범위로 사용할 폴리곤 파일 선택",
             filter="GeoPackage 또는 Shapefile (*.gpkg *.shp *.zip)",
@@ -1993,7 +2013,9 @@ class IdentificationTogglePage(QWizardPage):
             self.completeChanged.emit()
 
     def _browse_reference_source(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "식물 분류 참조 .xlsx 선택", "", "Excel workbook (*.xlsx)")
+        path, _ = _get_open_file_name(
+            self, "식물 분류 참조 .xlsx 선택", "", "Excel workbook (*.xlsx)"
+        )
         if not path:
             return
         self.reference_source_path_edit.setText(path)

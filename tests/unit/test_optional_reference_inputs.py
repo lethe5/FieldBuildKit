@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QApplication, QFileDialog
 from rasterio.transform import from_origin
 
 from qfield_builder import build, canonical_reference, probability_raster, qml_plugin, schemas
+from qfield_builder.ui import wizard as wizard_module
 from qfield_builder.ui.wizard import ProjectBuilderWizard
 
 SAMPLE = Path(__file__).resolve().parents[2] / "resources/samples/taxonomy_sample.xlsx"
@@ -131,7 +132,7 @@ def test_sample_download_confirm_clear_and_back_navigation(tmp_path, monkeypatch
     assert page.canonical_reference_config() is None
     result = canonical_reference.ingest_canonical_workbook(str(download))
     assert result["accepted_count"] == 2 and result["synonym_count"] == 1
-    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: (str(download), ""))
+    monkeypatch.setattr(wizard_module, "_get_open_file_name", lambda *a, **k: (str(download), ""))
     page._browse_reference_source()
     assert not page.isComplete()
     page._confirm_reference_source()

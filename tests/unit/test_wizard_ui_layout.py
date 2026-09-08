@@ -24,7 +24,6 @@ from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
     QComboBox,
-    QFileDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -408,7 +407,7 @@ def test_td_ui_qpb_005_plantnet_and_reference_group_remain_scrollable_and_distin
         wizard_module.canonical_reference, "inspect_ktsn_source_candidates",
         lambda *a, **k: {"upload": candidate},
     )
-    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: (candidate_path, ""))
+    monkeypatch.setattr(wizard_module, "_get_open_file_name", lambda *a, **k: (candidate_path, ""))
     page = _show_page(wizard, 4)
     page._browse_reference_source()
     assert isinstance(page, IdentificationTogglePage)
@@ -470,7 +469,7 @@ def test_td_ui_qpb_006_excel_candidate_keyboard_activation_is_not_confirmation(w
         wizard_module.canonical_reference, "inspect_ktsn_source_candidates",
         lambda *a, **k: {"upload": candidate},
     )
-    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: (candidate_path, ""))
+    monkeypatch.setattr(wizard_module, "_get_open_file_name", lambda *a, **k: (candidate_path, ""))
     page = _show_page(wizard, 4)
     page._browse_reference_source()
     assert isinstance(page, IdentificationTogglePage)
@@ -500,8 +499,8 @@ def test_td_ui_qpb_006_user_upload_preserves_path_and_source_kind_and_recovery_c
     """AC-UI-QPB-032/034/035; C-UI-QPB-003/004."""
     upload_path = tmp_path / ("very-long-" * 12 + "-참조.xlsx")
     monkeypatch.setattr(
-        QFileDialog,
-        "getOpenFileName",
+        wizard_module,
+        "_get_open_file_name",
         lambda *_args, **_kwargs: (str(upload_path), "Excel workbook (*.xlsx)"),
     )
     monkeypatch.setattr(
