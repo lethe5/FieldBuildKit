@@ -6,6 +6,8 @@ QGIS Desktop을 설치하지 않고 **QField 현장 생태조사 프로젝트를
 한국어 마법사에서 조사 유형, 배경지도, 선택 참조 자료를 설정하면 조사 폼과 관계가 구성된
 프로젝트 폴더를 생성합니다. 이 문서는 **앱 0.2.7**을 기준으로 합니다.
 
+▶ [웹 발표자료에서 주요 기능과 사용 흐름 보기](https://lethe5.github.io/fieldbuild_standalone/)
+
 ## 설치 및 실행
 
 배포 파일은 [GitHub Releases](https://github.com/lethe5/fieldbuild_standalone/releases)의
