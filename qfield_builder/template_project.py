@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import math
 import sqlite3
 import xml.etree.ElementTree as ET
 from contextlib import closing
 from pathlib import Path
 
 from rasterio.crs import CRS
+from rasterio.warp import transform_bounds
 
 from . import probability_raster, qml_plugin, schemas, vworld
 from .form_expressions import (
@@ -51,6 +53,50 @@ def _remove_layer(root, layer):
         for child in list(parent):
             if child.get("id") == layer_id:
                 parent.remove(child)
+
+
+def _set_initial_view(root, gpkg_path, schema, project_crs, offline_path=None):
+    """Open on survey data (or offline coverage/Korea), never on worldwide XYZ bounds."""
+    bounds = []
+    with closing(sqlite3.connect(gpkg_path)) as conn:
+        for table in schema.values():
+            if table.geometry is None:
+                continue
+            # These indexes are populated by the GeoPackage builder, including uploaded sites.
+            index = f"rtree_{table.name}_{table.geometry.column}"
+            row = conn.execute(
+                f'SELECT min(minx), min(miny), max(maxx), max(maxy) FROM "{index}"'
+            ).fetchone()
+            if row[0] is not None:
+                bounds.append(transform_bounds(f"EPSG:{table.geometry.srs_id}", "EPSG:4326", *row))
+    if not bounds and offline_path:
+        import rasterio
+
+        with rasterio.open(offline_path) as raster:
+            bounds.append(transform_bounds(raster.crs, "EPSG:4326", *raster.bounds))
+    if bounds:
+        west, south = min(b[0] for b in bounds), min(b[1] for b in bounds)
+        east, north = max(b[2] for b in bounds), max(b[3] for b in bounds)
+        dx, dy = max((east - west) * 0.1, 0.001), max((north - south) * 0.1, 0.001)
+        bounds = (west - dx, south - dy, east + dx, north + dy)
+    else:
+        bounds = (124.5, 33.0, 132.0, 39.0)
+    extent = transform_bounds("EPSG:4326", project_crs, *bounds)
+    if not all(math.isfinite(value) for value in extent):
+        raise ValueError("선택한 프로젝트 좌표계로 초기 지도 범위를 변환할 수 없습니다.")
+    coordinates = dict(zip(("xmin", "ymin", "xmax", "ymax"), map(str, extent), strict=True))
+    settings = root.find("ProjectViewSettings")
+    for name in ("DefaultViewExtent", "PresetFullExtent"):
+        element = ET.SubElement(settings, name, coordinates)
+        _set_crs(ET.SubElement(element, "spatialrefsys"), project_crs)
+    # QField reads the named mapcanvas, while QGIS also uses ProjectViewSettings.
+    canvas = ET.SubElement(root, "mapcanvas", {"name": "theMapCanvas"})
+    rectangle = ET.SubElement(canvas, "extent")
+    for name, value in coordinates.items():
+        _set_text(rectangle, name, value)
+    _set_text(canvas, "rotation", 0)
+    destination = ET.SubElement(canvas, "destinationsrs")
+    _set_crs(ET.SubElement(destination, "spatialrefsys"), project_crs)
 
 
 def _add_raster(root, mode, source, name, group_name):
@@ -182,6 +228,11 @@ def build_qgis_project(
             layer.append(renderer)
 
     basemap = basemap_config or {}
+    _set_initial_view(
+        root, gpkg_path, schema, project_crs,
+        project_dir / mbtiles_relative_path
+        if basemap.get("mode") == "offline" and mbtiles_relative_path else None,
+    )
     online_key_embedded = False
     variables = {}
     if basemap.get("mode") == "online" and basemap.get("consent_accepted"):

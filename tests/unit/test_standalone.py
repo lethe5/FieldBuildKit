@@ -221,6 +221,17 @@ def test_build_and_relocate_without_qgis(
         with rasterio.open(destination / "basemap/offline.mbtiles") as raster:
             assert raster.crs.to_epsg() == 3857
             assert raster.read().size > 0
+        # Empty surveys should still open at offline coverage, not the Korea fallback.
+        if survey_type == "simple_inventory":
+            from rasterio.warp import transform
+
+            x, y = transform("EPSG:4326", "EPSG:5186", [127.005], [37.005])
+            extent = document.find("mapcanvas/extent")
+            west, south, east, north = [
+                float(extent.findtext(k)) for k in ("xmin", "ymin", "xmax", "ymax")
+            ]
+            assert west < x[0] < east and south < y[0] < north
+            assert east - west < 50_000 and north - south < 50_000
     if identification:
         values = document.findall("./properties/Variables/variableValues/value")
         assert "plant<&\"'key" in [value.text for value in values]

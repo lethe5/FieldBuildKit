@@ -103,3 +103,38 @@ Sources: [matching QField entry point](https://github.com/opengisch/QField/blob/
 [test build option](https://github.com/opengisch/QField/blob/v4.2.11/CMakeLists.txt),
 [GUI test launcher](https://github.com/opengisch/QField/blob/v4.2.11/test/spix/conftest.py),
 [Apple error definition](https://developer.apple.com/documentation/applicationservices/axerror/notimplemented).
+
+## 0.2.3 initial map extent fix — user confirmation received (2026-09-08)
+
+The reported first-open QGIS view showed global imagery warped into EPSG:5186. The templates
+contained neither a named `mapcanvas` nor a default/preset view extent. The QField 4.2.11 source
+in `src/core/qgsquick/qgsquickmapsettings.cpp` confirms that a missing `theMapCanvas` falls back
+to the project full extent, which can include a worldwide basemap.
+
+Branch `fix/project-initial-map-extent` now writes both the named canvas and
+`ProjectViewSettings` extents in the selected project CRS. Bounds use survey geometry first,
+offline MBTiles coverage next, and Korea (124.5–132 E, 33–39 N) when neither is available.
+Geometry/coverage receives 10% padding with a 0.001-degree minimum for point-only data.
+The stored geometry and project CRS selection remain unchanged.
+
+Verification completed:
+- 139 related tests passed (initial extent, standalone builds/relocation, optional references,
+  and build orchestration). Two offline empty-survey cases were rerun after adding explicit
+  coverage assertions; both passed. Ruff and `git diff --check` passed.
+- QGIS 3.44.13, through `scripts/qgis_isolated_probe.py` with a temporary isolated profile,
+  loaded both generated projects, read their native map settings, and rendered without errors.
+  Korea view width was about 701 km; the test survey view was about 1.07 × 1.33 km.
+  QGIS's installed world-outline dataset was added only to the in-memory test renderer.
+  Screenshots and the diagnostic script are under ignored `build/extent-verification/`.
+- The 0.2.3 application bundle and packaged runtime check passed; all three source version
+  declarations and the bundle version were synchronized from 0.2.2 to 0.2.3.
+
+Agent-driven QField UI verification was blocked: three attempts to acquire the installed app's UI returned
+`timeoutReached`. The longer direct launch logged `AppInterface loading file` for the generated
+survey project and QGIS runtime 4.0.3, but this does not prove the visible map extent. Test-owned
+processes were stopped; existing user app sessions were retained. No live API keys were needed.
+After this limitation and the deferred commit/merge were reported, the user stated
+"확인 완료" (verification complete). This user confirmation closes the remaining acceptance
+step for this change and permits the agreed local commit/merge workflow. It is user-reported
+verification, not a successful agent-driven QField UI test; no additional test scenarios or
+runtime details were supplied. Previously generated user projects have not been modified.
