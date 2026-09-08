@@ -285,7 +285,9 @@ def ingest_canonical_workbook(workbook_path: str, source_kind: str = "bundled_ca
         return _error("source_validation_error", f"참조 엑셀 검증에 실패했습니다: {path} ({exc})")
 
 
-def _preview(path: Path, source_kind: str, sample_limit: int) -> dict:
+def preview_canonical_workbook(workbook_path: str | Path, source_kind: str = "user_upload", sample_limit: int = 3) -> dict:
+    """Validate one selected workbook, without discovering neighbouring files."""
+    path = Path(workbook_path)
     result = ingest_canonical_workbook(str(path), source_kind=source_kind)
     entry = {
         "filename": path.name, "extension": path.suffix.lower(),
@@ -298,6 +300,7 @@ def _preview(path: Path, source_kind: str, sample_limit: int) -> dict:
         "source_kind": source_kind,
     }
     if result.get("success"):
+        entry["provenance"] = dict(result["provenance"])
         workbook, sheet = _load_sheet(path)
         try:
             source_columns = list(result["source_columns"])
@@ -316,6 +319,11 @@ def _preview(path: Path, source_kind: str, sample_limit: int) -> dict:
             ]
         finally:
             workbook.close()
+        if hashlib.sha256(path.read_bytes()).hexdigest() != result["provenance"]["sha256"]:
+            entry.update(validation_status="invalid", error_code="source_changed",
+                         error_message="미리보기를 읽는 동안 참조 파일이 변경되었습니다. 다시 선택해 주세요.")
+            entry.pop("provenance", None)
+            return entry
     for row in (result.get("rows") or [])[:max(0, int(sample_limit))]:
         entry["sample_rows"].append({
             "status": row["taxon_status"], "scientific_name": row["scientific_name"],
@@ -337,14 +345,14 @@ def inspect_ktsn_source_candidates(reference_tables_dir: str, upload_path: str |
         path for path in sorted(directory.glob("*.xlsx"))
         if upload_resolved is None or path.resolve() != upload_resolved
     ] if directory.is_dir() else []
-    candidates = [_preview(path, "bundled_candidate", sample_limit) for path in candidate_paths]
+    candidates = [preview_canonical_workbook(path, "bundled_candidate", sample_limit) for path in candidate_paths]
     # macOS may expose the same filename in decomposed Unicode while the API contract and UI use
     # NFC. Keep the actual paths separately so confirmation never reconstructs a path from a
     # display-normalized filename.
     for entry in candidates:
         entry["filename"] = unicodedata.normalize("NFC", entry["filename"])
     recommended = CANONICAL_FILENAME if any(item["filename"] == CANONICAL_FILENAME for item in candidates) else None
-    upload = _preview(Path(upload_path), "user_upload", sample_limit) if upload_path else None
+    upload = preview_canonical_workbook(upload_path, "user_upload", sample_limit) if upload_path else None
     selected = None
     if confirmed_path:
         confirmed = Path(confirmed_path)

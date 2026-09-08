@@ -95,6 +95,21 @@ def _ensure_qt_platform_plugins_are_discoverable() -> None:
 _ensure_qt_platform_plugins_are_discoverable()
 
 
+@pytest.fixture
+def wait_reference_validation():
+    from time import monotonic, sleep
+    from PySide6.QtWidgets import QApplication
+
+    def wait(page):
+        deadline = monotonic() + 10
+        while page._reference_preview_worker is not None and monotonic() < deadline:
+            QApplication.processEvents()
+            sleep(0.01)  # Release the Python GIL so the workbook reader can run.
+        assert page._reference_preview_worker is None, "Reference validation did not finish"
+
+    return wait
+
+
 @pytest.fixture(autouse=True)
 def _isolate_credential_store(monkeypatch: pytest.MonkeyPatch, tmp_path):
     """Hard isolation guard (Decision Log D-53/D-55; extended by D-81/D-86's rename):

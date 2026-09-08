@@ -374,7 +374,7 @@ def test_td_ui_qpb_004_vworld_online_and_offline_controls_remain_reachable_and_s
     _assert_no_layout_sibling_overlap(page, wizard)
 
 
-def test_td_ui_qpb_005_plantnet_and_reference_group_remain_scrollable_and_distinct(wizard, monkeypatch):
+def test_td_ui_qpb_005_plantnet_and_reference_group_remain_scrollable_and_distinct(wizard, monkeypatch, wait_reference_validation):
     """FR-UI-QPB-015--021; AC-UI-QPB-020--023 and AC-UI-QPB-030--036."""
     candidate_path = "/tmp/fieldbuild-canonical.xlsx"
     monkeypatch.setattr(
@@ -405,12 +405,13 @@ def test_td_ui_qpb_005_plantnet_and_reference_group_remain_scrollable_and_distin
     )
     candidate = wizard_module.canonical_reference.inspect_ktsn_source_candidates("")["candidates"][0]
     monkeypatch.setattr(
-        wizard_module.canonical_reference, "inspect_ktsn_source_candidates",
-        lambda *a, **k: {"upload": candidate},
+        wizard_module.canonical_reference, "preview_canonical_workbook",
+        lambda *a, **k: candidate,
     )
     monkeypatch.setattr(wizard_module, "_get_open_file_name", lambda *a, **k: (candidate_path, ""))
     page = _show_page(wizard, 4)
     page._browse_reference_source()
+    wait_reference_validation(page)
     assert isinstance(page, IdentificationTogglePage)
     assert page.plantnet_api_key_edit.echoMode() == QLineEdit.EchoMode.Password
     page.enable_checkbox.setChecked(True)
@@ -445,7 +446,7 @@ def test_td_ui_qpb_005_plantnet_and_reference_group_remain_scrollable_and_distin
     assert page.plantnet_remember_checkbox.isChecked()
 
 
-def test_td_ui_qpb_006_excel_candidate_keyboard_activation_validates_selection(wizard, monkeypatch):
+def test_td_ui_qpb_006_excel_candidate_keyboard_activation_validates_selection(wizard, monkeypatch, wait_reference_validation):
     """Selecting a valid uploaded candidate is sufficient; no second confirmation button."""
     candidate_path = str(
         Path(__file__).resolve().parents[2] / "resources/samples/taxonomy_sample.xlsx"
@@ -453,6 +454,7 @@ def test_td_ui_qpb_006_excel_candidate_keyboard_activation_validates_selection(w
     monkeypatch.setattr(wizard_module, "_get_open_file_name", lambda *a, **k: (candidate_path, ""))
     page = _show_page(wizard, 4)
     page._browse_reference_source()
+    wait_reference_validation(page)
     assert page.isComplete()
     selected = page.canonical_reference_config()
     preview = page.reference_source_preview
@@ -467,7 +469,7 @@ def test_td_ui_qpb_006_excel_candidate_keyboard_activation_validates_selection(w
 
 
 def test_td_ui_qpb_006_user_upload_preserves_path_and_source_kind_and_recovery_controls(
-    wizard, monkeypatch, tmp_path
+    wizard, monkeypatch, tmp_path, wait_reference_validation
 ):
     """AC-UI-QPB-032/034/035; C-UI-QPB-003/004."""
     upload_path = tmp_path / ("very-long-" * 12 + "-참조.xlsx")
@@ -478,10 +480,8 @@ def test_td_ui_qpb_006_user_upload_preserves_path_and_source_kind_and_recovery_c
     )
     monkeypatch.setattr(
         wizard_module.canonical_reference,
-        "inspect_ktsn_source_candidates",
-        lambda *_args, **kwargs: (
-            {
-                "upload": {
+        "preview_canonical_workbook",
+        lambda *_args, **kwargs: {
                     "filename": upload_path.name,
                     "source_kind": "user_upload",
                     "validation_status": "invalid",
@@ -497,15 +497,12 @@ def test_td_ui_qpb_006_user_upload_preserves_path_and_source_kind_and_recovery_c
                         for index in range(12)
                     ],
                     "error_message": "필수 시트/헤더를 찾지 못했습니다. " * 12,
-                }
-            }
-            if kwargs.get("upload_path")
-            else {"candidates": []}
-        ),
+            },
     )
     page = _show_page(wizard, 4)
     assert isinstance(page, IdentificationTogglePage)
     page._browse_reference_source()
+    wait_reference_validation(page)
     _process_layout()
     assert page.reference_source_path_edit.text() == str(upload_path)
     assert page._selected_reference_candidate["source_kind"] == "user_upload"

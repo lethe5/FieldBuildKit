@@ -145,7 +145,7 @@ def test_online_satellite_uses_supported_zoom_range(tmp_path):
 
 
 def test_sample_download_upload_validates_automatically_and_preserves_navigation(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, wait_reference_validation
 ):
     app = QApplication.instance() or QApplication([])
     wizard = ProjectBuilderWizard()
@@ -163,6 +163,7 @@ def test_sample_download_upload_validates_automatically_and_preserves_navigation
     assert result["accepted_count"] == 2 and result["synonym_count"] == 1
     monkeypatch.setattr(wizard_module, "_get_open_file_name", lambda *a, **k: (str(download), ""))
     page._browse_reference_source()
+    wait_reference_validation(page)
     assert page.isComplete()
     selected = page.canonical_reference_config()
     assert selected["source_kind"] == "user_upload"
@@ -188,7 +189,7 @@ def test_sample_download_upload_validates_automatically_and_preserves_navigation
     app.processEvents()
 
 
-def test_invalid_upload_clears_validated_reference_and_reselection_recovers(tmp_path, monkeypatch):
+def test_invalid_upload_clears_validated_reference_and_reselection_recovers(tmp_path, monkeypatch, wait_reference_validation):
     app = QApplication.instance() or QApplication([])
     wizard = ProjectBuilderWizard()
     page = wizard.page(4)
@@ -199,12 +200,14 @@ def test_invalid_upload_clears_validated_reference_and_reselection_recovers(tmp_
     chosen = str(valid)
     monkeypatch.setattr(wizard_module, "_get_open_file_name", lambda *a, **k: (chosen, ""))
     page._browse_reference_source()
+    wait_reference_validation(page)
     original = page.canonical_reference_config()
     assert page.isComplete() and original
     page.enable_checkbox.setChecked(True)
     page.probability_source_path_edit.setText(str(tmp_path))
     chosen = str(invalid)
     page._browse_reference_source()
+    wait_reference_validation(page)
     assert not page.isComplete()
     assert page.canonical_reference_config() is None
     assert page.raster_group.isHidden() and page.probability_reference_config() is None

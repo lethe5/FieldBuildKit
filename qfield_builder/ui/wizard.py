@@ -22,6 +22,7 @@ plot's own `plot` layer, Section 8.3) is not wired in this pass; that input rema
 """
 from __future__ import annotations
 
+import hashlib
 import math
 import shutil
 from pathlib import Path
@@ -593,6 +594,24 @@ class _GpkgUploadPreviewWorker(QThread):
         except Exception as exc:  # noqa: BLE001 - return a user-facing upload error on the GUI thread.
             result = {"success": False, "error": str(exc)}
         self.result_ready.emit(self._path, result)
+
+
+class _ReferencePreviewWorker(QThread):
+    """Keep full workbook validation off the GUI thread."""
+
+    result_ready = Signal(int, str, dict)
+
+    def __init__(self, request_id: int, path: str, parent=None):
+        super().__init__(parent)
+        self.request_id = request_id
+        self.path = path
+
+    def run(self) -> None:
+        try:
+            result = canonical_reference.preview_canonical_workbook(self.path)
+        except Exception as exc:  # Surface unreadable/changed files without leaving the UI busy.
+            result = {"validation_status": "invalid", "error_message": f"참조 자료 검증 실패: {exc}"}
+        self.result_ready.emit(self.request_id, self.path, result)
 
 
 class SiteInputPage(QWizardPage):
@@ -1860,7 +1879,7 @@ class IdentificationTogglePage(QWizardPage):
         self.reference_sheet_preview.setVisible(False)
         # Candidate/upload cards grow to their wrapped content.  The page-level scroll viewport,
         # rather than this preview widget, owns vertical scrolling for long sample sets.
-        reference_browse_button = QPushButton("사용자 .xlsx 업로드...")
+        reference_browse_button = self.reference_browse_button = QPushButton("사용자 .xlsx 업로드...")
         reference_browse_button.clicked.connect(self._browse_reference_source)
         reference_group = QGroupBox("식물 분류 참조 자료 (선택 사항)")
         reference_layout = QVBoxLayout()
@@ -1913,6 +1932,8 @@ class IdentificationTogglePage(QWizardPage):
         self._reference_candidates: dict[str, dict] = {}
         self._selected_reference_candidate: dict | None = None
         self._confirmed_reference_source: dict | None = None
+        self._reference_preview_worker: _ReferencePreviewWorker | None = None
+        self._reference_request_id = 0
         self.reference_source_preview.itemClicked.connect(self._select_reference_candidate)
         self.reference_source_preview.itemActivated.connect(self._select_reference_candidate)
 
@@ -1949,6 +1970,7 @@ class IdentificationTogglePage(QWizardPage):
         )
 
     def _clear_reference_source(self) -> None:
+        self._reference_request_id += 1
         self.reference_source_path_edit.clear()
         self._confirmed_reference_source = None
         self._selected_reference_candidate = None
@@ -2002,12 +2024,15 @@ class IdentificationTogglePage(QWizardPage):
         candidate_key = item.data(Qt.ItemDataRole.UserRole)
         candidate = self._reference_candidates.get(candidate_key)
         if candidate:
+            self._reference_request_id += 1
             self._selected_reference_candidate = dict(candidate)
             self.reference_source_path_edit.setText(candidate["path"])
             self._show_reference_sheet_preview(candidate)
             self._confirm_reference_source()
 
     def _browse_reference_source(self) -> None:
+        if self._reference_preview_worker is not None:
+            return
         path, _ = _get_open_file_name(
             self, "식물 분류 참조 .xlsx 선택", "", "Excel workbook (*.xlsx)"
         )
@@ -2015,9 +2040,27 @@ class IdentificationTogglePage(QWizardPage):
             return
         self.reference_source_path_edit.setText(path)
         self._confirmed_reference_source = None
-        preview = canonical_reference.inspect_ktsn_source_candidates(
-            str(Path(path).parent), upload_path=path
-        ).get("upload")
+        self._selected_reference_candidate = None
+        self.reference_sheet_preview.setVisible(False)
+        self.reference_sheet_preview_label.setVisible(False)
+        self._reference_request_id += 1
+        self.reference_source_status_label.setText("선택한 참조 자료를 검증하는 중입니다…")
+        self.reference_browse_button.setEnabled(False)
+        self.completeChanged.emit()
+        worker = _ReferencePreviewWorker(self._reference_request_id, path, self)
+        self._reference_preview_worker = worker
+        worker.result_ready.connect(self._on_reference_preview_ready)
+        worker.finished.connect(self._on_reference_preview_finished)
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
+
+    def _on_reference_preview_finished(self) -> None:
+        self._reference_preview_worker = None
+        self.reference_browse_button.setEnabled(True)
+
+    def _on_reference_preview_ready(self, request_id: int, path: str, preview: dict) -> None:
+        if request_id != self._reference_request_id or path != self.reference_source_path_edit.text():
+            return  # A cleared or reselected reference must not be restored by a late result.
         upload_candidate = dict(preview or {
             "filename": Path(path).name,
             "source_kind": "user_upload",
@@ -2093,17 +2136,27 @@ class IdentificationTogglePage(QWizardPage):
             )
             self.completeChanged.emit()
             return
-        result = canonical_reference.ingest_canonical_workbook(path, source_kind=source_kind)
-        if not result.get("success"):
+        provenance = candidate.get("provenance") or {}
+        try:
+            unchanged = (
+                candidate.get("validation_status") == "valid"
+                and provenance.get("source_kind") == source_kind
+                and hashlib.sha256(Path(path).read_bytes()).hexdigest() == provenance.get("sha256")
+            )
+        except OSError:
+            unchanged = False
+        if not unchanged:
             self._confirmed_reference_source = None
-            self.reference_source_status_label.setText(result.get("error_message", "참조 자료 검증에 실패했습니다."))
+            self.reference_source_status_label.setText(
+                candidate.get("error_message") or "참조 자료가 변경되었거나 검증되지 않았습니다. 다시 업로드해 주세요."
+            )
             self.completeChanged.emit()
             return
         self._confirmed_reference_source = {
             "path": path, "source_kind": source_kind,
-            "sha256": result["provenance"]["sha256"],
-            "source_filename": result["provenance"]["source_filename"],
-            "validation_status": result["provenance"].get("validation_result", "valid"),
+            "sha256": provenance["sha256"],
+            "source_filename": provenance["source_filename"],
+            "validation_status": provenance.get("validation_result", "valid"),
         }
         self.reference_source_status_label.setText(
             f"참조 자료 검증 완료: {Path(path).name}. 프로젝트에 자동으로 적용됩니다."
@@ -3001,6 +3054,12 @@ class ProjectBuilderWizard(QWizard):
 
     def done(self, result: int) -> None:
         """Keep a running build's QThread alive until cancellation has cleaned up its worker."""
+        reference_worker = self.page(4)._reference_preview_worker
+        if reference_worker is not None and reference_worker.isRunning():
+            if not getattr(self, "_reference_close_pending", False):
+                self._reference_close_pending = True
+                reference_worker.finished.connect(lambda: self.done(result))
+            return
         review = self.page(6)
         worker = review._worker_thread if review is not None else None
         if worker is not None and worker.isRunning():
