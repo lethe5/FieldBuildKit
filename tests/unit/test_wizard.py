@@ -1711,6 +1711,18 @@ def test_survey_type_page_displays_each_description_next_to_its_radio_button():
         )
 
 
+def test_type4_description_matches_optional_inline_community_photos():
+    from qfield_builder.schemas import get_schema
+
+    description = wizard_module.SURVEY_TYPE_DESCRIPTIONS_KO["vegetation_mapping"]
+    assert "군락마다 잎/꽃/열매 사진을 각각 최대 1장씩(선택 사항)" in description
+    assert "사진 첨부 항목이 없습니다" not in description
+    community = get_schema("vegetation_mapping")["community"]
+    columns = {column.name: column for column in community.columns}
+    for field in ("leaf_photo_path", "flower_photo_path", "fruit_photo_path"):
+        assert field in columns and not columns[field].not_null
+
+
 # ---------------------------------------------------------------------------------------------
 # 11. FR-QPB-071 (revised; Decision Log D-26): VWorld layer discovery wiring in the wizard UI.
 # ---------------------------------------------------------------------------------------------

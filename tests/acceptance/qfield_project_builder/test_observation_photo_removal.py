@@ -42,9 +42,8 @@ extended by updating `KOREAN_FIELD_ALIASES` in `conftest.py` (adding the three n
 new file. See `../qfield_project_builder_observation_photo_removal.traceability.md` for the full
 mapping, including why this is a deliberate non-duplication decision, not a coverage gap.
 
-See `tests/acceptance/qfield_project_builder/HARNESS_CONTRACT.md` function 10
-(`inspect_identification_widget`) and function 16 (`inspect_editor_widget`) for the harness
-surface this file relies on -- both pre-existing, neither extended by this round.
+0.2.8: attachment and embedded-QML structure is read directly from generated QGS XML.
+This keeps structural checks independent of external PyQGIS; it does not replace device tests.
 """
 from __future__ import annotations
 
@@ -54,8 +53,6 @@ from pathlib import Path
 import pytest
 
 from .conftest import make_base_config, open_gpkg, user_tables
-
-pytestmark = pytest.mark.qgis
 
 _PHOTO_PATH_FIELDS = ("leaf_photo_path", "flower_photo_path", "fruit_photo_path")
 
@@ -218,7 +215,7 @@ def test_ac112_rel_observation_photo_observation_relation_no_longer_exists(
 @pytest.mark.parametrize("survey_type", ["temporary_plots", "permanent_plots"])
 @pytest.mark.parametrize("field", _PHOTO_PATH_FIELDS)
 def test_ac112_observation_photo_fields_use_the_same_attachment_widget_as_type1(
-    inspect_editor_widget, built_project_by_type, survey_type, field
+    project_layer_xml, built_project_by_type, survey_type, field
 ):
     """AC-QPB-112: the Attachment (`ExternalResource`) editor widget, matching
     `inventory_observation`'s own existing widget configuration exactly."""
@@ -227,25 +224,14 @@ def test_ac112_observation_photo_fields_use_the_same_attachment_widget_as_type1(
     type23_result = built_project_by_type(survey_type)
     assert type23_result["success"], type23_result.get("error_message")
 
-    type1_info = inspect_editor_widget(type1_result["project_dir"], "inventory_observation", field)
-    type23_info = inspect_editor_widget(type23_result["project_dir"], "observation", field)
-
-    assert type23_info["widget_type"] == "ExternalResource", (
-        f"AC-QPB-112: {survey_type}.observation.{field} must use the Attachment "
-        f"(ExternalResource) editor widget: got {type23_info}"
-    )
-    assert type23_info["widget_type"] == type1_info["widget_type"], (
-        f"AC-QPB-112: {survey_type}.observation.{field}'s widget configuration must match "
-        f"inventory_observation.{field}'s own existing widget configuration exactly: "
-        f"Type 1={type1_info}, Type 2/3={type23_info}"
-    )
-    # Neither table's photo-path field carries a default value or is read-only -- both are plain,
-    # optional attachment fields (DR-QPB-020/DR-QPB-074).
-    assert type23_info["is_read_only"] in (False, None), type23_info
-    assert type23_info["is_read_only"] == type1_info["is_read_only"], (
-        type1_info,
-        type23_info,
-    )
+    for result, table in ((type1_result, "inventory_observation"), (type23_result, "observation")):
+        layer = project_layer_xml(result, table)
+        widget = layer.find(f"./fieldConfiguration/field[@name='{field}']/editWidget")
+        assert widget is not None and widget.get("type") == "ExternalResource"
+        editable = layer.find(f"./editable/field[@name='{field}']")
+        assert editable is None or editable.get("editable") == "1"
+        default = layer.find(f"./defaults/default[@field='{field}']")
+        assert default is None or not default.get("expression")
 
 
 # --- AC-QPB-114 (0/1/2/3 of the 3 photo fields populated is always accepted; mirrors AC-QPB-008) -
@@ -343,14 +329,15 @@ def test_ac114_type2_3_observation_photo_field_combinations_are_all_accepted(
 
 @pytest.mark.parametrize("survey_type", ["temporary_plots", "permanent_plots"])
 def test_ac113_observation_identification_expression_reads_inline_columns_not_relation_aggregate(
-    acceptance_api, inspect_identification_widget, tmp_path, survey_type
+    acceptance_api, project_layer_xml, tmp_path, survey_type
 ):
     result = _build_with_identification(acceptance_api, tmp_path, survey_type, label=survey_type)
     assert result["success"], result.get("error_message")
 
-    info = inspect_identification_widget(result["project_dir"], "observation")
-    assert info["qml_widget_field_found"] is True, info
-    expr = _extract_photo_paths_expression(info["qml_code"])
+    layer = project_layer_xml(result, "observation")
+    widget = layer.find("./attributeEditorForm//attributeEditorQmlElement")
+    assert widget is not None
+    expr = _extract_photo_paths_expression(widget.text)
 
     assert "relation_aggregate" not in expr, (
         f"AC-QPB-113: {survey_type}.observation's photo-paths expression must no longer use "
@@ -369,7 +356,7 @@ def test_ac113_observation_identification_expression_reads_inline_columns_not_re
 
 @pytest.mark.parametrize("survey_type", ["temporary_plots", "permanent_plots"])
 def test_ac113_observation_expression_matches_type1_inline_mechanism_shape(
-    acceptance_api, inspect_identification_widget, tmp_path, survey_type
+    acceptance_api, project_layer_xml, tmp_path, survey_type
 ):
     """Stronger companion to the test above: AC-QPB-113's own text says the expression must read
     the three inline columns "identically to Type 1's inventory_observation" -- not merely "not
@@ -387,11 +374,11 @@ def test_ac113_observation_expression_matches_type1_inline_mechanism_shape(
     )
     assert type23_result["success"], type23_result.get("error_message")
 
-    type1_info = inspect_identification_widget(type1_result["project_dir"], "inventory_observation")
-    type23_info = inspect_identification_widget(type23_result["project_dir"], "observation")
-
-    type1_expr = _extract_photo_paths_expression(type1_info["qml_code"])
-    type23_expr = _extract_photo_paths_expression(type23_info["qml_code"])
+    type1_widget = project_layer_xml(type1_result, "inventory_observation").find("./attributeEditorForm//attributeEditorQmlElement")
+    type23_widget = project_layer_xml(type23_result, "observation").find("./attributeEditorForm//attributeEditorQmlElement")
+    assert type1_widget is not None and type23_widget is not None
+    type1_expr = _extract_photo_paths_expression(type1_widget.text)
+    type23_expr = _extract_photo_paths_expression(type23_widget.text)
 
     def _normalize(expr: str) -> str:
         normalized = expr

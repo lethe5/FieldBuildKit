@@ -123,6 +123,7 @@ def test_qpb_lookup_keeps_fail_closed_result_contract(value, expected):
 
 def _invoke_response(value, *, canonical: bool = True) -> dict:
     source = _widget_source(canonical=canonical)
+    assert "readonly property bool qpbCandidateSelectionEnabled: true" in source
     functions = "\n".join(
         _function(source, name)
         for name in (
@@ -141,6 +142,7 @@ var expression = {{evaluate: function(text) {{
     return captured.length === 1 ? "식물 분류 참조표" : {evaluated};
 }}}};
 var qpbCanonicalReferenceRequired = {str(canonical).lower()};
+var qpbCandidateSelectionEnabled = true;
 var qpbCandidatesModel = [];
 var qpbLastLocation = null;
 var qpbLastModelVersion = "";

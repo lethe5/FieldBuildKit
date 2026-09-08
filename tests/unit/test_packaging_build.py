@@ -42,7 +42,7 @@ def test_package_without_storage_or_source_overrides(tmp_path, monkeypatch, plat
         else:
             assert command[1] == "--check-runtime"
             assert command[0].endswith(".exe") == (platform == "win32")
-            assert (".app/Contents/MacOS/" in command[0]) == (platform == "darwin")
+            assert (".app/Contents/MacOS/" in Path(command[0]).as_posix()) == (platform == "darwin")
 
     monkeypatch.setattr(builder.subprocess, "run", run)
     assert builder.main() == 0

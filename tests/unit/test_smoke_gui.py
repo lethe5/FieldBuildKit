@@ -164,15 +164,13 @@ def test_real_gui_end_to_end_build_produces_a_working_simple_inventory_project(
     qgs_path = result["qgs_path"]
     gpkg_path = result["gpkg_path"]
 
-    from pathlib import Path
-
     assert Path(project_dir).is_dir()
     assert Path(qgs_path).is_file()
     assert Path(gpkg_path).is_file()
     assert Path(project_dir) == parent_dir / "smoke-test-project"
 
     # --- GeoPackage schema genuinely matches simple_inventory (Section 8.1, Type 1) -------
-    expected_schema = schemas.get_schema("simple_inventory")
+    expected_schema = schemas.get_schema("simple_inventory", taxonomy_reference_available=False)
     assert set(expected_schema.keys()) == {"inventory_observation"}
     expected_table = expected_schema["inventory_observation"]
     expected_columns = {col.name for col in expected_table.columns} | {
@@ -195,6 +193,7 @@ def test_real_gui_end_to_end_build_produces_a_working_simple_inventory_project(
         actual_columns = {
             row[1] for row in conn.execute("PRAGMA table_info('inventory_observation');")
         }
+        assert "selected_ktsn" not in actual_columns
         assert expected_columns <= actual_columns, (expected_columns, actual_columns)
 
         # `gpkg_contents`/`gpkg_geometry_columns` bookkeeping (real GeoPackage core spec tables)

@@ -697,12 +697,25 @@ if(!input.direct_failed){
         if(/FROM gpkg_contents/i.test(sql))return qpbReportDefinition.tables.filter(function(table){return(input.absent_tables||[]).indexOf(table.name)<0;}).map(function(table){return{table_name:table.name,data_type:"features"};});
         if(/FROM gpkg_geometry_columns/i.test(sql))return qpbReportDefinition.tables.filter(function(table){return(input.absent_tables||[]).indexOf(table.name)<0;}).map(function(table){return{table_name:table.name,column_name:table.geometry_field,geometry_type_name:table.geometry_type,srs_id:4326};});
         if(/FROM gpkg_spatial_ref_sys/i.test(sql))return[{srs_id:4326,definition:"EPSG:4326"}];
-        var pragma=sql.match(/^PRAGMA table_info\("([^"]+)"\)/i), select=sql.match(/^SELECT \* FROM "([^"]+)"/i);
+        var pragma=sql.match(/^PRAGMA table_info\("([^"]+)"\)/i), select=sql.match(/^SELECT (.+) FROM "([^"]+)"$/i);
         if(pragma){var tableRows=input.table_rows[pragma[1]]||[],definition=qpbReportDefinition.tables.filter(function(table){return table.name===pragma[1];})[0]||{},names={__qpb_uuid:true};names[definition.geometry_field||"geometry"]=true;
             if(pragma[1]==="observation")names.__survey_fk=true;
             tableRows.forEach(function(row){Object.keys(row).forEach(function(name){names[name]=true;});});
             return Object.keys(names).map(function(name){return{name:name};});}
-        if(select)return input.table_rows[select[1]]||[];
+        if(select){
+            var selectedRows=input.table_rows[select[2]]||[];
+            if(select[1]==="*")return selectedRows;
+            // Mirror the collector's bounded geometry projection, not only its old SELECT *.
+            var selectedDefinition=qpbReportDefinition.tables.filter(function(table){return table.name===select[2];})[0]||{};
+            return selectedRows.map(function(row){
+                var projected=Object.assign({},row),geometry=row[selectedDefinition.geometry_field||"geometry"];
+                var byteLength=geometry===null||geometry===undefined?null:Buffer.byteLength(JSON.stringify(geometry),"utf8");
+                projected.__qpb_geometry_bytes=byteLength;
+                projected.__qpb_geometry_prefix=geometry;
+                projected.__qpb_geometry_full=byteLength!==null&&byteLength<=qpbReportFullGeometryMaxBytes?geometry:null;
+                return projected;
+            });
+        }
         return[];
     };
 }

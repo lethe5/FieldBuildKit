@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import re
 
-from qfield_builder.html_report_core import render_html_report_integrated_fixture
-from qfield_builder.html_report_core import render_html_report_fixture
+from qfield_builder.html_report_core import (
+    render_html_report_fixture,
+    render_html_report_integrated_fixture,
+)
 from qfield_builder.qml_plugin import render_project_plugin_qml
 
 
@@ -48,8 +50,9 @@ def test_semantic_columns_share_one_key_without_losing_falsey_values():
     key = result["source_to_final_key"]["left"]
     assert result["success"] is True
     assert key == result["source_to_final_key"]["right"]
-    assert result["payload_rows"][0]["values"][key] == 0
-    assert result["payload_rows"][1]["values"][key] is False
+    rows = {row["source_row_id"]: row["values"] for row in result["payload_rows"]}
+    assert rows["zero"][key] == 0 and type(rows["zero"][key]) is int
+    assert rows["missing"][key] is False
     assert result["source_value_presence"]["missing"]["right"] is False
 
 
@@ -137,7 +140,10 @@ def test_wgs84_geometry_is_kept_when_coordinate_transform_is_unavailable():
             "source_row_id": "valid",
             "stable_source_id": "valid",
             "geometry": {"type": "Point", "coordinates": [127.0, 37.0]},
-            "joined_attributes": {"id": "valid"},
+            "joined_attributes": {
+                "report__latitude": "37.00000000",
+                "report__longitude": "127.00000000",
+            },
         }
     ]
     assert result["invalid_geometries"][0]["source_row_id"] == "invalid"
@@ -186,7 +192,7 @@ def test_theme_binds_before_renderer_errors_and_wgs84_fallback_uses_xy_geometry(
     runtime = _standalone_runtime(source)
     initialization = runtime[runtime.index("function qpbInitializeReport(){") :]
     assert initialization.index("qpbBindThemeControl()") < initialization.index(
-        "renderCards();renderSummaries();renderSpecies();renderCharts();renderJoined();renderMap();"
+        'qpbRunRenderer(renderCards,"개요")'
     )
     assert 'document.documentElement.setAttribute("data-theme",selected)' in runtime
     assert 'document.body.classList.add(isDark?"dark-theme":"light-theme")' in runtime

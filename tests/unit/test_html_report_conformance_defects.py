@@ -22,6 +22,12 @@ def _report_runtime(source: str) -> str:
     return "\n".join(scripts)
 
 
+def _function_source(runtime: str, name: str) -> str:
+    """Extract the named function, independently of renderer declaration order."""
+    start, end = qml_plugin._js_function_span(runtime, 0, name)
+    return runtime[start:end]
+
+
 def test_standalone_runtime_has_one_renderer_and_type1_uses_only_approved_cards():
     runtime = _report_runtime(
         qml_plugin.render_project_plugin_qml(
@@ -60,9 +66,10 @@ def test_chart_renderers_use_d3_node_method_before_joined_and_map_renderers():
     assert "path.node().addEventListener(\"focus\"" in chart_runtime
     assert re.search(r"(?:bar|path)\.node\.(?:setAttribute|addEventListener)", chart_runtime) is None
 
-    initialization = runtime[runtime.index("function qpbInitializeReport") :]
-    assert initialization.index("renderCharts();") < initialization.index("renderJoined();")
-    assert initialization.index("renderJoined();") < initialization.index("renderMap();")
+    initialization = _function_source(runtime, "qpbInitializeReport")
+    renderers = re.findall(r"qpbRunRenderer\((\w+),", initialization)
+    assert renderers.index("renderCharts") < renderers.index("renderJoined")
+    assert renderers.index("renderJoined") < renderers.index("renderMap")
 
 
 def test_species_and_integrated_report_labels_use_korean_visible_names():
@@ -141,9 +148,7 @@ def test_map_feature_click_opens_only_the_leaflet_popup():
             "map-popup", identification_enabled=False, survey_type="simple_inventory"
         )
     )
-    render_map = runtime[
-        runtime.index("function renderMap") : runtime.index("function renderSummaries")
-    ]
+    render_map = _function_source(runtime, "renderMap")
     assert "l.bindPopup(detail)" in render_map
     assert "l.on(\"click\",function(){if(l.openPopup)l.openPopup();})" in render_map
     assert "qpbShowMapDetail" not in runtime
@@ -174,9 +179,7 @@ def test_generated_report_svg_paths_are_interactive_with_popup_and_no_label_cont
         "map-svg-pointer-events", identification_enabled=False, survey_type="simple_inventory"
     )
     runtime = _report_runtime(source)
-    render_map = runtime[
-        runtime.index("function renderMap") : runtime.index("function renderSummaries")
-    ]
+    render_map = _function_source(runtime, "renderMap")
 
     assert ".leaflet-overlay-pane svg .leaflet-interactive{pointer-events:auto}" in source
     assert "l.bindPopup(detail)" in render_map
@@ -192,9 +195,7 @@ def test_map_features_do_not_bind_permanent_labels():
             "map-popup", identification_enabled=False, survey_type="simple_inventory"
         )
     )
-    render_map = runtime[
-        runtime.index("function renderMap") : runtime.index("function renderSummaries")
-    ]
+    render_map = _function_source(runtime, "renderMap")
     assert "l.bindPopup(detail)" in render_map
     assert "l.on(\"click\",function(){if(l.openPopup)l.openPopup();})" in render_map
     assert "bindTooltip" not in render_map
@@ -218,10 +219,10 @@ def test_theme_binding_precedes_guarded_renderers_and_updates_visible_theme_stat
     assert "document.body.classList.remove(\"light-theme\",\"dark-theme\")" in runtime
     assert "document.body.classList.add(isDark?\"dark-theme\":\"light-theme\")" in runtime
     assert "input.addEventListener(\"change\",qpbToggleTheme)" in runtime
-    init = runtime[runtime.index("function qpbInitializeReport") :]
+    init = _function_source(runtime, "qpbInitializeReport")
     assert init.index("qpbBindThemeControl()") < init.index("qpbApplyTheme(qpbReadTheme())")
     assert init.index("qpbApplyTheme(qpbReadTheme())") < init.index(
-        "renderCards();renderSummaries();renderSpecies();renderCharts();renderJoined();renderMap();"
+        'qpbRunRenderer(renderCards,"개요")'
     )
     assert "function qpbRunRenderer(renderer,label){try{renderer();}catch(error)" in runtime
 

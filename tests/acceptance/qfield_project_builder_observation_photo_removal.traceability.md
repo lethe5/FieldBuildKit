@@ -1,5 +1,11 @@
 # Traceability Matrix — QField Project Builder, Type 2/3 `observation_photo` Removal (Decision Log D-74/D-78)
 
+> **0.2.8 current-contract correction (2026-09-08):** the historical Type 4 exclusion in this
+> round is superseded. `community` now has optional inline leaf/flower/fruit photo paths and,
+> when identification is enabled, a display-only identification widget. Candidate results do
+> not write observation identity fields into a community. The tests and current matrix row
+> below reflect this; descriptions of the original D-74/D-78 round remain historical context.
+
 > Specification: `specs/qfield-project-builder.md` — new `DR-QPB-074`-`DR-QPB-077` (Section 8.2,
 > shared by cross-reference with Section 8.3), the struck-through/annotated `DR-QPB-031`/`DR-QPB-032`/
 > `DR-QPB-033`/`DR-QPB-042` (each superseded, not deleted), the narrowed `AC-QPB-009` (Section 18.1),
@@ -68,8 +74,9 @@ Plus the negative controls the task explicitly required be tested, not merely as
 - Type 2's `survey_photo` table and its `rel_survey_photo_survey` relation, and Type 3's
   `plot_photo` table and its `rel_plot_photo_plot` relation, are structurally distinct from the
   removed `observation_photo` and are completely unaffected.
-- Type 4's `community` table has no photo mechanism of any kind (no photo-path columns, no photo
-  child table, no identification widget) and is confirmed unaffected, not merely assumed to be.
+- Current Type 4 `community` has three optional inline photo-path columns, no photo child
+  table, and a display-only identification widget when enabled. The original "no photo
+  mechanism" negative control is superseded, not a requirement to remove current functionality.
 - Decision Log D-78's migration/backward-compatibility scope closure: **no test in this round (or
   anywhere in this suite) exercises, or asserts the presence or absence of, any migration/
   dual-schema-read/upgrade mechanism for an already-generated project using the old
@@ -253,7 +260,7 @@ test's removal, is **44 passed** (no regression among the tests that remain). Th
 | AC-QPB-113 (post-MVP; "identically to Type 1" strengthening) | The `observation` expression shares the identical structural mechanism as `inventory_observation`'s own expression, field names aside | `test_observation_photo_removal.py::test_ac113_observation_expression_matches_type1_inline_mechanism_shape` (parametrized, both survey types) | auto |
 | AC-QPB-114 | A Type 2/3 `observation` record with 0/1/2/3 of the three photo fields populated is always accepted, and the supplied value(s) are actually persisted (not merely silently ignored) | `test_observation_photo_removal.py::test_ac114_type2_3_observation_photo_field_combinations_are_all_accepted` (parametrized: 4 combinations × 2 survey types = 8 cases) | auto |
 | AC-QPB-009 (narrowed; Decision Log D-74) | The struck-through "or observation" clauses no longer apply; the surviving `survey`/`plot`-level "zero related photos" rules are unaffected | Unaffected `test_ac009_*` tests in `test_geopackage_schema_by_type.py` (unchanged); the retired `observation`-specific test's replacement coverage is AC-QPB-112/AC-QPB-114 above, not a like-for-like AC-QPB-009 test (see "What was revised" above for why) | auto |
-| (negative control) Type 4 unaffected | `community` has no photo-path column, no photo child table, no identification widget | `test_observation_photo_removal.py::test_type4_community_has_no_photo_mechanism` (schema level); `test_post_mvp_identification_plugin.py::test_ac070_vegetation_mapping_community_layer_has_no_qml_widget` (widget level, pre-existing, unchanged) | auto |
+| Type 4 current photo contract (0.2.8 correction) | `community` has three optional inline photo paths, no photo child table, and a display-only identification widget when enabled | `test_observation_photo_removal.py::test_type4_community_has_inline_photo_paths_without_photo_child_table`; `test_post_mvp_identification_plugin.py::test_ac070_vegetation_mapping_community_layer_has_display_only_qml_widget`; `tests/unit/test_wizard.py::test_type4_description_matches_optional_inline_community_photos` | auto structural; device behavior is separate |
 | (negative control) Decision Log D-78 — no migration/backward-compatibility scope | No test anywhere in this round (or this suite) asserts any migration/dual-schema-read/upgrade behavior | Documented directly in `test_observation_photo_removal.py`'s own closing module comment; no test function exists for this by design | n/a (deliberately not tested — see "Ambiguities / gaps found" below) |
 
 ## Ambiguities / gaps found

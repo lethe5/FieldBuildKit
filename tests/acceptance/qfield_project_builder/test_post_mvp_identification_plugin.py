@@ -255,15 +255,16 @@ def test_ac070_qml_widget_is_embedded_in_the_relevant_layers_attribute_form(
 
 
 def test_ac070_vegetation_mapping_community_layer_has_display_only_qml_widget(
-    acceptance_api, inspect_identification_widget, tmp_path
+    acceptance_api, project_layer_xml, tmp_path
 ):
     """Type 4 community forms show candidates but never offer candidate write-back."""
     result = _build_with_identification(acceptance_api, tmp_path, "vegetation_mapping")
     assert result["success"], result.get("error_message")
 
-    report = inspect_identification_widget(result["project_dir"], "community")
-    assert report["qml_widget_field_found"] is True
-    assert "qpbCandidateSelectionEnabled: false" in report["qml_code"]
+    layer = project_layer_xml(result, "community")
+    widget = layer.find("./attributeEditorForm//attributeEditorQmlElement")
+    assert widget is not None
+    assert "qpbCandidateSelectionEnabled: false" in (widget.text or "")
 
 
 def test_ac070_no_qml_widget_anywhere_when_identification_disabled(

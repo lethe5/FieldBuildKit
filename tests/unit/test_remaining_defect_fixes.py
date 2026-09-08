@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import shutil
+import subprocess
 from unittest.mock import patch
+
+import pytest
 
 from qfield_builder import canonical_reference, html_report_core, qml_plugin
 
@@ -47,25 +52,67 @@ def test_canonical_ingest_rejects_unknown_source_kind_before_file_access():
     assert "user_upload" in result["error_message"]
 
 
-def test_candidate_write_back_preserves_three_identity_values_but_manual_path_is_compatible():
-    source = qml_plugin.render_identification_widget_qml("''")
-    candidate = source[
-        source.index("function qpbSelectCandidate(index) {") : source.index(
-            "function qpbConfirmManualEntry", source.index("function qpbSelectCandidate(index) {")
-        )
-    ]
-    assert "selected_korean_name: korean" in candidate
-    assert "selected_scientific_name: selectedScientific" in candidate
-    assert "selected_ktsn: selectedKtsn" in candidate
+def _run_node(script):
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is required to execute generated QML JavaScript")
+    result = subprocess.run(
+        [node, "-e", script], check=True, capture_output=True, text=True, timeout=10
+    )
+    return json.loads(result.stdout)
+
+
+@pytest.mark.parametrize("has_reference", [True, False])
+def test_candidate_writes_editable_identity_fields_not_derived_values(has_reference):
+    source = qml_plugin.render_identification_widget_qml(
+        "''", taxonomy_reference_available=has_reference
+    )
+    start, end = qml_plugin._js_function_span(source, 0, "qpbSelectCandidate")
+    result = _run_node("""
+var qpbCandidateSelectionEnabled=true, qpbWriteBackMode='', qpbLastModelVersion='fixture';
+var qpbStatusLabel={}, qpbManualEntryPanel={}, written=null, persisted=null;
+var qpbCandidatesModel=[{scientific_name:'Fixture species',score:0.8,probability_value:0.2,
+    ktsn_match:{selected_korean_name:'가상풀',selected_scientific_name:'Fixture species',
+        selected_ktsn:'K1'}}];
+function qpbPersistIdentification(){persisted=Array.from(arguments);return true;}
+function qpbApplyCurrentFormWriteBack(fields){written=fields;return true;}
+function qpbWriteAttributeWriteBackRequest(){throw new Error('Unexpected queued write');}
+""" + source[start:end] + """
+qpbSelectCandidate(0);
+process.stdout.write(JSON.stringify({written:written,persisted:persisted,mode:qpbWriteBackMode}));
+""")
+    assert result["written"]["selected_korean_name"] == "가상풀"
+    assert ("selected_scientific_name" in result["written"]) == (not has_reference)
+    if not has_reference:
+        assert result["written"]["selected_scientific_name"] == "Fixture species"
+    assert "selected_ktsn" not in result["written"]
+    assert result["written"]["identification_score"] == 0.8
+    assert result["persisted"][:3] == ["Fixture species", "가상풀", "K1"]
+    assert result["mode"] == "candidate"
+
+
+def test_manual_pending_write_back_does_not_search_existing_forms_or_popups():
     project_source = qml_plugin.render_project_plugin_qml(
         "candidate-writeback", identification_enabled=True
     )
-    apply_source = project_source[
-        project_source.index("function qpbApplyPendingWriteBack(request)") : project_source.index(
-            "function qpbFindMatchingFeatureModel", project_source.index("function qpbApplyPendingWriteBack(request)")
-        )
-    ]
-    assert "if (!isCandidateSelection &&" in apply_source
+    start, end = qml_plugin._js_function_span(project_source, 0, "qpbApplyPendingWriteBack")
+    result = _run_node("""
+var searched=[], qpbWriteBackSearch={};
+var iface={findItemByObjectName:function(name){return name==='featureForm'?{name:'existing'}:null;},
+    mainWindow:function(){return {contentItem:{children:[{name:'popup'}]}};}};
+function qpbBeginWriteBackSearch(){}
+function qpbTraceWriteBack(){}
+function qpbFindActiveRelationModel(root){searched.push(root.name);return null;}
+""" + project_source[start:end] + """
+var request={uuid:'test',uuid_field:'observation_id',fields:{selected_korean_name:'가상풀'},
+    write_back_mode:'manual'};
+var manual=qpbApplyPendingWriteBack(request), manualSearch=searched.slice();
+searched=[];request.write_back_mode='candidate';
+var candidate=qpbApplyPendingWriteBack(request);
+process.stdout.write(JSON.stringify({manual:manual,manualSearch:manualSearch,candidate:candidate,candidateSearch:searched}));
+""")
+    assert result == {"manual": False, "manualSearch": [], "candidate": False,
+                      "candidateSearch": ["existing", "popup"]}
 
 
 def test_release_packaging_entry_points_do_not_require_private_workbooks():

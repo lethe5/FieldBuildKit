@@ -359,6 +359,21 @@ def built_project_by_type(acceptance_api, tmp_path_factory):
     return _get
 
 
+@pytest.fixture
+def project_layer_xml():
+    """Inspect standalone-generated layer structure; does not claim PyQGIS execution."""
+    import xml.etree.ElementTree as ET
+
+    def read(result, table):
+        root = ET.parse(result["qgs_path"]).getroot()
+        matches = [layer for layer in root.findall("./projectlayers/maplayer")
+                   if f"layername={table}" in (layer.findtext("datasource", "").split("|"))]
+        assert len(matches) == 1, f"Expected exactly one generated layer for {table}"
+        return matches[0]
+
+    return read
+
+
 def _remap_project_paths(result: dict, old_root: str, new_root: str) -> dict:
     """Returns a copy of a `build_project()`-shaped result dict with its path-valued keys
     rewritten from `old_root` to `new_root` (used when a test operates on a copy of a cached
