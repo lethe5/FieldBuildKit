@@ -286,6 +286,7 @@ def build_geopackage(
     seed_sites: list[dict] | None = None,
     seed_plots: list[dict] | None = None,
     seed_temporary_plot_points: list[dict] | None = None,
+    taxonomy_reference_available: bool = True,
 ) -> None:
     """Create a fresh GeoPackage for `survey_type` at `gpkg_path`, with any provided seed data.
 
@@ -307,7 +308,7 @@ def build_geopackage(
         _write_gpkg_application_id(conn)
         _create_core_gpkg_tables(conn)
 
-        schema = schemas.get_schema(survey_type)
+        schema = schemas.get_schema(survey_type, taxonomy_reference_available=taxonomy_reference_available)
         for table in schema.values():
             _create_domain_table(conn, table)
             if table.geometry is not None:

@@ -59,11 +59,11 @@ def _validate_sources_gdal(sources):
                     "error_code": "source_not_single_band",
                     "message": f"단일 밴드 래스터가 아닙니다: {Path(item['path']).name}",
                 }
-            if source.nodata != NODATA:
+            if source.nodata != NODATA and not (source.nodata is not None and math.isnan(source.nodata)):
                 return {
                     "ok": False,
                     "error_code": "source_nodata_incompatible",
-                    "message": "확률 래스터 NoData 값은 -9999여야 합니다.",
+                    "message": "확률 래스터 NoData 값은 -9999 또는 NaN이어야 합니다.",
                 }
             if not source.crs or source.transform.determinant == 0:
                 return {
@@ -91,6 +91,7 @@ def _build_probability_stack_gdal(sources, output_path):
     profile.update(
         driver="GTiff",
         count=len(sources),
+        nodata=NODATA,
         compress="deflate",
         zlevel=9,
         interleave="band",
@@ -101,7 +102,9 @@ def _build_probability_stack_gdal(sources, output_path):
         for band, item in enumerate(sources, start=1):
             with rasterio.open(item["path"]) as source:
                 for _, window in source.block_windows(1):
-                    output.write(source.read(1, window=window), band, window=window)
+                    values = source.read(1, window=window)
+                    values[np.isnan(values)] = NODATA
+                    output.write(values, band, window=window)
             output.set_band_description(band, item["name"])
             output.update_tags(band, QPB_SOURCE_BASENAME=Path(item["path"]).name)
     return {"ok": True}
@@ -119,7 +122,9 @@ def _inspect_probability_stack_gdal(stack_path, sources):
                 and stack.tags(band).get("QPB_SOURCE_BASENAME") == Path(item["path"]).name
             )
             with rasterio.open(item["path"]) as source:
-                nodata_match &= source.nodata == stack.nodatavals[band - 1]
+                nodata_match &= stack.nodatavals[band - 1] == NODATA and (
+                    source.nodata == NODATA or (source.nodata is not None and math.isnan(source.nodata))
+                )
                 same_grid = (
                     source.shape == stack.shape
                     and source.crs == stack.crs
@@ -128,8 +133,10 @@ def _inspect_probability_stack_gdal(stack_path, sources):
                 values_match &= same_grid
                 if same_grid:
                     for _, window in source.block_windows(1):
+                        expected = source.read(1, window=window)
+                        expected[np.isnan(expected)] = NODATA
                         values_match &= np.array_equal(
-                            source.read(1, window=window),
+                            expected,
                             stack.read(band, window=window),
                             equal_nan=True,
                         )

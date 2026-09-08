@@ -12,7 +12,7 @@ per DR-QPB-014/DR-QPB-015, but no post-MVP behavior reads or writes them.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 SURVEY_TYPES = (
     "simple_inventory",
@@ -457,7 +457,7 @@ _BUILDERS = {
 }
 
 
-def get_schema(survey_type: str) -> dict[str, TableDef]:
+def get_schema(survey_type: str, *, taxonomy_reference_available: bool = True) -> dict[str, TableDef]:
     """Return the ordered {table_name: TableDef} mapping for a survey type.
 
     Tables are returned in dependency order (parents before children) so callers can create
@@ -465,7 +465,13 @@ def get_schema(survey_type: str) -> dict[str, TableDef]:
     """
     if survey_type not in _BUILDERS:
         raise ValueError(f"Unknown survey_type: {survey_type!r}")
-    return _BUILDERS[survey_type]()
+    schema = _BUILDERS[survey_type]()
+    if not taxonomy_reference_available:
+        schema = {
+            name: replace(table, columns=tuple(c for c in table.columns if c.name != "selected_ktsn"))
+            for name, table in schema.items()
+        }
+    return schema
 
 
 def photo_tables_for(survey_type: str) -> tuple[str, ...]:

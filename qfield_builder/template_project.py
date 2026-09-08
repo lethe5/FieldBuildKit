@@ -142,7 +142,7 @@ def build_qgis_project(
     probability_raster_relative_path: str | None = None,
     canonical_runtime_lookup_resource: dict | None = None,
 ) -> dict:
-    schema = schemas.get_schema(survey_type)
+    schema = schemas.get_schema(survey_type, taxonomy_reference_available=bool(ktsn_lookup_table_name))
     root = ET.parse(TEMPLATES / f"{survey_type}.qgs").getroot()
     project_dir = Path(qgs_path).parent.resolve()
     relative_data = "./" + Path(gpkg_path).resolve().relative_to(project_dir).as_posix()
@@ -171,6 +171,18 @@ def build_qgis_project(
     for layer in layers:
         table_name = layer.findtext("datasource", "").split("|layername=")[-1]
         if not ktsn_lookup_table_name:
+            for parent in layer.iter():
+                for child in list(parent):
+                    if child.get("name") == "selected_ktsn" or child.get("field") == "selected_ktsn":
+                        parent.remove(child)
+            # QGIS stores both names and positional indexes in form/table configuration.
+            fields = [field.get("name") for field in layer.findall("./fieldConfiguration/field")]
+            for element in layer.iter():
+                name = element.get("field") or element.get("name")
+                if name in fields:
+                    for key in ("index", "idx"):
+                        if key in element.attrib:
+                            element.set(key, str(fields.index(name)))
             for widget in layer.findall(".//editWidget[@type='ValueRelation']"):
                 widget.set("type", "TextEdit")
                 for child in list(widget):

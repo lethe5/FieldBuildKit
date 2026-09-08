@@ -1842,8 +1842,7 @@ class IdentificationTogglePage(QWizardPage):
         self.reference_source_path_edit = QLineEdit()
         self.reference_source_path_edit.setReadOnly(True)
         self.reference_source_status_label = QLabel(
-            "이명정보를 포함한 관속식물류 국가생물종목록 엑셀 파일을 참조 자료로 이용하세요. "
-            "선택하지 않으면 국명·학명·KTSN을 직접 입력합니다. 샘플은 가상 데이터입니다."
+            "선택하지 않으면 국명·학명을 직접 입력하며 KTSN 필드는 생성하지 않습니다. 샘플은 가상 데이터입니다."
         )
         self.reference_source_status_label.setWordWrap(True)
         self.reference_source_preview = _ReferenceCandidateList()
@@ -1865,6 +1864,11 @@ class IdentificationTogglePage(QWizardPage):
         reference_browse_button.clicked.connect(self._browse_reference_source)
         reference_group = QGroupBox("식물 분류 참조 자료 (선택 사항)")
         reference_layout = QVBoxLayout()
+        reference_upload_note = QLabel(
+            "이명정보를 포함한 국가생물종목록(관속식물류) Excel(.xlsx) 파일을 업로드하세요."
+        )
+        reference_upload_note.setWordWrap(True)
+        reference_layout.addWidget(reference_upload_note)
         reference_layout.addWidget(self.reference_source_status_label)
         reference_layout.addWidget(self.reference_source_preview)
         reference_layout.addWidget(self.reference_sheet_preview_label)
@@ -1879,11 +1883,12 @@ class IdentificationTogglePage(QWizardPage):
         reference_layout.addWidget(self.sample_download_button)
         reference_group.setLayout(reference_layout)
         layout.addWidget(reference_group)
-        raster_group = QGroupBox("출현 확률 TIFF (선택 사항)")
-        raster_layout = QVBoxLayout(raster_group)
+        self.raster_group = QGroupBox("출현 확률 TIFF (선택 사항)")
+        raster_layout = QVBoxLayout(self.raster_group)
         raster_note = QLabel(
-            "로컬 폴더에서 bce_inverse_corrected_probability_국명.tif 파일을 읽습니다. "
-            "단일 밴드, 동일 격자·좌표계·자료형, NoData=-9999가 필요합니다. "
+            "선택한 폴더와 하위 폴더의 TIFF 파일명에 참조 자료의 국명이 포함되어야 합니다. "
+            "예: 소나무.tif, 지역_소나무_2026.tiff. 단일 밴드, 동일 격자·좌표계·자료형이 필요하며 "
+            "NoData는 -9999 또는 NaN을 사용할 수 있습니다. "
             "선택하지 않으면 출현 확률 조회를 생략합니다."
         )
         raster_note.setWordWrap(True)
@@ -1898,7 +1903,7 @@ class IdentificationTogglePage(QWizardPage):
         self.probability_clear_button = QPushButton("TIFF 폴더 선택 해제")
         self.probability_clear_button.clicked.connect(self.probability_source_path_edit.clear)
         raster_layout.addWidget(self.probability_clear_button)
-        layout.addWidget(raster_group)
+        layout.addWidget(self.raster_group)
         _install_page_scroll_container(self, layout)
         self.reference_source_preview.setFixedHeight(40)
 
@@ -1919,6 +1924,9 @@ class IdentificationTogglePage(QWizardPage):
         # `online_radio`.
         self.enable_checkbox.toggled.connect(self.plantnet_group.setVisible)
         self.plantnet_group.setVisible(self.enable_checkbox.isChecked())
+        self.enable_checkbox.toggled.connect(self._update_probability_availability)
+        self.completeChanged.connect(self._update_probability_availability)
+        self._update_probability_availability()
 
         # NFR-QPB-073/AC-QPB-097 (Decision Log D-53/D-55): deliberately NOT called here -- see
         # `ConnectivityBasemapPage.__init__`'s matching comment. Moved to `initializePage()`
@@ -1949,7 +1957,7 @@ class IdentificationTogglePage(QWizardPage):
         self.reference_sheet_preview.setVisible(False)
         self.reference_sheet_preview_label.setVisible(False)
         self.reference_source_status_label.setText(
-            "참조 자료 없음: 국명·학명·KTSN을 직접 입력합니다."
+            "참조 자료 없음: 국명·학명을 직접 입력하며 KTSN 필드는 생성하지 않습니다."
         )
         self.completeChanged.emit()
 
@@ -1972,12 +1980,22 @@ class IdentificationTogglePage(QWizardPage):
         )
 
     def _browse_probability_source(self) -> None:
+        if not self.enable_checkbox.isChecked() or not self._confirmed_reference_source:
+            return
         path = QFileDialog.getExistingDirectory(self, "출현 확률 TIFF 폴더 선택")
         if path:
             self.probability_source_path_edit.setText(path)
 
     def probability_reference_config(self) -> str | None:
+        if not self.enable_checkbox.isChecked() or not self._confirmed_reference_source:
+            return None
         return self.probability_source_path_edit.text().strip() or None
+
+    def _update_probability_availability(self) -> None:
+        available = self.enable_checkbox.isChecked() and self._confirmed_reference_source is not None
+        self.raster_group.setVisible(available)
+        if not available:
+            self.probability_source_path_edit.clear()
 
     def _select_reference_candidate(self, item) -> None:
         candidate_key = item.data(Qt.ItemDataRole.UserRole)

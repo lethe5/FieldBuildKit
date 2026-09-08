@@ -207,7 +207,8 @@ def test_build_and_relocate_without_qgis(
     if identification:
         assert "".join(widget.itertext()).count("import QtQuick 2.15") == 1
         assert probability_raster.inspect_probability_stack(
-            str(destination / probability_raster.STACK_RELPATH), str(raster_sources)
+            str(destination / probability_raster.STACK_RELPATH), str(raster_sources),
+            korean_names=["소나무"],  # 참나무 is absent from this fixture's taxonomy workbook.
         )["valid"]
         assert len(list((destination / "reference").rglob("*.tif"))) == 1
         with rasterio.open(destination / probability_raster.STACK_RELPATH) as stack:

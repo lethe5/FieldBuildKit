@@ -12,7 +12,8 @@ or QGIS subprocess is used by the application build workflow.
 .venv/bin/python -m qfield_builder.ui.app
 ```
 
-From 0.2.0, local taxonomy workbooks and probability TIFFs are optional independent inputs.
+Local taxonomy workbooks are optional. From 0.2.5, optional probability TIFFs require both
+Pl@ntNet photo identification and a selected, validated taxonomy workbook.
 A fresh clone and app packaging need no `storage` assets. API key
 consent, encrypted key retention, survey choices, uploads, and the generated QField plugin are
 unchanged. QField is still required on the field device.
@@ -36,7 +37,7 @@ not runtime fallbacks. They cannot rescue a missing or broken standalone depende
 
 ## Trial build and verification
 
-The local macOS ARM64 trial bundle is `dist/FieldBuild Standalone.app` (0.2.4).
+The local macOS ARM64 trial bundle is `dist/FieldBuild Standalone.app` (0.2.6).
 It is built in this independent repository. It includes the small fictional workbook sample and independent GIS libraries; private
 workbooks, probability rasters and caches are excluded. The bundle is unsigned for
 distribution; its executable supports `--check-runtime` without opening the wizard.
@@ -71,6 +72,22 @@ diagnostics remain available. Point-based rows include latitude/longitude in WGS
 with eight decimal places; absent, invalid, untransformable, and non-point geometry never produces
 invented coordinates. This applies to projects generated with the new app. The user confirmed
 verification of the delivered build; evidence is recorded in `docs/qfield-runtime-verification.md`.
+
+From 0.2.5, the TIFF folder selector appears only while photo identification is enabled and a
+valid taxonomy workbook is selected. Disabling identification or clearing/invalidating the
+workbook clears the TIFF selection. Without a workbook, generated GeoPackages, QGIS forms and
+report definitions omit `selected_ktsn`; Korean and scientific names remain editable.
+
+TIFF filenames must contain a Korean name from the selected workbook, such as `소나무.tif` or
+`지역_소나무_2026.tiff`; no fixed prefix is required. Subfolders and case-insensitive `.tif`/`.tiff`
+extensions are supported. Names are Unicode-normalized; a longer containing species name takes
+precedence, while unrelated multiple matches and duplicate files for one species are rejected.
+Files without matching names are excluded. Inputs must remain single-band and share a grid,
+CRS and data type. NoData may be -9999 or NaN, including mixed input files. Generated stacks
+normalize NaN to -9999 while preserving valid values and leaving source files untouched.
+From 0.2.6, the taxonomy upload box permanently displays the instruction to upload the national
+vascular-plant species list including synonyms; validation and clear-selection messages do not
+replace this instruction.
 
 Standalone tests pass with QGIS and OSGeo imports forbidden. In the source branch before
 repository separation, all 24 generated project combinations were separately opened by

@@ -198,3 +198,48 @@ After receiving the rebuilt 0.2.4 app, the user stated "확인 완료. 커밋 �
 and explicitly authorizes the local commit and merge. It is user-reported verification;
 no additional runtime scenario, platform or test result is inferred. The latest clean bundle
 build and packaged `--check-runtime` both passed with all source and bundle versions at 0.2.4.
+
+## 0.2.5 conditional probability inputs — user confirmation received (2026-09-08)
+
+Branch `fix/optional-probability-inputs` changes the TIFF selector to require enabled photo
+identification and a validated taxonomy workbook. Removing either prerequisite clears the
+selection; direct invalid build configurations fail without publishing output. Projects without
+a taxonomy reference omit `selected_ktsn` in GeoPackage schemas, QGIS form metadata and report
+definitions. Both immediate and pending identification writes skip the absent field.
+
+Uploaded workbook names now drive recursive TIFF discovery without a fixed filename prefix.
+The matcher supports `.tif`/`.tiff`, case-insensitive extensions and NFC/NFD filenames, resolves
+contained shorter names, and rejects ambiguous names and duplicate species. NaN and -9999 input
+NoData may coexist; output bands normalize NaN pixels to -9999 and retain all other values.
+
+Verification:
+- 175 related tests passed, 5 skipped (4 separate-process DPI variants and 1 physical-iPhone
+  check). All four survey types were exercised with optional inputs present/absent and photo
+  identification enabled/disabled. The tests create and relocate real projects, revalidate
+  structure, check database/form/report fields and form indexes, and run production report JS.
+- Synthetic all-NaN-NoData and mixed-NoData sources passed stack pixel comparison and sampling
+  checks (valid, NoData, negative and out-of-range values). Original TIFF bytes were unchanged.
+  Missing/unsupported NoData remains rejected. No service credentials or private datasets used.
+- Generated plugin QML for projects with and without references parsed successfully with
+  `pyside6-qmlformat`. Synthetic projects are under ignored `build/optional-probability-025/`.
+- Ruff's undefined/unused-code checks and `git diff --check` passed. The macOS clean bundle build
+  and packaged `--check-runtime` passed; three source versions and both bundle versions agree
+  at 0.2.5, up from 0.2.4.
+
+The user confirmed "QField에서 확인 완료" after receiving the 0.2.5 build. This closes the
+remaining user acceptance step; it is user-reported verification, with no additional runtime
+scenarios inferred or claimed as performed by the agent.
+
+## 0.2.6 persistent taxonomy upload instruction (2026-09-08)
+
+The user requested an explicit instruction in the taxonomy upload box to upload the national
+species list including synonyms. The instruction is now a separate, wrapped label, so upload
+validation, sample download and selection clearing cannot replace it with a status message.
+This follow-up changes the builder UI only; generated-project behavior is the verified 0.2.5
+behavior. Source versions advance from 0.2.5 to 0.2.6 for the rebuilt application.
+
+Verification: 58 related tests passed and 4 separate-process DPI cases were skipped. An
+offscreen Qt check confirmed that the wrapped instruction belongs to the upload group and
+persists after validation-status replacement and selection clearing. Diff checks, the clean
+macOS bundle build and packaged runtime check passed; all source and bundle versions are 0.2.6.
+The user's 0.2.5 QField confirmation and these UI checks complete acceptance for this branch.

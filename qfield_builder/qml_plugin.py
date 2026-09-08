@@ -1037,6 +1037,7 @@ def _html_report_definition(
     survey_type: str | None,
     generated_at: str | None,
     vworld_key: str | None = None,
+    taxonomy_reference_available: bool = True,
 ) -> str:
     """Return JSON-safe, build-time report metadata embedded in the generated QML.
 
@@ -1046,7 +1047,9 @@ def _html_report_definition(
     """
     tables: list[dict] = []
     if survey_type in schemas.SURVEY_TYPES:
-        for table in schemas.get_schema(survey_type).values():
+        for table in schemas.get_schema(
+            survey_type, taxonomy_reference_available=taxonomy_reference_available
+        ).values():
             fields = [
                 {
                     "name": column.name,
@@ -4378,7 +4381,7 @@ def _render_identification_project_plugin_members(taxonomy_reference_available: 
                 // that value.  Do not attempt to mutate those derived fields, including for
                 // a confirmed candidate: a rejected derived-field mutation would otherwise
                 // leave the pending request alive even after the Korean name was accepted.
-                if ({'fieldName === "selected_scientific_name" || fieldName === "selected_ktsn"' if taxonomy_reference_available else 'false'}) {{
+                if ({'fieldName === "selected_scientific_name" || fieldName === "selected_ktsn"' if taxonomy_reference_available else 'fieldName === "selected_ktsn"'}) {{
                     continue;
                 }}
                 requestedFieldCount++;
@@ -4829,6 +4832,7 @@ def render_project_plugin_qml(
         survey_type,
         generated_at,
         vworld_key if embed_vworld_key else None,
+        taxonomy_reference_available=taxonomy_reference_available,
     )
     report_members = _render_html_report_members(report_definition)
     identification_members = (
@@ -6061,10 +6065,10 @@ Column {{
             // timeout-producing cross-popup traversal.
             for (var fieldName in fields) {{
                 if (!fields.hasOwnProperty(fieldName) || fieldName === "selected_korean_name" ||
-                    {'fieldName === "selected_scientific_name" || fieldName === "selected_ktsn"' if taxonomy_reference_available else 'false'}) {{ continue; }}
+                    {'fieldName === "selected_scientific_name" || fieldName === "selected_ktsn"' if taxonomy_reference_available else 'fieldName === "selected_ktsn"'}) {{ continue; }}
                 if ({str(not taxonomy_reference_available).lower()} &&
-                    (fieldName === "selected_scientific_name" || fieldName === "selected_ktsn")) {{
-                    // Without a lookup these fields are editable and must actually be saved.
+                    fieldName === "selected_scientific_name") {{
+                    // Without a lookup the scientific name is editable and must be saved.
                     if (target.setAttribute(fieldName, fields[fieldName]) !== true) {{ return false; }}
                 }} else {{
                     try {{ target.setAttribute(fieldName, fields[fieldName]); }} catch (ignored) {{}}
@@ -6402,7 +6406,6 @@ Column {{
         }};
         if ({str(not taxonomy_reference_available).lower()}) {{
             writeFields.selected_scientific_name = selectedScientific;
-            writeFields.selected_ktsn = selectedKtsn;
         }}
         var appliedDirectly = qpbApplyCurrentFormWriteBack(writeFields);
         var queued = appliedDirectly ? false : qpbWriteAttributeWriteBackRequest(writeFields);
@@ -6446,7 +6449,6 @@ Column {{
         var writeFields = {{
             selected_scientific_name: sci.length > 0 ? sci : null,
             selected_korean_name: kor.length > 0 ? kor : null,
-            selected_ktsn: null,
             identification_score: null,
             occurrence_probability: null,
             identification_status: "manual",

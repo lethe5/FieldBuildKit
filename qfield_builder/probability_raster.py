@@ -26,7 +26,9 @@ CACHE_STACK_FILENAME = "occurrence_probability_multiband.tif"
 CACHE_INDEX_FILENAME = "occurrence_probability_bands.json"
 
 
-def _inventory(source_dir: str) -> tuple[list[tuple[str, Path]], list[str], dict | None]:
+def _inventory(
+    source_dir: str, korean_names: list[str] | None = None,
+) -> tuple[list[tuple[str, Path]], list[str], dict | None]:
     root = Path(source_dir)
     if not root.is_dir():
         return (
@@ -41,7 +43,7 @@ def _inventory(source_dir: str) -> tuple[list[tuple[str, Path]], list[str], dict
     species_by_name: dict[str, Path] = {}
     excluded: list[str] = []
     try:
-        entries = sorted(root.iterdir(), key=lambda item: item.name)
+        entries = sorted(root.rglob("*") if korean_names is not None else root.iterdir())
     except OSError as exc:
         return (
             [],
@@ -51,15 +53,36 @@ def _inventory(source_dir: str) -> tuple[list[tuple[str, Path]], list[str], dict
                 "message": f"확률 래스터 원본 폴더를 읽을 수 없습니다: {root} ({exc})",
             },
         )
+    names = {unicodedata.normalize("NFC", name).strip() for name in (korean_names or [])}
+    names.discard("")
     for path in entries:
         if not path.is_file():
             excluded.append(path.name)
             continue
-        match = SPECIES_FILENAME_RE.fullmatch(path.name)
-        if match is None:
-            excluded.append(path.name)
-            continue
-        korean_name = unicodedata.normalize("NFC", match.group(1)).strip()
+        filename = unicodedata.normalize("NFC", path.stem)
+        if korean_names is not None:
+            if path.suffix.lower() not in {".tif", ".tiff"}:
+                excluded.append(path.relative_to(root).as_posix())
+                continue
+            matches = {name for name in names if name in filename}
+            # Prefer 소나무 over 나무; unrelated names in one filename are ambiguous.
+            matches = {name for name in matches if not any(name != other and name in other for other in matches)}
+            if not matches:
+                excluded.append(path.relative_to(root).as_posix())
+                continue
+            if len(matches) > 1:
+                return [], excluded, {
+                    "error_code": "species_name_ambiguous",
+                    "message": f"파일명에 여러 국명이 포함되어 종을 결정할 수 없습니다: {path.name} ({', '.join(sorted(matches))})",
+                }
+            korean_name = matches.pop()
+        else:
+            # Legacy cache/development callers have no workbook; retain their old contract.
+            match = SPECIES_FILENAME_RE.fullmatch(path.name)
+            if match is None:
+                excluded.append(path.name)
+                continue
+            korean_name = unicodedata.normalize("NFC", match.group(1)).strip()
         if not korean_name:
             return (
                 [],
@@ -113,7 +136,7 @@ def _inventory(source_dir: str) -> tuple[list[tuple[str, Path]], list[str], dict
             excluded,
             {
                 "error_code": "species_inventory_empty",
-                "message": "파일명 규칙에 맞는 종별 확률 TIFF가 없습니다.",
+                "message": "국명을 확인할 수 있는 종별 확률 TIFF가 없습니다. 파일명에 참조 자료의 국명을 포함해 주세요.",
             },
         )
     return species, excluded, None
@@ -264,8 +287,8 @@ def _dispatch_gdal(func: str, kwargs: dict) -> dict:
         return {"ok": False, "error_code": "raster_operation_failed", "message": str(exc)}
 
 
-def validate_probability_raster_sources(source_dir: str) -> dict:
-    species, excluded, error = _inventory(source_dir)
+def validate_probability_raster_sources(source_dir: str, *, korean_names: list[str] | None = None) -> dict:
+    species, excluded, error = _inventory(source_dir, korean_names)
     if error is not None:
         return {
             "ok": False,
@@ -309,11 +332,14 @@ def _open_source_metadata(
         "data_type": band.DataType,
         "nodata": band.GetNoDataValue(),
     }
-    if metadata["nodata"] != NODATA_VALUE:
+    if metadata["nodata"] != NODATA_VALUE and not (
+        metadata["nodata"] is not None and math.isnan(metadata["nodata"])
+    ):
         return None, {
             "error_code": "source_nodata_incompatible",
-            "message": f"NoData 값이 -9999가 아닙니다: {Path(item['path']).name}",
+            "message": f"NoData 값은 -9999 또는 NaN이어야 합니다: {Path(item['path']).name}",
         }
+    metadata["nodata"] = NODATA_VALUE  # Output uses one portable sentinel for all bands.
     if baseline is not None and metadata != baseline:
         return None, {
             "error_code": "source_geometry_incompatible",
@@ -337,7 +363,8 @@ def _validate_sources_gdal(sources: list[dict]) -> dict:
 
 
 def build_probability_stack(
-    source_dir: str, project_dir: str, *, cache_dir: str | None = None
+    source_dir: str, project_dir: str, *, cache_dir: str | None = None,
+    korean_names: list[str] | None = None,
 ) -> dict:
     cached = None
     if cache_dir and not Path(source_dir).exists():
@@ -354,7 +381,7 @@ def build_probability_stack(
         species_count = payload["band_count"]
         cached = (Path(cache_dir) / CACHE_STACK_FILENAME, Path(cache_dir) / CACHE_INDEX_FILENAME)
     else:
-        species, excluded, error = _inventory(source_dir)
+        species, excluded, error = _inventory(source_dir, korean_names)
         species_count = len(species)
     if error is not None:
         return {
@@ -458,6 +485,7 @@ def prepare_probability_stack_cache(source_dir: str, cache_dir: str) -> dict:
 
 
 def _build_probability_stack_gdal(sources: list[dict], output_path: str) -> dict:
+    import numpy as np
     from osgeo import gdal
 
     gdal.UseExceptions()
@@ -489,21 +517,9 @@ def _build_probability_stack_gdal(sources: list[dict], output_path: str) -> dict
             source = gdal.Open(item["path"], gdal.GA_ReadOnly)
             source_band = source.GetRasterBand(1)
             target_band = output.GetRasterBand(band_number)
-            pixels = source_band.ReadRaster(
-                0,
-                0,
-                baseline["width"],
-                baseline["height"],
-                buf_type=baseline["data_type"],
-            )
-            target_band.WriteRaster(
-                0,
-                0,
-                baseline["width"],
-                baseline["height"],
-                pixels,
-                buf_type=baseline["data_type"],
-            )
+            pixels = source_band.ReadAsArray()
+            pixels[np.isnan(pixels)] = NODATA_VALUE
+            target_band.WriteArray(pixels)
             target_band.SetNoDataValue(NODATA_VALUE)
             target_band.SetDescription(item["name"])
             target_band.SetMetadataItem("QPB_SOURCE_BASENAME", Path(item["path"]).name)
@@ -522,8 +538,8 @@ def _build_probability_stack_gdal(sources: list[dict], output_path: str) -> dict
     return {"ok": True}
 
 
-def inspect_probability_stack(stack_path: str, source_dir: str) -> dict:
-    species, _excluded, error = _inventory(source_dir)
+def inspect_probability_stack(stack_path: str, source_dir: str, *, korean_names: list[str] | None = None) -> dict:
+    species, _excluded, error = _inventory(source_dir, korean_names)
     if error is not None:
         return {"valid": False, "error_code": error["error_code"]}
     result = _dispatch_gdal(
@@ -545,6 +561,7 @@ def inspect_probability_stack(stack_path: str, source_dir: str) -> dict:
 
 
 def _inspect_probability_stack_gdal(stack_path: str, sources: list[dict]) -> dict:
+    import numpy as np
     from osgeo import gdal
 
     gdal.UseExceptions()
@@ -565,10 +582,13 @@ def _inspect_probability_stack_gdal(stack_path: str, sources: list[dict]) -> dic
         represented = represented and (
             stack_band.GetMetadataItem("QPB_SOURCE_BASENAME") == Path(item["path"]).name
         )
-        nodata_match = nodata_match and stack_band.GetNoDataValue() == source_band.GetNoDataValue()
-        source_bytes = source_band.ReadRaster(0, 0, source.RasterXSize, source.RasterYSize)
-        stack_bytes = stack_band.ReadRaster(0, 0, stack.RasterXSize, stack.RasterYSize)
-        values_match = values_match and source_bytes == stack_bytes
+        source_nodata = source_band.GetNoDataValue()
+        nodata_match = nodata_match and stack_band.GetNoDataValue() == NODATA_VALUE and (
+            source_nodata == NODATA_VALUE or (source_nodata is not None and math.isnan(source_nodata))
+        )
+        expected = source_band.ReadAsArray()
+        expected[np.isnan(expected)] = NODATA_VALUE
+        values_match = values_match and np.array_equal(expected, stack_band.ReadAsArray())
         source = None
     first_nodata = stack.GetRasterBand(1).GetNoDataValue() if stack.RasterCount else None
     report = {

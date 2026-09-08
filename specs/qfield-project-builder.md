@@ -2257,3 +2257,26 @@ the picker preserves the current selection. Build-time hash validation remains r
 
 Acceptance: `tests/unit/test_optional_reference_inputs.py` and the reference-selection keyboard
 and layout cases in `tests/unit/test_wizard_ui_layout.py`.
+
+## D-100 — Conditional probability inputs and KTSN fields (2026-09-08, user-approved)
+
+Supersedes D-98's independent raster input, unconditional KTSN field and fixed filename/NoData
+rules for new app-generated projects. TIFF selection requires enabled Pl@ntNet photo identification
+and a successfully validated, uploaded taxonomy workbook. Clearing either prerequisite clears the
+selection; direct build requests with TIFFs and missing prerequisites fail before publication.
+Without a taxonomy reference, omit `selected_ktsn` from the GeoPackage, form configuration and
+report schema, and do not attempt to write that absent field during photo identification.
+
+Find `.tif`/`.tiff` files recursively and match Unicode-normalized workbook Korean names anywhere
+in their filenames, without requiring `bce_inverse_corrected_probability_`. Prefer a longer name
+that contains another matching name; reject unrelated multiple names or multiple files for a
+single species. Exclude files with no matching Korean name. Explain the filename requirement in
+the upload UI. Single-band, common-grid/CRS/data-type checks remain. Accept source NoData of NaN
+or -9999, including mixed inputs; normalize NaN pixels to -9999 in the generated multiband stack
+so all bands share the existing runtime NoData convention. Preserve other pixel values and source
+files. Existing generated projects are unchanged. Legacy cache/development calls without a
+workbook retain their previous filename parsing contract.
+
+Acceptance: conditional selection and real portable builds in
+`tests/unit/test_optional_reference_inputs.py`, standalone raster/build checks in
+`tests/unit/test_standalone.py`, and versioned evidence in `docs/qfield-runtime-verification.md`.

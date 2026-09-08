@@ -4,6 +4,7 @@ import json
 import shutil
 import sqlite3
 import subprocess
+import unicodedata
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -13,7 +14,7 @@ import rasterio
 from PySide6.QtWidgets import QApplication, QFileDialog, QPushButton
 from rasterio.transform import from_origin
 
-from qfield_builder import build, canonical_reference, probability_raster, qml_plugin, schemas
+from qfield_builder import build, canonical_reference, probability_raster, qml_plugin, schemas, validate
 from qfield_builder.ui import wizard as wizard_module
 from qfield_builder.ui.wizard import ProjectBuilderWizard
 
@@ -46,7 +47,7 @@ def test_optional_inputs_build_and_relocate(
     if has_raster:
         folder = tmp_path / "local TIFF 한글"
         folder.mkdir()
-        source = folder / "bce_inverse_corrected_probability_가상풀.tif"
+        source = folder / "지역_가상풀_2026.TIFF"
         with rasterio.open(
             source,
             "w",
@@ -56,22 +57,44 @@ def test_optional_inputs_build_and_relocate(
             count=1,
             dtype="float32",
             crs="EPSG:4326",
-            nodata=-9999,
+            nodata=float("nan"),
             transform=from_origin(127, 37.02, 0.01, 0.01),
         ) as raster:
-            raster.write(np.full((2, 2), 0.25, dtype="float32"), 1)
+            raster.write(np.array([[0.25, np.nan], [0.25, 0.25]], dtype="float32"), 1)
         original = source.read_bytes()
         config["probability_raster_source_dir"] = str(folder)
     result = build.build_project(config, str(tmp_path / "output"))
+    if has_raster and not (identification and has_workbook):
+        assert not result["success"]
+        assert result["error_code"] == "probability_prerequisites_missing"
+        assert not (tmp_path / "output").exists()
+        return
     assert result["success"], result
     relocated = tmp_path / "moved" / "project"
     shutil.move(result["project_dir"], relocated)
+    assert validate.validate_project(str(relocated))["success"]
     doc = ET.parse(relocated / "optional-test.qgs")
     sources = [node.text or "" for node in doc.findall(".//projectlayers/maplayer/datasource")]
     assert not any(str(tmp_path) in value or "storage/" in value for value in sources)
     with sqlite3.connect(relocated / "data/optional-test.gpkg") as db:
         tables = {row[0] for row in db.execute("select name from sqlite_master where type='table'")}
         assert ("ktsn_accepted_name_lookup" in tables) == has_workbook
+        for name in ("observation", "inventory_observation"):
+            if name in tables:
+                fields = [row[1] for row in db.execute(f'PRAGMA table_info("{name}")')]
+                assert ("selected_ktsn" in fields) == has_workbook
+    for layer in doc.findall(".//projectlayers/maplayer"):
+        fields = [field.get("name") for field in layer.findall("./fieldConfiguration/field")]
+        if "selected_korean_name" in fields:
+            assert ("selected_ktsn" in fields) == has_workbook
+            for element in layer.findall(".//attributeEditorField"):
+                assert fields[int(element.get("index"))] == element.get("name")
+            for element in layer.findall("./aliases/alias"):
+                assert fields[int(element.get("index"))] == element.get("field")
+    plugin = (relocated / "optional-test.qml").read_text()
+    definition = json.loads(plugin.split("readonly property var qpbReportDefinition: ")[1].splitlines()[0][1:-1])
+    reported_fields = [field["name"] for table in definition["tables"] for field in table["fields"]]
+    assert ("selected_ktsn" in reported_fields) == (has_workbook and survey_type != "vegetation_mapping")
     assert (relocated / probability_raster.STACK_RELPATH).exists() == has_raster
     manifest = json.loads((relocated / "MANIFEST.json").read_text())
     if has_raster:
@@ -79,6 +102,7 @@ def test_optional_inputs_build_and_relocate(
         assert manifest["probability_raster"]["band_count"] == 1
         with rasterio.open(relocated / probability_raster.STACK_RELPATH) as raster:
             assert raster.read(1)[0, 0] == 0.25
+            assert raster.nodata == -9999 and raster.read(1)[0, 1] == -9999
         assert sorted(p.name for p in folder.iterdir()) == [source.name]
     if not has_workbook:
         identity = doc.find(".//fieldConfiguration/field[@name='selected_korean_name']/editWidget")
@@ -127,6 +151,8 @@ def test_sample_download_upload_validates_automatically_and_preserves_navigation
     wizard = ProjectBuilderWizard()
     page = wizard.page(4)
     assert page.isComplete()
+    page.enable_checkbox.setChecked(False)
+    assert page.raster_group.isHidden()
     assert all("선택한 참조 자료 확인" not in b.text() for b in page.findChildren(QPushButton))
     download = tmp_path / "sample.xlsx"
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(download), ""))
@@ -143,9 +169,16 @@ def test_sample_download_upload_validates_automatically_and_preserves_navigation
     assert selected["sha256"] == result["provenance"]["sha256"]
     page.initializePage()
     assert page.isComplete() and page.canonical_reference_config() == selected
+    assert page.raster_group.isHidden()
+    page.enable_checkbox.setChecked(True)
+    assert not page.raster_group.isHidden()
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *a, **k: str(tmp_path))
     page.probability_browse_button.click()
     assert page.probability_reference_config() == str(tmp_path)
+    page.enable_checkbox.setChecked(False)
+    assert page.raster_group.isHidden() and page.probability_reference_config() is None
+    page.enable_checkbox.setChecked(True)
+    page.probability_browse_button.click()
     page.probability_clear_button.click()
     page.reference_clear_button.click()
     assert page.isComplete()
@@ -168,10 +201,13 @@ def test_invalid_upload_clears_validated_reference_and_reselection_recovers(tmp_
     page._browse_reference_source()
     original = page.canonical_reference_config()
     assert page.isComplete() and original
+    page.enable_checkbox.setChecked(True)
+    page.probability_source_path_edit.setText(str(tmp_path))
     chosen = str(invalid)
     page._browse_reference_source()
     assert not page.isComplete()
     assert page.canonical_reference_config() is None
+    assert page.raster_group.isHidden() and page.probability_reference_config() is None
     assert page.reference_source_status_label.text()
     page._select_reference_candidate(page.reference_source_preview.item(0))
     assert page.isComplete() and page.canonical_reference_config() == original
@@ -227,7 +263,7 @@ process.stdout.write(JSON.stringify({candidates:candidates,written:written}));
     data = json.loads(result.stdout)
     assert len(data["candidates"]) == 1
     assert data["written"]["selected_scientific_name"] == "Exemplaria alpha Demo"
-    assert data["written"]["selected_ktsn"] is None
+    assert "selected_ktsn" not in data["written"]
     assert data["written"]["selected_korean_name"] is None
 
 
@@ -258,4 +294,72 @@ process.stdout.write(JSON.stringify({ok:ok,values:values}));
     data = json.loads(result.stdout)
     assert data["ok"]
     assert data["values"]["selected_scientific_name"] == "Exemplaria alpha"
-    assert data["values"]["selected_ktsn"] is None
+    assert "selected_ktsn" not in data["values"]
+
+
+def test_probability_filename_matching_uses_reference_names_and_rejects_ambiguity(tmp_path):
+    folder = tmp_path / "하위 폴더"
+    folder.mkdir()
+    filename = unicodedata.normalize("NFD", "지역_큰가상풀_2026.TIFF")
+    source = folder / filename
+    source.write_bytes(b"II*\x00test")
+    unrelated = tmp_path / "다른종.tif"
+    unrelated.write_bytes(b"II*\x00test")
+    names = ["가상풀", "큰가상풀", "예시나무"]
+    species, excluded, error = probability_raster._inventory(str(tmp_path), names)
+    assert error is None and species == [("큰가상풀", source)]
+    assert unrelated.name in excluded
+    other = tmp_path / "큰가상풀_예시나무.tif"
+    other.write_bytes(b"II*\x00test")
+    assert probability_raster._inventory(str(tmp_path), names)[2]["error_code"] == "species_name_ambiguous"
+    other.rename(tmp_path / "큰가상풀_duplicate.tif")
+    assert probability_raster._inventory(str(tmp_path), names)[2]["error_code"] == "species_name_collision"
+
+
+@pytest.mark.parametrize("nodata_values", [(float("nan"), float("nan")), (float("nan"), -9999)])
+def test_probability_nan_sources_normalize_without_changing_valid_values(tmp_path, nodata_values):
+    folder = tmp_path / "source"
+    folder.mkdir()
+    names = ["가상풀", "예시나무"]
+    originals = {}
+    for name, nodata in zip(names, nodata_values):
+        source = folder / f"예측_{name}_결과.tiff"
+        with rasterio.open(
+            source, "w", driver="GTiff", width=2, height=2, count=1, dtype="float32",
+            crs="EPSG:4326", nodata=nodata, transform=from_origin(127, 38, 0.1, 0.1),
+        ) as raster:
+            raster.write(np.array([[0.25, nodata], [-0.1, 1.2]], dtype="float32"), 1)
+        originals[source] = source.read_bytes()
+    output = tmp_path / "project"
+    result = probability_raster.build_probability_stack(str(folder), str(output), korean_names=names)
+    assert result["success"], result
+    report = probability_raster.inspect_probability_stack(result["stack_path"], str(folder), korean_names=names)
+    assert report["valid"] and report["pixel_crosscheck"]["nodata_match"]
+    with rasterio.open(result["stack_path"]) as raster:
+        assert raster.nodata == -9999
+        for band in (1, 2):
+            np.testing.assert_array_equal(
+                raster.read(band), np.array([[0.25, -9999], [-0.1, 1.2]], dtype="float32")
+            )
+    for name in names:
+        def sample(lon, lat):
+            return probability_raster.sample_probability_candidate(
+                str(output), name, {"lon": lon, "lat": lat}
+            )
+        assert sample(127.05, 37.95)["value"] == 0.25
+        assert sample(127.15, 37.95)["reason"] == "raster_missing_nodata_or_outside_extent"
+        assert sample(127.05, 37.85)["value"] == 0
+        assert sample(127.15, 37.85)["reason"] == "raster_invalid_value"
+    assert all(source.read_bytes() == original for source, original in originals.items())
+
+
+@pytest.mark.parametrize("nodata", [None, 0, float("inf")])
+def test_probability_rejects_unsupported_nodata(tmp_path, nodata):
+    with rasterio.open(
+        tmp_path / "가상풀.tif", "w", driver="GTiff", width=1, height=1, count=1,
+        dtype="float32", crs="EPSG:4326", nodata=nodata,
+        transform=from_origin(127, 38, 0.1, 0.1),
+    ) as raster:
+        raster.write(np.array([[0.25]], dtype="float32"), 1)
+    result = probability_raster.validate_probability_raster_sources(str(tmp_path), korean_names=["가상풀"])
+    assert not result["ok"] and result["error_code"] == "source_nodata_incompatible"

@@ -485,7 +485,7 @@ def build_project(
         attachments_dir.mkdir(parents=True)
 
         identification_enabled = bool(config.get("identification_enabled", False))
-        # Taxonomy and probability sources are independent, explicit local inputs (D-98).
+        # Probability sampling requires photo identification and a taxonomy reference.
         is_types_1_to_3 = survey_type != "vegetation_mapping"
         legacy_reference = _legacy_reference_compatibility_requested(config)
         configured_canonical = (
@@ -497,10 +497,15 @@ def build_project(
             config.get("probability_raster_source_dir")
             or config.get("_test_probability_raster_source_dir")
         )
+        requires_accepted_name_lookup = bool(configured_canonical) or legacy_reference
+        if probability_source and not (identification_enabled and requires_accepted_name_lookup):
+            raise BuildError(
+                "probability_prerequisites_missing",
+                "출현 확률 TIFF는 Pl@ntNet 사진 식별을 켜고 식물 분류 참조 자료를 선택한 경우에만 사용할 수 있습니다.",
+            )
         identification_probability_enabled = bool(probability_source) or (
             identification_enabled and legacy_reference
         )
-        requires_accepted_name_lookup = bool(configured_canonical) or legacy_reference
         plantnet_config: dict | None = None
         reference_data_dir: str | None = None
         canonical_ingest: dict | None = None
@@ -583,6 +588,7 @@ def build_project(
             seed_sites=seed_sites,
             seed_plots=seed_plots,
             seed_temporary_plot_points=seed_temp_points,
+            taxonomy_reference_available=requires_accepted_name_lookup,
         )
         report_stage("GeoPackage 생성")
 
@@ -763,7 +769,9 @@ def build_project(
                     Path(reference_data_dir) / reference_bundle.RASTER_DIR_RELATIVE_SUBPATH
                 )
             probability_result = probability_raster.build_probability_stack(
-                str(probability_source), str(temp_project_dir)
+                str(probability_source), str(temp_project_dir),
+                **({"korean_names": [row["korean_name"] for row in canonical_ingest["rows"]
+                                    if row.get("korean_name")]} if canonical_ingest else {}),
             )
             if not probability_result.get("success"):
                 raise BuildError(
