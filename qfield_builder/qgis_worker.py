@@ -1209,7 +1209,7 @@ def _add_online_basemap_layer(pyqgis: dict, project, basemap_config: dict) -> bo
         raise ValueError(f"Unsupported VWorld layer: {layer_name!r}")
 
     tile_url = build_gettile_url(api_key, layer_name, known_layers=known_layers)
-    uri = f"type=xyz&url={tile_url}&zmin=0&zmax=19"
+    uri = f"type=xyz&url={tile_url}&zmin={6 if layer_name == 'Satellite' else 0}&zmax=19"
     raster_layer = QgsRasterLayer(uri, f"VWorld {layer_name} (online)", "wms")
     project.addMapLayer(raster_layer, False)
     basemap_group = project.layerTreeRoot().findGroup("Basemap")

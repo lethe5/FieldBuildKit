@@ -1,46 +1,10 @@
-"""Orchestrator-controlled macOS smoke test: the real GUI, end to end.
+"""Real wizard navigation and subprocess builds, without private storage assets.
 
-This test does *not* call `qfield_builder.build.build_project()` directly, and does not stub or
-monkeypatch `qfield_builder.qgis_worker.build_qgis_project` (contrast with
-`tests/unit/test_wizard.py`'s `_stub_qgis_for_build` fixture). Instead it:
-
-1. Constructs the real, production `qfield_builder.ui.wizard.ProjectBuilderWizard` -- the exact
-   class `qfield_builder.ui.app.main()` instantiates -- under `QT_QPA_PLATFORM=offscreen`.
-2. Walks through all seven wizard pages exactly as a user would: setting the minimum viable input
-   for a Type-1 (`simple_inventory`), no-basemap build on `ProjectBasicsPage`, leaving every other
-   page's own defaults untouched (`SurveyTypePage` already defaults its first radio button to
-   `simple_inventory`; `SiteInputPage` is left empty -- Type 1 has no site layer to seed;
-   `ConnectivityBasemapPage` already defaults to "No basemap"; `IdentificationTogglePage`'s
-   checkbox is enabled but left at its own unchecked default), and calling `QWizard.next()` between
-   each page (which
-   itself calls each page's real `validatePage()`/`isComplete()`/`initializePage()`).
-3. Clicks the real `ReviewAndBuildPage.build_button` (`QPushButton.click()`), which is wired to
-   `ReviewAndBuildPage._start_build()` -- the exact same slot a real user's mouse click invokes --
-   which itself constructs a real `qfield_builder.ui.build_worker.BuildWorkerThread`, which itself
-   calls the real `qfield_builder.worker_process.run_job_in_subprocess("build_project", ...)`,
-   which spawns a genuinely separate OS process that (via `qfield_builder.runtime`/
-   `qfield_builder.qgis_bridge`) dispatches into a real, locally installed QGIS 3.44 installation's
-   own PyQGIS environment. Nothing in this test's own call stack calls
-   `qfield_builder.build.build_project` or `qfield_builder.qgis_worker.build_qgis_project` itself.
-4. Waits for that background `QThread` to finish via a real Qt event loop
-   (`QEventLoop.exec()`) that is only ever exited by the worker's own `finished_with_result`
-   `Signal` (a queued cross-thread connection back to the main/GUI thread) or by a generous safety
-   timeout -- never a blind `time.sleep()` poll.
-5. Asserts genuine success: the wizard's own `ReviewAndBuildPage._build_succeeded` flag is `True`,
-   the resulting project directory exists on disk with a real `.qgs` file and a real `.gpkg` file,
-   and the GeoPackage's actual on-disk schema (tables/columns, queried directly via `sqlite3`,
-   independent of anything `qfield_builder.gpkg`/`qfield_builder.schemas` themselves assert in
-   their own unit tests) matches what `simple_inventory` (Section 8.1's Type 1) is specified to
-   produce, per `qfield_builder.schemas.get_schema("simple_inventory")` -- the same single source
-   of truth `qfield_builder.gpkg`/`qfield_builder.qgis_worker` themselves consume.
-
-Requires a real, locally installed, bridgeable QGIS 3.44 installation (see
-`qfield_builder.qgis_bridge`) -- skipped otherwise, matching the pattern already established by
-`tests/unit/test_worker_process.py`.
+Exercises production pages, BuildWorkerThread and the standalone GIS runtime with
+isolated credentials. Optional workbook/TIFF combinations have separate regression tests.
 """
 from __future__ import annotations
 
-import shutil
 import sqlite3
 from pathlib import Path
 
@@ -48,7 +12,7 @@ import pytest
 from PySide6.QtCore import QEventLoop, QTimer
 from PySide6.QtWidgets import QApplication
 
-from qfield_builder import credential_store, reference_bundle, schemas
+from qfield_builder import credential_store, schemas
 from qfield_builder.runtime import check_runtime
 from qfield_builder.ui.wizard import (
     ConnectivityBasemapPage,
@@ -61,36 +25,7 @@ from qfield_builder.ui.wizard import (
     SymbolStylingPage,
 )
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_CANONICAL_REFERENCE_WORKBOOK = (
-    _REPO_ROOT / "packaging" / "reference_source" / "tables" / "Rpt_2026-08-29_List.xlsx"
-)
-_REAL_PROBABILITY_RASTER_DIR = (
-    _REPO_ROOT
-    / "storage"
-    / "reference"
-    / "rasters"
-    / "bce_inverse_corrected_probability_maps"
-)
-
-
-def _prepare_canonical_reference_root(tmp_path: Path) -> Path:
-    """Create a test-owned canonical root with the real raster boundary, never placeholders."""
-    if not _CANONICAL_REFERENCE_WORKBOOK.is_file():
-        pytest.skip(f"D-95 canonical workbook is not present: {_CANONICAL_REFERENCE_WORKBOOK}")
-    if not _REAL_PROBABILITY_RASTER_DIR.is_dir():
-        pytest.skip(f"real probability rasters are not present: {_REAL_PROBABILITY_RASTER_DIR}")
-
-    root = tmp_path / "canonical-reference"
-    tables = root / "tables"
-    tables.mkdir(parents=True)
-    shutil.copy2(_CANONICAL_REFERENCE_WORKBOOK, tables / _CANONICAL_REFERENCE_WORKBOOK.name)
-    raster_destination = root / "rasters" / "bce_inverse_corrected_probability_maps"
-    raster_destination.parent.mkdir(parents=True)
-    raster_destination.symlink_to(_REAL_PROBABILITY_RASTER_DIR, target_is_directory=True)
-    return root
-
-_QGIS_AVAILABLE = check_runtime()["available"]
+_RUNTIME_AVAILABLE = check_runtime()["available"]
 
 # Generous but bounded: this is a real end-to-end build through a real, separately spawned OS
 # process (multiprocessing `spawn` worker) that itself launches a *second* real OS process
@@ -144,11 +79,11 @@ def _wait_for_build_worker_thread(worker_thread) -> dict | None:
     return captured.get("result")
 
 
-@pytest.mark.skipif(not _QGIS_AVAILABLE, reason="requires a real, bridgeable QGIS installation")
+@pytest.mark.skipif(not _RUNTIME_AVAILABLE, reason="requires the standalone GIS runtime")
 def test_real_gui_end_to_end_build_produces_a_working_simple_inventory_project(
     tmp_path, monkeypatch
 ):
-    monkeypatch.setenv("REFERENCE_DATA_DIR", str(_prepare_canonical_reference_root(tmp_path)))
+    monkeypatch.setenv("REFERENCE_DATA_DIR", str(tmp_path / "missing-private-storage"))
     project_display_name = "Smoke Test Project"
     parent_dir = tmp_path / "parent"
     parent_dir.mkdir()
@@ -254,12 +189,8 @@ def test_real_gui_end_to_end_build_produces_a_working_simple_inventory_project(
                 "AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'qpb_%';"
             ).fetchall()
         }
-        # DR-QPB-072/FR-QPB-127 (Decision Log D-66/D-68): every Types 1-3 build now also bundles
-        # the accepted-name lookup table unconditionally, alongside the domain survey table.
-        assert table_names == {
-            "inventory_observation",
-            reference_bundle.KTSN_LOOKUP_TABLE_NAME,
-        }, table_names
+        # No optional workbook was selected, so only the survey table is materialized.
+        assert table_names == {"inventory_observation"}, table_names
 
         actual_columns = {
             row[1] for row in conn.execute("PRAGMA table_info('inventory_observation');")
@@ -287,7 +218,7 @@ def test_real_gui_end_to_end_build_produces_a_working_simple_inventory_project(
     assert not review_page.progress_bar.isVisible()
 
 
-@pytest.mark.skipif(not _QGIS_AVAILABLE, reason="requires a real, bridgeable QGIS installation")
+@pytest.mark.skipif(not _RUNTIME_AVAILABLE, reason="requires the standalone GIS runtime")
 def test_real_gui_end_to_end_build_with_remember_this_key_persists_to_credentials_enc(
     tmp_path, monkeypatch
 ):
@@ -315,7 +246,7 @@ def test_real_gui_end_to_end_build_with_remember_this_key_persists_to_credential
     file -- irrelevant complexity for a test about *local* encrypted-storage persistence.
     """
     fake_plantnet_key = "FAKE-PLANTNET-KEY-FOR-REMEMBER-SUBPROCESS-TEST"  # noqa: S105 - synthetic.
-    monkeypatch.setenv("REFERENCE_DATA_DIR", str(_prepare_canonical_reference_root(tmp_path)))
+    monkeypatch.setenv("REFERENCE_DATA_DIR", str(tmp_path / "missing-private-storage"))
 
     # Establishes the encrypted-storage password in *this* (the UI/test) process -- via
     # `tests/unit/conftest.py`'s autouse `_isolate_credential_store` fixture, `app_data_dir()` is

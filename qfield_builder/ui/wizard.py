@@ -23,6 +23,7 @@ plot's own `plot` layer, Section 8.3) is not wired in this pass; that input rema
 from __future__ import annotations
 
 import math
+import shutil
 from pathlib import Path
 
 from PySide6.QtCore import Property, QByteArray, QSize, Qt, QThread, QTimer, Signal
@@ -41,6 +42,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QMessageBox,
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
@@ -78,7 +80,7 @@ from ..offline_estimate import (
     OFFLINE_HARD_LIMIT_BYTES,
     estimate_offline_basemap_size,
 )
-from ..resource_paths import reference_path, resource_path
+from ..resource_paths import resource_path
 from ..vworld import supported_layers
 from ..wkt import InvalidGeometryError, validate_geometry
 from .build_worker import BuildWorkerThread
@@ -1750,9 +1752,9 @@ class IdentificationTogglePage(QWizardPage):
         identification_intro_label = QLabel(
             "사용 설정하면, 생성되는 프로젝트에 QField용 프로젝트 플러그인과 '첨부된 사진 "
             "식별' 기능이 포함됩니다. 이 기능은 관찰 기록에 첨부된 사진을 Pl@ntNet에 보내 "
-            "상위 3개 후보를 받고, KTSN 참조 자료를 이용해 국명(한글명) 조회 및 국가생물종목록 "
+            "상위 후보를 받습니다. 참조 엑셀을 선택하면 국명(한글명) 조회 및 국가생물종목록 "
             "정명 대조를 수행합니다. 출현 확률은 현재 조사/조사구 geometry에서 위치를 확인할 수 "
-            "있을 때만 함께 번들로 제공되는 래스터에서 조회합니다. 위치를 사용할 수 없으면 사진 "
+            "있고 로컬 확률 TIFF를 선택했을 때만 조회합니다. 위치나 TIFF가 없으면 사진 "
             "식별은 계속하지만 위치 기반 출현 확률 조회는 건너뜁니다(현장에서, 기기 내에서 직접 "
             "조회하며, 이 온디바이스 "
             "동작 방식은 아직 완전히 확정되지 않은 기술적 불확실성이 있습니다 -- 실패 시에도 "
@@ -1838,7 +1840,7 @@ class IdentificationTogglePage(QWizardPage):
         self.reference_source_path_edit.setReadOnly(True)
         self.reference_source_status_label = QLabel(
             "이명정보를 포함한 관속식물류 국가생물종목록 엑셀 파일을 참조 자료로 이용하세요. "
-            "storage/reference/tables의 .xlsx 후보를 확인하세요. 후보를 자동 선택하지 않습니다."
+            "선택하지 않으면 국명·학명·KTSN을 직접 입력합니다. 샘플은 가상 데이터입니다."
         )
         self.reference_source_status_label.setWordWrap(True)
         self.reference_source_preview = _ReferenceCandidateList()
@@ -1860,16 +1862,43 @@ class IdentificationTogglePage(QWizardPage):
         reference_browse_button.clicked.connect(self._browse_reference_source)
         reference_confirm_button = QPushButton("선택한 참조 자료 확인")
         reference_confirm_button.clicked.connect(self._confirm_reference_source)
-        reference_group = QGroupBox("식물 분류 참조 자료 확인")
+        reference_group = QGroupBox("식물 분류 참조 자료 (선택 사항)")
         reference_layout = QVBoxLayout()
         reference_layout.addWidget(self.reference_source_status_label)
         reference_layout.addWidget(self.reference_source_preview)
         reference_layout.addWidget(self.reference_sheet_preview_label)
         reference_layout.addWidget(self.reference_sheet_preview)
+        reference_layout.addWidget(self.reference_source_path_edit)
         reference_layout.addWidget(reference_browse_button)
         reference_layout.addWidget(reference_confirm_button)
+        self.reference_clear_button = QPushButton("참조 자료 선택 해제")
+        self.reference_clear_button.clicked.connect(self._clear_reference_source)
+        reference_layout.addWidget(self.reference_clear_button)
+        self.sample_download_button = QPushButton("가상 샘플 Excel 다운로드...")
+        self.sample_download_button.clicked.connect(self._download_reference_sample)
+        reference_layout.addWidget(self.sample_download_button)
         reference_group.setLayout(reference_layout)
         layout.addWidget(reference_group)
+        raster_group = QGroupBox("출현 확률 TIFF (선택 사항)")
+        raster_layout = QVBoxLayout(raster_group)
+        raster_note = QLabel(
+            "로컬 폴더에서 bce_inverse_corrected_probability_국명.tif 파일을 읽습니다. "
+            "단일 밴드, 동일 격자·좌표계·자료형, NoData=-9999가 필요합니다. "
+            "선택하지 않으면 출현 확률 조회를 생략합니다."
+        )
+        raster_note.setWordWrap(True)
+        raster_layout.addWidget(raster_note)
+        self.probability_source_path_edit = QLineEdit()
+        self.probability_source_path_edit.setReadOnly(True)
+        self.probability_source_path_edit.setPlaceholderText("선택한 TIFF 폴더 없음")
+        raster_layout.addWidget(self.probability_source_path_edit)
+        self.probability_browse_button = QPushButton("로컬 TIFF 폴더 선택...")
+        self.probability_browse_button.clicked.connect(self._browse_probability_source)
+        raster_layout.addWidget(self.probability_browse_button)
+        self.probability_clear_button = QPushButton("TIFF 폴더 선택 해제")
+        self.probability_clear_button.clicked.connect(self.probability_source_path_edit.clear)
+        raster_layout.addWidget(self.probability_clear_button)
+        layout.addWidget(raster_group)
         _install_page_scroll_container(self, layout)
         self.reference_source_preview.setFixedHeight(40)
 
@@ -1896,7 +1925,6 @@ class IdentificationTogglePage(QWizardPage):
         # below so this only ever runs at the point of actual page navigation.
 
     def initializePage(self) -> None:
-        self._refresh_reference_candidates()
         self._load_remembered_plantnet_key()
 
     def nextId(self) -> int:  # noqa: N802 - Qt API name.
@@ -1906,40 +1934,50 @@ class IdentificationTogglePage(QWizardPage):
         return super().nextId()
 
     def isComplete(self) -> bool:
-        # A source preview is informative only. New Type 1–3 projects must explicitly confirm
-        # the selected workbook before the wizard can reach build; Type 4 does not consume the
-        # taxonomy reference and therefore keeps the existing navigation behavior.
-        wizard = self.wizard()
-        if wizard is None or str(wizard.field("survey_type") or "") == "vegetation_mapping":
-            return True
-        return self._confirmed_reference_source is not None
+        return (
+            not self.reference_source_path_edit.text()
+            or self._confirmed_reference_source is not None
+        )
 
-    def _refresh_reference_candidates(self) -> None:
-        # The packaging spec places the canonical workbook at the bundle root's
-        # storage/reference/tables path; source and packaged execution therefore use the same
-        # resolver rather than treating reference data as a resources/ child.
-        tables_dir = reference_path("tables")
-        result = canonical_reference.inspect_ktsn_source_candidates(str(tables_dir))
-        self.reference_source_preview.clear()
-        self._reference_candidates.clear()
+    def _clear_reference_source(self) -> None:
+        self.reference_source_path_edit.clear()
+        self._confirmed_reference_source = None
         self._selected_reference_candidate = None
-        for candidate in result.get("candidates", []):
-            candidate = dict(candidate)
-            candidate.setdefault("source_kind", "bundled_candidate")
-            candidate_key = f"bundled_candidate:{candidate.get('path') or candidate['filename']}"
-            self.reference_source_preview.addItem(candidate.get("filename") or "이름 없음")
-            item = self.reference_source_preview.item(self.reference_source_preview.count() - 1)
-            item.setData(Qt.ItemDataRole.UserRole, candidate_key)
-            # Discovery supplies the actual path and source kind. Keep both together so NFC/NFD
-            # filename display normalization cannot change which candidate is confirmed.
-            if candidate.get("path"):
-                self._reference_candidates[candidate_key] = candidate
-        if result.get("recommended_filename"):
-            self.reference_source_status_label.setText(
-                f"추천 후보: {result['recommended_filename']} (미리보기 확인 후 직접 선택하고 확인하세요.)"
-            )
-        elif result.get("error_message"):
-            self.reference_source_status_label.setText(result["error_message"])
+        self._reference_candidates.clear()
+        self.reference_source_preview.clear()
+        self.reference_sheet_preview.clear()
+        self.reference_sheet_preview.setVisible(False)
+        self.reference_sheet_preview_label.setVisible(False)
+        self.reference_source_status_label.setText(
+            "참조 자료 없음: 국명·학명·KTSN을 직접 입력합니다."
+        )
+        self.completeChanged.emit()
+
+    def _download_reference_sample(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self, "가상 참조 자료 샘플 저장", "taxonomy_sample.xlsx", "Excel workbook (*.xlsx)"
+        )
+        if not path:
+            return
+        if not path.lower().endswith(".xlsx"):
+            path += ".xlsx"
+        try:
+            shutil.copyfile(resource_path("samples", "taxonomy_sample.xlsx"), path)
+        except OSError as exc:
+            QMessageBox.warning(self, "샘플 저장 실패", f"샘플 파일을 저장할 수 없습니다: {exc}")
+            return
+        self.reference_source_status_label.setText(
+            "가상 샘플을 저장했습니다. 안내 시트에서 입력 규칙을 확인하세요. "
+            "샘플은 자동으로 프로젝트에 적용되지 않습니다."
+        )
+
+    def _browse_probability_source(self) -> None:
+        path = QFileDialog.getExistingDirectory(self, "출현 확률 TIFF 폴더 선택")
+        if path:
+            self.probability_source_path_edit.setText(path)
+
+    def probability_reference_config(self) -> str | None:
+        return self.probability_source_path_edit.text().strip() or None
 
     def _select_reference_candidate(self, item) -> None:
         candidate_key = item.data(Qt.ItemDataRole.UserRole)
@@ -2061,7 +2099,7 @@ class IdentificationTogglePage(QWizardPage):
         if self.isComplete():
             return True
         self.reference_source_status_label.setText(
-            "계속하려면 유효한 .xlsx 참조 자료를 선택하고 미리보기 확인 버튼을 누르세요."
+            "선택한 .xlsx의 미리보기를 확인하거나 참조 자료 선택을 해제하세요."
         )
         return False
 
@@ -2470,8 +2508,10 @@ class ReviewAndBuildPage(QWizardPage):
                     f"참조 자료 검증 상태: {'유효' if validation_status == 'valid' else validation_status}",
                 ]
             )
-        elif survey_type_value != "vegetation_mapping":
-            summary_lines.append("참조 자료 파일명/종류/검증 상태: 아직 확인되지 않음")
+        else:
+            summary_lines.append("식물 분류 참조 자료: 없음 (직접 입력)")
+        probability_source = wizard.page(4).probability_reference_config()
+        summary_lines.append(f"출현 확률 TIFF 폴더: {probability_source or '없음'}")
         if wizard.field("basemap_mode") == "online" and wizard.field("consent_accepted"):
             summary_lines.append(
                 "경고: 생성되는 .qgs 프로젝트 파일에 VWorld API 키가 포함됩니다. 프로젝트 "
@@ -2578,15 +2618,15 @@ class ReviewAndBuildPage(QWizardPage):
                 "remember_key": bool(wizard.field("plantnet_remember_key")),
             }
 
-        # D-95 source confirmation is an additive config surface. Keep it absent for untouched
-        # legacy/unit-test wizard instances; the build backend then performs its own canonical
-        # candidate resolution. Once the user explicitly confirms a candidate/upload, carry the
-        # captured hash so a mutation during build is rejected fail-closed.
+        # Only explicit, confirmed local selections enter the build config.
         reference_source = wizard.page(4).canonical_reference_config()
         if reference_source:
             config["canonical_reference_path"] = reference_source["path"]
             config["canonical_source_kind"] = reference_source["source_kind"]
             config["canonical_reference_sha256"] = reference_source["sha256"]
+        probability_source = wizard.page(4).probability_reference_config()
+        if probability_source:
+            config["probability_raster_source_dir"] = probability_source
 
         # FR-QPB-120/FR-QPB-121/FR-QPB-123 (Decision Log D-61/D-65): Step 6's symbol-styling
         # choice. `symbol_styling` is only ever added when the user both chose Tabler-icon mode
@@ -2986,12 +3026,6 @@ class ProjectBuilderWizard(QWizard):
         target.raise_()
         self._direct_page_for_programmatic_navigation = target
         self._prepare_programmatic_preview_buttons(page_id)
-
-        # Layout tests need the same bounded canonical preview that a real page entry would
-        # discover, but must not trigger a modal remembered-key prompt merely to inspect geometry.
-        refresh_candidates = getattr(target, "_refresh_reference_candidates", None)
-        if callable(refresh_candidates):
-            refresh_candidates()
 
     def currentPage(self) -> QWizardPage | None:  # noqa: N802 - Qt API name.
         if self._direct_page_for_programmatic_navigation is not None:

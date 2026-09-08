@@ -16,18 +16,25 @@ python3 -m venv .venv
 
 ## Reference data
 
-The canonical workbook candidate is tracked under `packaging/reference_source/tables/`.
-The local independent copy in `storage/reference/` contains the workbook, probability rasters
-and derived caches. Large datasets remain excluded from Git. When cloning elsewhere, supply
-the approved rasters under `storage/reference/rasters/bce_inverse_corrected_probability_maps/`
-and copy the canonical workbook to `storage/reference/tables/`.
+Reference data is optional. A fresh clone can run and package the app with no `storage/`
+folder and no private Excel/TIFF files. In wizard step 5:
 
-Packaged apps include only the merged multiband probability TIFF and its band index, not the
-individual source TIFFs. Source TIFFs remain local build inputs and are not deleted. The packaged
-cache is checked against its TIFF hash, band metadata and source inventory; a missing or damaged
-cache requires reinstalling/rebuilding the app, not downloading individual TIFFs at runtime.
-New multiband TIFFs use lossless DEFLATE compression without changing probability values,
-NoData, band mapping or spatial metadata.
+- Choose a local taxonomy `.xlsx`, inspect its preview, then confirm it. Without a workbook,
+  species fields remain editable and Pl@ntNet displays scientific-name candidates without KTSN
+  matching. A selected invalid/changed file stops generation; it is never silently ignored.
+- Download `taxonomy_sample.xlsx` for the expected 23-column, two-header-row `Data Sheet`
+  layout. Its three rows (two accepted names and one synonym) are fictional, clearly labeled in
+  the `안내` sheet, and are never automatically used in a project.
+- Optionally choose a local probability TIFF folder. Files must be named
+  `bce_inverse_corrected_probability_<Korean name>.tif`, single-band, share grid/CRS/data type,
+  and use NoData `-9999`. Selected sources are validated and merged into a portable multiband
+  TIFF inside the generated project. No source folder or old `storage` cache is modified.
+  Without TIFFs, generation and photo identification work without occurrence probabilities.
+
+The full `Rpt_2026-08-29_List.xlsx` and probability maps are user-owned local inputs, excluded
+from the app and Git. Existing local files can be selected at their current locations. Existing
+QField projects keep their embedded lookup tables and rasters. New projects carry only the
+selected workbook's derived tables/provenance and the selected raster stack, not the raw workbook.
 
 ## Build on macOS or Windows
 
@@ -37,21 +44,10 @@ Use the current operating system's Python environment, with `.[ui,dev,packaging]
 python packaging/build_app.py
 ```
 
-Every build creates a fresh temporary reference tree under `build/`, regenerates the multiband
-TIFF, band index, hash and source manifest from the current input TIFFs, and validates them before
-running PyInstaller. Updated pixel values and species additions/removals are supported; corrupt
-or incompatible source rasters stop the build before packaging. Do not edit source files while
-a build is running. No old cache in `storage/reference` or copied build directory is reused.
-Only the new validated tree is passed to PyInstaller, using a fresh work directory and `--clean`.
-The finished app's bundled reference data and runtime are checked too. Temporary build copies
-are removed afterward; original TIFFs and existing development caches are not modified.
-
-The spec intentionally refuses a direct build without an explicitly prepared reference root,
-and validates that root before analysis even when `QPB_FILTERED_REFERENCE_ROOT` is supplied.
-Use the shared build command rather than manually pointing it at an old cache.
-`QPB_REFERENCE_RASTER_DIR` and `QPB_CANONICAL_REFERENCE_SOURCE` may override input locations;
-the canonical workbook remains subject to its source manifest validation, independently of TIFF
-updates. Missing original TIFFs are an error, not a reason to reuse a previous cache.
+Packaging uses a fresh PyInstaller work directory and `--clean`, then checks the finished
+app's runtime. It requires no reference-data preparation, datasets or `QPB_*` source overrides.
+`packaging/prepare_reference_bundle.py` remains a development utility for explicit legacy
+reference fixtures, outside the app packaging path.
 
 On Windows, create a native environment instead of using a copied macOS `.venv`:
 

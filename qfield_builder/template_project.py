@@ -165,6 +165,7 @@ def build_qgis_project(
                             survey_type, table_name, project_crs
                         ),
                         canonical_reference_enabled=bool(taxonomy_id),
+                        taxonomy_reference_available=bool(ktsn_lookup_table_name),
                         canonical_layer_id=taxonomy_id,
                         canonical_runtime_lookup_resource=canonical_runtime_lookup_resource,
                         candidate_selection_enabled=table_name != "community",
@@ -191,7 +192,7 @@ def build_qgis_project(
         _add_raster(
             root,
             "online",
-            f"type=xyz&url={url}&zmin=0&zmax=19",
+            f"type=xyz&url={url}&zmin={6 if name == 'Satellite' else 0}&zmax=19",
             f"VWorld {name} (online)",
             "Basemap",
         )

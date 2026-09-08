@@ -13,7 +13,7 @@ def test_distribution_command_bundle_and_version_are_independent():
     project = (root / "pyproject.toml").read_text()
     assert 'name = "fieldbuild-standalone"' in project
     assert f'version = "{__version__}"' in project
-    assert __version__ == "0.1.0"
+    assert f'APP_VERSION = "{__version__}"' in (root / "packaging/qfield_builder.spec").read_text()
     assert 'fieldbuild-standalone = "qfield_builder.ui.app:main"' in project
     assert wizard.APP_DISPLAY_NAME == "FieldBuild Standalone"
     spec = (root / "packaging/qfield_builder.spec").read_text()

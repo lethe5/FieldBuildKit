@@ -68,10 +68,9 @@ _REFERENCE_DATA_VALID_SAMPLE_DIR = (
 )
 _CANONICAL_REFERENCE_WORKBOOK_PATH = (
     Path(__file__).resolve().parents[2]
-    / "packaging"
-    / "reference_source"
-    / "tables"
-    / "Rpt_2026-08-29_List.xlsx"
+    / "resources"
+    / "samples"
+    / "taxonomy_sample.xlsx"
 )
 
 
@@ -1874,7 +1873,7 @@ def test_identification_intro_uses_current_survey_plot_geometry_for_probability(
     )
 
     assert "현재 조사/조사구 geometry" in intro_text
-    assert "위치를 사용할 수 없으면 사진 식별은 계속" in intro_text
+    assert "위치나 TIFF가 없으면 사진 식별은 계속" in intro_text
     assert "위치 기반 출현 확률 조회는 건너뜁니다" in intro_text
     assert "GPS" not in intro_text
 

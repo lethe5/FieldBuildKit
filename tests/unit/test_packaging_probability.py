@@ -1,10 +1,10 @@
-"""Only the merged probability cache belongs in the app, not the build-input TIFFs."""
+"""No private reference datasets belong in the app."""
 
 import ast
 from pathlib import Path
 
 
-def test_spec_packages_probability_cache_without_source_rasters():
+def test_spec_packages_no_reference_datasets():
     spec = Path(__file__).resolve().parents[2] / "packaging" / "qfield_builder.spec"
     tree = ast.parse(spec.read_text(encoding="utf-8"))
     destinations = {
@@ -14,5 +14,4 @@ def test_spec_packages_probability_cache_without_source_rasters():
         and isinstance(node.elts[1], ast.Constant)
         and isinstance(node.elts[1].value, str)
     }
-    assert "storage/reference/probability_cache" in destinations
-    assert not any(path.startswith("storage/reference/rasters") for path in destinations)
+    assert not any(path.startswith("storage/") for path in destinations)

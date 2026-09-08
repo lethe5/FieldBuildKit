@@ -7,15 +7,18 @@ the existing feature-save seam. Pure ingestion, matching, report, and wizard che
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
 
 from .conftest import REFERENCE_DATA_VALID_SAMPLE_DIR, REPO_ROOT, make_base_config, open_gpkg, user_tables
 
-pytestmark = pytest.mark.qgis
-
-CANONICAL = REPO_ROOT / "storage" / "reference" / "tables" / "Rpt_2026-08-29_List.xlsx"
+PRIVATE_WORKBOOK = os.environ.get("QPB_PRIVATE_REFERENCE_WORKBOOK")
+pytestmark = [pytest.mark.qgis, pytest.mark.skipif(
+    not PRIVATE_WORKBOOK, reason="optional historical dataset: set QPB_PRIVATE_REFERENCE_WORKBOOK"
+)]
+CANONICAL = Path(PRIVATE_WORKBOOK or "__private_workbook_not_supplied__.xlsx")
 OLD_SOURCE_NAMES = {
     "tb_leco_nib_ktsn_dtl_gat.csv",
     "2025년 국가생물종목록_v1.0.xlsx",
@@ -39,7 +42,7 @@ def _build_canonical(acceptance_api, tmp_path: Path, survey_type: str = "simple_
     config["identification_enabled"] = False
     # The test override points at the real scaffold root; D-95 requires the workbook under its
     # exact canonical path and does not authorize selecting either legacy source instead.
-    config["_test_reference_data_dir"] = str(REPO_ROOT / "storage" / "reference")
+    config["canonical_reference_path"] = str(CANONICAL)
     return acceptance_api.build_project(config, str(tmp_path / survey_type))
 
 

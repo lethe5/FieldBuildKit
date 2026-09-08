@@ -12,3 +12,19 @@ Use repository quality checks appropriate to the requested changes.
   - `packaging/qfield_builder.spec`: `APP_VERSION`
 - Verify that these three values match and report the old and new versions in the completion summary. Any distributed build must be built from the updated version declarations.
 - A version bump does not itself authorize a commit, push, tag, or GitHub release; perform those only when requested.
+
+## QField runtime verification
+
+- For changes affecting generated projects, the agent must open newly generated projects in
+  `/Applications/qfield.app` on macOS and exercise the affected forms, edits, save/reopen,
+  project plugin and relevant layers. On Windows use the installed QField desktop application.
+- Do not delegate routine manual testing to the user or mark static XML/unit checks as a QField
+  runtime pass. Record the QField version, scenarios exercised, evidence and any concrete blocker.
+  Desktop verification does not establish iOS/Android compatibility.
+- Verify optional inputs both omitted and supplied, using small synthetic fixtures; test a
+  relocated generated folder to catch absolute source-path dependencies.
+- For live Pl@ntNet/VWorld checks, use the application's existing encrypted credential store.
+  Ask the user to unlock it directly in the app when needed; never request secrets in chat,
+  print keys, log request URLs containing keys, commit credentials, or bypass encryption.
+  Use a temporary test project and report actual API outcomes separately from mocked tests.
+  Keep automated unit tests isolated from real credentials and external services.

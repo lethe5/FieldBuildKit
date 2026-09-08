@@ -38,10 +38,9 @@ _REFERENCE_DATA_VALID_SAMPLE_DIR = (
 )
 _CANONICAL_REFERENCE_WORKBOOK_PATH = (
     Path(__file__).resolve().parents[2]
-    / "packaging"
-    / "reference_source"
-    / "tables"
-    / "Rpt_2026-08-29_List.xlsx"
+    / "resources"
+    / "samples"
+    / "taxonomy_sample.xlsx"
 )
 
 SITE_WKT = "MULTIPOLYGON(((127.00 37.00, 127.01 37.00, 127.01 37.01, 127.00 37.01, 127.00 37.00)))"
@@ -185,7 +184,7 @@ def test_successful_build_produces_expected_artifacts(tmp_path, survey_type):
 
 def test_type4_identification_bundles_and_registers_the_probability_stack(tmp_path, monkeypatch):
     """The display-only Type 4 widget still needs a stack to sample at its polygon centroid."""
-    def fake_build_probability_stack(_source_dir, project_dir, cache_dir):
+    def fake_build_probability_stack(_source_dir, project_dir, cache_dir=None):
         del cache_dir
         stack = Path(project_dir) / "reference/rasters/occurrence_probability_multiband.tif"
         index = Path(project_dir) / "reference/rasters/occurrence_probability_bands.json"
@@ -199,6 +198,7 @@ def test_type4_identification_bundles_and_registers_the_probability_stack(tmp_pa
     )
     config = _base_config("vegetation_mapping")
     config["identification_enabled"] = True
+    config["probability_raster_source_dir"] = str(_REFERENCE_DATA_VALID_SAMPLE_DIR)
     out_dir = tmp_path / "out"
 
     result = build_module.build_project(config, str(out_dir))

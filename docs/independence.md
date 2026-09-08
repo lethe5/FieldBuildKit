@@ -22,9 +22,9 @@ QField Project Builder. First launch establishes its own password and remembered
 
 The local reference raster collection, filtered lookup data and probability cache were copied
 as independent regular files into `storage/reference`; no hard links or source-repository
-dependencies are used. Reference data remains excluded from Git. The canonical workbook
-candidate and its hash manifest remain tracked in `packaging/reference_source`.
-A fresh clone on another computer must provision the raster collection before packaging.
+dependencies are used. From 0.2.0 these files are optional project inputs and remain excluded from Git.
+The full canonical workbook and its pinned manifest are no longer tracked or packaged.
+A fresh clone can run and package the app without provisioning any reference data.
 No user uploads, generated survey projects, real .env files, credentials, virtual environment
 or old build outputs were imported.
 

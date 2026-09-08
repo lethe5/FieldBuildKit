@@ -8,18 +8,20 @@ temporary workbooks are used only for invalid-input and upload-fallback cases.
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 import pytest
 
-from qfield_builder import qml_plugin, resource_paths
+from qfield_builder import qml_plugin
 
 from .conftest import REPO_ROOT, make_base_config
 
-CANONICAL_TABLES = REPO_ROOT / "storage" / "reference" / "tables"
-CANONICAL_XLSX = CANONICAL_TABLES / "Rpt_2026-08-29_List.xlsx"
-LEGACY_CSV = CANONICAL_TABLES / "tb_leco_nib_ktsn_dtl_gat.csv"
-LEGACY_XLSX = CANONICAL_TABLES / "2025년 국가생물종목록_v1.0.xlsx"
+PRIVATE_WORKBOOK = os.environ.get("QPB_PRIVATE_REFERENCE_WORKBOOK")
+CANONICAL_XLSX = Path(PRIVATE_WORKBOOK or "__private_workbook_not_supplied__.xlsx")
+private_workbook = pytest.mark.skipif(
+    not PRIVATE_WORKBOOK, reason="optional historical dataset: set QPB_PRIVATE_REFERENCE_WORKBOOK"
+)
 
 CANONICAL_SHA256 = "2a7d81c7b032851ed1e260f08607296bc11519f6fa50a4909649269ab693c963"
 SOURCE_COLUMNS = (
@@ -152,6 +154,7 @@ def _valid_rows() -> list[list[object]]:
     ]
 
 
+@private_workbook
 def test_ac137_real_workbook_header_counts_samples_and_synonym_grouping(ingest_canonical_workbook):
     result = ingest_canonical_workbook(str(CANONICAL_XLSX), source_kind="bundled_candidate")
     assert result["success"] is True, result
@@ -186,19 +189,26 @@ def test_ac137_real_workbook_header_counts_samples_and_synonym_grouping(ingest_c
 
 
 def test_ac138_candidate_search_recommends_canonical_without_silent_selection(
-    inspect_source_candidates,
+    inspect_source_candidates, tmp_path,
 ):
-    result = inspect_source_candidates(str(CANONICAL_TABLES))
-    assert result["recommended_filename"] == CANONICAL_XLSX.name
+    tables = tmp_path / "tables"
+    canonical_path = _write_workbook(tables / "Rpt_2026-08-29_List.xlsx", _valid_rows())
+    legacy_path = tables / "2025년 국가생물종목록_v1.0.xlsx"
+    from openpyxl import Workbook
+    Workbook().save(legacy_path)
+    legacy_csv = tables / "tb_leco_nib_ktsn_dtl_gat.csv"
+    legacy_csv.write_text("legacy")
+    result = inspect_source_candidates(str(tables))
+    assert result["recommended_filename"] == canonical_path.name
     candidates = {entry["filename"]: entry for entry in result["candidates"]}
-    assert CANONICAL_XLSX.name in candidates
-    assert LEGACY_XLSX.name in candidates
+    assert canonical_path.name in candidates
+    assert legacy_path.name in candidates
     assert all(entry["extension"] == ".xlsx" for entry in result["candidates"])
-    assert LEGACY_CSV.name not in candidates
+    assert legacy_csv.name not in candidates
 
-    canonical = candidates[CANONICAL_XLSX.name]
+    canonical = candidates[canonical_path.name]
     assert canonical["source_kind"] == "bundled_candidate"
-    assert Path(canonical["path"]).resolve() == CANONICAL_XLSX.resolve()
+    assert Path(canonical["path"]).resolve() == canonical_path.resolve()
     assert canonical["sheet_name"] == "Data Sheet"
     assert canonical["header_rows"] == [1, 2]
     assert canonical["sample_rows"]
@@ -209,14 +219,14 @@ def test_ac138_candidate_search_recommends_canonical_without_silent_selection(
     assert result["can_continue"] is False
 
     confirmed = inspect_source_candidates(
-        str(CANONICAL_TABLES), confirmed_path=str(CANONICAL_XLSX)
+        str(tables), confirmed_path=str(canonical_path)
     )
-    assert confirmed["selected"]["filename"] == CANONICAL_XLSX.name
+    assert confirmed["selected"]["filename"] == canonical_path.name
     assert confirmed["selected"]["validation_status"] == "valid"
     assert confirmed["can_continue"] is True
 
     legacy_confirmed = inspect_source_candidates(
-        str(CANONICAL_TABLES), confirmed_path=str(LEGACY_XLSX)
+        str(tables), confirmed_path=str(legacy_path)
     )
     assert legacy_confirmed["can_continue"] is False
     assert legacy_confirmed["selected"] is None or legacy_confirmed["selected"][
@@ -383,6 +393,7 @@ def test_ac139_invalid_prefix_or_empty_ktsn_is_rejected(extract_canonical_ktsn, 
         extract_canonical_ktsn(url)
 
 
+@private_workbook
 def test_ac140_rows_materialize_all_rank_fields_and_preserve_blank_hierarchy(
     ingest_canonical_workbook,
 ):
@@ -400,6 +411,7 @@ def test_ac140_rows_materialize_all_rank_fields_and_preserve_blank_hierarchy(
     assert sparse["genus_korean_name"] is None
 
 
+@private_workbook
 def test_ac141_provenance_is_hash_schema_and_pipeline_identity_not_dataset_version(
     ingest_canonical_workbook,
 ):
@@ -424,6 +436,7 @@ def test_ac141_provenance_is_hash_schema_and_pipeline_identity_not_dataset_versi
         assert row_payload_key not in provenance
 
 
+@private_workbook
 def test_ac142_synonym_matching_resolves_to_accepted_row_but_retains_raw_authority_name(
     ingest_canonical_workbook, match_canonical_name
 ):
@@ -531,22 +544,13 @@ def test_ac144_canonical_generated_plugin_fails_closed_without_source_fallback()
     assert "if (!ktsnMatch) { if (!csv)" not in handler
 
 
-def test_ac145_release_datas_and_runtime_candidate_path_share_storage_boundary(
-    inspect_source_candidates,
-):
-    packaging_spec = (REPO_ROOT / "packaging" / "qfield_builder.spec").read_text(encoding="utf-8")
-    wizard_source = (REPO_ROOT / "qfield_builder" / "ui" / "wizard.py").read_text(encoding="utf-8")
-    assert '(str(CANONICAL_REFERENCE_SOURCE), "storage/reference/tables")' in packaging_spec
-    assert "tb_leco_nib_ktsn_dtl_gat.csv" not in packaging_spec
-    assert "2025년 국가생물종목록_v1.0.xlsx" not in packaging_spec
-    assert 'reference_path("tables")' in wizard_source
-    assert resource_paths.reference_path("tables") == CANONICAL_TABLES
-    result = inspect_source_candidates(str(resource_paths.reference_path("tables")))
-    bundled = next(
-        candidate for candidate in result["candidates"] if candidate["filename"] == CANONICAL_XLSX.name
-    )
-    assert bundled["source_kind"] == "bundled_candidate"
-    assert Path(bundled["path"]).resolve() == CANONICAL_XLSX.resolve()
+def test_ac145_packaging_and_wizard_do_not_discover_storage_sources():
+    packaging_spec = (REPO_ROOT / "packaging/qfield_builder.spec").read_text(encoding="utf-8")
+    wizard_source = (REPO_ROOT / "qfield_builder/ui/wizard.py").read_text(encoding="utf-8")
+    assert "storage/reference" not in packaging_spec
+    assert 'reference_path("tables")' not in wizard_source
+    assert "taxonomy_sample.xlsx" in wizard_source
+    assert "_browse_reference_source" in wizard_source
 
 
 def test_ac138_wizard_upload_candidate_keeps_user_upload_provenance_explicit():

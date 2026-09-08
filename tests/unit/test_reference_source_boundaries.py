@@ -52,9 +52,8 @@ def test_normal_build_does_not_downgrade_to_legacy_sources(tmp_path, monkeypatch
 
     result = build_module.build_project(_minimal_config(), str(tmp_path / "output"))
 
-    assert result["success"] is False
-    assert result["error_code"] == "reference_data_missing"
-    assert "legacy" in result["error_message"]
+    assert result["success"] is True
+    assert result["ktsn_lookup_table_name"] is None
 
 
 def test_test_reference_override_also_requires_explicit_compatibility_mode(tmp_path, monkeypatch):
@@ -73,9 +72,8 @@ def test_test_reference_override_also_requires_explicit_compatibility_mode(tmp_p
         _minimal_config(_test_reference_data_dir=str(legacy_root)), str(tmp_path / "output")
     )
 
-    assert result["success"] is False
-    assert result["error_code"] == "reference_data_missing"
-    assert "legacy CSV" in result["error_message"]
+    assert result["success"] is True
+    assert result["ktsn_lookup_table_name"] is None
 
 
 def test_missing_explicit_canonical_path_never_falls_back_even_in_compatibility_mode(
@@ -116,20 +114,21 @@ def test_explicit_legacy_compatibility_predicate_is_narrow():
     )
 
 
-def test_tracked_canonical_candidate_matches_pinned_release_manifest():
-    repo_root = Path(__file__).resolve().parents[2]
-    workbook = repo_root / "packaging" / "reference_source" / "tables" / "Rpt_2026-08-29_List.xlsx"
-    manifest = repo_root / "packaging" / "reference_source" / "canonical_source_manifest.json"
+def test_only_fictional_workbook_is_distributed():
+    from qfield_builder.canonical_reference import ingest_canonical_workbook
 
-    result = reference_bundle.validate_canonical_release_source(workbook, manifest)
-
-    assert result["path"] == str(workbook)
-    assert result["sha256"]
+    root = Path(__file__).resolve().parents[2]
+    workbook = root / "resources/samples/taxonomy_sample.xlsx"
+    result = ingest_canonical_workbook(str(workbook))
+    assert result["success"]
+    assert result["row_count"] == 3
+    assert all(row["ktsn"].startswith("sample-") for row in result["rows"])
+    assert not (root / "packaging/reference_source/tables/Rpt_2026-08-29_List.xlsx").exists()
 
 
 def test_release_staging_materializes_canonical_outputs_without_workbook_copy(tmp_path):
     repo_root = Path(__file__).resolve().parents[2]
-    workbook = repo_root / "packaging" / "reference_source" / "tables" / "Rpt_2026-08-29_List.xlsx"
+    workbook = repo_root / "resources/samples/taxonomy_sample.xlsx"
     raster_dir = tmp_path / "provisioned-rasters"
     raster_dir.mkdir()
     (raster_dir / "example.tif").write_bytes(b"test-raster")
@@ -160,7 +159,6 @@ def test_release_entry_points_have_no_legacy_source_dependency():
     for text in (script, prepare, release_body):
         assert "tb_leco_nib_ktsn_dtl_gat.csv" not in text
         assert "2025년 국가생물종목록_v1.0.xlsx" not in text
-    assert "--canonical-workbook" in script
-    assert "--raster-dir" in script
-    assert "canonical_source_manifest.json" in script
+    assert "packaging/build_app.py" in script
+    assert "--canonical-workbook" not in script
     assert "--source \"" not in script

@@ -68,10 +68,11 @@ def test_candidate_write_back_preserves_three_identity_values_but_manual_path_is
     assert "if (!isCandidateSelection &&" in apply_source
 
 
-def test_release_packaging_entry_points_name_only_the_canonical_workbook():
+def test_release_packaging_entry_points_do_not_require_private_workbooks():
     script = open("packaging/build_macos_app.sh", encoding="utf-8").read()
     bundle_source = open("qfield_builder/reference_bundle.py", encoding="utf-8").read()
-    assert "Rpt_2026-08-29_List.xlsx" in script
+    assert "Rpt_2026-08-29_List.xlsx" not in script
+    assert "packaging/build_app.py" in script
     release_body = bundle_source.split("def prepare_filtered_reference_bundle", 1)[1].split(
         "def _extract_ktsn_lookup_csv", 1
     )[0]

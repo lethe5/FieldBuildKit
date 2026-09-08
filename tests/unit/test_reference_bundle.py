@@ -403,8 +403,9 @@ def test_prepare_filtered_bundle_canonicalizes_empty_correct_list_and_records_pr
     tmp_path, monkeypatch
 ):
     monkeypatch.setattr(rb, "FILTERED_EXPECTED_KTSN_ROWS", 1)
-    source = Path(__file__).resolve().parents[2] / "packaging" / "reference_source"
-    canonical_workbook = source / "tables" / "Rpt_2026-08-29_List.xlsx"
+    canonical_workbook = (
+        Path(__file__).resolve().parents[2] / "resources/samples/taxonomy_sample.xlsx"
+    )
     raster_dir = tmp_path / "provisioned-rasters"
     raster_dir.mkdir()
     (raster_dir / "bce_inverse_corrected_probability_테스트종.tif").write_bytes(b"tif")

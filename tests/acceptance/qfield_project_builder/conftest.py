@@ -924,7 +924,7 @@ REFERENCE_DATA_VALID_SAMPLE_DIR = POST_MVP_FIXTURES_DIR / "reference_data_valid_
 # `REFERENCE_DATA_VALID_SAMPLE_DIR` because the canonical release source deliberately stores the
 # workbook separately from the large probability-raster set.
 CANONICAL_REFERENCE_WORKBOOK_PATH = (
-    REPO_ROOT / "packaging" / "reference_source" / "tables" / "Rpt_2026-08-29_List.xlsx"
+    REPO_ROOT / "resources" / "samples" / "taxonomy_sample.xlsx"
 )
 
 # A reference-data directory whose CSV is missing required columns (`taxon_jm_nm`, `correct_list`)

@@ -94,36 +94,10 @@ def reference(tmp_path):
 @pytest.mark.parametrize("survey_type", schemas.SURVEY_TYPES)
 @pytest.mark.parametrize("mode", ["none", "online", "offline"])
 @pytest.mark.parametrize("identification", [False, True])
-@pytest.mark.parametrize("cache_only", [False, True])
 def test_build_and_relocate_without_qgis(
-    tmp_path, monkeypatch, reference, survey_type, mode, identification, cache_only
+    tmp_path, monkeypatch, reference, survey_type, mode, identification
 ):
     raster_sources = reference / RASTERS
-    if cache_only:
-        shutil.copyfile(
-            raster_sources / "bce_inverse_corrected_probability_소나무.tif",
-            raster_sources / "bce_inverse_corrected_richness_5km_uncalibrated.tif",
-        )
-        packaged = tmp_path / "packaged-reference"
-        reference_bundle.prepare_filtered_reference_bundle(
-            reference / "canonical.xlsx", packaged, raster_dir=raster_sources
-        )
-        result = probability_raster.prepare_probability_stack_cache(
-            str(raster_sources), str(packaged / "probability_cache")
-        )
-        assert result["success"], result
-        shutil.copyfile(reference / "canonical.xlsx", packaged / "canonical.xlsx")
-        shutil.move(str(packaged / "rasters"), str(tmp_path / "build-input-rasters"))
-        reference = packaged
-        assert reference_bundle.validate_filtered_reference_data(reference)[0].is_file()
-
-        def forbidden_rebuild(*args, **kwargs):
-            raise AssertionError("Packaged projects must not rebuild source TIFFs")
-
-        from qfield_builder import standalone_gis
-
-        monkeypatch.setattr(standalone_gis, "_build_probability_stack_gdal", forbidden_rebuild)
-
     with MemoryFile() as image:
         with image.open(driver="PNG", width=256, height=256, count=3, dtype="uint8") as raster:
             raster.write(np.full((3, 256, 256), 255, dtype="uint8"))
@@ -135,6 +109,7 @@ def test_build_and_relocate_without_qgis(
         "canonical_reference_path": str(reference / "canonical.xlsx"),
         "_test_reference_data_dir": str(reference),
         "identification_enabled": identification,
+        "probability_raster_source_dir": str(raster_sources) if identification else None,
         "plantnet": {"consent_accepted": True, "api_key": "plant<&\"'key"},
         "basemap": {
             "mode": mode,
@@ -359,7 +334,7 @@ def test_release_preparation_rebuilds_cache_from_updated_sources(tmp_path, refer
 
 
 @pytest.mark.parametrize("damage", ["missing_hash", "wrong_hash"])
-def test_spec_rejects_legacy_cache_even_with_original_rasters(
+def test_spec_ignores_legacy_cache_even_with_original_rasters(
     tmp_path, reference, monkeypatch, damage
 ):
     root = Path(__file__).resolve().parents[2]
@@ -381,8 +356,9 @@ def test_spec_rejects_legacy_cache_even_with_original_rasters(
     monkeypatch.setenv("QPB_FILTERED_REFERENCE_ROOT", str(destination))
     spec = root / "packaging/qfield_builder.spec"
     prefix = spec.read_text(encoding="utf-8").split("gis_datas, gis_binaries, gis_imports =")[0]
-    with pytest.raises(SystemExit, match="build_app.py"):
-        exec(compile(prefix, str(spec), "exec"), {"SPECPATH": str(root / "packaging")})
+    scope = {"SPECPATH": str(root / "packaging")}
+    exec(compile(prefix, str(spec), "exec"), scope)
+    assert "FILTERED_REFERENCE_ROOT" not in scope
 
 
 def test_runtime_does_not_discover_qgis():

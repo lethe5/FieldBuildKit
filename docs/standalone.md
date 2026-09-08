@@ -12,7 +12,8 @@ or QGIS subprocess is used by the application build workflow.
 .venv/bin/python -m qfield_builder.ui.app
 ```
 
-The existing canonical workbook and probability raster inputs are still required. API key
+From 0.2.0, local taxonomy workbooks and probability TIFFs are optional independent inputs.
+A fresh clone and app packaging need no `storage` assets. API key
 consent, encrypted key retention, survey choices, uploads, and the generated QField plugin are
 unchanged. QField is still required on the field device.
 
@@ -35,9 +36,9 @@ not runtime fallbacks. They cannot rescue a missing or broken standalone depende
 
 ## Trial build and verification
 
-The local macOS ARM64 trial bundle is `dist/FieldBuild Standalone.app` (0.1.0).
-It is built in this independent repository. It includes the canonical reference
-workbook, probability rasters/cache and independent GIS libraries. The bundle is unsigned for
+The local macOS ARM64 trial bundle is `dist/FieldBuild Standalone.app` (0.2.0).
+It is built in this independent repository. It includes the small fictional workbook sample and independent GIS libraries; private
+workbooks, probability rasters and caches are excluded. The bundle is unsigned for
 distribution; its executable supports `--check-runtime` without opening the wizard.
 
 Standalone tests pass with QGIS and OSGeo imports forbidden. In the source branch before

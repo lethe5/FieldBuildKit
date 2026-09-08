@@ -17,7 +17,6 @@ literal, not a placeholder to fill in later without also updating the README's i
 """
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -32,29 +31,7 @@ REPO_ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 - PyInstaller-injected
 # this application's own display name, including the PyInstaller packaging configuration's own
 # bundle name.
 APP_NAME = "FieldBuild Standalone"
-APP_VERSION = "0.1.11"
-# No fallback to storage/reference: copied development caches may predate hash validation.
-if not os.environ.get("QPB_FILTERED_REFERENCE_ROOT"):
-    raise SystemExit("먼저 python packaging/build_app.py로 빌드하세요. 준비된 참조 자료가 필요합니다.")
-FILTERED_REFERENCE_ROOT = Path(os.environ["QPB_FILTERED_REFERENCE_ROOT"]).resolve()
-sys.path.insert(0, str(REPO_ROOT / "packaging"))
-from prepare_reference_bundle import validate_prepared_reference
-from qfield_builder.errors import BuildError
-
-try:
-    validate_prepared_reference(FILTERED_REFERENCE_ROOT)
-except (OSError, ValueError, BuildError) as exc:
-    raise SystemExit(
-        f"패키징할 참조 자료가 유효하지 않습니다: {exc}\n"
-        "python packaging/build_app.py로 현재 원본에서 다시 빌드하세요."
-    ) from exc
-CANONICAL_REFERENCE_SOURCE = Path(
-    os.environ.get(
-        "QPB_CANONICAL_REFERENCE_SOURCE",
-        str(REPO_ROOT / "packaging" / "reference_source" / "tables" / "Rpt_2026-08-29_List.xlsx"),
-    )
-).resolve()
-
+APP_VERSION = "0.2.0"
 gis_datas, gis_binaries, gis_imports = [], [], []
 for package in ("rasterio", "fiona"):
     package_datas, package_binaries, package_imports = collect_all(package)
@@ -77,17 +54,6 @@ a = Analysis(
     # has packaged this application's own Python modules into its own archive format).
     datas=[
         (str(REPO_ROOT / "resources"), "resources"),
-        # D-89/D-95: only the validated, build-time filtered lookup artifacts are staged. The
-        # raw tables tree is never passed to PyInstaller; the canonical workbook is the one
-        # explicit read-only candidate needed by the wizard and is never a generated-project file.
-        (str(FILTERED_REFERENCE_ROOT / "filtered"), "storage/reference/filtered"),
-        (str(FILTERED_REFERENCE_ROOT / "bundle_manifest.json"), "storage/reference"),
-        # Source TIFFs remain build inputs only. Ship the self-contained multiband cache
-        # and its band index, which also records the TIFF hash for runtime validation.
-        (str(FILTERED_REFERENCE_ROOT / "probability_cache"), "storage/reference/probability_cache"),
-        # D-95: the workbook is the canonical source discovered by the wizard at runtime. It is
-        # bundled as a read-only candidate; the workbook is never copied into generated projects.
-        (str(CANONICAL_REFERENCE_SOURCE), "storage/reference/tables"),
     ] + gis_datas + collect_data_files("qfield_builder", includes=["templates/*"]),
     hiddenimports=gis_imports,
     hookspath=[str(REPO_ROOT / "packaging" / "hooks")],

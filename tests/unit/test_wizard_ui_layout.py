@@ -403,7 +403,14 @@ def test_td_ui_qpb_005_plantnet_and_reference_group_remain_scrollable_and_distin
             ],
         },
     )
+    candidate = wizard_module.canonical_reference.inspect_ktsn_source_candidates("")["candidates"][0]
+    monkeypatch.setattr(
+        wizard_module.canonical_reference, "inspect_ktsn_source_candidates",
+        lambda *a, **k: {"upload": candidate},
+    )
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: (candidate_path, ""))
     page = _show_page(wizard, 4)
+    page._browse_reference_source()
     assert isinstance(page, IdentificationTogglePage)
     assert page.plantnet_api_key_edit.echoMode() == QLineEdit.EchoMode.Password
     page.enable_checkbox.setChecked(True)
@@ -458,7 +465,14 @@ def test_td_ui_qpb_006_excel_candidate_keyboard_activation_is_not_confirmation(w
             ]
         },
     )
+    candidate = wizard_module.canonical_reference.inspect_ktsn_source_candidates("")["candidates"][0]
+    monkeypatch.setattr(
+        wizard_module.canonical_reference, "inspect_ktsn_source_candidates",
+        lambda *a, **k: {"upload": candidate},
+    )
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: (candidate_path, ""))
     page = _show_page(wizard, 4)
+    page._browse_reference_source()
     assert isinstance(page, IdentificationTogglePage)
     preview = page.reference_source_preview
     preview.setCurrentRow(0)
@@ -466,7 +480,7 @@ def test_td_ui_qpb_006_excel_candidate_keyboard_activation_is_not_confirmation(w
     QTest.keyClick(preview, Qt.Key.Key_Enter)
     _process_layout()
     assert page.reference_source_path_edit.text() == candidate_path
-    assert page._selected_reference_candidate["source_kind"] == "bundled_candidate"
+    assert page._selected_reference_candidate["source_kind"] == "user_upload"
     assert page._confirmed_reference_source is None
 
     # Space/Enter must be available on the candidate control, while confirmation remains a

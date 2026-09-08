@@ -485,36 +485,41 @@ def build_project(
         attachments_dir.mkdir(parents=True)
 
         identification_enabled = bool(config.get("identification_enabled", False))
-        # The accepted-name lookup table is bundled for every survey type.  Type 4 reuses the
-        # same Korean-name picker for Type 4's dominant/subdominant species fields. Its widget
-        # remains display-only, but samples probability at the community polygon centroid.
+        # Taxonomy and probability sources are independent, explicit local inputs (D-98).
         is_types_1_to_3 = survey_type != "vegetation_mapping"
-        identification_probability_enabled = identification_enabled
-        requires_accepted_name_lookup = True
+        legacy_reference = _legacy_reference_compatibility_requested(config)
+        configured_canonical = (
+            config.get("canonical_reference_path")
+            or config.get("_canonical_reference_path")
+            or config.get("reference_workbook_path")
+        )
+        probability_source = (
+            config.get("probability_raster_source_dir")
+            or config.get("_test_probability_raster_source_dir")
+        )
+        identification_probability_enabled = bool(probability_source) or (
+            identification_enabled and legacy_reference
+        )
+        requires_accepted_name_lookup = bool(configured_canonical) or legacy_reference
         plantnet_config: dict | None = None
         reference_data_dir: str | None = None
         canonical_ingest: dict | None = None
         canonical_source_path: Path | None = None
         probability_band_count: int | None = None
         canonical_runtime_resource: dict | None = None
-        # FR-QPB-105 (further revised; Decision Log D-70): fail early, with a clear message,
-        # before any heavier generation work, when the reference CSV is missing or lacks required
-        # columns -- whenever *either* the identification subsystem is enabled (the original
-        # trigger) *or* a project needs its accepted-name lookup table.
-        if identification_enabled or requires_accepted_name_lookup:
-            reference_data_dir = _resolve_reference_data_dir(config)
-            reference_root = Path(reference_data_dir)
-            configured_canonical = (
-                config.get("canonical_reference_path")
-                or config.get("_canonical_reference_path")
-                or config.get("reference_workbook_path")
+        # Validate a selected workbook before generating output. No source discovery by default.
+        if requires_accepted_name_lookup:
+            reference_data_dir = (
+                _resolve_reference_data_dir(config) if legacy_reference
+                else str(Path(configured_canonical).parent)
             )
+            reference_root = Path(reference_data_dir)
             canonical_path_was_configured = bool(configured_canonical)
             canonical_source_path = Path(configured_canonical) if configured_canonical else (
                 reference_root / "tables" / canonical_reference.CANONICAL_FILENAME
             )
             canonical_source_kind = str(
-                config.get("canonical_source_kind") or "bundled_candidate"
+                config.get("canonical_source_kind") or "user_upload"
             )
             if canonical_source_kind not in canonical_reference.ALLOWED_SOURCE_KINDS:
                 allowed = ", ".join(sorted(canonical_reference.ALLOWED_SOURCE_KINDS))
@@ -538,11 +543,6 @@ def build_project(
                         canonical_ingest.get("error_message")
                         or "canonical 참조 엑셀 검증에 실패했습니다."
                     )
-                if is_types_1_to_3 or identification_enabled:
-                    try:
-                        reference_bundle.validate_probability_reference(reference_root)
-                    except BuildError:
-                        raise
             elif _legacy_reference_compatibility_requested(config):
                 # This is an explicit pre-D-95 compatibility path only.  It is never reached by
                 # the normal wizard config, and a configured-but-missing canonical candidate was
@@ -750,48 +750,28 @@ def build_project(
                 "layer": selected_layer,
             }
 
-        if identification_enabled:
-            # FR-QPB-112 (revised; Decision Log D-47): bundle the build-time-extracted, 5-column
-            # KTSN lookup file (FR-QPB-118) and the complete, unmodified probability-raster set
-            # into this project's own reference/ folder.
-            if canonical_ingest is None:
-                reference_bundle.bundle_reference_data(
-                    reference_data_dir,
-                    str(temp_project_dir),
-                    include_probability_rasters=False,
+        if identification_enabled and legacy_reference and canonical_ingest is None:
+            reference_bundle.bundle_reference_data(
+                reference_data_dir, str(temp_project_dir), include_probability_rasters=False,
+            )
+            reference_bundle.extract_and_bundle_national_ktsn_list(
+                reference_data_dir, str(temp_project_dir)
+            )
+        if identification_probability_enabled:
+            if not probability_source:
+                probability_source = str(
+                    Path(reference_data_dir) / reference_bundle.RASTER_DIR_RELATIVE_SUBPATH
                 )
-            # FR-QPB-113 (Decision Log D-41): best-effort extraction of the NIBR accepted-taxon
-            # KTSN lookup list; silently skipped if the source xlsx is not present at
-            # reference_data_dir (e.g. a minimal test-seam override), never a hard build failure.
-            if canonical_ingest is None:
-                reference_bundle.extract_and_bundle_national_ktsn_list(
-                    reference_data_dir, str(temp_project_dir)
+            probability_result = probability_raster.build_probability_stack(
+                str(probability_source), str(temp_project_dir)
+            )
+            if not probability_result.get("success"):
+                raise BuildError(
+                    probability_result.get("error_code") or "probability_stack_build_failed",
+                    probability_result.get("error_message")
+                    or "다중밴드 출현확률 래스터를 생성하지 못했습니다.",
                 )
-            if identification_probability_enabled:
-                probability_source_override = config.get("_test_probability_raster_source_dir")
-                if probability_source_override:
-                    probability_source_dir = str(probability_source_override)
-                elif canonical_ingest is not None:
-                    probability_source_dir = str(
-                        Path(reference_data_dir) / reference_bundle.RASTER_DIR_RELATIVE_SUBPATH
-                    )
-                else:
-                    _csv_path, resolved_raster_dir = reference_bundle.validate_reference_data(
-                        reference_data_dir
-                    )
-                    probability_source_dir = str(resolved_raster_dir)
-                probability_result = probability_raster.build_probability_stack(
-                    probability_source_dir,
-                    str(temp_project_dir),
-                    cache_dir=str(Path(reference_data_dir) / "probability_cache"),
-                )
-                if not probability_result.get("success"):
-                    raise BuildError(
-                        probability_result.get("error_code") or "probability_stack_build_failed",
-                        probability_result.get("error_message")
-                        or "다중밴드 출현확률 래스터를 생성하지 못했습니다.",
-                    )
-                probability_band_count = int(probability_result["discovered_species_count"])
+            probability_band_count = int(probability_result["discovered_species_count"])
         report_stage("식별 참조 자료 준비")
 
         # FR-QPB-090/100/133 (Decision Log D-83/D-85/D-87): the shared project-plugin sidecar
@@ -816,6 +796,7 @@ def build_project(
                 survey_type=survey_type,
                 generated_at=datetime.now(timezone.utc).isoformat(),
                 canonical_reference_enabled=canonical_ingest is not None,
+                taxonomy_reference_available=requires_accepted_name_lookup,
             ),
             encoding="utf-8",
         )
@@ -878,21 +859,17 @@ def build_project(
         # to the unconditional shared sidecar (D-87), not an identification-only artifact.
         identification_plugin_relpath = f"{project_slug}.qml"
         reference_relpaths: list[str] = []
-        if identification_enabled and canonical_ingest is None:
+        if identification_enabled and legacy_reference and canonical_ingest is None:
             reference_relpaths.append(reference_bundle.PROJECT_KTSN_LOOKUP_RELPATH)
-            if identification_probability_enabled:
-                reference_relpaths.extend(
-                    [probability_raster.STACK_RELPATH, probability_raster.INDEX_RELPATH]
-                )
             national_list_path = temp_project_dir / reference_bundle.PROJECT_NATIONAL_LIST_RELPATH
             if national_list_path.is_file():
                 reference_relpaths.append(reference_bundle.PROJECT_NATIONAL_LIST_RELPATH)
-        elif canonical_runtime_resource is not None:
+        if canonical_runtime_resource is not None:
             reference_relpaths.append(canonical_runtime_resource["relative_path"])
-            if identification_probability_enabled:
-                reference_relpaths.extend(
-                    [probability_raster.STACK_RELPATH, probability_raster.INDEX_RELPATH]
-                )
+        if identification_probability_enabled:
+            reference_relpaths.extend(
+                [probability_raster.STACK_RELPATH, probability_raster.INDEX_RELPATH]
+            )
 
         manifest = manifest_mod.build_manifest(
             project_dir=str(temp_project_dir),

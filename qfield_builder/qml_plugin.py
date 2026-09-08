@@ -4125,7 +4125,7 @@ function qpbRunRenderer(renderer,label){try{renderer();}catch(error){var host=do
     return rendered_template
 
 
-def _render_identification_project_plugin_members() -> str:
+def _render_identification_project_plugin_members(taxonomy_reference_available: bool = True) -> str:
     """Identification-only polling/reminder members for the shared project sidecar."""
     return f'''\
     // FR-QPB-109 (further revised; Decision Log D-50/D-51): polls for a pending attribute
@@ -4343,7 +4343,7 @@ def _render_identification_project_plugin_members() -> str:
                 // that value.  Do not attempt to mutate those derived fields, including for
                 // a confirmed candidate: a rejected derived-field mutation would otherwise
                 // leave the pending request alive even after the Korean name was accepted.
-                if (fieldName === "selected_scientific_name" || fieldName === "selected_ktsn") {{
+                if ({'fieldName === "selected_scientific_name" || fieldName === "selected_ktsn"' if taxonomy_reference_available else 'false'}) {{
                     continue;
                 }}
                 requestedFieldCount++;
@@ -4764,6 +4764,7 @@ def render_project_plugin_qml(
     vworld_key: str | None = None,
     embed_vworld_key: bool = True,
     canonical_reference_enabled: bool = False,
+    taxonomy_reference_available: bool = True,
 ) -> str:
     """Render the unconditional shared ``<project_slug>.qml`` project-plugin sidecar.
 
@@ -4796,7 +4797,8 @@ def render_project_plugin_qml(
     )
     report_members = _render_html_report_members(report_definition)
     identification_members = (
-        _render_identification_project_plugin_members() if identification_enabled else ""
+        _render_identification_project_plugin_members(taxonomy_reference_available)
+        if identification_enabled else ""
     )
     shared_functions = _SHARED_JS_FUNCTIONS if identification_enabled else ""
     identification_registration = (
@@ -5131,6 +5133,7 @@ def render_identification_widget_qml(
     canonical_layer_id: str | None = None,
     canonical_runtime_lookup_resource: dict | None = None,
     candidate_selection_enabled: bool = True,
+    taxonomy_reference_available: bool = True,
 ) -> str:
     """FR-QPB-101 (revised; Decision Log D-31/D-35/D-36/D-37/D-38/D-40/D-42): the QML source
     embedded directly into the relevant layer's attribute form via a
@@ -6023,8 +6026,14 @@ Column {{
             // timeout-producing cross-popup traversal.
             for (var fieldName in fields) {{
                 if (!fields.hasOwnProperty(fieldName) || fieldName === "selected_korean_name" ||
-                    fieldName === "selected_scientific_name" || fieldName === "selected_ktsn") {{ continue; }}
-                try {{ target.setAttribute(fieldName, fields[fieldName]); }} catch (ignored) {{}}
+                    {'fieldName === "selected_scientific_name" || fieldName === "selected_ktsn"' if taxonomy_reference_available else 'false'}) {{ continue; }}
+                if ({str(not taxonomy_reference_available).lower()} &&
+                    (fieldName === "selected_scientific_name" || fieldName === "selected_ktsn")) {{
+                    // Without a lookup these fields are editable and must actually be saved.
+                    if (target.setAttribute(fieldName, fields[fieldName]) !== true) {{ return false; }}
+                }} else {{
+                    try {{ target.setAttribute(fieldName, fields[fieldName]); }} catch (ignored) {{}}
+                }}
             }}
             qpbTraceRuntime("direct_write_applied", {{ field: "selected_korean_name" }});
             return true;
@@ -6215,7 +6224,9 @@ Column {{
             var entry = results[i];
             var sciName = entry.species ? entry.species.scientificNameWithoutAuthor : "";
             var ktsnMatch;
-            if (canonicalReferenceRequired) {{
+            if ({str(not taxonomy_reference_available).lower()}) {{
+                ktsnMatch = {{}};
+            }} else if (canonicalReferenceRequired) {{
                 ktsnMatch = qpbLookupCanonicalTaxonomy(sciName);
                 if (!ktsnMatch || ktsnMatch.available !== true) {{
                     canonicalLookupFailure = (ktsnMatch && ktsnMatch.reason) ||
@@ -6231,7 +6242,7 @@ Column {{
             if (ktsnMatch.ambiguous === true) {{ continue; }}
             var koreanName = ktsnMatch.selected_korean_name ||
                 ktsnMatch.accepted_korean_name || ktsnMatch.direct_korean_name || null;
-            if (!koreanName || String(koreanName).trim().length === 0) {{ continue; }}
+            if ({'!koreanName || String(koreanName).trim().length === 0' if taxonomy_reference_available else 'false'}) {{ continue; }}
             var probability = qpbFormatProbability(koreanName, location);
 
             // FR-QPB-109 (further revised; Decision Log D-60/D-64): the candidate-card scientific-
@@ -6267,7 +6278,7 @@ Column {{
                 scientific_name_authorship:
                     entry.species ? entry.species.scientificNameAuthorship : "",
                 ktsn_match: ktsnMatch,
-                korean_name_display: koreanName || "KTSN match not found",
+                korean_name_display: koreanName || "{'KTSN match not found' if taxonomy_reference_available else '국명 참조 자료 없음'}",
                 probability_text: probability.text,
                 probability_value: probability.value,
                 probability_pending: probability.pending || false,
@@ -6354,6 +6365,10 @@ Column {{
             identification_timestamp: new Date().toISOString(),
             identification_model_version: qpbLastModelVersion
         }};
+        if ({str(not taxonomy_reference_available).lower()}) {{
+            writeFields.selected_scientific_name = selectedScientific;
+            writeFields.selected_ktsn = selectedKtsn;
+        }}
         var appliedDirectly = qpbApplyCurrentFormWriteBack(writeFields);
         var queued = appliedDirectly ? false : qpbWriteAttributeWriteBackRequest(writeFields);
         if (appliedDirectly) {{
