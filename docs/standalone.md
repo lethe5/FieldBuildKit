@@ -36,7 +36,7 @@ not runtime fallbacks. They cannot rescue a missing or broken standalone depende
 
 ## Trial build and verification
 
-The local macOS ARM64 trial bundle is `dist/FieldBuild Standalone.app` (0.2.1).
+The local macOS ARM64 trial bundle is `dist/FieldBuild Standalone.app` (0.2.2).
 It is built in this independent repository. It includes the small fictional workbook sample and independent GIS libraries; private
 workbooks, probability rasters and caches are excluded. The bundle is unsigned for
 distribution; its executable supports `--check-runtime` without opening the wizard.
@@ -48,7 +48,16 @@ crash during verification. Save dialogs and directory pickers retain their exist
 Verification: 66 related tests passed (4 unrelated DPI variants skipped), including real
 dialog navigation into a Korean-named folder, file selection/cancellation and platform fallback.
 The macOS GUI check also reached the sample workbook preview and enabled Next after confirmation;
-the packaged runtime check passed. No generated-project behavior changed in this fix.
+the packaged runtime check passed. No generated-project behavior changed in that fix.
+
+From 0.2.2, a valid taxonomy upload is immediately ready for generation; the separate
+confirmation button is removed. Selecting an earlier upload also revalidates it automatically.
+Invalid uploads block progression until replaced or cleared, and the build still checks the
+validated file hash. Cancelling the picker preserves the previous selection.
+Verification: 90 related tests passed; 8 cases were skipped (4 separate-process DPI variants
+and 4 optional private-workbook cases). In the macOS test app, selecting the sample workbook
+displayed the preview and validation-success message with Next enabled immediately and no
+confirmation button. The 0.2.2 bundle build and packaged runtime check passed.
 
 Standalone tests pass with QGIS and OSGeo imports forbidden. In the source branch before
 repository separation, all 24 generated project combinations were separately opened by

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterable
+from pathlib import Path
 
 import pytest
 
@@ -444,53 +445,25 @@ def test_td_ui_qpb_005_plantnet_and_reference_group_remain_scrollable_and_distin
     assert page.plantnet_remember_checkbox.isChecked()
 
 
-def test_td_ui_qpb_006_excel_candidate_keyboard_activation_is_not_confirmation(wizard, monkeypatch):
-    """FR-UI-QPB-019/020/021; AC-UI-QPB-031--036 and C-UI-QPB-003/004."""
-    candidate_path = "/tmp/canonical-keyboard.xlsx"
-    monkeypatch.setattr(
-        wizard_module.canonical_reference,
-        "inspect_ktsn_source_candidates",
-        lambda *_args, **_kwargs: {
-            "candidates": [
-                {
-                    "path": candidate_path,
-                    "filename": "canonical-keyboard.xlsx",
-                    "source_kind": "bundled_candidate",
-                    "validation_status": "valid",
-                    "sheet_name": "Sheet1",
-                    "header_rows": [1],
-                    "sample_rows": [{"scientific_name": "Plantus testensis", "ktsn": "7"}],
-                }
-            ]
-        },
-    )
-    candidate = wizard_module.canonical_reference.inspect_ktsn_source_candidates("")["candidates"][0]
-    monkeypatch.setattr(
-        wizard_module.canonical_reference, "inspect_ktsn_source_candidates",
-        lambda *a, **k: {"upload": candidate},
+def test_td_ui_qpb_006_excel_candidate_keyboard_activation_validates_selection(wizard, monkeypatch):
+    """Selecting a valid uploaded candidate is sufficient; no second confirmation button."""
+    candidate_path = str(
+        Path(__file__).resolve().parents[2] / "resources/samples/taxonomy_sample.xlsx"
     )
     monkeypatch.setattr(wizard_module, "_get_open_file_name", lambda *a, **k: (candidate_path, ""))
     page = _show_page(wizard, 4)
     page._browse_reference_source()
-    assert isinstance(page, IdentificationTogglePage)
+    assert page.isComplete()
+    selected = page.canonical_reference_config()
     preview = page.reference_source_preview
     preview.setCurrentRow(0)
     preview.setFocus()
-    QTest.keyClick(preview, Qt.Key.Key_Enter)
-    _process_layout()
-    assert page.reference_source_path_edit.text() == candidate_path
-    assert page._selected_reference_candidate["source_kind"] == "user_upload"
-    assert page._confirmed_reference_source is None
-
-    # Space/Enter must be available on the candidate control, while confirmation remains a
-    # separate explicit action. This also guards against a mouse-only itemClicked regression.
-    QTest.keyClick(preview, Qt.Key.Key_Space)
-    _process_layout()
-    assert page._confirmed_reference_source is None
-    assert any(
-        isinstance(button, QPushButton) and "확인" in button.text()
-        for button in page.findChildren(QPushButton)
-    )
+    for key in (Qt.Key.Key_Enter, Qt.Key.Key_Space):
+        QTest.keyClick(preview, key)
+        _process_layout()
+        assert page.reference_source_path_edit.text() == candidate_path
+        assert page.isComplete() and page.canonical_reference_config() == selected
+    assert all("선택한 참조 자료 확인" not in b.text() for b in page.findChildren(QPushButton))
 
 
 def test_td_ui_qpb_006_user_upload_preserves_path_and_source_kind_and_recovery_controls(
@@ -542,7 +515,7 @@ def test_td_ui_qpb_006_user_upload_preserves_path_and_source_kind_and_recovery_c
     assert page.reference_sheet_preview.isVisible()
     assert page.reference_sheet_preview.item(0, 1).text().startswith("업로드 샘플")
     assert any("사용자 .xlsx 업로드" in button.text() for button in page.findChildren(QPushButton))
-    assert any("선택한 참조 자료 확인" in button.text() for button in page.findChildren(QPushButton))
+    assert all("선택한 참조 자료 확인" not in b.text() for b in page.findChildren(QPushButton))
     assert page._confirmed_reference_source is None
     _assert_no_layout_sibling_overlap(page, wizard)
 

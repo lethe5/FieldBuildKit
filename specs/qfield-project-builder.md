@@ -2245,3 +2245,14 @@ outputs. The user requested a fully shareable GitHub checkout without `storage` 
 
 Acceptance: `tests/unit/test_optional_reference_inputs.py`, updated packaging/source-boundary
 regressions, and `docs/qfield-runtime-verification.md` for direct runtime evidence.
+
+## D-99 — Validate reference uploads automatically (2026-09-08, user-approved)
+
+Supersedes D-98/D-95's separate user confirmation action for a selected taxonomy workbook.
+Uploading or reselecting a workbook validates it immediately and, on success, records its source
+and content hash for project creation. Keep the preview but remove the confirmation button.
+Invalid inputs remain visibly rejected and block Next until replaced or cleared. Cancelling
+the picker preserves the current selection. Build-time hash validation remains required.
+
+Acceptance: `tests/unit/test_optional_reference_inputs.py` and the reference-selection keyboard
+and layout cases in `tests/unit/test_wizard_ui_layout.py`.

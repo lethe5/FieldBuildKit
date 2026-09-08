@@ -19,8 +19,8 @@ python3 -m venv .venv
 Reference data is optional. A fresh clone can run and package the app with no `storage/`
 folder and no private Excel/TIFF files. In wizard step 5:
 
-- Choose a local taxonomy `.xlsx`, inspect its preview, then confirm it. Without a workbook,
-  species fields remain editable and Pl@ntNet displays scientific-name candidates without KTSN
+- Choose a local taxonomy `.xlsx`; it is validated and applied automatically, with a preview.
+  Without a workbook, species fields remain editable and Pl@ntNet displays scientific-name candidates without KTSN
   matching. A selected invalid/changed file stops generation; it is never silently ignored.
 - Download `taxonomy_sample.xlsx` for the expected 23-column, two-header-row `Data Sheet`
   layout. Its three rows (two accepted names and one synonym) are fictional, clearly labeled in

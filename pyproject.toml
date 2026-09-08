@@ -1,6 +1,6 @@
 [project]
 name = "fieldbuild-standalone"
-version = "0.2.1"
+version = "0.2.2"
 description = "Independent desktop app for generating QField survey projects without QGIS Desktop."
 requires-python = ">=3.10"
 dependencies = [

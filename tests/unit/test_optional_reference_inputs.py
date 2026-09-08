@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 import rasterio
-from PySide6.QtWidgets import QApplication, QFileDialog
+from PySide6.QtWidgets import QApplication, QFileDialog, QPushButton
 from rasterio.transform import from_origin
 
 from qfield_builder import build, canonical_reference, probability_raster, qml_plugin, schemas
@@ -120,11 +120,14 @@ def test_online_satellite_uses_supported_zoom_range(tmp_path):
     assert any("zmin=6&zmax=19" in source for source in sources)
 
 
-def test_sample_download_confirm_clear_and_back_navigation(tmp_path, monkeypatch):
+def test_sample_download_upload_validates_automatically_and_preserves_navigation(
+    tmp_path, monkeypatch
+):
     app = QApplication.instance() or QApplication([])
     wizard = ProjectBuilderWizard()
     page = wizard.page(4)
     assert page.isComplete()
+    assert all("선택한 참조 자료 확인" not in b.text() for b in page.findChildren(QPushButton))
     download = tmp_path / "sample.xlsx"
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(download), ""))
     page.sample_download_button.click()
@@ -134,10 +137,10 @@ def test_sample_download_confirm_clear_and_back_navigation(tmp_path, monkeypatch
     assert result["accepted_count"] == 2 and result["synonym_count"] == 1
     monkeypatch.setattr(wizard_module, "_get_open_file_name", lambda *a, **k: (str(download), ""))
     page._browse_reference_source()
-    assert not page.isComplete()
-    page._confirm_reference_source()
+    assert page.isComplete()
     selected = page.canonical_reference_config()
     assert selected["source_kind"] == "user_upload"
+    assert selected["sha256"] == result["provenance"]["sha256"]
     page.initializePage()
     assert page.isComplete() and page.canonical_reference_config() == selected
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *a, **k: str(tmp_path))
@@ -148,6 +151,38 @@ def test_sample_download_confirm_clear_and_back_navigation(tmp_path, monkeypatch
     assert page.isComplete()
     assert page.canonical_reference_config() is None
     assert page.probability_reference_config() is None
+    wizard.close()
+    app.processEvents()
+
+
+def test_invalid_upload_clears_validated_reference_and_reselection_recovers(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    wizard = ProjectBuilderWizard()
+    page = wizard.page(4)
+    valid = tmp_path / "valid.xlsx"
+    invalid = tmp_path / "invalid.xlsx"
+    shutil.copyfile(SAMPLE, valid)
+    invalid.write_bytes(b"not a workbook")
+    chosen = str(valid)
+    monkeypatch.setattr(wizard_module, "_get_open_file_name", lambda *a, **k: (chosen, ""))
+    page._browse_reference_source()
+    original = page.canonical_reference_config()
+    assert page.isComplete() and original
+    chosen = str(invalid)
+    page._browse_reference_source()
+    assert not page.isComplete()
+    assert page.canonical_reference_config() is None
+    assert page.reference_source_status_label.text()
+    page._select_reference_candidate(page.reference_source_preview.item(0))
+    assert page.isComplete() and page.canonical_reference_config() == original
+    chosen = ""  # Cancelling the picker preserves the previous valid selection.
+    page._browse_reference_source()
+    assert page.canonical_reference_config() == original
+    valid.write_bytes(b"changed after upload")
+    page._select_reference_candidate(page.reference_source_preview.item(0))
+    assert not page.isComplete() and page.canonical_reference_config() is None
+    page.reference_clear_button.click()
+    assert page.isComplete()
     wizard.close()
     app.processEvents()
 

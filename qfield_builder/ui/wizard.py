@@ -1852,10 +1852,8 @@ class IdentificationTogglePage(QWizardPage):
         layout.addWidget(self.plantnet_group)
         layout.addWidget(identification_key_note_label)
 
-        # D-95: the canonical taxonomy source is selected on this (existing) Step 5 page so the
-        # wizard does not need a second, disruptive step-number migration. Discovery is fresh on
-        # each visit; a preview is never treated as confirmation. The controls are also useful
-        # when identification is disabled because Types 1-3 still materialize the lookup table.
+        # Reference uploads are optional and validated immediately, independently of photo
+        # identification. A valid workbook needs no separate confirmation action.
         self.reference_source_path_edit = QLineEdit()
         self.reference_source_path_edit.setReadOnly(True)
         self.reference_source_status_label = QLabel(
@@ -1880,8 +1878,6 @@ class IdentificationTogglePage(QWizardPage):
         # rather than this preview widget, owns vertical scrolling for long sample sets.
         reference_browse_button = QPushButton("사용자 .xlsx 업로드...")
         reference_browse_button.clicked.connect(self._browse_reference_source)
-        reference_confirm_button = QPushButton("선택한 참조 자료 확인")
-        reference_confirm_button.clicked.connect(self._confirm_reference_source)
         reference_group = QGroupBox("식물 분류 참조 자료 (선택 사항)")
         reference_layout = QVBoxLayout()
         reference_layout.addWidget(self.reference_source_status_label)
@@ -1890,7 +1886,6 @@ class IdentificationTogglePage(QWizardPage):
         reference_layout.addWidget(self.reference_sheet_preview)
         reference_layout.addWidget(self.reference_source_path_edit)
         reference_layout.addWidget(reference_browse_button)
-        reference_layout.addWidget(reference_confirm_button)
         self.reference_clear_button = QPushButton("참조 자료 선택 해제")
         self.reference_clear_button.clicked.connect(self._clear_reference_source)
         reference_layout.addWidget(self.reference_clear_button)
@@ -2006,11 +2001,7 @@ class IdentificationTogglePage(QWizardPage):
             self._selected_reference_candidate = dict(candidate)
             self.reference_source_path_edit.setText(candidate["path"])
             self._show_reference_sheet_preview(candidate)
-            self._confirmed_reference_source = None
-            self.reference_source_status_label.setText(
-                "선택한 파일의 미리보기를 확인했습니다. 계속하려면 ‘선택한 참조 자료 확인’을 누르세요."
-            )
-            self.completeChanged.emit()
+            self._confirm_reference_source()
 
     def _browse_reference_source(self) -> None:
         path, _ = _get_open_file_name(
@@ -2041,10 +2032,8 @@ class IdentificationTogglePage(QWizardPage):
         upload_item.setData(Qt.ItemDataRole.UserRole, upload_key)
         self._reference_candidates[upload_key] = upload_candidate
         if preview and preview.get("validation_status") == "valid":
-            self.reference_source_status_label.setText(
-                "업로드 파일 미리보기가 유효합니다. 파일/시트/헤더/샘플 행을 확인한 뒤 "
-                "확인 버튼을 눌러 확정하세요."
-            )
+            self._confirm_reference_source()
+            return
         else:
             self.reference_source_status_label.setText(
                 (preview or {}).get("error_message") or "업로드 파일을 검증하지 못했습니다."
@@ -2078,6 +2067,7 @@ class IdentificationTogglePage(QWizardPage):
         table.setVisible(True)
 
     def _confirm_reference_source(self) -> None:
+        """Validate the selection and make it build-ready without another user action."""
         path = self.reference_source_path_edit.text().strip()
         if not path:
             self.reference_source_status_label.setText("먼저 .xlsx 참조 자료를 선택하세요.")
@@ -2112,8 +2102,7 @@ class IdentificationTogglePage(QWizardPage):
             "validation_status": result["provenance"].get("validation_result", "valid"),
         }
         self.reference_source_status_label.setText(
-            f"참조 자료를 확인했습니다: {Path(path).name} (종류: "
-            f"{'사용자 업로드' if source_kind == 'user_upload' else '내장 후보'}, 검증: 유효)"
+            f"참조 자료 검증 완료: {Path(path).name}. 프로젝트에 자동으로 적용됩니다."
         )
         self.completeChanged.emit()
 
@@ -2121,7 +2110,7 @@ class IdentificationTogglePage(QWizardPage):
         if self.isComplete():
             return True
         self.reference_source_status_label.setText(
-            "선택한 .xlsx의 미리보기를 확인하거나 참조 자료 선택을 해제하세요."
+            "선택한 .xlsx가 유효하지 않습니다. 올바른 파일을 업로드하거나 선택을 해제하세요."
         )
         return False
 
