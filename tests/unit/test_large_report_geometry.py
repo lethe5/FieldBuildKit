@@ -27,7 +27,8 @@ def test_native_guard_runs_before_geometry_serialization_and_releases_feature():
         var expressionText="", FeatureUtils={createBlankFeature:function(){return null;}};
         var qpbReportGeometryEvaluator={evaluate:function(expression){
             expressionText=expression;
-            return {empty:false,simplified:true,wkt:"POLYGON((127 37,128 37,128 38,127 37))"};
+            return JSON.stringify({empty:false,simplified:1,
+                wkt:"POLYGON((127 37,128 37,128 38,127 37))"});
         }};
         var feature={get geometry(){throw new Error("must not expand native geometry");}};
         var geometry=qpbGeometryToGeoJson(feature,{}, {geometry_field:"geom"});
@@ -38,6 +39,7 @@ def test_native_guard_runs_before_geometry_serialization_and_releases_feature():
     assert result["geometry"]["outcome"] == "simplified_envelope"
     assert result["released"]
     assert "num_points(@g) > 16384" in result["expression"]
+    assert "to_json(map(" in result["expression"]  # QField evaluate() returns a QString
     assert "transform(if(@large, bounds(@g), @g)" in result["expression"]
 
 
@@ -47,7 +49,8 @@ def test_native_empty_failure_and_following_small_polygon_remain_distinct():
         var responses=[{empty:true},null,{empty:false,simplified:false,
             wkt:"POLYGON((127 37,128 37,128 38,127 37),"+
                 "(127.1 37.1,127.2 37.1,127.2 37.2,127.1 37.1))"}];
-        var qpbReportGeometryEvaluator={evaluate:function(){return responses.shift();}};
+        var qpbReportGeometryEvaluator={evaluate:function(){
+            return JSON.stringify(responses.shift());}};
         var results=[];
         for(var i=0;i<3;i++) results.push(qpbGeometryToGeoJson({}, {}, {geometry_field:"geom"}));
         process.stdout.write(JSON.stringify(results));

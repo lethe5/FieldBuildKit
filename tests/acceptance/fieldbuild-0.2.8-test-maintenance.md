@@ -214,3 +214,49 @@ Baseline: `09d7591`. Branch: `codex/0.2.8-large-report`.
 - Browser UI verification was blocked by the in-app browser's local-file URL security policy;
   no alternate browser/server workaround was used and no browser interaction is claimed.
   QField device/macOS/live API checks and remote publication were not performed.
+
+## Exported report UI and native evaluator follow-up (same 0.2.8)
+
+Baseline: `8fd3b4f`. Branch: `codex/0.2.8-report-ui`.
+
+- The user's `w-type2-v0-2-8_report.html` contained 17 sites, one survey and two
+  observations, but zero map features: all 18 spatial conversions reported failure.
+  The earlier native-expression QA above returned a QVariantMap directly and therefore
+  did **not** reproduce QField's actual API boundary. QField 4.2.4's
+  [implementation](https://github.com/opengisch/QField/blob/v4.2.4/src/core/expressionevaluator.cpp)
+  returns `value.toString()`. A map became an empty string. The expression now emits
+  `to_json(map(...))`, and the collector parses only a size-limited JSON string.
+  Native vertex limits, coordinate transformation, feature release and failure handling remain.
+- Bar charts now label the Y axis `출현 횟수 (회)` / `평균 피도 (%)`. Cover chart and
+  its accessible value table display Korean names only. Composite species identity remains
+  in the aggregation/validation key; index-based bar positions avoid overlap when distinct
+  taxa share a Korean name. Existing exported composite labels have a display-only fallback.
+- Site/survey/plot disclosures were genuinely empty: the effective renderer only emitted
+  a summary heading. They now contain escaped attribute tables, with existing Korean aliases
+  and identifier-column filtering; empty datasets receive an explicit empty-state message.
+- Map loading text is removed on both populated and empty results. Empty-state insertion
+  no longer reconstructs Leaflet's DOM via `innerHTML +=`.
+- Actual-file QA: native QGIS 3.44.13 evaluated the emitted **JSON-string** expression on
+  saved project features. The shipped collector/HTML builder then ran in a 128 MiB Node heap.
+  Output: `build/report-ui-qa/w-type2-v0-2-8_report-fixed.html`, **5,328,071 bytes**,
+  **17 map features (12 approximate rectangles / 5 detailed boundaries)**; the exported
+  one survey and two observations and the original taxonomy snapshot were preserved.
+  Cover values: 나팔꽃 5, 주걱개망초 11. Heap after generation: **64,013,112 bytes**
+  (not peak/RSS). Original report and GeoPackage size/mtime were unchanged.
+- Important data limitation: the local saved project copy contains no survey/observation
+  rows, unlike the supplied HTML. Its GeoPackage cannot recover that survey's missing
+  coordinates. The repaired copy therefore honestly retains **one geometry failure**;
+  it does not invent a position. Restoring that point requires the latest saved GeoPackage.
+  This does not prevent the 17 recoverable site geometries from being included.
+- Checks: **187 passed, 4 pre-existing skips, 4 deselected** in report/plugin tests;
+  **88 passed** in independent optional-input/build/relocation tests. The same four previously
+  documented baseline failures remain separate, not reported as fixed. Final focused run:
+  **8 passed**, including QField string returns, numeric simplification flags, chart labels,
+  duplicate Korean names, disclosure content/escaping and zero/nonzero map loading completion.
+  All embedded scripts in the repaired HTML pass Node syntax checking. Changed Python files
+  pass Ruff and `git diff --check`. No browser-rendering or QField application run is claimed.
+- Windows output: `dist/windows-0.2.8-report-ui/FieldBuild Standalone`; packaged
+  `--check-runtime` exited **0** outside the repository. All three declarations remain
+  **0.2.8 -> 0.2.8**. Existing apps, projects and reports were preserved. Replacing the
+  builder does not automatically update an existing project's QML or already-exported HTML.
+  No macOS/live-service verification, push, tag or remote release was performed.
