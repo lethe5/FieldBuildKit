@@ -18,6 +18,9 @@ Use repository quality checks appropriate to the requested changes.
 
 ## App version policy
 
+- User override (2026-09-08): keep the app at `0.2.8` until the user explicitly requests a
+  version change. This takes precedence over the automatic increment rules below.
+
 - The baseline when this policy was introduced was `0.1.0`. Future increments start from the current version declarations, not from this historical baseline.
 - For every future app change (bug fix, feature, or behavior/UI change), increment the app version before considering the change complete, unless the user explicitly asks to keep it unchanged.
 - Increment once per completed logical change set, not per file edit or intermediate test/build attempt. Documentation-only changes do not require a version bump.

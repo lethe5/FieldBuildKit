@@ -2292,7 +2292,7 @@ __QPB_REPORT_CORE_JS__
                     var field = table.fields[fieldIndex];
                     var value = qpbReportAttribute(field.name, feature.attribute(field.name));
                     values.push(value);
-                    attrs[field.name] = value;
+                    if (value !== undefined) { attrs[field.name] = value; }
                 }
                 // Species fields are intentionally read for 통계 even though older report
                 // schemas omitted identification metadata from the per-table schema list.
@@ -2302,7 +2302,10 @@ __QPB_REPORT_CORE_JS__
                     var extraName = extraFields[extraIndex];
                     if (attrs[extraName] === undefined) {
                         if (!qpbIsSensitiveReportField(extraName)) {
-                            attrs[extraName] = qpbReportAttribute(extraName, feature.attribute(extraName));
+                            var extraValue = qpbReportAttribute(extraName, feature.attribute(extraName));
+                            // An absent provider field is not a present value. In particular,
+                            // missing parent notes must not conflict with an observation NULL.
+                            if (extraValue !== undefined) { attrs[extraName] = extraValue; }
                         }
                     }
                 }
@@ -2941,7 +2944,9 @@ __QPB_MAP_FEATURE_DISPATCH__
                     if (joined[joinedIndex].parts &&
                         (joined[joinedIndex].parts.observation === observations[i] ||
                          joined[joinedIndex].parts.inventory_observation === observations[i])) {
-                        dateValue = joined[joinedIndex].values.survey_date || "";
+                        // Output keys are qualified (survey__survey_date) and may be
+                        // renamed by projection. Read the actual joined parent record.
+                        dateValue = qpbRecordValue(joined[joinedIndex].parts.survey, "survey_date");
                         break;
                     }
                 }

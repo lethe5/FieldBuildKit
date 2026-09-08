@@ -91,6 +91,20 @@ replace this instruction.
 From 0.2.7, this fixed notice also warns that uploading the reference restricts plant-name
 entry to accepted names in the national species list.
 
+The 0.2.8 report-warning correction reads observation dates from the joined survey record,
+instead of an obsolete unqualified output-column key. The loaded-layer collector also omits
+undefined provider attributes, so a nonexistent parent notes field cannot conflict with a
+present NULL observation note. Real differing values remain preserved in separate columns.
+The user requested that the version remain 0.2.8. Existing generated projects embed their own
+report QML and need updated project code before their subsequent reports use this correction.
+
+Validation replayed the affected report's attributes through the updated collector: observation
+count and observation-day count remained 1, while unknown dates and semantic collisions both
+changed from 1 to 0. The three static checks in `test_html_report_integrated_followup.py` that
+failed during this work also fail on the untouched `cffe4e3` source: chart visibility markup,
+geometry-limitation disclosure markup, and the older CSV header expression. These pre-existing
+failures are separate from the warning correction; the complete suite is not claimed green.
+
 Standalone tests pass with QGIS and OSGeo imports forbidden. In the source branch before
 repository separation, all 24 generated project combinations were separately opened by
 isolated QGIS 3.44.13: layers, relations and renderers

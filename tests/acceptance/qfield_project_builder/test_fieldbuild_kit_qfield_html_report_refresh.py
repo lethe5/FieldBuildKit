@@ -510,3 +510,43 @@ def test_untransformable_projected_point_does_not_export_metres_as_degrees(
     assert not row["values"].get("report__latitude")
     assert not row["values"].get("report__longitude")
     assert _geometry_by_uuid(result)["inventory-01"]["valid"] is False
+
+
+@pytest.mark.parametrize("collection_path", ["direct", "fallback"])
+@pytest.mark.parametrize("survey_type", ["temporary_plots", "permanent_plots"])
+def test_observations_inherit_dates_from_joined_survey_records(
+    render_html_report_refresh_fixture, survey_type, collection_path
+):
+    fixture, _, _ = _anchor_fixture(survey_type, collection_path)
+    payload = _payload(_run(render_html_report_refresh_fixture, fixture))
+    assert payload["summary_stats"]["observationDays"] == 1
+    assert payload["summary_stats"]["unknownDates"] == 0
+    assert payload["joined"][0]["values"]["survey__survey_date"] == "2026-09-04"
+
+
+@pytest.mark.parametrize("note", [None, "", "현장 메모", 0, False])
+def test_missing_parent_note_is_not_a_conflicting_provider_value(
+    render_html_report_refresh_fixture, note
+):
+    fixture, _, _ = _anchor_fixture("temporary_plots", "fallback")
+    fixture["qgis_provider"]["loaded_layers"][2]["features"][0]["attributes"]["notes"] = note
+    payload = _payload(_run(render_html_report_refresh_fixture, fixture))
+    assert payload["semantic_collision_notices"] == []
+    assert payload["source_value_presence"]["observation-01"]["survey__notes"] is False
+    note_columns = [column for column in payload["columns"]
+                    if column.get("semantic_identity") == "notes"]
+    assert len(note_columns) == 1
+    value = payload["joined"][0]["values"][note_columns[0]["key"]]
+    assert value == note and type(value) is type(note)
+
+
+@pytest.mark.parametrize("date_value", [None, "2026-02-31", "2026-09-08T99:99"])
+def test_invalid_survey_dates_still_report_unknown_observation_dates(
+    render_html_report_refresh_fixture, date_value
+):
+    fixture, _, _ = _anchor_fixture("temporary_plots", "fallback")
+    fixture["qgis_provider"]["loaded_layers"][1]["features"][0]["attributes"]["survey_date"] = date_value
+    payload = _payload(_run(render_html_report_refresh_fixture, fixture))
+    assert payload["summary_stats"]["observationDays"] == 0
+    # Both the observation and its survey have an unknown date.
+    assert payload["summary_stats"]["unknownDates"] == 2
