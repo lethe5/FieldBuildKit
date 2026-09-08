@@ -52,3 +52,33 @@ Logs: `build/0.2.8-report-acceptance.log` and `build/0.2.8-report-acceptance-bas
 The previously recorded VWorld status-label layout failure is also outside this change.
 This is scoped verification, not a claim that the entire repository suite is green or that
 live APIs, macOS, or QField device behavior were retested. No remote release was published.
+
+## TIFF streaming follow-up (same 0.2.8)
+
+Baseline: `bef0289`. Branch: `codex/0.2.8-tiff-performance`.
+
+- The standalone writer validates each open source immediately before copying its blocks,
+  using the same metadata checks as the standalone validation API. It no longer performs a
+  separate metadata-only pass or reopens the first source for its output profile. Only one
+  input and the output remain open at a time; no unbounded dataset cache was introduced.
+- Coordinate system, grid, data type, single-band and NoData checks remain mandatory.
+  A late failure closes the output and discards staging without replacing a previous result.
+- Lossless DEFLATE uses level 6 instead of 9. Both byte orders of BigTIFF are accepted by the
+  source/cache header checks; Rasterio still validates actual source datasets.
+- Focused streaming, optional-input, relocated-project, standalone and cache tests:
+  **101 passed** (`build/0.2.8-tiff-tests.log`). New streaming tests pass Ruff; changed production
+  files have **8 -> 7** existing diagnostics and no new diagnostics.
+- Real supplied data: 2,531 matched single-band TIFFs, 184,975,604 decoded pixel bytes.
+  The instrumented stack-only run changed from **40.025 s to 20.611 s** (about 48.5% faster),
+  and source dataset opens from **5,063 to 2,531**. Pixel block reads remain **25,310**, one
+  pass over source pixels. These are separate single runs on this Windows PC, not statistical
+  benchmarks or end-to-end application timing.
+- Output size changed from **47,004,745 to 49,008,181 bytes** (about 4.3% larger).
+  A separate complete source/output crosscheck passed for every band, pixel and NoData value.
+  That diagnostic took 61.879 s and is not added to the application's generation path.
+- Original inputs were opened read-only. Diagnostic output was confined to temporary folders.
+  Existing app builds were preserved; the updated build is in `dist/windows-0.2.8-tiff`.
+- PyInstaller completed successfully and the new EXE's `--check-runtime` exited **0** from
+  outside the repository. `git diff --check` passed.
+- All version declarations remain **0.2.8**, as explicitly requested. QField/macOS/live-API
+  execution and remote publication are not part of this follow-up.

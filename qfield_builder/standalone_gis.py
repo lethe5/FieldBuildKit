@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import xml.etree.ElementTree as ET
+from contextlib import ExitStack
 from pathlib import Path
 
 import fiona
@@ -49,58 +50,66 @@ def _reproject(source_path, destination_path, target_crs, *, layer=None, source_
     return {"success": True, "output_path": destination_path}
 
 
+def _source_metadata(source, baseline):
+    """Validate the open dataset used by either a metadata check or the streaming writer."""
+    if source.count != 1:
+        return None, {
+            "ok": False,
+            "error_code": "source_not_single_band",
+            "message": f"단일 밴드 래스터가 아닙니다: {Path(source.name).name}",
+        }
+    if source.nodata != NODATA and not (source.nodata is not None and math.isnan(source.nodata)):
+        return None, {
+            "ok": False,
+            "error_code": "source_nodata_incompatible",
+            "message": "확률 래스터 NoData 값은 -9999 또는 NaN이어야 합니다.",
+        }
+    if not source.crs or source.transform.determinant == 0:
+        return None, {
+            "ok": False,
+            "error_code": "source_geometry_incompatible",
+            "message": "확률 래스터의 좌표계 또는 격자가 유효하지 않습니다.",
+        }
+    metadata = (source.width, source.height, source.transform, source.crs, source.dtypes)
+    if baseline is not None and metadata != baseline:
+        return None, {
+            "ok": False,
+            "error_code": "source_geometry_incompatible",
+            "message": "확률 래스터의 격자/좌표계/자료형이 일치하지 않습니다.",
+        }
+    return metadata, None
+
+
 def _validate_sources_gdal(sources):
     baseline = None
     for item in sources:
         with rasterio.open(item["path"]) as source:
-            if source.count != 1:
-                return {
-                    "ok": False,
-                    "error_code": "source_not_single_band",
-                    "message": f"단일 밴드 래스터가 아닙니다: {Path(item['path']).name}",
-                }
-            if source.nodata != NODATA and not (source.nodata is not None and math.isnan(source.nodata)):
-                return {
-                    "ok": False,
-                    "error_code": "source_nodata_incompatible",
-                    "message": "확률 래스터 NoData 값은 -9999 또는 NaN이어야 합니다.",
-                }
-            if not source.crs or source.transform.determinant == 0:
-                return {
-                    "ok": False,
-                    "error_code": "source_geometry_incompatible",
-                    "message": "확률 래스터의 좌표계 또는 격자가 유효하지 않습니다.",
-                }
-            metadata = (source.width, source.height, source.transform, source.crs, source.dtypes)
-            if baseline is not None and metadata != baseline:
-                return {
-                    "ok": False,
-                    "error_code": "source_geometry_incompatible",
-                    "message": "확률 래스터의 격자/좌표계/자료형이 일치하지 않습니다.",
-                }
-            baseline = metadata
+            baseline, error = _source_metadata(source, baseline)
+            if error:
+                return error
     return {"ok": bool(sources), "error_code": None if sources else "source_empty"}
 
 
 def _build_probability_stack_gdal(sources, output_path):
-    validation = _validate_sources_gdal(sources)
-    if not validation["ok"]:
-        return validation
-    with rasterio.open(sources[0]["path"]) as first:
-        profile = first.profile.copy()
-    profile.update(
-        driver="GTiff",
-        count=len(sources),
-        nodata=NODATA,
-        compress="deflate",
-        zlevel=9,
-        interleave="band",
-        predictor=3 if profile["dtype"].startswith("float") else 2,
-        BIGTIFF="IF_SAFER",
-    )
-    with rasterio.open(output_path, "w", **profile) as output:
+    if not sources:
+        return {"ok": False, "error_code": "source_empty"}
+    baseline = None
+    # Only the output and the current input stay open. Failed staging is never published.
+    with ExitStack() as stack:
         for band, item in enumerate(sources, start=1):
             with rasterio.open(item["path"]) as source:
+                baseline, error = _source_metadata(source, baseline)
+                if error:
+                    return error
+                if band == 1:
+                    profile = source.profile.copy()
+                    profile.update(
+                        driver="GTiff", count=len(sources), nodata=NODATA,
+                        compress="deflate", zlevel=6, interleave="band",
+                        predictor=3 if profile["dtype"].startswith("float") else 2,
+                        BIGTIFF="IF_SAFER",
+                    )
+                    output = stack.enter_context(rasterio.open(output_path, "w", **profile))
                 for _, window in source.block_windows(1):
                     values = source.read(1, window=window)
                     values[np.isnan(values)] = NODATA

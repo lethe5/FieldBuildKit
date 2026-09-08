@@ -22,6 +22,7 @@ STACK_RELPATH = "reference/rasters/occurrence_probability_multiband.tif"
 INDEX_RELPATH = "reference/rasters/occurrence_probability_bands.json"
 LAYER_NAME = "occurrence_probability_multiband.tif"
 NODATA_VALUE = -9999.0
+TIFF_HEADERS = (b"II*\x00", b"MM\x00*", b"II+\x00", b"MM\x00+")
 CACHE_STACK_FILENAME = "occurrence_probability_multiband.tif"
 CACHE_INDEX_FILENAME = "occurrence_probability_bands.json"
 
@@ -118,7 +119,7 @@ def _inventory(
                     "message": f"확률 래스터 파일을 읽을 수 없습니다: {path.name} ({exc})",
                 },
             )
-        if header not in (b"II*\x00", b"MM\x00*"):
+        if header not in TIFF_HEADERS:
             return (
                 [],
                 excluded,
@@ -176,7 +177,7 @@ def _cached_stack_matches(
         if stack.stat().st_size <= 4:
             return None
         with stack.open("rb") as stream:
-            if stream.read(4) not in (b"II*\x00", b"MM\x00*"):
+            if stream.read(4) not in TIFF_HEADERS:
                 return None
         payload = json.loads(index.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
