@@ -1,0 +1,1551 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>생태조사 전자야장 생성기 — QGIS 호환 · QField 현장조사</title>
+
+  <!-- === TYPOGRAPHY === -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    /* === THEME TOKENS: MOSS LEDGER === */
+    :root {
+      --stage-bg: #14241d;
+      --slide-bg: #f4f0e4;
+      --paper: #f4f0e4;
+      --paper-deep: #e8e0cf;
+      --ink: #173127;
+      --ink-soft: #476155;
+      --moss: #2b5d43;
+      --moss-dark: #10291e;
+      --lime: #70d421;
+      --lime-soft: #d8efbd;
+      --clay: #d9754f;
+      --line: rgba(23, 49, 39, 0.20);
+      --shadow: rgba(23, 49, 39, 0.14);
+      --font-display: 'Gowun Batang', serif;
+      --font-body: 'Noto Sans KR', sans-serif;
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* === RESET === */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    button { font: inherit; }
+
+    /* ===========================================
+       FIXED 16:9 STAGE: MANDATORY BASE STYLES
+       Include this ENTIRE file in every presentation.
+       Slides are authored at 1920×1080 and scaled as a whole.
+       =========================================== */
+
+    /* 1. Lock the browser viewport */
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: var(--stage-bg, #000);
+    }
+
+    /* 2. Full-window deck viewport */
+    .deck-viewport {
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        background: var(--stage-bg, #000);
+    }
+
+    /* 3. Fixed 16:9 design canvas.
+       JavaScript sets transform: translate(...) scale(...). */
+    .deck-stage {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        transform-origin: 0 0;
+        background: var(--slide-bg, #fff);
+    }
+
+    /* 4. Slides stack inside the fixed stage.
+       Content must be laid out at 1920×1080, not reflowed per device. */
+    .slide {
+        position: absolute;
+        inset: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        display: block;
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
+        background: var(--slide-bg, #fff);
+    }
+
+    .slide.active,
+    .slide.visible {
+        visibility: visible;
+        opacity: 1;
+        pointer-events: auto;
+        z-index: 1;
+    }
+
+    /* 5. Keep media inside authored slide bounds */
+    img,
+    video,
+    canvas,
+    svg {
+        max-width: 100%;
+        max-height: 100%;
+    }
+
+    /* 6. Presentation chrome stays outside the slide design system */
+    .deck-controls {
+        position: fixed;
+        left: 50%;
+        bottom: 22px;
+        transform: translateX(-50%);
+        z-index: 1000;
+    }
+
+    /* 7. Print one fixed-size slide per page */
+    @media print {
+        @page {
+            size: 16in 9in;
+            margin: 0;
+        }
+        html,
+        body {
+            width: 1920px;
+            height: auto;
+            overflow: visible;
+            background: #fff;
+        }
+
+        .deck-viewport {
+            position: static;
+            overflow: visible;
+            background: #fff;
+        }
+
+        .deck-stage {
+            position: static;
+            width: auto;
+            height: auto;
+            transform: none !important;
+            background: none;
+        }
+
+        .slide {
+            position: relative;
+            z-index: auto !important;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            width: 1920px;
+            height: 1080px;
+            break-after: page;
+            page-break-after: always;
+        }
+
+        .slide:last-child {
+            break-after: auto;
+            page-break-after: auto;
+        }
+
+        .reveal,
+        .reveal-left,
+        .reveal-right {
+            opacity: 1 !important;
+            transform: none !important;
+        }
+
+        .deck-controls {
+            display: none !important;
+        }
+    }
+
+    /* 8. Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            transition-duration: 0.2s !important;
+        }
+    }
+
+    /* === PAPER STAGE === */
+    .slide {
+      font-family: var(--font-body);
+      color: var(--ink);
+      padding: 54px 72px;
+      background:
+        linear-gradient(90deg, transparent 0 96px, rgba(23,49,39,.10) 97px 98px, transparent 99px),
+        repeating-linear-gradient(0deg, rgba(23,49,39,.045) 0 1px, transparent 1px 54px),
+        var(--paper);
+    }
+    .slide::after {
+      content: "";
+      position: absolute;
+      right: -140px;
+      top: -150px;
+      width: 520px;
+      height: 520px;
+      border-radius: 50%;
+      border: 120px solid rgba(112,212,33,.13);
+      pointer-events: none;
+    }
+    .slide::before {
+      content: "";
+      position: absolute;
+      left: 28px;
+      top: 72px;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: var(--moss);
+      box-shadow: 0 130px 0 var(--moss), 0 260px 0 var(--moss), 0 390px 0 var(--moss), 0 520px 0 var(--moss), 0 650px 0 var(--moss), 0 780px 0 var(--moss), 0 910px 0 var(--moss);
+      opacity: .38;
+      pointer-events: none;
+    }
+
+    /* === SHARED TYPOGRAPHY AND CHROME === */
+    .slide-header {
+      position: relative;
+      z-index: 2;
+      height: 152px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      border-bottom: 2px solid var(--line);
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: .14em;
+      color: var(--moss);
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    .eyebrow::before {
+      content: "";
+      width: 30px;
+      height: 5px;
+      background: var(--lime);
+      border-radius: 6px;
+    }
+    .slide-title {
+      font-family: var(--font-display);
+      font-size: 58px;
+      line-height: 1.12;
+      letter-spacing: -.04em;
+      font-weight: 700;
+    }
+    /* Keep authored content clear of the notebook binding line. */
+    .slide-header,
+    .title-brand,
+    .cover-stage,
+    .compare-grid,
+    .survey-grid,
+    .identify-layout,
+    .export-layout,
+    .workflow-wrap { margin-left: 32px; }
+    .folio {
+      min-width: 118px;
+      text-align: center;
+      border: 2px solid var(--moss);
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      background: rgba(244,240,228,.88);
+    }
+    .tiny-note {
+      font-size: 20px;
+      line-height: 1.5;
+      color: var(--ink-soft);
+    }
+    .paper-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      background: var(--ink);
+      color: #fff;
+      border-radius: 7px;
+      padding: 10px 15px;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: .04em;
+    }
+    .paper-label.light {
+      color: var(--ink);
+      background: var(--lime-soft);
+      border: 2px solid var(--moss);
+    }
+
+    /* === REVEAL ANIMATIONS === */
+    .reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity .65s var(--ease-out), transform .65s var(--ease-out);
+    }
+    .reveal-left {
+      opacity: 0;
+      transform: translateX(-42px);
+      transition: opacity .7s var(--ease-out), transform .7s var(--ease-out);
+    }
+    .reveal-right {
+      opacity: 0;
+      transform: translateX(42px);
+      transition: opacity .7s var(--ease-out), transform .7s var(--ease-out);
+    }
+    .slide.visible .reveal,
+    .slide.visible .reveal-left,
+    .slide.visible .reveal-right { opacity: 1; transform: none; }
+    .delay-1 { transition-delay: .10s; }
+    .delay-2 { transition-delay: .22s; }
+    .delay-3 { transition-delay: .34s; }
+    .delay-4 { transition-delay: .46s; }
+    .delay-5 { transition-delay: .58s; }
+
+    /* === SLIDE 1: TITLE / BUILD BRIDGE === */
+    .title-slide { padding-top: 46px; }
+    .title-brand {
+      position: relative;
+      z-index: 2;
+      height: 172px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .title-brand .brand-logo { width: 610px; height: auto; }
+    .title-meta {
+      width: 520px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 20px;
+      line-height: 1.55;
+      font-weight: 800;
+      color: var(--moss);
+      border: 2px solid var(--moss);
+      border-radius: 999px;
+      padding: 11px 20px;
+      background: rgba(244,240,228,.92);
+      letter-spacing: .08em;
+    }
+    .title-meta strong { font-size: 24px; letter-spacing: -.02em; }
+    .title-meta span { font-size: 16px; line-height: 1.45; letter-spacing: .02em; color: var(--ink-soft); }
+    .cover-stage {
+      position: relative;
+      z-index: 2;
+      height: 780px;
+      display: grid;
+      grid-template-columns: 790px 250px 520px;
+      gap: 70px;
+      align-items: center;
+    }
+    .device-card {
+      position: relative;
+      background: #fff;
+      border: 2px solid var(--line);
+      padding: 14px;
+      overflow: hidden;
+      box-shadow: 17px 20px 0 var(--shadow);
+    }
+    .device-card.desktop {
+      height: 610px;
+      border-radius: 26px;
+    }
+    .device-card.phone {
+      width: 400px;
+      height: 755px;
+      justify-self: center;
+      padding: 8px;
+      background: var(--moss-dark);
+      border-radius: 50px;
+      box-shadow: 14px 17px 0 var(--shadow);
+    }
+    .device-card img { width: 100%; height: 100%; object-fit: contain; border-radius: 14px; }
+    .device-card.phone img { object-fit: cover; border-radius: 39px; }
+    .device-tag { position: absolute; left: 24px; bottom: 22px; }
+    .build-bridge { text-align: center; }
+    .build-word {
+      font-family: var(--font-display);
+      font-size: 44px;
+      margin-bottom: 18px;
+    }
+    .build-sub { font-size: 20px; font-weight: 800; color: var(--ink-soft); line-height: 1.45; }
+    .build-arrow { height: 74px; position: relative; }
+    .build-arrow::before {
+      content: "";
+      position: absolute;
+      left: 3px;
+      right: 26px;
+      top: 32px;
+      height: 10px;
+      background: var(--lime);
+      border-radius: 20px;
+      box-shadow: 0 0 0 7px rgba(112,212,33,.10);
+    }
+    .build-arrow::after {
+      content: "";
+      position: absolute;
+      right: 3px;
+      top: 14px;
+      border-left: 31px solid var(--lime);
+      border-top: 23px solid transparent;
+      border-bottom: 23px solid transparent;
+    }
+    .build-caption { margin-top: 15px; font-size: 22px; font-weight: 800; color: var(--clay); }
+    .title-foot {
+      position: absolute;
+      left: 104px;
+      bottom: 34px;
+      z-index: 3;
+      font-size: 22px;
+      color: var(--ink-soft);
+      font-weight: 700;
+    }
+
+    /* === SLIDE 2: AS-IS / TO-BE === */
+    .compare-grid {
+      position: relative;
+      z-index: 2;
+      margin-top: 34px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 34px;
+      height: 710px;
+    }
+    .compare-panel {
+      position: relative;
+      overflow: hidden;
+      border: 3px solid var(--ink);
+      background: var(--ink);
+      box-shadow: 13px 14px 0 var(--shadow);
+    }
+    .compare-panel img { width: 100%; height: 100%; object-fit: cover; }
+    .compare-panel.asis img { filter: saturate(.72) brightness(.72); }
+    .compare-panel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 48%, rgba(9,25,17,.92) 100%);
+    }
+    .compare-badge {
+      position: absolute;
+      z-index: 3;
+      left: 22px;
+      top: 22px;
+      min-width: 122px;
+      text-align: center;
+      padding: 10px 16px;
+      color: #fff;
+      background: var(--clay);
+      border: 3px solid #fff;
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: .08em;
+    }
+    .tobe .compare-badge { background: var(--lime); color: var(--ink); border-color: var(--ink); }
+    .compare-copy {
+      position: absolute;
+      z-index: 3;
+      left: 30px;
+      right: 30px;
+      bottom: 28px;
+      color: #fff;
+    }
+    .compare-copy h3 { font-family: var(--font-display); font-size: 43px; margin-bottom: 10px; }
+    .compare-copy p { font-size: 23px; line-height: 1.45; color: rgba(255,255,255,.82); }
+    .click-sticker {
+      position: absolute;
+      z-index: 4;
+      right: 24px;
+      top: 22px;
+      transform: rotate(4deg);
+      background: var(--paper);
+      border: 3px solid var(--ink);
+      box-shadow: 6px 6px 0 var(--lime);
+      padding: 12px 19px;
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--ink);
+    }
+
+    /* === SLIDE 3: FOUR SURVEY TYPES === */
+    .survey-grid {
+      position: relative;
+      z-index: 2;
+      margin-top: 30px;
+      height: 725px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 22px;
+    }
+    .survey-card {
+      position: relative;
+      overflow: hidden;
+      border: 2px solid var(--ink);
+      background: #fff;
+      box-shadow: 8px 9px 0 var(--shadow);
+    }
+    .survey-card img { width: 100%; height: 100%; object-fit: cover; }
+    .survey-card::after {
+      content: "";
+      position: absolute;
+      inset: auto 0 0;
+      height: 44%;
+      background: linear-gradient(transparent, rgba(6,20,13,.94));
+    }
+    .survey-index {
+      position: absolute;
+      z-index: 3;
+      top: 16px;
+      left: 16px;
+      width: 52px;
+      height: 52px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--lime);
+      border: 3px solid var(--ink);
+      font-weight: 900;
+      font-size: 21px;
+    }
+    .survey-copy {
+      position: absolute;
+      z-index: 3;
+      left: 22px;
+      bottom: 18px;
+      color: #fff;
+    }
+    .survey-copy h3 { font-size: 31px; margin-bottom: 4px; }
+    .survey-copy p { font-size: 19px; color: rgba(255,255,255,.78); }
+
+    /* === SLIDE 4: IDENTIFICATION === */
+    .identify-layout {
+      position: relative;
+      z-index: 2;
+      height: 795px;
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: 690px 270px 620px;
+      gap: 72px;
+      align-items: center;
+    }
+    .photo-scene {
+      height: 690px;
+      position: relative;
+      overflow: hidden;
+      border-radius: 34px 34px 8px 34px;
+      background: radial-gradient(circle at 30% 25%, #fff 0, #edf2df 48%, #dce6c6 100%);
+      border: 2px solid var(--line);
+      box-shadow: 15px 17px 0 var(--shadow);
+    }
+    .photo-scene img { width: 100%; height: 100%; object-fit: cover; object-position: center center; }
+    .photo-scene .paper-label { position: absolute; left: 24px; top: 24px; }
+    .identify-flow { text-align: center; position: relative; padding-top: 4px; }
+    .flow-step {
+      width: 100%;
+      border: 2px solid var(--moss);
+      border-radius: 12px;
+      background: rgba(255,255,255,.68);
+      padding: 13px 10px;
+      min-height: 68px;
+      font-size: 22px;
+      font-weight: 800;
+      opacity: .38;
+      transform: scale(.96);
+      transition: opacity .35s ease, transform .35s ease, background .35s ease;
+    }
+    .flow-step.is-current { opacity: 1; transform: scale(1); background: rgba(255,255,255,.94); box-shadow: 0 8px 18px rgba(23,49,39,.12); }
+    .flow-step.is-complete { opacity: .75; transform: scale(.985); }
+    .flow-step strong { color: var(--clay); }
+    .flow-down { height: 50px; width: 100%; position: relative; border: 0; background: transparent; cursor: pointer; padding: 0; }
+    .flow-down:disabled { cursor: default; opacity: .38; }
+    .flow-down:focus-visible { outline: 3px solid var(--clay); outline-offset: -3px; border-radius: 10px; }
+    .flow-down::before { content: ""; position: absolute; left: calc(50% - 4px); top: 8px; width: 8px; height: 38px; background: var(--lime); }
+    .flow-down::after { content: ""; position: absolute; left: calc(50% - 16px); bottom: 3px; border-top: 20px solid var(--lime); border-left: 16px solid transparent; border-right: 16px solid transparent; }
+    .candidate-list { display: flex; justify-content: center; gap: 6px; margin-top: 8px; }
+    .candidate { padding: 5px 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper-deep); color: var(--ink-soft); font-size: 13px; font-weight: 800; }
+    .candidate.selected { background: var(--lime-soft); border-color: var(--moss); color: var(--ink); }
+    .flow-note { margin-top: 12px; color: var(--ink-soft); font-size: 15px; line-height: 1.45; }
+    .flow-hint { margin-top: 8px; color: var(--clay); font-size: 14px; font-weight: 900; }
+    .phone-result {
+      width: 400px;
+      height: 760px;
+      justify-self: center;
+      background: var(--moss-dark);
+      border-radius: 50px;
+      padding: 8px;
+      box-shadow: 16px 19px 0 var(--shadow);
+      overflow: hidden;
+    }
+    .phone-result img { width: 100%; height: 100%; object-fit: contain; border-radius: 39px; }
+    .identify-callout {
+      position: absolute;
+      right: -30px;
+      top: 70px;
+      width: 300px;
+      padding: 13px 16px;
+      transform: rotate(3deg);
+      background: var(--lime-soft);
+      border: 3px solid var(--ink);
+      font-weight: 900;
+      font-size: 19px;
+      line-height: 1.38;
+      box-shadow: 7px 7px 0 var(--clay);
+    }
+
+    /* === SLIDE 5: HTML EXPORT === */
+    .export-layout {
+      position: relative;
+      z-index: 2;
+      height: 790px;
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: 500px 120px 1080px;
+      gap: 32px;
+      align-items: center;
+    }
+    .export-phone {
+      position: relative;
+      width: 400px;
+      height: 755px;
+      justify-self: center;
+      background: var(--moss-dark);
+      padding: 8px;
+      border-radius: 50px;
+      box-shadow: 14px 17px 0 var(--shadow);
+      overflow: hidden;
+    }
+    .export-phone img { width: 100%; height: 100%; object-fit: cover; object-position: top center; border-radius: 39px; }
+    .export-ring {
+      position: absolute;
+      right: 0;
+      top: 108px;
+      width: 78px;
+      height: 78px;
+      border: 7px solid var(--clay);
+      border-radius: 50%;
+      box-shadow: 0 0 0 9px rgba(217,117,79,.28);
+      animation: pulse 1.9s ease-in-out infinite;
+    }
+    .export-ring::after {
+      content: "HTML";
+      position: absolute;
+      top: 92px;
+      right: -8px;
+      background: var(--clay);
+      color: #fff;
+      font-size: 17px;
+      font-weight: 900;
+      padding: 7px 10px;
+      border-radius: 5px;
+    }
+    @keyframes pulse { 50% { transform: scale(1.08); } }
+    .export-arrow { height: 100px; position: relative; }
+    .export-arrow::before { content: ""; position: absolute; left: 2px; right: 24px; top: 45px; height: 10px; background: var(--lime); }
+    .export-arrow::after { content: ""; position: absolute; right: 1px; top: 28px; border-left: 30px solid var(--lime); border-top: 22px solid transparent; border-bottom: 22px solid transparent; }
+    .report-browser {
+      height: 650px;
+      background: #fffdf7;
+      border: 3px solid var(--ink);
+      box-shadow: 15px 17px 0 var(--shadow);
+      overflow: hidden;
+    }
+    .browser-bar {
+      height: 58px;
+      background: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 18px;
+    }
+    .browser-dot { width: 13px; height: 13px; border-radius: 50%; background: var(--clay); }
+    .browser-dot:nth-child(2) { background: #e9bf55; }
+    .browser-dot:nth-child(3) { background: var(--lime); }
+    .browser-address { margin-left: 16px; flex: 1; height: 30px; border-radius: 6px; background: rgba(255,255,255,.13); color: rgba(255,255,255,.72); padding: 4px 14px; font-size: 16px; }
+    .report-page { padding: 27px 34px 30px; }
+    .report-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 22px; }
+    .report-head h3 { font-family: var(--font-display); font-size: 38px; }
+    .report-head p { font-size: 17px; color: var(--ink-soft); margin-top: 4px; }
+    .report-chip { background: var(--lime-soft); border: 2px solid var(--moss); padding: 8px 12px; border-radius: 999px; font-size: 16px; font-weight: 900; }
+    .metric-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .metric { border: 2px solid var(--line); padding: 15px; background: #fff; }
+    .metric strong { display: block; font-size: 34px; color: var(--moss); }
+    .metric span { font-size: 16px; color: var(--ink-soft); }
+    .report-main { margin-top: 18px; display: grid; grid-template-columns: 1.2fr .8fr; gap: 16px; }
+    .map-mock { position: relative; height: 300px; background: #d9e7c7; border: 2px solid var(--line); overflow: hidden; }
+    .map-mock img { width: 100%; height: 100%; object-fit: cover; object-position: center; filter: saturate(.82) brightness(1.03); }
+    .map-mock::after { content: "현장 좌표 · 관찰 경로"; position: absolute; left: 16px; bottom: 14px; padding: 7px 10px; background: rgba(244,240,228,.9); border: 2px solid var(--moss); border-radius: 6px; color: var(--ink); font-size: 14px; font-weight: 900; }
+    .chart-mock { height: 300px; border: 2px solid var(--line); background: #fff; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; }
+    .chart-mock h4 { font-size: 20px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+    .bar-row span { width: 54px; }
+    .bar-track { flex: 1; height: 18px; background: var(--paper-deep); border-radius: 9px; overflow: hidden; }
+    .bar-fill { height: 100%; background: var(--moss); border-radius: 9px; }
+
+    /* === SLIDE 6: SSD CLEANROOM WORKFLOW === */
+    .workflow-wrap {
+      position: relative;
+      z-index: 2;
+      height: 790px;
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 45px;
+    }
+    .orchestrator-card {
+      height: 660px;
+      align-self: center;
+      background: var(--moss-dark);
+      color: #fff;
+      border-radius: 18px;
+      padding: 34px 28px;
+      box-shadow: 13px 15px 0 var(--lime-soft);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .orchestrator-mark {
+      width: 100px;
+      height: 100px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--lime);
+      color: var(--ink);
+      font-size: 42px;
+      font-weight: 900;
+      border: 6px solid rgba(255,255,255,.22);
+    }
+    .orchestrator-card h3 { font-family: var(--font-display); font-size: 41px; margin: 24px 0 14px; }
+    .orchestrator-card p { font-size: 20px; line-height: 1.62; color: rgba(255,255,255,.73); }
+    .stakeholder-gate { border-top: 1px solid rgba(255,255,255,.2); padding-top: 21px; font-size: 20px; font-weight: 900; color: var(--lime); }
+    .workflow-main { position: relative; padding-top: 60px; }
+    .pipeline {
+      display: grid;
+      grid-template-columns: 280px 58px 280px 58px 280px 58px 280px;
+      align-items: stretch;
+    }
+    .agent-card {
+      height: 350px;
+      background: rgba(255,255,255,.72);
+      border: 3px solid var(--ink);
+      padding: 23px 20px;
+      position: relative;
+      box-shadow: 8px 9px 0 var(--shadow);
+    }
+    .agent-card .role-no { font-size: 18px; color: var(--clay); font-weight: 900; letter-spacing: .12em; }
+    .agent-card h3 { font-size: 30px; margin: 15px 0 12px; }
+    .agent-card p { font-size: 18px; line-height: 1.55; color: var(--ink-soft); }
+    .artifact {
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      right: 18px;
+      padding: 10px;
+      background: var(--lime-soft);
+      border: 2px solid var(--moss);
+      font-size: 16px;
+      font-weight: 900;
+      text-align: center;
+    }
+    .agent-card.review { background: var(--ink); color: #fff; }
+    .agent-card.review p { color: rgba(255,255,255,.7); }
+    .agent-arrow { position: relative; }
+    .agent-arrow::before { content: ""; position: absolute; left: 2px; right: 20px; top: 171px; height: 7px; background: var(--lime); }
+    .agent-arrow::after { content: ""; position: absolute; right: 0; top: 157px; border-left: 22px solid var(--lime); border-top: 17px solid transparent; border-bottom: 17px solid transparent; }
+    .gate-dot { display: none; }
+    .gate-one { left: 367px; }
+    .gate-two { left: 705px; }
+    .feedback-loop {
+      margin-top: 46px;
+      height: 72px;
+      border-left: 5px solid var(--clay);
+      border-bottom: 5px solid var(--clay);
+      border-right: 5px solid var(--clay);
+      border-radius: 0 0 18px 18px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      padding-bottom: 12px;
+      color: var(--clay);
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: .03em;
+      position: relative;
+    }
+    .feedback-loop::before { content: ""; position: absolute; left: -17px; top: -2px; border-right: 24px solid var(--clay); border-top: 15px solid transparent; border-bottom: 15px solid transparent; }
+    .cleanroom-rules { margin-top: 32px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .rule-card { background: var(--paper-deep); border: 2px solid var(--line); padding: 16px; text-align: center; font-size: 18px; font-weight: 900; }
+    .rule-card span { color: var(--clay); margin-right: 7px; }
+
+    /* === PRESENTATION CONTROLS === */
+    .deck-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(10,25,17,.86);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 28px rgba(0,0,0,.25);
+      color: #fff;
+    }
+    .deck-controls button {
+      width: 38px;
+      height: 38px;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(255,255,255,.10);
+      color: #fff;
+      cursor: pointer;
+    }
+    .deck-controls button:hover { background: var(--lime); color: var(--ink); }
+    .progress-text { min-width: 70px; text-align: center; font: 700 14px var(--font-body); }
+    .edit-hotzone { position: fixed; top: 0; left: 0; width: 80px; height: 80px; z-index: 10000; cursor: pointer; }
+    .edit-toggle,
+    .save-toggle {
+      position: fixed;
+      top: 18px;
+      width: 42px;
+      height: 42px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--moss-dark);
+      color: #fff;
+      z-index: 10001;
+      cursor: pointer;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .3s ease, transform .3s ease;
+    }
+    .edit-toggle { left: 18px; }
+    .save-toggle { left: 68px; }
+    .edit-toggle.show,
+    .edit-toggle.active,
+    .save-toggle.show,
+    .save-toggle.active { opacity: 1; pointer-events: auto; }
+    .edit-toggle.active { background: var(--clay); transform: rotate(-8deg); }
+    [contenteditable="true"] { outline: 3px dashed var(--clay); outline-offset: 4px; cursor: text; }
+
+    /* === BEGINNER GUIDE EXTENSIONS === */
+    .role-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin:34px 0 0 32px; position:relative; z-index:2; }
+    .role-card { background:rgba(255,255,255,.58); border:2px solid var(--line); border-radius:18px; padding:28px; min-height:300px; box-shadow:0 12px 24px var(--shadow); }
+    .role-card .role-kicker { color:var(--moss); font-weight:900; letter-spacing:.12em; font-size:18px; }
+    .role-card h3 { font-size:36px; margin:18px 0 12px; font-family:var(--font-display); }
+    .role-card p { font-size:23px; line-height:1.55; color:var(--ink-soft); }
+    .role-card .role-icon { font-size:52px; }
+    .step-rail { display:grid; grid-template-columns:repeat(7,1fr); gap:12px; margin:54px 0 0 32px; position:relative; z-index:2; }
+    .step-node { background:var(--paper-deep); border:2px solid var(--moss); border-radius:14px; padding:18px 14px; min-height:156px; }
+    .step-node strong { display:block; color:var(--moss); font-size:18px; letter-spacing:.08em; }
+    .step-node span { display:block; margin-top:13px; font-size:23px; font-weight:800; line-height:1.25; }
+    .guide-layout { display:grid; grid-template-columns:1.05fr .95fr; gap:42px; margin:34px 0 0 32px; position:relative; z-index:2; }
+    .guide-copy { padding:22px 0; }
+    .guide-copy h3 { font-family:var(--font-display); font-size:42px; margin-bottom:18px; }
+    .guide-copy p { font-size:24px; line-height:1.6; color:var(--ink-soft); }
+    .guide-list { margin-top:22px; display:grid; gap:12px; }
+    .guide-list div { display:flex; gap:14px; align-items:flex-start; font-size:22px; line-height:1.35; }
+    .guide-list b { display:inline-grid; place-items:center; width:34px; height:34px; border-radius:50%; background:var(--lime); color:var(--moss-dark); flex:none; }
+    .app-shot { border:2px solid var(--moss); border-radius:22px; background:#13231d; padding:18px; box-shadow:0 18px 34px var(--shadow); }
+    .app-shot img { width:100%; height:450px; object-fit:contain; object-position:top; border-radius:12px; background:#fff; }
+    .wireframe { border:3px dashed var(--moss); border-radius:24px; background:rgba(216,239,189,.35); min-height:430px; display:grid; place-items:center; padding:24px; position:relative; }
+    .wireframe::before { content:"SCREENSHOT SLOT"; position:absolute; top:18px; left:22px; font-size:16px; letter-spacing:.14em; color:var(--moss); font-weight:900; }
+    .wireframe-inner { width:100%; height:100%; min-height:360px; border:2px solid rgba(23,49,39,.3); border-radius:16px; display:grid; place-items:center; text-align:center; color:var(--ink-soft); font-size:28px; font-weight:800; background:linear-gradient(135deg,rgba(255,255,255,.7),rgba(232,224,207,.7)); }
+    .wireframe-inner small { display:block; margin-top:10px; font-size:18px; font-weight:600; }
+    .flow-strip { display:flex; align-items:center; gap:16px; margin-top:26px; }
+    .flow-strip .pill { padding:13px 18px; border-radius:999px; background:var(--ink); color:#fff; font-size:21px; font-weight:800; }
+    .flow-strip .arr { color:var(--clay); font-size:32px; font-weight:900; }
+    .checklist { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:28px; }
+    .check { border-left:8px solid var(--lime); padding:16px 18px; background:rgba(255,255,255,.55); border-radius:8px; font-size:24px; line-height:1.35; }
+    .closing { display:grid; grid-template-columns:1fr 1fr; gap:30px; margin:54px 0 0 32px; position:relative; z-index:2; }
+    .closing-card { border-radius:20px; padding:34px; background:var(--ink); color:#fff; min-height:300px; }
+    .closing-card.alt { background:var(--lime-soft); color:var(--ink); border:2px solid var(--moss); }
+    .closing-card h3 { font-family:var(--font-display); font-size:42px; margin-bottom:16px; }
+    .closing-card p { font-size:24px; line-height:1.55; }
+    .tutorial-layout { display:grid; grid-template-columns:1.25fr .75fr; gap:38px; margin:30px 0 0 32px; position:relative; z-index:2; }
+    .tutorial-shot { height:690px; border:2px solid var(--moss); border-radius:20px; background:#101b16; padding:14px; box-shadow:0 18px 34px var(--shadow); overflow:hidden; }
+    .tutorial-shot img { width:100%; height:100%; object-fit:contain; border-radius:12px; }
+    .tutorial-copy { padding:18px 4px; }
+    .tutorial-copy .step-badge { display:inline-grid; place-items:center; width:72px; height:72px; border-radius:50%; background:var(--lime); color:var(--moss-dark); font-size:30px; font-weight:900; margin-bottom:22px; }
+    .tutorial-copy h3 { font-family:var(--font-display); font-size:40px; line-height:1.18; margin-bottom:18px; }
+    .tutorial-copy p { font-size:23px; line-height:1.55; color:var(--ink-soft); }
+    .tutorial-copy ul { margin:22px 0 0 24px; display:grid; gap:12px; font-size:21px; line-height:1.4; }
+    .tutorial-tip { margin-top:24px; padding:16px 18px; border:2px solid var(--moss); border-radius:12px; background:var(--lime-soft); font-size:19px; line-height:1.4; font-weight:700; }
+    .report-frame { width:100%; height:650px; border:0; background:#fff; }
+    .report-browser.final-report { height:735px; }
+    .report-browser.final-report .browser-bar { height:48px; }
+    .qml-badge { position:absolute; right:160px; top:5px; padding:10px 16px; border:2px solid var(--moss); border-radius:999px; background:var(--lime-soft); color:var(--ink); font-size:18px; font-weight:900; letter-spacing:.04em; }
+    .generated-shot { height:430px; border:2px solid var(--moss); border-radius:20px; padding:12px; background:#fff; box-shadow:0 14px 28px var(--shadow); overflow:hidden; }
+    .generated-shot img { width:100%; height:100%; object-fit:contain; border-radius:12px; }
+    .screen-workflow { display:grid; grid-template-columns:repeat(5,1fr); gap:18px; margin:30px 0 0 32px; position:relative; z-index:2; }
+    .screen-workflow.six { grid-template-columns:repeat(6,1fr); gap:14px; }
+    .screen-workflow.seven { grid-template-columns:repeat(7,1fr); gap:10px; }
+    .screen-step { min-width:0; text-align:center; position:relative; }
+    .screen-step::after { content:"→"; position:absolute; right:-18px; top:300px; color:var(--lime); font-size:36px; font-weight:900; z-index:4; }
+    .screen-workflow.six .screen-step::after { right:-15px; top:258px; }
+    .screen-workflow.seven .screen-step::after { right:-12px; top:220px; font-size:30px; }
+    .screen-step:last-child::after { display:none; }
+    .mini-phone { width:240px; height:522px; margin:0 auto; padding:6px; border-radius:38px; background:var(--moss-dark); box-shadow:10px 12px 0 var(--shadow); overflow:hidden; }
+    .screen-workflow.six .mini-phone { width:205px; height:445px; border-radius:32px; }
+    .screen-workflow.seven .mini-phone { width:175px; height:380px; border-radius:28px; }
+    .mini-phone img { width:100%; height:100%; object-fit:cover; border-radius:32px; }
+    .screen-workflow.six .mini-phone img { border-radius:27px; }
+    .screen-workflow.seven .mini-phone img { border-radius:23px; }
+    .screen-workflow.seven .screen-step h3 { font-size:18px; }
+    .screen-workflow.seven .screen-step p { font-size:14px; }
+    .screen-step b { display:grid; place-items:center; width:38px; height:38px; margin:-18px auto 10px; position:relative; z-index:5; border-radius:50%; background:var(--lime); color:var(--moss-dark); font-size:18px; }
+    .screen-step h3 { font-size:21px; margin-top:10px; line-height:1.25; }
+    .screen-step p { margin-top:6px; color:var(--ink-soft); font-size:16px; line-height:1.35; }
+
+    /* === API SETUP APPENDIX === */
+    .api-layout { display:grid; grid-template-columns:1.23fr .77fr; gap:38px; margin:28px 0 0 32px; position:relative; z-index:2; }
+    .api-shot { height:680px; border:2px solid var(--moss); border-radius:20px; padding:12px; background:#fff; box-shadow:0 18px 34px var(--shadow); overflow:hidden; }
+    .api-shot img { width:100%; height:100%; object-fit:contain; object-position:center; border-radius:12px; }
+    .api-shot.tall img { object-position:center top; }
+    .api-shot.annotated { position:relative; }
+    .api-shot-callout { position:absolute; left:28px; right:28px; bottom:24px; padding:14px 18px; border-radius:12px; background:rgba(23,49,39,.94); color:#fff; box-shadow:0 10px 24px rgba(0,0,0,.24); font-size:17px; line-height:1.35; font-weight:850; text-align:center; }
+    .api-shot-callout strong { color:var(--lime); }
+    .api-copy { padding:6px 4px 0; }
+    .api-service { display:flex; align-items:center; gap:13px; color:var(--moss); font-size:18px; font-weight:900; letter-spacing:.08em; }
+    .api-service::before { content:""; width:15px; height:15px; border-radius:50%; background:var(--lime); border:2px solid var(--moss); }
+    .api-copy h3 { font-family:var(--font-display); font-size:38px; line-height:1.18; margin:17px 0 22px; }
+    .api-steps { display:grid; gap:12px; }
+    .api-step { display:grid; grid-template-columns:42px 1fr; gap:13px; align-items:center; padding:13px 15px; border:2px solid var(--line); border-radius:14px; background:rgba(255,255,255,.62); font-size:20px; line-height:1.35; font-weight:750; }
+    .api-step b { display:grid; place-items:center; width:38px; height:38px; border-radius:50%; background:var(--lime); color:var(--moss-dark); font-size:17px; }
+    .api-steps.compact { gap:8px; }
+    .api-steps.compact .api-step { padding:9px 13px; font-size:18px; line-height:1.25; }
+    .api-link { display:block; margin-top:20px; padding:15px 17px; border-radius:12px; background:var(--ink); color:#fff; text-decoration:none; font-size:18px; font-weight:800; overflow-wrap:anywhere; }
+    .api-link span { color:var(--lime); margin-right:8px; }
+    .api-note { margin-top:16px; padding:14px 16px; border-left:7px solid var(--clay); background:var(--paper-deep); border-radius:8px; color:var(--ink-soft); font-size:17px; line-height:1.45; font-weight:700; }
+
+    /* === SURVEY DATABASE RELATIONSHIPS === */
+    .db-subtitle { margin:18px 0 0 32px; color:var(--ink-soft); font-size:22px; line-height:1.4; position:relative; z-index:2; }
+    .db-grid { display:grid; grid-template-columns:.82fr 1.05fr 1.18fr 1fr; gap:18px; margin:24px 0 0 32px; position:relative; z-index:2; }
+    .db-panel { min-height:700px; padding:20px 18px 18px; border:2px solid var(--line); border-radius:20px; background:rgba(255,255,255,.58); box-shadow:0 12px 24px var(--shadow); }
+    .db-panel.featured { border-color:var(--moss); background:rgba(232,244,212,.48); }
+    .db-panel-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; min-height:84px; padding-bottom:14px; border-bottom:2px solid var(--line); }
+    .db-panel-head small { display:block; color:var(--moss); font-size:15px; font-weight:900; letter-spacing:.08em; }
+    .db-panel-head h3 { margin-top:6px; font-family:var(--font-display); font-size:27px; line-height:1.08; }
+    .db-count { display:grid; place-items:center; min-width:42px; height:42px; border-radius:50%; background:var(--ink); color:#fff; font-size:16px; font-weight:900; }
+    .db-tree { margin-top:18px; }
+    .db-entity { position:relative; min-height:84px; padding:12px 13px; border:2px solid #aab7ae; border-radius:13px; background:#fff; }
+    .db-entity.spatial { border-color:var(--moss); box-shadow:inset 7px 0 0 var(--lime); }
+    .db-entity h4 { padding-right:54px; font-size:20px; line-height:1.15; }
+    .db-entity code { display:block; margin-top:5px; color:var(--moss); font:800 13px var(--font-body); }
+    .db-entity p { margin-top:7px; color:var(--ink-soft); font-size:13px; line-height:1.25; font-weight:700; }
+    .db-kind { position:absolute; right:10px; top:10px; padding:5px 7px; border-radius:999px; background:var(--paper-deep); color:var(--ink-soft); font-size:11px; font-weight:900; }
+    .db-entity.spatial .db-kind { background:var(--lime-soft); color:var(--moss-dark); }
+    .db-link { height:34px; display:grid; place-items:center; position:relative; color:var(--clay); font-size:12px; font-weight:900; }
+    .db-link::before { content:""; position:absolute; left:50%; top:0; bottom:0; border-left:3px solid var(--moss); }
+    .db-link span { position:relative; z-index:1; padding:3px 8px; border-radius:999px; background:var(--paper); border:1px solid var(--moss); }
+    .db-branches { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding-top:30px; position:relative; }
+    .db-branches::before { content:""; position:absolute; left:25%; right:25%; top:13px; border-top:3px solid var(--moss); }
+    .db-branches::after { content:""; position:absolute; left:50%; top:0; height:14px; border-left:3px solid var(--moss); }
+    .db-branch { position:relative; }
+    .db-branch::before { content:""; position:absolute; left:50%; top:-17px; height:17px; border-left:3px solid var(--moss); }
+    .db-branch .db-entity { min-height:102px; padding:12px 10px; }
+    .db-branch .db-entity h4 { padding-right:0; font-size:17px; }
+    .db-branch .db-entity code { font-size:11px; overflow-wrap:anywhere; }
+    .db-branch .db-entity p { font-size:12px; }
+    .db-rel-tag { position:absolute; top:-26px; left:50%; transform:translateX(-50%); z-index:2; padding:2px 7px; border-radius:999px; background:var(--paper); border:1px solid var(--moss); color:var(--clay); font-size:11px; font-weight:900; white-space:nowrap; }
+    .db-nested { margin-top:10px; }
+    .db-nested .db-link { height:29px; }
+    .db-legend { display:flex; align-items:center; flex-wrap:wrap; gap:7px 18px; max-width:700px; margin:16px 0 0 32px; color:var(--ink-soft); font-size:13px; line-height:1.25; font-weight:800; position:relative; z-index:2; }
+    .db-legend span { display:flex; align-items:center; gap:7px; }
+    .db-legend i { width:18px; height:18px; border:2px solid #aab7ae; border-radius:5px; background:#fff; }
+    .db-legend .spatial-key i { border-color:var(--moss); box-shadow:inset 5px 0 0 var(--lime); }
+
+    /* === SIMPLIFIED DATABASE FLOWS === */
+    .db-flow-grid { display:grid; grid-template-columns:1fr 1fr; gap:22px; margin:30px 0 0 32px; position:relative; z-index:2; }
+    .db-flow-card { min-height:245px; padding:24px 26px; border:2px solid var(--line); border-radius:20px; background:rgba(255,255,255,.6); box-shadow:0 12px 24px var(--shadow); }
+    .db-flow-card.featured { border-color:var(--moss); background:rgba(216,239,189,.38); }
+    .db-flow-head { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+    .db-flow-head small { color:var(--moss); font-size:16px; font-weight:900; letter-spacing:.08em; }
+    .db-flow-head h3 { margin-top:5px; font-family:var(--font-display); font-size:31px; }
+    .db-flow-head span { padding:8px 12px; border-radius:999px; background:var(--ink); color:#fff; font-size:14px; font-weight:900; }
+    .db-path { display:flex; align-items:center; gap:10px; margin-top:24px; }
+    .db-node { flex:1; min-width:0; padding:15px 10px; border:2px solid #aab7ae; border-radius:12px; background:#fff; text-align:center; font-size:18px; line-height:1.2; font-weight:850; }
+    .db-node.spatial { border-color:var(--moss); box-shadow:inset 6px 0 0 var(--lime); }
+    .db-arrow { color:var(--clay); font-size:28px; font-weight:950; }
+    .db-flow-card p { margin-top:20px; color:var(--ink-soft); font-size:18px; line-height:1.4; font-weight:700; }
+
+    /* === FINAL TAKEAWAY === */
+    .closing-final { padding:0; color:#fff; background:var(--moss-dark); }
+    .closing-final::before { content:""; position:absolute; inset:0; width:auto; height:auto; border-radius:0; opacity:1; background:linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px); background-size:72px 72px; box-shadow:none; }
+    .closing-final::after { right:-120px; top:-170px; width:640px; height:640px; border:145px solid rgba(112,212,33,.18); }
+    .closing-shell { position:relative; z-index:2; padding:100px 120px; }
+    .closing-kicker { color:var(--lime); font-size:20px; font-weight:900; letter-spacing:.18em; }
+    .closing-final h2 { max-width:1420px; margin-top:28px; font-family:var(--font-display); font-size:72px; line-height:1.08; letter-spacing:-.04em; }
+    .closing-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:58px; }
+    .closing-point { min-height:230px; padding:28px; border:2px solid rgba(255,255,255,.2); border-radius:20px; background:rgba(255,255,255,.07); }
+    .closing-point b { display:block; color:var(--lime); font-size:18px; letter-spacing:.08em; }
+    .closing-point h3 { margin:16px 0 10px; font-family:var(--font-display); font-size:34px; }
+    .closing-point p { color:rgba(255,255,255,.7); font-size:21px; line-height:1.45; }
+    .closing-route { margin-top:38px; color:rgba(255,255,255,.78); font-size:24px; font-weight:850; letter-spacing:.02em; }
+
+    /* === COMPACT SETUP APPENDIX === */
+    .api-summary-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin:30px 0 0 32px; position:relative; z-index:2; }
+    .api-summary-card { min-height:690px; padding:18px; border:2px solid var(--line); border-radius:20px; background:rgba(255,255,255,.62); box-shadow:0 14px 28px var(--shadow); }
+    .api-summary-card figure { height:300px; border-radius:14px; overflow:hidden; background:#fff; border:1px solid var(--line); }
+    .api-summary-card img { width:100%; height:100%; object-fit:contain; object-position:top; }
+    .api-summary-card small { display:block; margin-top:18px; color:var(--moss); font-size:15px; font-weight:900; letter-spacing:.08em; }
+    .api-summary-card h3 { margin:7px 0 13px; font-family:var(--font-display); font-size:30px; }
+    .api-summary-card p { min-height:105px; color:var(--ink-soft); font-size:18px; line-height:1.45; font-weight:700; }
+    .api-summary-card a { display:block; margin-top:16px; padding:13px 15px; border-radius:11px; background:var(--ink); color:#fff; text-decoration:none; font-size:16px; font-weight:850; overflow-wrap:anywhere; }
+
+    /* === STANDALONE COVER === */
+    .front-cover { padding:0; color:#fff; background:var(--moss-dark); }
+    .front-cover::before { content:""; position:absolute; inset:0; width:auto; height:auto; border-radius:0; opacity:1; background:linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px); background-size:72px 72px; box-shadow:none; }
+    .front-cover::after { right:-130px; top:-180px; width:650px; height:650px; border:145px solid rgba(112,212,33,.18); }
+    .front-cover-shell { position:relative; z-index:2; display:grid; grid-template-columns:1.02fr .98fr; width:100%; height:100%; }
+    .front-cover-copy { display:flex; flex-direction:column; justify-content:center; padding:80px 40px 80px 120px; }
+    .front-cover-kicker { color:var(--lime); font-size:20px; font-weight:900; letter-spacing:.18em; }
+    .front-cover-logo { width:780px; margin:42px 0 46px; padding:25px 32px; border-radius:22px; background:rgba(255,255,255,.96); box-shadow:18px 20px 0 rgba(0,0,0,.22); }
+    .front-cover h1 { max-width:820px; font-family:var(--font-display); font-size:72px; line-height:1.08; letter-spacing:-.045em; }
+    .front-cover-lede { max-width:720px; margin-top:24px; color:rgba(255,255,255,.72); font-size:26px; line-height:1.5; font-weight:700; }
+    .front-cover-tags { display:flex; gap:12px; margin-top:38px; }
+    .front-cover-tags span { padding:11px 16px; border:2px solid rgba(255,255,255,.28); border-radius:999px; color:#fff; font-size:16px; font-weight:850; letter-spacing:.04em; }
+    .front-cover-tags .accent { border-color:var(--lime); background:var(--lime); color:var(--moss-dark); }
+    .front-download { display:inline-flex; align-items:center; align-self:flex-start; gap:12px; margin-top:26px; padding:15px 20px; border-radius:14px; background:var(--paper); color:var(--moss-dark); font-size:19px; font-weight:900; text-decoration:none; box-shadow:8px 9px 0 rgba(0,0,0,.25); transition:transform .18s ease, box-shadow .18s ease; }
+    .front-download:hover, .front-download:focus-visible { transform:translateY(-3px); box-shadow:8px 12px 0 rgba(0,0,0,.25); }
+    .front-download span { display:grid; place-items:center; width:32px; height:32px; border-radius:50%; background:var(--lime); font-size:22px; }
+    .front-cover-visual { position:relative; display:grid; place-items:center; overflow:hidden; }
+    .front-window { width:760px; height:620px; padding:16px; border-radius:28px; background:#fff; box-shadow:30px 36px 0 rgba(0,0,0,.25); transform:rotate(2.2deg); }
+    .front-window-bar { height:42px; display:flex; align-items:center; gap:10px; padding:0 10px; }
+    .front-window-bar i { width:13px; height:13px; border-radius:50%; background:var(--clay); }
+    .front-window-bar i:nth-child(2) { background:#e9bd48; }
+    .front-window-bar i:nth-child(3) { background:var(--lime); }
+    .front-window img { width:100%; height:546px; object-fit:contain; object-position:top; border-radius:14px; background:#fff; }
+    .front-stamp { position:absolute; display:grid; place-items:center; width:190px; height:190px; border-radius:50%; border:4px solid var(--moss-dark); background:var(--lime); color:var(--moss-dark); text-align:center; font-size:23px; line-height:1.1; font-weight:950; letter-spacing:.05em; box-shadow:10px 12px 0 rgba(0,0,0,.28); transform:rotate(-9deg); }
+    .front-stamp.no-qgis { left:22px; top:120px; }
+    .front-stamp.ready { right:38px; bottom:88px; width:170px; height:170px; background:var(--paper); transform:rotate(8deg); }
+    .front-version { position:absolute; right:64px; top:54px; color:rgba(255,255,255,.65); font-size:17px; font-weight:850; letter-spacing:.12em; }
+  </style>
+</head>
+
+<body>
+  <!-- === FIXED PRESENTATION STAGE === -->
+  <div class="deck-viewport">
+    <main class="deck-stage" id="deckStage" aria-live="polite">
+
+      <!-- === SLIDE 1: STANDALONE COVER === -->
+      <section class="slide front-cover active visible" data-order="1" aria-label="생태조사 전자야장 생성기 표지">
+        <div class="front-cover-shell">
+          <div class="front-cover-copy">
+            <div class="front-cover-kicker reveal-left" data-editable>FIELD ECOLOGY · DIGITAL FIELD NOTEBOOK</div>
+            <img class="front-cover-logo reveal-left delay-1" src="assets/fieldbuild-kit-logo.png" alt="FieldBuild Kit 로고">
+            <h1 class="reveal delay-2" data-editable>생태조사<br>전자야장 생성기</h1>
+            <p class="front-cover-lede reveal delay-3" data-editable>QGIS 호환 조사 프로젝트를 자동 생성하고, QField로 현장 기록하는 독립 실행형 데스크톱 앱</p>
+            <div class="front-cover-tags reveal delay-4"><span class="accent">STANDALONE</span><span>4 SURVEY TEMPLATES</span><span>QFIELD READY</span></div>
+            <a class="front-download reveal delay-4" href="https://github.com/lethe5/fieldbuild_standalone/releases/latest" target="_blank" rel="noopener noreferrer" aria-label="FieldBuild Standalone 최신 버전 다운로드"><span aria-hidden="true">↓</span>앱 다운로드 · GitHub Releases</a>
+          </div>
+          <div class="front-cover-visual reveal-right delay-2">
+            <div class="front-window"><div class="front-window-bar"><i></i><i></i><i></i></div><img src="assets/standalone-step-1.png?v=20260908" alt="FieldBuild Standalone 독립 실행형 앱 화면"></div>
+            <div class="front-stamp no-qgis" data-editable>NO<br>QGIS<br>INSTALL</div>
+            <div class="front-stamp ready" data-editable>READY<br>FOR<br>QFIELD</div>
+            <div class="front-version">STANDALONE · QFIELD 4.2.11</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- === SLIDE 3: STANDALONE POSITIONING === -->
+      <section class="slide" data-order="2" aria-label="FieldBuild Kit과 QField 역할">
+        <header class="slide-header"><div><div class="eyebrow" data-editable>STANDALONE WORKFLOW</div><h2 class="slide-title" data-editable>두 앱 사이를 프로젝트 폴더가 연결합니다</h2></div><div class="folio">02 / 20</div></header>
+        <div class="role-grid">
+          <article class="role-card reveal-left delay-1"><div class="role-icon">🧰</div><div class="role-kicker">STANDALONE DESKTOP APP</div><h3 data-editable>FieldBuild Kit</h3><p data-editable>내장 템플릿과 생성 엔진으로 레이어·폼·관계·좌표계를 자동 구성합니다.</p></article>
+          <article class="role-card reveal delay-2"><div class="role-icon">📦</div><div class="role-kicker">PORTABLE PROJECT</div><h3 data-editable>프로젝트 폴더</h3><p data-editable>.qgs·GeoPackage·첨부 폴더와 필요한 배경지도를 한 묶음으로 생성합니다.</p></article>
+          <article class="role-card reveal-right delay-3"><div class="role-icon">📱</div><div class="role-kicker">MOBILE FIELD APP</div><h3 data-editable>QField</h3><p data-editable>완성된 폴더를 휴대폰에서 열고 위치·사진·관찰값을 기록합니다.</p></article>
+        </div>
+        <div class="flow-strip" style="margin-left:64px"><span class="pill">7단계 입력</span><span class="arr">→</span><span class="pill">프로젝트 생성</span><span class="arr">→</span><span class="pill">QField 현장 조사</span></div>
+        <p class="tiny-note" style="margin:30px 0 0 64px" data-editable>사용자 컴퓨터에는 QGIS를 설치할 필요가 없습니다. 현장 기록에는 모바일 QField가 필요하며, QField 4.2.11에서 검증했습니다.</p>
+      </section>
+
+      <!-- === SLIDE 3: WHO IT SERVES === -->
+      <section class="slide" data-order="3" aria-label="사용자와 해결 범위">
+        <header class="slide-header"><div><div class="eyebrow" data-editable>WHY IT EXISTS</div><h2 class="slide-title" data-editable>현장 연구자는 설정 전문가일 필요가 없습니다</h2></div><div class="folio">03 / 20</div></header>
+        <div class="guide-layout">
+          <div class="guide-copy reveal-left delay-1"><h3 data-editable>조사에 집중할 수 있도록<br>프로젝트 준비를 줄입니다</h3><p data-editable>생태조사 담당자가 필요한 것은 ‘정확한 기록’이지, 매번 새로 만드는 데이터베이스가 아닙니다.</p><div class="guide-list"><div><b>1</b><span data-editable>반복되는 레이어·폼·관계 설정을 템플릿으로 묶기</span></div><div><b>2</b><span data-editable>현장에 필요한 입력 항목만 남겨 실수 줄이기</span></div><div><b>3</b><span data-editable>완성 폴더를 휴대폰으로 옮겨 바로 조사 시작</span></div></div></div>
+          <div class="app-shot reveal-right delay-2"><img src="assets/standalone-step-1.png?v=20260908" alt="FieldBuild Standalone 시작 화면"><div class="paper-label light" style="margin-top:14px">처음 열면 바로 1단계부터 시작</div></div>
+        </div>
+      </section>
+
+      <!-- === SLIDE 2: AS-IS / TO-BE === -->
+      <section class="slide" data-order="4" aria-label="기존 방식과 FieldBuild Kit 비교">
+        <header class="slide-header">
+          <div><div class="eyebrow" data-editable>BEFORE / AFTER</div><h2 class="slide-title" data-editable>설정에 쓰던 시간을, 조사에 돌려줍니다</h2></div>
+          <div class="folio">04 / 20</div>
+        </header>
+        <div class="compare-grid">
+          <article class="compare-panel asis reveal-left delay-1">
+            <img src="assets/classic_process_processed.jpg" alt="QGIS에서 복잡한 프로젝트 설정을 직접 하는 조사자">
+            <div class="compare-badge">AS-IS</div>
+            <div class="compare-copy"><h3 data-editable>QGIS 직접 설정</h3><p data-editable>레이어 · 관계 · 폼 · 좌표계 · 오프라인 지도까지<br>전문 지식과 반복 작업이 필요합니다.</p></div>
+          </article>
+          <article class="compare-panel tobe reveal-right delay-2">
+            <img src="assets/qfieldkit_process_processed.jpg" alt="FieldBuild Kit으로 손쉽게 프로젝트를 생성하는 조사자">
+            <div class="compare-badge">TO-BE</div>
+            <div class="click-sticker" data-editable>딸깍!</div>
+            <div class="compare-copy"><h3 data-editable>FieldBuild Kit 7단계</h3><p data-editable>QGIS 설치나 직접 설정 없이 필요한 정보만 입력하면<br>QField 프로젝트가 현장용으로 완성됩니다.</p></div>
+          </article>
+        </div>
+      </section>
+
+      <!-- === SLIDE 3: SURVEY TYPES === -->
+      <section class="slide" data-order="5" aria-label="제공되는 네 가지 조사 유형">
+        <header class="slide-header">
+          <div><div class="eyebrow" data-editable>SURVEY TEMPLATES</div><h2 class="slide-title" data-editable>생태조사 방식에 맞춘 4개의 출발점</h2></div>
+          <div class="folio">05 / 20</div>
+        </header>
+        <div class="survey-grid">
+          <article class="survey-card reveal delay-1"><img src="assets/survey-type-1-species-inventory_processed.jpg" alt="단순 종 목록조사"><div class="survey-index">01</div><div class="survey-copy"><h3 data-editable>단순 종 목록조사</h3><p data-editable>사이트 경계 없이 발견 개체를 포인트로 기록</p></div></article>
+          <article class="survey-card reveal delay-2"><img src="assets/survey-type-2-temporary-plot_processed.jpg" alt="정해진 사이트에서의 임시 조사구"><div class="survey-index">02</div><div class="survey-copy"><h3 data-editable>정해진 사이트에서의 임시 조사구</h3><p data-editable>조사 시점마다 임시 조사구를 설치하여 현황 기록 (사이트 → 조사 → 관찰)</p></div></article>
+          <article class="survey-card reveal delay-3"><img src="assets/survey-type-3-permanent-plot_processed.jpg" alt="정해진 사이트에서의 고정 조사구"><div class="survey-index">03</div><div class="survey-copy"><h3 data-editable>정해진 사이트에서의 고정 조사구</h3><p data-editable>같은 조사구를 반복 방문하며 변화 기록 (사이트 → 고정조사구 → 조사 → 관찰)</p></div></article>
+          <article class="survey-card reveal delay-4"><img src="assets/survey-type-4-vegetation-mapping_processed.jpg" alt="식생 매핑"><div class="survey-index">04</div><div class="survey-copy"><h3 data-editable>식생 매핑</h3><p data-editable>현장 식생을 군락 폴리곤으로 구획</p></div></article>
+        </div>
+      </section>
+
+      <!-- === SLIDE 6: SURVEY DATABASE RELATIONSHIPS === -->
+      <section class="slide" data-order="6" aria-label="네 가지 생태조사 데이터베이스 관계도">
+        <header class="slide-header">
+          <div><div class="eyebrow" data-editable>DATABASE RELATIONSHIPS</div><h2 class="slide-title" data-editable>조사 방식에 따라 기록의 부모–자식 구조가 달라집니다</h2></div>
+          <div class="folio">06 / 20</div>
+        </header>
+        <p class="db-subtitle" data-editable>한 번만 기록하는 유형부터 같은 조사구를 반복 방문하는 유형까지, GeoPackage 관계가 조사 흐름을 그대로 반영합니다.</p>
+        <div class="db-flow-grid">
+          <article class="db-flow-card reveal delay-1">
+            <div class="db-flow-head"><div><small>TYPE 01</small><h3 data-editable>단순 종 목록조사</h3></div><span>1 TABLE</span></div>
+            <div class="db-path"><div class="db-node spatial" data-editable>식물관찰<br><small>점</small></div></div>
+            <p data-editable>관찰 1건이 지도 위 점 1개가 됩니다.</p>
+          </article>
+          <article class="db-flow-card reveal delay-2">
+            <div class="db-flow-head"><div><small>TYPE 02</small><h3 data-editable>임시 조사구</h3></div><span>1:N</span></div>
+            <div class="db-path"><div class="db-node spatial" data-editable>조사지</div><div class="db-arrow">→</div><div class="db-node spatial" data-editable>조사<br><small>임시 조사구</small></div><div class="db-arrow">→</div><div class="db-node" data-editable>관찰·사진</div></div>
+            <p data-editable>조사 시점마다 새 임시 조사구와 관찰을 기록합니다.</p>
+          </article>
+          <article class="db-flow-card featured reveal delay-3">
+            <div class="db-flow-head"><div><small>TYPE 03 · REPEAT</small><h3 data-editable>고정 조사구</h3></div><span>1:N</span></div>
+            <div class="db-path"><div class="db-node spatial" data-editable>조사지</div><div class="db-arrow">→</div><div class="db-node spatial" data-editable>고정조사구</div><div class="db-arrow">→</div><div class="db-node" data-editable>반복 조사</div><div class="db-arrow">→</div><div class="db-node" data-editable>관찰</div></div>
+            <p data-editable>같은 조사구에 여러 방문 기록이 차곡차곡 쌓입니다.</p>
+          </article>
+          <article class="db-flow-card reveal delay-4">
+            <div class="db-flow-head"><div><small>TYPE 04</small><h3 data-editable>식생 매핑</h3></div><span>1:N</span></div>
+            <div class="db-path"><div class="db-node spatial" data-editable>조사지</div><div class="db-arrow">→</div><div class="db-node" data-editable>조사</div><div class="db-arrow">→</div><div class="db-node spatial" data-editable>군락<br><small>면</small></div></div>
+            <p data-editable>관찰점이 아니라 식생 군락의 범위를 면으로 기록합니다.</p>
+          </article>
+        </div>
+        <div class="db-legend"><span class="spatial-key"><i></i>지도에 그려지는 공간 레이어</span><span><i></i>속성·첨부 기록</span><span>화살표는 1:N 부모–자식 관계</span></div>
+      </section>
+
+      <!-- === SLIDE 7: WIZARD OVERVIEW === -->
+      <section class="slide" data-order="7" aria-label="7단계 위저드 한눈에 보기">
+        <header class="slide-header"><div><div class="eyebrow" data-editable>THE WIZARD</div><h2 class="slide-title" data-editable>처음부터 끝까지, 7단계만 따라가세요</h2></div><div class="folio">07 / 20</div></header>
+        <p class="tiny-note" style="margin:38px 0 0 64px" data-editable>각 단계에서 필요한 것만 입력하고, 다음 버튼으로 이동하면 됩니다.</p>
+        <div class="step-rail">
+          <div class="step-node reveal delay-1"><strong>01</strong><span>기본 정보</span></div><div class="step-node reveal delay-1"><strong>02</strong><span>조사 유형</span></div><div class="step-node reveal delay-2"><strong>03</strong><span>사이트·조사구</span></div><div class="step-node reveal delay-2"><strong>04</strong><span>배경지도</span></div><div class="step-node reveal delay-3"><strong>05</strong><span>동정·참조자료</span></div><div class="step-node reveal delay-3"><strong>06</strong><span>기호 스타일</span></div><div class="step-node reveal delay-4"><strong>07</strong><span>검토·생성</span></div>
+        </div>
+        <div class="guide-layout" style="margin-top:48px"><div class="guide-copy"><h3 data-editable>완성 결과</h3><p data-editable>QField에서 바로 여는 .qgs·GeoPackage와 필요 시 MBTiles, 선택한 분류·확률 데이터가 한 폴더에 생성됩니다.</p><div class="tutorial-tip" data-editable>선택한 자료는 프로젝트 내부 형식으로 변환되므로 원본 엑셀·TIFF 경로에 의존하지 않습니다.</div></div><figure class="generated-shot reveal-right delay-2"><img src="assets/generated_files.png" alt="FieldBuild Kit이 생성한 프로젝트 파일과 폴더"></figure></div>
+      </section>
+
+      <!-- === SLIDE 8: SITE / PLOT === -->
+      <section class="slide" data-order="8" aria-label="1단계 프로젝트 기본 정보">
+        <header class="slide-header"><div><div class="eyebrow" data-editable>STEP 01 · PROJECT BASICS</div><h2 class="slide-title" data-editable>프로젝트 이름과 저장 위치를 정합니다</h2></div><div class="folio">08 / 20</div></header>
+        <div class="tutorial-layout">
+          <figure class="tutorial-shot reveal-left delay-1"><img src="assets/standalone-step-1.png?v=20260908" alt="FieldBuild Standalone 1단계 프로젝트 기본 정보 화면"></figure>
+          <div class="tutorial-copy reveal-right delay-2"><div class="step-badge">01</div><h3 data-editable>이름·폴더·좌표계 입력</h3><p data-editable>기존 상위 폴더를 고르면 그 안에 새 프로젝트 폴더가 자동으로 만들어집니다.</p><ul><li data-editable>프로젝트 이름과 설명 입력</li><li data-editable>저장할 상위 폴더 선택</li><li data-editable>작업 CRS와 저장 CRS 확인</li></ul><div class="tutorial-tip" data-editable>처음이라면 기본값 EPSG:5186 / EPSG:4326을 유지해도 됩니다.</div></div>
+        </div>
+      </section>
+
+      <section class="slide" data-order="9" aria-label="2단계 조사 유형 선택">
+        <header class="slide-header"><div><div class="eyebrow" data-editable>STEP 02 · SURVEY TYPE</div><h2 class="slide-title" data-editable>현장 조사 방식 하나를 고릅니다</h2></div><div class="folio">09 / 20</div></header>
+        <div class="tutorial-layout">
+          <figure class="tutorial-shot reveal-left delay-1"><img src="assets/standalone-step-2.png?v=20260908" alt="FieldBuild Standalone 2단계 조사 유형 선택 화면"></figure>
+          <div class="tutorial-copy reveal-right delay-2"><div class="step-badge">02</div><h3 data-editable>자료 구조를 결정하는 단계</h3><p data-editable>조사 유형에 따라 생성되는 레이어와 상하위 관계가 달라집니다.</p><ul><li data-editable>단순 종 목록: 관찰 포인트 중심</li><li data-editable>임시 조사구: 사이트 → 조사 → 관찰</li><li data-editable>고정 조사구: 반복 방문 기록</li><li data-editable>식생 매핑: 군락 폴리곤 기록</li></ul></div>
+        </div>
+      </section>
+
+      <section class="slide" data-order="10" aria-label="사이트와 조사구 설정">
+        <header class="slide-header"><div><div class="eyebrow" data-editable>STEP 03 · SITE / PLOT</div><h2 class="slide-title" data-editable>사이트와 조사구를 준비합니다</h2></div><div class="folio">10 / 20</div></header>
+        <div class="tutorial-layout">
+          <figure class="tutorial-shot reveal-left delay-1"><img src="assets/standalone-step-3.png?v=20260908" alt="FieldBuild Standalone 3단계 사이트와 조사구 입력 화면"></figure>
+          <div class="tutorial-copy reveal-right delay-2"><div class="step-badge">03</div><h3 data-editable>파일을 가져오거나<br>지도에 직접 그리기</h3><p data-editable>사이트가 필요한 조사 유형에서만 나타나는 단계입니다.</p><ul><li data-editable>GeoPackage·Shapefile 선택</li><li data-editable>사이트 이름 속성 확인</li><li data-editable>또는 지도에 경계를 직접 작성</li></ul><div class="tutorial-tip" data-editable>단순 종 목록조사를 선택했다면 입력 없이 다음 단계로 넘어갑니다.</div></div>
+        </div>
+      </section>
+
+      <section class="slide" data-order="12" aria-label="5단계 사진 기반 식별 설정">
+        <header class="slide-header"><div><div class="eyebrow" data-editable>STEP 05 · IDENTIFICATION & REFERENCES</div><h2 class="slide-title" data-editable>사진 동정과 로컬 참조 자료를 선택합니다</h2></div><div class="folio">12 / 20</div></header>
+        <div class="tutorial-layout">
+          <figure class="tutorial-shot reveal-left delay-1"><img src="assets/standalone-step-5.png?v=20260908" alt="FieldBuild Standalone 5단계 사진 기반 식별 설정 화면"></figure>
+          <div class="tutorial-copy reveal-right delay-2"><div class="step-badge">05</div><h3 data-editable>필요한 자료만 직접 연결</h3><p data-editable>앱에 분류·분포 자료를 내장하지 않고, 사용자가 가진 로컬 파일을 선택적으로 지정합니다.</p><ul><li data-editable>식물 분류 Excel(.xlsx) 업로드 → 자동 검증·미리보기</li><li data-editable>사진 식별과 유효한 Excel 사용 시 TIFF 폴더 선택 가능</li><li data-editable>Excel·TIFF 없이도 프로젝트 생성 가능</li></ul><div class="tutorial-tip" data-editable>Excel을 사용하면 국가생물종목록 정명과 KTSN을 적용하고, TIFF를 사용하면 위치별 출현확률을 함께 제시합니다.</div></div>
+        </div>
+      </section>
+
+      <section class="slide" data-order="17" aria-label="사진 기반 식물 동정 기능">
+        <header class="slide-header">
+          <div><div class="eyebrow" data-editable>PHOTO IDENTIFICATION</div><h2 class="slide-title" data-editable>사진 한 장에서, 동정 후보까지</h2></div>
+          <div class="qml-badge" data-editable>QML 프로젝트 위젯으로 추가된 기능</div>
+          <div class="folio">17 / 20</div>
+        </header>
+        <div class="identify-layout">
+          <figure class="photo-scene reveal-left delay-1">
+            <img src="assets/sangsahwa-ecologist-cartoon.png" alt="아이폰으로 꽃을 촬영하는 생태 조사자">
+            <figcaption class="paper-label light" data-editable>① 현장에서 꽃·잎·열매 촬영</figcaption>
+          </figure>
+          <div class="identify-flow reveal delay-2" id="identifyFlow" data-flow-stage="0">
+            <div class="flow-step is-current" data-flow-step="0">관찰 사진</div>
+            <div class="flow-down" aria-hidden="true"></div>
+            <div class="flow-step" data-flow-step="1"><strong>Pl@ntNet</strong><br>후보 분석<div class="candidate-list"><span class="candidate selected">상사화 93%</span><span class="candidate">진노랑상사화 12%</span></div></div>
+            <div class="flow-down" aria-hidden="true"></div>
+            <div class="flow-step" data-flow-step="2">후보 선택<br><small>형태·분포 근거 확인</small></div>
+            <div class="flow-down" aria-hidden="true"></div>
+            <div class="flow-step" data-flow-step="3">선택한 종<br>현장 기록에 입력</div>
+            <p class="flow-note" data-editable>Pl@ntNet 형태적 신뢰도<br>+ TIFF 연결 시 해당 위치 출현확률</p>
+            <p class="flow-hint">우측 화살표 또는 스페이스바로 단계별 보기</p>
+          </div>
+          <figure class="phone-result reveal-right delay-3"><img src="assets/qfield-identification.png" alt="QField에서 표시된 식물 동정 후보 화면"></figure>
+          <div class="identify-callout reveal delay-4"><strong data-editable>동정 결과</strong><br><span data-editable>Pl@ntNet 형태적 신뢰도</span><br><span data-editable>+ TIFF 사용 시 위치 출현확률</span></div>
+        </div>
+      </section>
+
+      <!-- === SLIDE 5: HTML EXPORT === -->
+      <section class="slide" data-order="18" aria-label="HTML 보고서 내보내기">
+        <header class="slide-header">
+          <div><div class="eyebrow" data-editable>SHARE THE FIELD</div><h2 class="slide-title" data-editable>현장 기록을, 바로 공유 가능한 HTML로</h2></div>
+          <div class="qml-badge" data-editable>QML 프로젝트 위젯으로 추가된 기능</div>
+          <div class="folio">18 / 20</div>
+        </header>
+        <div class="export-layout">
+          <figure class="export-phone reveal-left delay-1">
+            <img src="assets/qfield-export.png" alt="QField의 HTML Export 버튼 화면">
+            <div class="export-ring" aria-label="HTML Export 버튼 강조"></div>
+          </figure>
+          <div class="export-arrow reveal delay-2" aria-hidden="true"></div>
+          <div class="report-browser final-report reveal-right delay-3" aria-label="최종 HTML 보고서 예시">
+            <div class="browser-bar"><i class="browser-dot"></i><i class="browser-dot"></i><i class="browser-dot"></i><div class="browser-address">type1-4_report.html · 최종 보고서</div></div>
+            <iframe class="report-frame" src="assets/type1-4_report.html" title="FieldBuild Kit 최종 식물관찰 HTML 보고서"></iframe>
+          </div>
+        </div>
+      </section>
+
+      <!-- === SLIDE 10: OFFLINE / BASEMAP === -->
+      <section class="slide" data-order="11" aria-label="배경지도와 오프라인 준비">
+        <header class="slide-header"><div><div class="eyebrow" data-editable>STEP 04 · BASEMAP</div><h2 class="slide-title" data-editable>현장의 인터넷 환경을 선택합니다</h2></div><div class="folio">11 / 20</div></header>
+        <div class="tutorial-layout">
+          <figure class="tutorial-shot reveal-left delay-1"><img src="assets/standalone-step-4.png?v=20260908" alt="FieldBuild Standalone 4단계 연결 상태와 배경지도 화면"></figure>
+          <div class="tutorial-copy reveal-right delay-2"><div class="step-badge">04</div><h3 data-editable>온라인·오프라인·없음</h3><p data-editable>조사 지역의 통신 상태와 필요한 지도 수준에 맞춰 선택합니다.</p><ul><li data-editable>온라인: 현장 네트워크 사용</li><li data-editable>오프라인: 로컬 배경지도 생성</li><li data-editable>없음: 가장 가벼운 프로젝트</li></ul><div class="tutorial-tip" data-editable>산지나 음영 지역은 출발 전에 오프라인 지도를 준비하세요.</div></div>
+        </div>
+      </section>
+
+      <!-- === SLIDE 11: STYLE / REVIEW === -->
+      <section class="slide" data-order="13" aria-label="기호 스타일과 검토 생성">
+        <header class="slide-header"><div><div class="eyebrow" data-editable>STEP 06 · SYMBOL STYLE</div><h2 class="slide-title" data-editable>현장에서 구분하기 쉬운 기호를 고릅니다</h2></div><div class="folio">13 / 20</div></header>
+        <div class="tutorial-layout">
+          <figure class="tutorial-shot reveal-left delay-1"><img src="assets/standalone-step-6.png?v=20260908" alt="FieldBuild Standalone 6단계 기호 스타일 화면"></figure>
+          <div class="tutorial-copy reveal-right delay-2"><div class="step-badge">06</div><h3 data-editable>기본 스타일 또는<br>Tabler 아이콘</h3><p data-editable>이번 프로젝트의 모든 포인트와 폴리곤 레이어에 한 번에 적용됩니다.</p><ul><li data-editable>빠르게 시작: 기본 미니멀 스타일</li><li data-editable>대상 구분 강화: Tabler 아이콘 검색</li></ul><div class="tutorial-tip" data-editable>예시는 ‘leaf’를 선택한 화면입니다. 아이콘을 선택하지 않으면 기본 미니멀 기호가 적용됩니다.</div></div>
+        </div>
+      </section>
+
+      <!-- === SLIDE 12: TRANSFER TO FIELD === -->
+      <section class="slide" data-order="14" aria-label="7단계 검토 및 생성">
+        <header class="slide-header"><div><div class="eyebrow" data-editable>STEP 07 · REVIEW & BUILD</div><h2 class="slide-title" data-editable>설정을 확인하고 프로젝트를 생성합니다</h2></div><div class="folio">14 / 20</div></header>
+        <div class="tutorial-layout">
+          <figure class="tutorial-shot reveal-left delay-1"><img src="assets/standalone-step-7.png?v=20260908" alt="FieldBuild Standalone 7단계 검토 및 생성 화면"></figure>
+          <div class="tutorial-copy reveal-right delay-2"><div class="step-badge">07</div><h3 data-editable>요약 확인 → 생성</h3><p data-editable>이전 단계에서 선택한 값을 한 화면에서 검토한 뒤 생성 버튼을 누릅니다.</p><ul><li data-editable>프로젝트 이름과 조사 유형</li><li data-editable>배경지도·사진 동정·기호 스타일</li><li data-editable>최종 생성 폴더 위치</li></ul><div class="tutorial-tip" data-editable>완성된 프로젝트는 폴더 전체를 휴대폰으로 옮깁니다. QFieldSync 패키징은 사용하지 않습니다.</div></div>
+        </div>
+      </section>
+
+      <section class="slide" data-order="15" aria-label="휴대폰으로 프로젝트 전달">
+        <header class="slide-header"><div><div class="eyebrow" data-editable>OPEN IN QFIELD</div><h2 class="slide-title" data-editable>옮긴 프로젝트 폴더를 QField에서 엽니다</h2></div><div class="folio">15 / 20</div></header>
+        <div class="screen-workflow">
+          <article class="screen-step reveal delay-1"><figure class="mini-phone"><img src="assets/qfield-open-1.png" alt="QField 홈 화면"></figure><b>1</b><h3 data-editable>QField 홈</h3><p data-editable>Local projects and datasets 선택</p></article>
+          <article class="screen-step reveal delay-1"><figure class="mini-phone"><img src="assets/qfield-open-2.png" alt="QField 프로젝트 가져오기 메뉴"></figure><b>2</b><h3 data-editable>가져오기</h3><p data-editable>Import project from folder 선택</p></article>
+          <article class="screen-step reveal delay-2"><figure class="mini-phone"><img src="assets/qfield-open-3.png" alt="iOS Files 프로젝트 폴더 선택"></figure><b>3</b><h3 data-editable>폴더 선택</h3><p data-editable>전송한 프로젝트 폴더 지정</p></article>
+          <article class="screen-step reveal delay-3"><figure class="mini-phone"><img src="assets/qfield-open-4.png" alt="QField 프로젝트 파일 확인"></figure><b>4</b><h3 data-editable>프로젝트 열기</h3><p data-editable>프로젝트·데이터 파일 확인</p></article>
+          <article class="screen-step reveal delay-4"><figure class="mini-phone"><img src="assets/qfield-open-5.png" alt="QField 프로젝트 플러그인 활성화"></figure><b>5</b><h3 data-editable>위젯 활성화</h3><p data-editable>프로젝트 플러그인 실행 허용</p></article>
+        </div>
+      </section>
+
+      <!-- === SLIDE 13: FIELD LOOP === -->
+      <section class="slide" data-order="16" aria-label="현장 조사 루프">
+        <header class="slide-header"><div><div class="eyebrow" data-editable>FIELD WORKFLOW</div><h2 class="slide-title" data-editable>관찰 장소 선택부터 동정·저장까지 한 흐름으로</h2></div><div class="folio">16 / 20</div></header>
+        <div class="screen-workflow seven">
+          <article class="screen-step reveal delay-1"><figure class="mini-phone"><img src="assets/qfield-field-1.png" alt="QField 디지타이즈 모드 화면"></figure><b>1</b><h3 data-editable>관찰 시작</h3><p data-editable>디지타이즈 모드 켜기</p></article>
+          <article class="screen-step reveal delay-1"><figure class="mini-phone"><img src="assets/qfield-add-location.png" alt="관찰 위치에서 플러스 버튼을 누르는 화면"></figure><b>2</b><h3 data-editable>장소 선택</h3><p data-editable>관찰 장소에서 (+) 버튼 클릭하기</p></article>
+          <article class="screen-step reveal delay-2"><figure class="mini-phone"><img src="assets/qfield-field-2.png" alt="새 관찰 기록 입력 화면"></figure><b>3</b><h3 data-editable>기본 정보</h3><p data-editable>일자·조사자 입력</p></article>
+          <article class="screen-step reveal delay-2"><figure class="mini-phone"><img src="assets/qfield-field-3.png" alt="식물 사진 첨부 화면"></figure><b>4</b><h3 data-editable>사진 첨부</h3><p data-editable>꽃·잎·열매 사진 추가</p></article>
+          <article class="screen-step reveal delay-3"><figure class="mini-phone"><img src="assets/qfield-identification.png" alt="사진 기반 식물 동정 후보 화면"></figure><b>5</b><h3 data-editable>후보 확인</h3><p data-editable>Pl@ntNet 신뢰도<br>TIFF 사용 시 출현확률</p></article>
+          <article class="screen-step reveal delay-4"><figure class="mini-phone"><img src="assets/qfield-field-5.png" alt="선택한 동정 결과가 입력된 화면"></figure><b>6</b><h3 data-editable>결과 입력</h3><p data-editable>후보 선택<br>Excel 사용 시 KTSN 자동 입력</p></article>
+          <article class="screen-step reveal delay-5"><figure class="mini-phone"><img src="assets/qfield-field-6.png" alt="QField 관찰 저장 완료 지도"></figure><b>7</b><h3 data-editable>저장 완료</h3><p data-editable>지도에 관찰 포인트 표시</p></article>
+        </div>
+      </section>
+
+      <!-- === SLIDE 19: FINAL TAKEAWAY === -->
+      <section class="slide closing-final" data-order="19" aria-label="FieldBuild Standalone 핵심 요약">
+        <div class="closing-shell">
+          <div class="closing-kicker reveal-left" data-editable>FROM SETUP TO FIELD DATA</div>
+          <h2 class="reveal delay-1" data-editable>만드는 시간은 줄이고,<br>조사 데이터의 일관성은 높입니다</h2>
+          <div class="closing-grid">
+            <article class="closing-point reveal delay-2"><b>01 · BUILD</b><h3 data-editable>QGIS 설치 없이</h3><p data-editable>7단계 입력으로 네 가지 생태조사 프로젝트를 생성합니다.</p></article>
+            <article class="closing-point reveal delay-3"><b>02 · FIELD</b><h3 data-editable>QField 현장 기록</h3><p data-editable>완성 폴더를 휴대폰에서 열어 위치·사진·관찰값을 기록합니다.</p></article>
+            <article class="closing-point reveal delay-4"><b>03 · SHARE</b><h3 data-editable>HTML로 공유</h3><p data-editable>현장 기록을 지도가 포함된 보고서로 바로 내보냅니다.</p></article>
+          </div>
+          <div class="closing-route reveal delay-5" data-editable>FieldBuild Standalone → 프로젝트 폴더 → QField 4.2.11 → HTML 보고서</div>
+        </div>
+      </section>
+
+      <!-- === SLIDE 20: SETUP APPENDIX === -->
+      <section class="slide" data-order="20" aria-label="API와 분류 참조 자료 준비 방법">
+        <header class="slide-header"><div><div class="eyebrow" data-editable>APPENDIX · BEFORE YOU START</div><h2 class="slide-title" data-editable>선택 기능에 필요한 키와 참조 자료</h2></div><div class="folio">20 / 20</div></header>
+        <div class="api-summary-grid">
+          <article class="api-summary-card reveal delay-1">
+            <figure><img src="assets/api-vworld.png" alt="VWorld 오픈API 인증키 발급 화면"></figure>
+            <small>ONLINE BASEMAP</small><h3 data-editable>VWorld API</h3>
+            <p data-editable>회원가입 → 오픈API → 인증키 발급. 온라인 배경지도를 사용할 때 4단계에서 입력합니다.</p>
+            <a href="https://www.vworld.kr/v4po_main.do" target="_blank" rel="noopener">↗ vworld.kr/v4po_main.do</a>
+          </article>
+          <article class="api-summary-card reveal delay-2">
+            <figure><img src="assets/api-plantnet.png" alt="Pl@ntNet API key 화면"></figure>
+            <small>PHOTO IDENTIFICATION</small><h3 data-editable>Pl@ntNet API</h3>
+            <p data-editable>회원가입 → My account → API key 확인. 사진 동정을 사용할 때 5단계에서 입력합니다.</p>
+            <a href="https://my.plantnet.org" target="_blank" rel="noopener">↗ my.plantnet.org</a>
+          </article>
+          <article class="api-summary-card reveal delay-3">
+            <figure><img src="assets/api-nibr.png" alt="국가생물종목록 다운로드 화면"></figure>
+            <small>KOREAN SPECIES REFERENCE</small><h3 data-editable>국가생물종목록</h3>
+            <p data-editable>분류군별 다운로드에서 엑셀·이명정보 포함·관속식물류·최신 연도를 선택하고, 내려받은 파일을 5단계에서 직접 지정합니다.</p>
+            <a href="https://species.nibr.go.kr" target="_blank" rel="noopener">↗ species.nibr.go.kr</a>
+          </article>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- === NAVIGATION AND EDITING CONTROLS === -->
+  <nav class="deck-controls" aria-label="슬라이드 탐색">
+    <button id="prevButton" aria-label="이전 슬라이드">←</button>
+    <span class="progress-text" id="progressText">1 / 20</span>
+    <button id="nextButton" aria-label="다음 슬라이드">→</button>
+  </nav>
+  <div class="edit-hotzone" aria-hidden="true"></div>
+  <button class="edit-toggle" id="editToggle" title="편집 모드 (E)" aria-label="편집 모드">✎</button>
+  <button class="save-toggle" id="saveToggle" title="HTML 저장" aria-label="HTML 저장">⇩</button>
+
+  <script>
+    /* === FIXED-STAGE SLIDE CONTROLLER === */
+    class SlidePresentation {
+      constructor() {
+        this.stage = document.getElementById('deckStage');
+        this.slides = Array.from(document.querySelectorAll('.slide'))
+          .sort((left, right) => Number(left.dataset.order || 0) - Number(right.dataset.order || 0));
+        this.slides.forEach((slide, index) => {
+          this.stage.appendChild(slide);
+          const folio = slide.querySelector('.folio');
+          if (folio) folio.textContent = String(index + 1).padStart(2, '0') + ' / ' + String(this.slides.length).padStart(2, '0');
+        });
+        this.currentSlide = 0;
+        this.lastWheel = 0;
+        this.touchStartX = null;
+        this.setupStageScale();
+        this.setupKeyboardNav();
+        this.setupTouchNav();
+        this.setupWheelNav();
+        this.setupButtons();
+        this.setupClickNav();
+        const requestedSlide = Number(new URLSearchParams(window.location.search).get('slide') || 1) - 1;
+        this.showSlide(Number.isFinite(requestedSlide) ? requestedSlide : 0);
+      }
+
+      setupStageScale() {
+        const scale = () => {
+          const factor = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+          const x = (window.innerWidth - 1920 * factor) / 2;
+          const y = (window.innerHeight - 1080 * factor) / 2;
+          this.stage.style.transform = `translate(${x}px, ${y}px) scale(${factor})`;
+        };
+        scale();
+        window.addEventListener('resize', scale);
+      }
+
+      setupKeyboardNav() {
+        document.addEventListener('keydown', (event) => {
+          if (event.target && event.target.getAttribute('contenteditable') === 'true') return;
+          if (['ArrowRight', 'ArrowDown', ' ', 'PageDown'].includes(event.key)) { event.preventDefault(); this.next(); }
+          if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(event.key)) { event.preventDefault(); this.prev(); }
+          if (event.key === 'Home') this.showSlide(0);
+          if (event.key === 'End') this.showSlide(this.slides.length - 1);
+        });
+      }
+
+      setupTouchNav() {
+        document.addEventListener('touchstart', (event) => { this.touchStartX = event.changedTouches[0].screenX; }, { passive: true });
+        document.addEventListener('touchend', (event) => {
+          if (this.touchStartX === null) return;
+          const distance = event.changedTouches[0].screenX - this.touchStartX;
+          if (Math.abs(distance) > 55) distance < 0 ? this.next() : this.prev();
+          this.touchStartX = null;
+        }, { passive: true });
+      }
+
+      setupWheelNav() {
+        document.addEventListener('wheel', (event) => {
+          const now = Date.now();
+          if (now - this.lastWheel < 650 || Math.abs(event.deltaY) < 24) return;
+          this.lastWheel = now;
+          event.deltaY > 0 ? this.next() : this.prev();
+        }, { passive: true });
+      }
+
+      setupButtons() {
+        document.getElementById('prevButton').addEventListener('click', () => this.prev());
+        document.getElementById('nextButton').addEventListener('click', () => this.next());
+      }
+
+      setupClickNav() {
+        this.stage.addEventListener('click', (event) => {
+          if (window.deckEditor && window.deckEditor.isActive) return;
+          if (event.target.closest('button, a, [contenteditable="true"]')) return;
+          const rect = this.stage.getBoundingClientRect();
+          const relativeX = (event.clientX - rect.left) / rect.width;
+          if (relativeX > .72) this.next();
+          if (relativeX < .28) this.prev();
+        });
+      }
+
+      showSlide(index) {
+        this.currentSlide = Math.max(0, Math.min(index, this.slides.length - 1));
+        this.slides.forEach((slide, slideIndex) => {
+          slide.classList.toggle('active', slideIndex === this.currentSlide);
+          slide.classList.toggle('visible', slideIndex === this.currentSlide);
+          slide.setAttribute('aria-hidden', String(slideIndex !== this.currentSlide));
+        });
+        document.getElementById('progressText').textContent = `${this.currentSlide + 1} / ${this.slides.length}`;
+        const currentHasIdentificationFlow = Boolean(this.slides[this.currentSlide].querySelector('#identifyFlow'));
+        const previousHadIdentificationFlow = this.previousSlide !== undefined &&
+          Boolean(this.slides[this.previousSlide].querySelector('#identifyFlow'));
+        if (currentHasIdentificationFlow && window.identificationDemo && !previousHadIdentificationFlow) {
+          window.identificationDemo.reset();
+        }
+        this.previousSlide = this.currentSlide;
+      }
+
+      next() {
+        const currentHasIdentificationFlow = Boolean(this.slides[this.currentSlide].querySelector('#identifyFlow'));
+        if (currentHasIdentificationFlow && window.identificationDemo && window.identificationDemo.advance()) return;
+        this.showSlide(this.currentSlide + 1);
+      }
+      prev() { this.showSlide(this.currentSlide - 1); }
+    }
+
+    /* === INLINE TEXT EDITOR === */
+    class DeckEditor {
+      constructor() {
+        this.isActive = false;
+        this.editables = Array.from(document.querySelectorAll('[data-editable]'));
+        this.restore();
+      }
+
+      toggleEditMode() {
+        this.isActive = !this.isActive;
+        this.editables.forEach((element) => element.setAttribute('contenteditable', String(this.isActive)));
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        document.getElementById('saveToggle').classList.toggle('active', this.isActive);
+        if (!this.isActive) this.save();
+      }
+
+      save() {
+        const values = this.editables.map((element) => element.innerHTML);
+        localStorage.setItem('fieldbuild-kit-deck-copy-v5', JSON.stringify(values));
+      }
+
+      restore() {
+        try {
+          const values = JSON.parse(localStorage.getItem('fieldbuild-kit-deck-copy-v5') || 'null');
+          if (Array.isArray(values)) this.editables.forEach((element, index) => { if (values[index] !== undefined) element.innerHTML = values[index]; });
+        } catch (error) { console.warn('Saved slide edits could not be restored.', error); }
+      }
+
+      download() {
+        this.save();
+        const source = '<!doctype html>\n' + document.documentElement.outerHTML;
+        const url = URL.createObjectURL(new Blob([source], { type: 'text/html;charset=utf-8' }));
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'fieldbuild-kit-presentation.html';
+        anchor.click();
+        URL.revokeObjectURL(url);
+      }
+    }
+
+    /* === IDENTIFICATION STORYBOARD INTERACTION === */
+    function setupIdentificationDemo() {
+      const flow = document.getElementById('identifyFlow');
+      if (!flow) return;
+      const steps = Array.from(flow.querySelectorAll('[data-flow-step]'));
+      let stage = 0;
+      const render = () => {
+        flow.dataset.flowStage = String(stage);
+        steps.forEach((step, index) => {
+          step.classList.toggle('is-current', index === stage);
+          step.classList.toggle('is-complete', index < stage);
+        });
+      };
+      window.identificationDemo = {
+        advance() {
+          if (stage >= steps.length - 1) return false;
+          stage += 1;
+          render();
+          return true;
+        },
+        reset() { stage = 0; render(); }
+      };
+      render();
+    }
+
+    const presentation = new SlidePresentation();
+    setupIdentificationDemo();
+    window.deckEditor = new DeckEditor();
+
+    /* === EDIT CONTROL HOVER WITH GRACE PERIOD === */
+    const hotzone = document.querySelector('.edit-hotzone');
+    const editToggle = document.getElementById('editToggle');
+    const saveToggle = document.getElementById('saveToggle');
+    let hideTimeout = null;
+    const showEditorButtons = () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); saveToggle.classList.add('show'); };
+    const scheduleHide = () => {
+      hideTimeout = setTimeout(() => {
+        if (!window.deckEditor.isActive) { editToggle.classList.remove('show'); saveToggle.classList.remove('show'); }
+      }, 400);
+    };
+    hotzone.addEventListener('mouseenter', showEditorButtons);
+    hotzone.addEventListener('mouseleave', scheduleHide);
+    editToggle.addEventListener('mouseenter', showEditorButtons);
+    editToggle.addEventListener('mouseleave', scheduleHide);
+    saveToggle.addEventListener('mouseenter', showEditorButtons);
+    saveToggle.addEventListener('mouseleave', scheduleHide);
+    hotzone.addEventListener('click', () => window.deckEditor.toggleEditMode());
+    editToggle.addEventListener('click', () => window.deckEditor.toggleEditMode());
+    saveToggle.addEventListener('click', () => window.deckEditor.download());
+    document.addEventListener('keydown', (event) => {
+      if ((event.key === 'e' || event.key === 'E') && event.target.getAttribute('contenteditable') !== 'true') window.deckEditor.toggleEditMode();
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); window.deckEditor.save(); }
+    });
+  </script>
+</body>
+</html>
