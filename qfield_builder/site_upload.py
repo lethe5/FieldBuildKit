@@ -123,6 +123,8 @@ def list_attribute_fields(fmt: str, path: str, encoding: str = "cp949") -> list[
     if fmt == "gpkg":
         # Field names are available directly from the schema, even for an empty layer.
         return gpkg_upload_reader.list_feature_layer_fields(path)
+    if fmt in ("shapefile", "zipped_shapefile"):
+        return preview_summary(fmt, path, encoding, max_rows=1)["fields"]
     features = read_upload_features(fmt, path, encoding)
     if not features:
         return []
@@ -200,13 +202,18 @@ def preview_features(
 def preview_summary(
     fmt: str, path: str, encoding: str = "cp949", *, max_rows: int = 50
 ) -> dict:
-    """Read the bounded data needed by the upload page without blocking on GPKG geometries.
+    """Read the metadata/attribute sample needed by the upload page, without geometry decoding.
 
     The returned attributes are intentionally not converted into names here.  The GUI can map
     them immediately when a different name field is selected, without reopening the upload.
     """
     if fmt == "gpkg":
         return gpkg_upload_reader.preview_first_feature_layer(path, max_rows=max_rows)
+
+    if fmt in ("shapefile", "zipped_shapefile"):
+        return shapefile_reader.preview_shapefile(
+            path, encoding, zipped=fmt == "zipped_shapefile", max_rows=max_rows
+        )
 
     features = read_upload_features(fmt, path, encoding)
     rows = features[:max_rows]

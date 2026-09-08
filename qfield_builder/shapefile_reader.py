@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import struct
 import zipfile
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -184,6 +185,93 @@ def read_shapefile(shp_path: str, encoding: str = "cp949") -> list[ShapeRecord]:
 def ring_to_wkt(ring: list[tuple[float, float]]) -> str:
     coords = ", ".join(f"{x} {y}" for x, y in ring)
     return f"({coords})"
+
+
+def preview_shapefile(path: str, encoding: str = "cp949", *, zipped=False, max_rows=50):
+    """Read headers and a bounded attribute sample, never decode polygon coordinates.
+
+    Full geometry validation still belongs to read_shapefile/the build pipeline.
+    """
+    if max_rows < 1:
+        raise ValueError("max_rows must be at least 1")
+    encoding = _normalize_encoding(encoding)
+    try:
+        with ExitStack() as stack:
+            if zipped:
+                archive = stack.enter_context(zipfile.ZipFile(path))
+                names = archive.namelist()
+                shp_name = next(n for n in names if n.lower().endswith(".shp"))
+                dbf_name = next((n for n in names if n.lower().endswith(".dbf")), None)
+                shx_name = next((n for n in names
+                                 if n.lower() == str(Path(shp_name).with_suffix(".shx"))
+                                 .replace("\\", "/").lower()), None)
+                shp = stack.enter_context(archive.open(shp_name))
+                dbf = stack.enter_context(archive.open(dbf_name)) if dbf_name else None
+                shp_size = archive.getinfo(shp_name).file_size
+                shx_size = archive.getinfo(shx_name).file_size if shx_name else None
+            else:
+                source = Path(path)
+                companions = {p.suffix.lower(): p for p in source.parent.iterdir()
+                              if p.stem.lower() == source.stem.lower()}
+                shp = stack.enter_context(source.open("rb"))
+                dbf = (stack.enter_context(companions[".dbf"].open("rb"))
+                       if ".dbf" in companions else None)
+                shp_size = source.stat().st_size
+                shx_size = companions[".shx"].stat().st_size if ".shx" in companions else None
+            header = shp.read(100)
+            if len(header) != 100 or struct.unpack_from(">I", header)[0] != 9994:
+                raise ValueError("올바른 SHP 헤더가 아닙니다.")
+            shape_type = struct.unpack_from("<I", header, 32)[0]
+            geometry_type = {1: "POINT", 5: "POLYGON"}.get(shape_type)
+            if geometry_type is None:
+                raise ValueError(f"지원되지 않는 shapefile shape 유형입니다: {shape_type}")
+            dbf_header = None
+            dbf_count = None
+            if dbf is not None:
+                dbf_header = bytearray(dbf.read(32))
+                if len(dbf_header) != 32:
+                    raise ValueError("DBF 헤더가 너무 짧습니다.")
+                dbf_count, header_len, record_len = struct.unpack_from("<IHH", dbf_header, 4)
+                if header_len < 33 or record_len < 1:
+                    raise ValueError("DBF 헤더 길이가 올바르지 않습니다.")
+                dbf_header.extend(dbf.read(header_len - 32))
+                if len(dbf_header) != header_len:
+                    raise ValueError("DBF 헤더가 잘렸습니다.")
+                struct.pack_into("<I", dbf_header, 4, 1)
+            if shx_size is not None and shx_size >= 100 and (shx_size - 100) % 8 == 0:
+                count = (shx_size - 100) // 8
+            elif dbf_count is not None:
+                count = dbf_count
+            else:
+                # ponytail: without DBF/SHX, ZIP seeking may decompress the stream; no coordinates
+                # are materialized. Add an indexed metadata path only if this rare case matters.
+                count = 0
+                while shp.tell() < shp_size:
+                    record = shp.read(8)
+                    if len(record) != 8:
+                        raise ValueError("SHP 레코드 헤더가 잘렸습니다.")
+                    size = struct.unpack_from(">I", record, 4)[0] * 2
+                    if size < 4 or shp.tell() + size > shp_size:
+                        raise ValueError("SHP 레코드 길이가 올바르지 않습니다.")
+                    shp.seek(size, 1)
+                    count += 1
+            samples = []
+            if dbf_header is not None:
+                for _ in range(dbf_count):
+                    if len(samples) >= min(count, max_rows):
+                        break
+                    record = dbf.read(record_len)
+                    if len(record) != record_len:
+                        raise ValueError("DBF 레코드가 잘렸습니다.")
+                    samples.extend(_read_dbf(bytes(dbf_header) + record, encoding))
+            fields = list(samples[0]) if samples else []
+            samples.extend({} for _ in range(min(count, max_rows) - len(samples)))
+            return {"fields": fields, "geometry_type": geometry_type,
+                    "feature_count": count, "sample_attributes": samples}
+    except (OSError, ValueError, StopIteration, struct.error, zipfile.BadZipFile) as exc:
+        raise BuildError(
+            "malformed_upload", f"Shapefile 미리보기를 읽을 수 없습니다: {exc}"
+        ) from exc
 
 
 def shape_to_wkt(shape: ShapeRecord, expected_type: str) -> str:

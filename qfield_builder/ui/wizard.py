@@ -687,6 +687,8 @@ class SiteInputPage(QWizardPage):
         self._gpkg_preview_worker: _GpkgUploadPreviewWorker | None = None
         self._gpkg_preview_path: str | None = None
         self._gpkg_preview_summary: dict | None = None
+        self._shp_preview_summary: dict | None = None
+        self._shp_preview_key: tuple | None = None
 
         self.preview_list = QListWidget()
         self.upload_status_label = QLabel("")
@@ -801,7 +803,9 @@ class SiteInputPage(QWizardPage):
 
         self.upload_path_edit.textChanged.connect(self._on_upload_path_changed)
         self.site_name_field_combo.currentTextChanged.connect(self._update_preview)
-        self.upload_encoding_combo.currentIndexChanged.connect(self._update_preview)
+        self.upload_encoding_combo.currentIndexChanged.connect(
+            lambda: self._on_upload_path_changed(self.upload_path_edit.text())
+        )
 
     def initializePage(self) -> None:
         # Re-evaluated every time this page becomes current (including after the user goes back
@@ -961,6 +965,8 @@ class SiteInputPage(QWizardPage):
             self.upload_path_edit.setText(path)
 
     def _on_upload_path_changed(self, path: str) -> None:
+        self._shp_preview_summary = None
+        self._shp_preview_key = None
         self.site_name_field_combo.blockSignals(True)
         self.site_name_field_combo.clear()
         self.site_name_field_combo.blockSignals(False)
@@ -1025,7 +1031,10 @@ class SiteInputPage(QWizardPage):
             self.upload_encoding_combo.setVisible(
                 upload_format in ("shapefile", "zipped_shapefile")
             )
-            fields = site_upload.list_attribute_fields(upload_format, path, encoding)
+            summary = site_upload.preview_summary(upload_format, path, encoding)
+            self._shp_preview_summary = summary
+            self._shp_preview_key = (path, encoding)
+            fields = summary["fields"]
         except Exception as exc:  # noqa: BLE001 - surfaced honestly to the user, never swallowed.
             self.site_name_field_combo.setEnabled(False)
             self.upload_status_label.setText(f"이 파일을 읽을 수 없었습니다: {exc}")
@@ -1033,7 +1042,9 @@ class SiteInputPage(QWizardPage):
 
         self.site_name_field_combo.setEnabled(bool(fields))
         if fields:
+            self.site_name_field_combo.blockSignals(True)
             self.site_name_field_combo.addItems(fields)
+            self.site_name_field_combo.blockSignals(False)
         else:
             self.upload_status_label.setText(
                 "이 파일에는 매핑하거나 가져올 feature가 없습니다."
@@ -1071,12 +1082,19 @@ class SiteInputPage(QWizardPage):
         if upload_format is None:
             return
 
-        if upload_format == "gpkg":
+        if upload_format in ("shapefile", "zipped_shapefile"):
+            encoding = self.upload_encoding_combo.currentData() or "cp949"
+            if self._shp_preview_key != (path, encoding):
+                return
+
+        if upload_format in ("gpkg", "shapefile", "zipped_shapefile"):
             summary = (
                 self._gpkg_preview_summary
                 if self._gpkg_preview_path == path
                 else None
             )
+            if upload_format != "gpkg":
+                summary = self._shp_preview_summary
             if summary is None:
                 # The background worker will populate this shortly.  Never fall back to a
                 # geometry-reading synchronous preview here.
@@ -1093,20 +1111,6 @@ class SiteInputPage(QWizardPage):
                 suffix = f" 처음 {len(rows)}개만 미리 표시합니다."
             self.upload_status_label.setText(f"총 {total}개의 feature를 가져옵니다.{suffix}")
             return
-
-        site_name_field = self.site_name_field_combo.currentText() or None
-        try:
-            encoding = self.upload_encoding_combo.currentData() or "cp949"
-            preview = site_upload.preview_features(
-                upload_format, path, site_name_field, encoding
-            )
-        except Exception as exc:  # noqa: BLE001 - surfaced honestly to the user.
-            self.upload_status_label.setText(f"이 파일을 미리 볼 수 없었습니다: {exc}")
-            return
-
-        self.upload_status_label.setText(f"{len(preview)}개의 feature를 가져옵니다.")
-        for row in preview:
-            self.preview_list.addItem(f"{row['site_name']}  ({row['geometry_type']})")
 
     def validatePage(self) -> bool:
         if self.input_mode_draw_radio.isChecked():

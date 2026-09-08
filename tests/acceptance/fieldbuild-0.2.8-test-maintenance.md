@@ -82,3 +82,36 @@ Baseline: `bef0289`. Branch: `codex/0.2.8-tiff-performance`.
   outside the repository. `git diff --check` passed.
 - All version declarations remain **0.2.8**, as explicitly requested. QField/macOS/live-API
   execution and remote publication are not part of this follow-up.
+
+## SHP upload preview follow-up (same 0.2.8)
+
+Baseline: `90ff823`. Branch: `codex/0.2.8-shp-preview`.
+
+- SHP/ZIP selection reads the SHP header, SHX/DBF count metadata and at most 50 attribute
+  samples. It reuses the existing DBF decoder, with no new runtime dependency. Field-name
+  discovery no longer reads all coordinates. Full geometry reads/validation remain in the
+  build path; preview success is not full geometry validation.
+- The GUI reuses samples when the name field changes, blocks duplicate combo population
+  signals, and invalidates samples on file/encoding changes or clearing the selection.
+- These small local metadata reads remain synchronous. Without both DBF and SHX, the
+  fallback scans record headers; seeking in such a ZIP can still require decompression.
+  This change does not claim constant-time previews for network drives or incomplete archives.
+- Supplied `BND_SIDO_PG.shp`: 86,988,364 bytes, 17 regions, 5,433,279 coordinates.
+  In the current UI code, selection changed from **12.848 s to 0.003239 s**; full geometry
+  reads changed from **3 to 0**. Name mapping changed from **4.249 s to 0.000049 s**, with
+  no further file read. These are individual Windows measurements, not packaged-EXE timings
+  or statistical benchmarks. Original data was read-only.
+- **132 passed** in the SHP/GPKG/optional-input/standalone regression run; **24 passed** in
+  focused upload-page tests. Logs: `build/0.2.8-shp-regression.log` and
+  `build/0.2.8-shp-wizard-focused.log`. The tests cover bounded reads, ZIP, CP949/UTF-8,
+  missing sidecars, selection failures, and actual SHP/ZIP generation of all 75 sites despite
+  a 50-row preview limit, followed by relocated-project validation.
+- The old wizard test using a stub QGS still fails with `Project contains no layers` under
+  both baseline and updated readers; it was not weakened. Baseline log:
+  `build/0.2.8-shp-baseline.log`. A broader legacy fake-GPKG-path run also terminated in its
+  Qt worker lifecycle; it is not counted as passed. This is not a full GUI-suite certification.
+- Changed reader/helper/new-test files pass Ruff. The wizard retains its 13 existing
+  diagnostics with no new diagnostics. `git diff --check` passed.
+- Windows build: `dist/windows-0.2.8-shp`; previous builds preserved. The new EXE's
+  `--check-runtime` exited **0** outside the repository. Version declarations remain **0.2.8**.
+  No macOS/QField device/live-API run or remote release publication was performed.
