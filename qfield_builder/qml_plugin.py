@@ -1547,23 +1547,31 @@ __QPB_REPORT_CORE_JS__
     // Geometry is transformed to map CRS (EPSG:4326/WGS84) before serialization.  When a QML
     // layer does not expose CRS metadata, the schema's known geometry CRS is authoritative.  A
     // known WGS84 shape is already in map coordinates and must not require a QGIS transform API.
-    function qpbGeometryToGeoJson(feature, layer, table) {
+    function qpbGeometryToGeoJson(feature, layer, table, nativeGeometryExpression) {
         if (!table.geometry_field) { return {valid: false, outcome:"unsupported_geometry", reason: "지원하지 않는 도형"}; }
         try {
-            // Count and bound in native QGIS BEFORE asWkt/asJson crosses into JavaScript.
+            // Simplify in native QGIS BEFORE asWkt/asJson crosses into JavaScript.
             // The saved-SQLite guard does not protect this loaded-layer fallback.
             if (typeof qpbReportGeometryEvaluator !== "undefined") {
                 var evaluated;
                 try {
                     qpbReportGeometryEvaluator.layer = layer;
                     qpbReportGeometryEvaluator.feature = feature;
-                    evaluated = qpbReportGeometryEvaluator.evaluate(
-                        "with_variable('g', $geometry, " +
-                        "with_variable('large', num_points(@g) > 16384, " +
-                        "to_json(map('empty', is_empty_or_null(@g), 'simplified', @large, 'wkt', " +
-                        "geom_to_wkt(transform(if(@large, bounds(@g), @g), " +
-                        "@layer_crs, 'EPSG:4326'), 8)))))"
-                    );
+                    var expression = "with_variable('g', " + (nativeGeometryExpression || "$geometry") +
+                        ", with_variable('large', num_points(@g) > 16384, " +
+                        "with_variable('t', max(bounds_width(@g), bounds_height(@g)) / 10000, " +
+                        "with_variable('s', if(@large, simplify(@g, @t), @g), ";
+                    // Re-simplify the already reduced native shape, not the million-vertex original.
+                    // Keep islands/rings; stop rather than substituting a misleading rectangle.
+                    for (var pass = 1; pass <= 3; pass++) {
+                        expression += "with_variable('s', if(num_points(@s) > 32768, " +
+                            "simplify(@s, @t * " + Math.pow(2, pass) + "), @s), ";
+                    }
+                    expression += "to_json(map('empty', is_empty_or_null(@g), 'simplified', @large, " +
+                        "'limited', num_points(@s) > 32768, 'wkt', " +
+                        "if(num_points(@s) <= 32768, geom_to_wkt(transform(@s, " +
+                        "@layer_crs, 'EPSG:4326'), 8), NULL)))" + ")))))))";
+                    evaluated = qpbReportGeometryEvaluator.evaluate(expression);
                 } finally {
                     qpbReportGeometryEvaluator.feature = FeatureUtils.createBlankFeature();
                     qpbReportGeometryEvaluator.layer = null;
@@ -1576,14 +1584,18 @@ __QPB_REPORT_CORE_JS__
                 if (evaluated && evaluated.empty === true) {
                     return {valid:false, outcome:"actual_empty", reason:"원본 도형이 비어 있음"};
                 }
+                if (evaluated && evaluated.limited) {
+                    return {valid:false, outcome:"serialization_failure",
+                        reason:"경계 단순화 후에도 보고서 좌표 수 제한 초과"};
+                }
                 if (!evaluated || typeof evaluated.wkt !== "string" || !evaluated.wkt) {
                     return {valid:false, outcome:"serialization_failure", reason:"안전한 도형 변환에 실패함"};
                 }
                 if (evaluated.wkt.length > 2 * qpbReportFullGeometryMaxBytes) {
                     return {valid:false, outcome:"serialization_failure", reason:"보고서 도형 크기 제한 초과"};
                 }
-                return {valid:true, outcome:evaluated.simplified ? "simplified_envelope" : "valid",
-                    reason:evaluated.simplified ? "대형 도형을 범위로 단순화하여 표시" : "표시 가능한 도형",
+                return {valid:true, outcome:evaluated.simplified ? "simplified_geometry" : "valid",
+                    reason:evaluated.simplified ? "대형 도형의 경계를 단순화하여 표시" : "표시 가능한 도형",
                     geojson:qpbNormalizeGeoJsonXY(qpbWktToGeoJson(evaluated.wkt), true),
                     crs:"EPSG:4326", simplified:!!evaluated.simplified};
             }
@@ -1996,11 +2008,20 @@ __QPB_REPORT_CORE_JS__
                             geojson:qpbTransformGeoJson(qpbNormalizeGeoJsonXY(shapeValue, false),
                                 rowSourceCrs,transformDefinition), crs:"EPSG:4326"};
                     } else if (geometryByteLength > qpbReportFullGeometryMaxBytes) {
-                        shape = {valid:true, outcome:"simplified_envelope",
-                            reason:"대형 도형을 범위로 단순화하여 표시",
-                            geojson:qpbGpkgEnvelopeGeoJson(shapeValue, rowSourceCrs,
-                                transformDefinition), crs:"EPSG:4326", simplified:true,
-                            source_geometry_bytes:geometryByteLength};
+                        var nativeLayer = qpbFindDomainLayer(sourceDefinition || {name:tableName});
+                        if (!nativeLayer || !configuredUuidField || !uuid ||
+                                typeof qpbReportGeometryEvaluator === "undefined") {
+                            throw new Error("native boundary simplification unavailable");
+                        }
+                        var geometryExpression = "geometry(get_feature(@layer, '" +
+                            configuredUuidField.replace(/'/g, "''") + "', '" + uuid.replace(/'/g, "''") + "'))";
+                        shape = qpbGeometryToGeoJson(FeatureUtils.createBlankFeature(), nativeLayer,
+                            {geometry_field:geometryColumn}, geometryExpression);
+                        if (shape.outcome === "actual_empty") {
+                            shape = {valid:false, outcome:"serialization_failure",
+                                reason:"원본 경계를 네이티브 레이어에서 찾지 못함"};
+                        }
+                        shape.source_geometry_bytes = geometryByteLength;
                     } else {
                         shape = {valid:true, outcome:"valid", reason:"표시 가능한 도형",
                             geojson:qpbDecodeGpkgGeometry(shapeValue,rowSourceCrs,transformDefinition),
@@ -3131,7 +3152,7 @@ __QPB_MAP_FEATURE_DISPATCH__
             if (!table.geometry_field || (!isAnchor && !isSupplemental)) { continue; }
             for (var j = 0; j < table.records.length; j++) {
                 var geometry = table.records[j].geometry;
-                if (geometry && geometry.valid && geometry.outcome === "simplified_envelope") {
+                if (geometry && geometry.valid && geometry.simplified) {
                     simplifiedCount += 1;
                 }
                 if (!geometry || !geometry.valid) {
@@ -3733,7 +3754,21 @@ __QPB_MAP_FEATURE_DISPATCH__
             vworld_key_included: includeKey !== "", runtime_vworld_available:runtimeVworldAvailable,
             limitations:reportLimitations};
         qpbLastReportPayload = payload;
-        var json = qpbSafeJson(payload);
+        // HTML uses tables/map_features. Do not embed the same boundary again in the
+        // collector's datasets and metadata records; retain the full payload for native exports.
+        var htmlPayload = {}, htmlMetadata = {};
+        for (var payloadKey in payload) {
+            if (payloadKey !== "datasets") { htmlPayload[payloadKey] = payload[payloadKey]; }
+        }
+        for (var metadataKey in gpkgMetadata) { htmlMetadata[metadataKey] = gpkgMetadata[metadataKey]; }
+        htmlMetadata.spatial_tables = (gpkgMetadata.spatial_tables || []).map(function(spatial) {
+            var metadata = {};
+            for (var key in spatial) { if (key !== "records") { metadata[key] = spatial[key]; } }
+            metadata.record_count = (spatial.records || []).length;
+            return metadata;
+        });
+        htmlPayload.gpkg_metadata = htmlMetadata;
+        var json = qpbSafeJson(htmlPayload);
         html.push("<!DOCTYPE html><html lang='ko'><head><meta charset='utf-8'>");
         html.push("<meta name='viewport' content='width=device-width,initial-scale=1'>");
         html.push("<meta name='description' content='FieldBuild Standalone 현장 조사 HTML 보고서'>");
@@ -4039,7 +4074,7 @@ function qpbKoreanFieldLabel(tableName,key,label){var aliases={id:"식별자",uu
 function qpbVisibleLabel(tableName,key){var basisLabels={site:"조사지 원본의 고유 기록 수",plot:"조사구 원본의 고유 기록 수",survey:"조사 원본의 고유 기록 수",observation:"관찰 원본의 고유 기록 수"};if(key==="__basis__"&&basisLabels[tableName])return basisLabels[tableName];for(var i=0;i<(data.tables||[]).length;i++){if(data.tables[i].name!==tableName)continue;if(key==="__table__")return qpbKoreanTableLabel(tableName,data.tables[i].display_name);for(var j=0;j<(data.tables[i].fields||[]).length;j++){var field=data.tables[i].fields[j];if(field.name===key)return qpbKoreanFieldLabel(tableName,field.source_field||field.source_column_id||field.name,field.label);}}return qpbKoreanFieldLabel(tableName,key,"");}
 function qpbCard(level,label){var levels=(data.summary_stats&&data.summary_stats.levels)||{},item=levels[level]||{value:"해당 레벨 부재"};return "<div class='card'><span>"+label+" · "+esc(qpbVisibleLabel(level,"__basis__"))+"</span><b>"+esc(item.value)+"</b><small>"+(item.applicable===false?"해당 레벨 부재":"원본 수준의 고유 기록 수")+"</small></div>";}
 function qpbSemanticCollisionDetails(notices){var ordered=(notices||[]).slice().sort(function(left,right){return String((left||{}).semantic_identity||"").localeCompare(String((right||{}).semantic_identity||""),"en");}),items=[];for(var i=0;i<ordered.length;i++){var notice=ordered[i]||{},semantic=String(notice.semantic_identity||"알 수 없는 의미 항목");items.push("<li><code>"+esc(semantic)+"</code>: 같은 의미의 원본 값이 달라 원본 출처별 열에 각각 유지했습니다. 통합 표와 CSV에서 두 값을 확인할 수 있습니다.</li>");}if(!items.length)return "";return "<details class='limitation-details' aria-label='의미 충돌 세부 사항'><summary>의미가 같은 원본 열의 값 충돌: "+items.length+"건</summary><p>값을 하나로 선택하거나 덮어쓰지 않았습니다. 값은 원본 출처별 열에 보존됩니다.</p><ul>"+items.join("")+"</ul></details>";}
-    function qpbGeometryLimitationDetails(geometry){var limitations=geometry||{},count=Number(limitations.count)||0,simplified=Number(limitations.simplified_count)||0,reasonMap=limitations.reasons||{},reasons=Object.keys(reasonMap).sort(function(left,right){return String(left).localeCompare(String(right),"en");}),items=[];for(var i=0;i<reasons.length;i++){var reason=reasons[i];items.push("<li>"+esc(reason)+": "+esc(Number(reasonMap[reason])||0)+"건</li>");}return "<details class='limitation-details' aria-label='지도 도형 제한 세부 사항'><summary>지도 기준 행의 유효하지 않거나 누락된 도형: "+esc(count)+"건</summary><p>유효한 후속 행은 계속 지도에 표시됩니다. 제외된 행은 통합 표, 기록 상세, CSV, 비공간 집계에 유지됩니다.</p>"+(simplified?"<p>대형 도형 "+esc(simplified)+"건은 보고서 안정성을 위해 범위 사각형으로 단순화해 표시했습니다.</p>":"")+(items.length?"<ul>"+items.join("")+"</ul>":"<p>지도에서 제외된 사유가 없습니다.</p>")+"</details>";}
+    function qpbGeometryLimitationDetails(geometry){var limitations=geometry||{},count=Number(limitations.count)||0,simplified=Number(limitations.simplified_count)||0,reasonMap=limitations.reasons||{},reasons=Object.keys(reasonMap).sort(function(left,right){return String(left).localeCompare(String(right),"en");}),items=[];for(var i=0;i<reasons.length;i++){var reason=reasons[i];items.push("<li>"+esc(reason)+": "+esc(Number(reasonMap[reason])||0)+"건</li>");}return "<details class='limitation-details' aria-label='지도 도형 제한 세부 사항'><summary>지도 기준 행의 유효하지 않거나 누락된 도형: "+esc(count)+"건</summary><p>유효한 후속 행은 계속 지도에 표시됩니다. 제외된 행은 통합 표, 기록 상세, CSV, 비공간 집계에 유지됩니다.</p>"+(simplified?"<p>대형 도형 "+esc(simplified)+"건은 보고서 안정성을 위해 경계 형태를 유지하도록 단순화해 표시했습니다. 원본 도형은 변경하지 않았습니다.</p>":"")+(items.length?"<ul>"+items.join("")+"</ul>":"<p>지도에서 제외된 사유가 없습니다.</p>")+"</details>";}
 function renderCards(){var a=data.summary_stats||{},overview=a.overview_cards||[],cards="";for(var cardIndex=0;cardIndex<overview.length;cardIndex++){var card=overview[cardIndex]||{};cards+="<div class='card'><span>"+esc(card.label||"개요")+"</span><b>"+esc(card.value)+"</b><small>"+esc(card.basis||"")+"</small></div>";}document.getElementById("cards").innerHTML=cards;var note=(data.limitations||[]).slice();if(a.orphanCount)note.push("상위 기록 누락/고아 기록: "+a.orphanCount);if(a.unknownDates)note.push("날짜 없음: "+a.unknownDates);if(a.chart_stats&&(a.chart_stats.invalid_cover||a.chart_stats.invalid_area))note.push("차트에서 유효하지 않은 숫자 제외: 피도 "+(a.chart_stats.invalid_cover||0)+", 면적 "+(a.chart_stats.invalid_area||0));var limitationHost=document.getElementById("limitations");limitationHost.innerHTML="<p class='limitation-summary' role='status' aria-live='polite'>"+esc(note.join(" · ")||"보고서 제한 사항 없음")+"</p>"+qpbSemanticCollisionDetails(data.semantic_collision_notices||[])+qpbGeometryLimitationDetails(data.geometry_limitations||{});}
 function renderJoined(){var cols=data.columns||[],out="<table><thead><tr>";for(var i=0;i<cols.length;i++){var visibleLabel=qpbKoreanFieldLabel(cols[i].source_table||"",cols[i].source_field||cols[i].key,cols[i].label);var direction=sortKey===cols[i].key?(sortDesc?"descending":"ascending"):"none";out+="<th data-sort='"+esc(cols[i].key)+"' tabindex='0' role='button' aria-sort='"+direction+"' aria-label='"+esc(visibleLabel)+" 열 정렬'>"+esc(visibleLabel)+"</th>";}out+="</tr></thead><tbody>";for(var j=0;j<visibleRows.length;j++){var rowClass=visibleRows[j].integrity?" class='has-integrity'":"";out+="<tr"+rowClass+">";for(var k=0;k<cols.length;k++)out+="<td>"+esc(val(visibleRows[j],cols[k].key))+"</td>";out+="</tr>";}if(!visibleRows.length)out+="<tr><td class='empty' colspan='"+cols.length+"'>기록 없음</td></tr>";out+="</tbody></table>";document.getElementById("joinedTable").innerHTML=out;document.getElementById("visibleCount").textContent="표시 중인 행 수: "+visibleRows.length+" / "+allRows.length;var headers=document.querySelectorAll("#joinedTable th[data-sort]");for(var n=0;n<headers.length;n++){headers[n].addEventListener("click",function(){var key=this.getAttribute("data-sort");sortDesc=sortKey===key?!sortDesc:false;sortKey=key;visibleRows.sort(function(a,b){var av=val(a,key),bv=val(b,key),an=Number(av),bn=Number(bv),result;if(av===""&&bv!=="")return 1;if(bv===""&&av!=="")return -1;if(!isNaN(an)&&!isNaN(bn))result=an-bn;else result=String(av).localeCompare(String(bv),"ko");return sortDesc?-result:result;});renderJoined();});headers[n].addEventListener("keydown",function(event){if(event.key==="Enter"||event.key===" "){event.preventDefault();this.click();}});}}
 function saveCsv(){var rows=document.getElementById("csvChoice").value==="filtered"?visibleRows:allRows,cols=data.columns||[],lines=[cols.map(function(c){return csvCell(c.header);}).join(",")];for(var i=0;i<rows.length;i++)lines.push(cols.map(function(c){return csvCell(val(rows[i],c.key));}).join(","));var blob=new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(data.definition.project_slug||"report")+"_joined.csv";a.textContent="다운로드";a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},1000);document.getElementById("csvStatus").textContent="CSV 다운로드를 시작했습니다.";}

@@ -260,3 +260,55 @@ Baseline: `8fd3b4f`. Branch: `codex/0.2.8-report-ui`.
   **0.2.8 -> 0.2.8**. Existing apps, projects and reports were preserved. Replacing the
   builder does not automatically update an existing project's QML or already-exported HTML.
   No macOS/live-service verification, push, tag or remote release was performed.
+
+## Shape-preserving report boundary follow-up (same 0.2.8)
+
+Baseline: `920156a`. Branch: `codex/0.2.8-report-boundaries`.
+The user confirmed the other report UI fixes and requested actual boundary shapes instead
+of bounding rectangles.
+
+- Reused QGIS's native `simplify` (Douglas-Peucker) expression. Shapes with at most 16,384
+  vertices remain unchanged apart from existing WGS84 conversion/output precision. Larger
+  shapes start with a tolerance of 1/10,000 of their maximum bounding-box dimension, in
+  their own CRS units. If necessary, three further passes double the tolerance and operate
+  on the already reduced native geometry. Native serialization requires at most 32,768
+  vertices; existing text-size checks also remain. A shape still exceeding the cap is
+  disclosed as unavailable, never replaced by a box or serialized in full.
+- Both loaded-feature collection and large saved-GPKG rows use the shared native path.
+  Saved rows look up the loaded native geometry by the configured UUID, with expression
+  literals escaped. SQL still avoids fetching large BLOBs. If no matching native layer/
+  stable identity is available, the attribute row remains with a geometry limitation.
+  Simplification is display-only, not a change to the project database. Independently
+  simplified neighboring polygons are not guaranteed to form an exact shared-edge coverage;
+  this display is not intended for measurement or topology editing.
+- Larger shapes exposed four copies of the geometry in HTML: tables, map features,
+  collection datasets and metadata rows. Removed the latter two unused HTML copies, retaining
+  metadata/counts and the complete in-memory payload for native exports. Browser renderers
+  already consume tables/map features. Regression coverage verifies the native payload is
+  unchanged and canonical HTML records remain intact.
+- Real source `BND_SIDO_PG.gpkg`: all 17 features passed the emitted native expression and
+  real project-layer lookup. **5,433,279 -> 205,185 vertices**, maximum **28,266** per feature;
+  maximum absolute relative area change **0.019018813%**, measured in original EPSG:5186.
+  Small-feature vertex counts were unchanged. Source size/mtime remained unchanged.
+  `build/report-boundary-qa/shape-results.json` records each region; `boundary-preview.png`
+  was rendered with QGIS and visually inspected for boundaries/islands. This is a static
+  cartographic QA image, **not a browser or QField application screenshot**.
+- The supplied report's recovered site geometry now has no rectangular substitutes.
+  HTML: **11,395,908 bytes**; generation succeeded in a **128 MiB Node heap** with
+  **87,325,240 bytes** allocated after generation (not peak/RSS). Before removing duplicate
+  HTML geometry, the shape-rich report failed the 128 MiB run; that attempt is not a pass.
+  The previously missing survey position still cannot be recovered from the older local
+  GPKG. Its single failure remains disclosed; the survey, two observations, cover statistics
+  and reference snapshot are preserved. Original user HTML/GPKG were not overwritten.
+- Report/plugin checks: **190 passed, 4 pre-existing skips, 4 deselected**. The four known
+  baseline failures remain as documented above. Two initial source-signature test failures
+  were corrected to locate the function by name rather than a fixed argument count; the
+  entire scoped group was rerun successfully. Optional input/build/relocation: **88 passed**.
+  New checks exercise native caps/no-box failure, direct-row UUID lookup/escaping, and
+  HTML duplicate removal without changing native records. Embedded report scripts pass
+  syntax checks; production/new geometry tests pass Ruff; legacy test-file lint debt remains.
+- Build: `dist/windows-0.2.8-boundaries/FieldBuild Standalone`. Version declarations remain
+  **0.2.8 -> 0.2.8**. Packaged `--check-runtime` exited **0** outside the repository.
+  Prior outputs are preserved. Generated projects need the updated QML
+  to use the new report exporter; replacing the builder alone does not patch existing files.
+  Actual QField/browser/mobile/macOS checks and remote publication were not performed.

@@ -479,7 +479,7 @@ def test_report_geometry_transform_uses_qgis_transform_object_or_reports_limit()
     )
     geometry_body = _extract_function_body(
         content,
-        "function qpbGeometryToGeoJson(feature, layer, table) {",
+        "function qpbGeometryToGeoJson(",
         "function qpbCollectCurrentRecords",
     )
     assert "new QgsCoordinateTransform(sourceCrs, targetCrs" in geometry_body
@@ -494,7 +494,7 @@ def test_report_geometry_accepts_qml_geometry_and_as_json_properties():
     )
     geometry_body = _extract_function_body(
         content,
-        "function qpbGeometryToGeoJson(feature, layer, table) {",
+        "function qpbGeometryToGeoJson(",
         "function qpbCollectCurrentRecords",
     )
     assert "var geometryAccessor = feature.geometry" in geometry_body

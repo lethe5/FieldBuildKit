@@ -150,7 +150,9 @@ def test_integrated_report_bounds_large_geopackage_geometries_without_serializin
     assert "readonly property int qpbReportFullGeometryMaxBytes: 524288" in source
     assert "function qpbGpkgEnvelopeGeoJson" in source
     assert "geometryByteLength > qpbReportFullGeometryMaxBytes" in collector
-    assert 'outcome:"simplified_envelope"' in collector
+    assert "shape = qpbGeometryToGeoJson(" in collector
+    assert "geometry(get_feature(@layer," in collector
+    assert 'outcome:"simplified_envelope"' not in collector
     assert "length(\" + quotedGeometry + \")" in collector
     assert "substr(\" + quotedGeometry + \", 1, 40)" in collector
     assert "CASE WHEN length(\" + quotedGeometry + \") <= " in collector
@@ -159,7 +161,7 @@ def test_integrated_report_bounds_large_geopackage_geometries_without_serializin
     assert "record._qpbRawGeometry = !hasSourceGeometry ? null" in collector
     assert "byte_size:geometryByteLength" in collector
     assert "대형 도형" in source
-    assert "범위 사각형으로 단순화해 표시했습니다" in source
+    assert "경계 형태를 유지하도록 단순화해 표시했습니다" in source
 
 
 def test_integrated_report_invalid_xy_is_not_repaired_from_zm_and_csv_has_no_ordinates():

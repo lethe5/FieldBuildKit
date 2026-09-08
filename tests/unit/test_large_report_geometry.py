@@ -36,11 +36,14 @@ def test_native_guard_runs_before_geometry_serialization_and_releases_feature():
             released:qpbReportGeometryEvaluator.feature===null&&qpbReportGeometryEvaluator.layer===null}));
     """)
     assert result["geometry"]["valid"]
-    assert result["geometry"]["outcome"] == "simplified_envelope"
+    assert result["geometry"]["outcome"] == "simplified_geometry"
     assert result["released"]
     assert "num_points(@g) > 16384" in result["expression"]
     assert "to_json(map(" in result["expression"]  # QField evaluate() returns a QString
-    assert "transform(if(@large, bounds(@g), @g)" in result["expression"]
+    assert "simplify(@g, @t)" in result["expression"]
+    assert "num_points(@s) <= 32768" in result["expression"]
+    assert "transform(@s," in result["expression"]
+    assert "bounds(@g)" not in result["expression"]
 
 
 def test_native_empty_failure_and_following_small_polygon_remain_distinct():
@@ -71,6 +74,49 @@ def test_legacy_wkt_size_is_checked_before_parsing():
     assert result["outcome"] == "serialization_failure"
 
 
+def test_native_vertex_limit_failure_never_falls_back_to_a_rectangle():
+    result = _run(r"""
+        var FeatureUtils={createBlankFeature:function(){return null;}};
+        var qpbReportGeometryEvaluator={evaluate:function(){
+            return JSON.stringify({empty:false,limited:true,wkt:null});}};
+        var feature={get geometry(){throw new Error("must not expand native geometry");}};
+        process.stdout.write(JSON.stringify(qpbGeometryToGeoJson(feature,{},
+            {geometry_field:"geom"})));
+    """)
+    assert not result["valid"]
+    assert result["reason"] == "경계 단순화 후에도 보고서 좌표 수 제한 초과"
+
+
+def test_large_saved_row_uses_shared_native_simplification_without_loading_blob():
+    source = render_project_plugin_qml("large-report", survey_type="temporary_plots")
+    collector = _production_function(source, "qpbCollectGpkgSpatialRows")
+    result = _run(collector + r"""
+        var sql=[],expressionText="",qgisProject=null;
+        function qpbGpkgTableIdentifier(s){return s;}
+        function qpbSavedGpkgPath(){return "fixture.gpkg";}
+        function qpbIsSensitiveReportField(){return false;}
+        function qpbFormatReportValue(v){return v;}
+        function qpbFindDomainLayer(){return {};}
+        function qpbExecuteSql(s){sql.push(s);return s.indexOf("PRAGMA")===0?
+            [{name:"site_id"},{name:"site_name"},{name:"geom"}]:
+            [{site_id:"quote'id",site_name:"보존할 이름",__qpb_geometry_bytes:80000000,
+                __qpb_geometry_prefix:[],__qpb_geometry_full:null}];}
+        var FeatureUtils={createBlankFeature:function(){return null;}};
+        var qpbReportGeometryEvaluator={evaluate:function(s){expressionText=s;
+            return JSON.stringify({empty:false,simplified:1,
+                wkt:"POLYGON((127 37,128 37,127.5 37.5,128 38,127 37))"});}};
+        var result=qpbCollectGpkgSpatialRows("site","geom","POLYGON","EPSG:4326",
+            {name:"site",uuid_field:"site_id"});
+        var record=result.records[0];
+        process.stdout.write(JSON.stringify({geometry:record._qpbGeometry,
+            attrs:record._qpbAttrs,expression:expressionText,sql:sql}));
+    """)
+    assert result["geometry"]["outcome"] == "simplified_geometry"
+    assert result["attrs"]["site_name"] == "보존할 이름"
+    assert "geometry(get_feature(@layer, 'site_id', 'quote''id'))" in result["expression"]
+    assert "CASE WHEN length(geom) <= 524288" in result["sql"][1]
+
+
 def test_header_envelope_accepts_hex_and_array_without_expanding_payload():
     import struct
 
@@ -84,3 +130,26 @@ def test_header_envelope_accepts_hex_and_array_without_expanding_payload():
     """)
     assert result[0] == result[1] == result[2]
     assert result[3] == list(prefix)
+
+
+def test_html_omits_redundant_geometry_copies_without_mutating_native_payload():
+    source = render_project_plugin_qml("large-report", survey_type="temporary_plots")
+    builder = _production_function(source, "qpbBuildHtmlReport")
+    start = builder.index("qpbLastReportPayload = payload;")
+    end = builder.index("var json = qpbSafeJson(htmlPayload);")
+    serialization = builder[start:end] + "var json = qpbSafeJson(htmlPayload);"
+    result = _run(_production_function(source, "qpbSafeJson") + r'''
+var record={geometry:{valid:true,geojson:{type:"Point",coordinates:[127,37]}}};
+var records=[record],gpkgMetadata={spatial_tables:[{table_name:"site",records:records}]};
+var payload={datasets:{site:records},gpkg_metadata:gpkgMetadata,
+    tables:[{name:"site",records:records}],map_features:[record]},qpbLastReportPayload=null;
+''' + serialization + r'''
+process.stdout.write(JSON.stringify({html:JSON.parse(json),
+    nativeUnchanged:qpbLastReportPayload===payload && payload.datasets.site===records &&
+        gpkgMetadata.spatial_tables[0].records===records}));
+''')
+    assert result["nativeUnchanged"]
+    assert "datasets" not in result["html"]
+    metadata = result["html"]["gpkg_metadata"]["spatial_tables"][0]
+    assert "records" not in metadata and metadata["record_count"] == 1
+    assert result["html"]["tables"][0]["records"] == result["html"]["map_features"]
