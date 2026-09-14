@@ -5,24 +5,26 @@ Executable acceptance tests live here, one set per feature, authored by the `tes
 Each feature's tests should be accompanied by a traceability file (e.g. `<feature>.traceability.md`) mapping every acceptance criterion ID (`AC-n`) in the corresponding spec to the test(s) that verify it.
 
 
-## Current approved routing and geometry acceptance artifacts (2026-09-14)
+## Survey routing and geometry acceptance reconciliation (2026-09-14)
 
 Current product is FieldBuild Kit 0.2.8, using the QGIS-free standalone runtime and optional
 reference assets. Older QGIS-installation and mandatory private-data requirements below are
 historical; use [current runtime](../../docs/standalone.md) and dated
 [verification evidence](../../docs/qfield-runtime-verification.md) for present behavior.
 
-The [route specification](../../specs/survey-route-planner.md) was approved on 2026-09-14
-(checkpoint `e382c77`). The following **acceptance artifacts were explicitly approved on 2026-09-14**:
+The [route specification](../../specs/survey-route-planner.md) Category B clarification at
+checkpoint `3b08820` is the current approved input. Acceptance checkpoint `ed8ac81` remains the
+approved baseline. The following reconciled artifacts are **DRAFT pending explicit user approval**:
 
 - [Executable tests](survey_route_planner/test_survey_route_planner.py)
 - [Test design and user-run cases](survey_route_planner.test-design.md)
 - [AC-SRP-001–018 traceability](survey_route_planner.traceability.md)
 - [New harness contract](survey_route_planner/HARNESS_CONTRACT.md)
 
-The missing new adapter is an explicit unimplemented-harness skip, not proof of conformance.
-Set `FIELDBUILD_REQUIRE_SRP_HARNESS=1` in implementation/review gates. O-SRP-003 policy-dependent
-numerical cases require explicit characterization opt-in; QField/Naver checks remain user-run.
+The missing adapter is an explicit unimplemented-harness skip in ordinary discovery, not proof of
+conformance. Set `FIELDBUILD_REQUIRE_SRP_HARNESS=1` in implementation/review gates. The resolved
+centroid, completion, Type 1, 1000 m default and portable-setting cases run unconditionally.
+Six QField/iOS/Android/Naver cases remain user-run; mocked Qt/QML/JavaScript does not satisfy them.
 Other existing acceptance history is retained below and is not reclassified as current PASS.
 
 ## QField Project Builder

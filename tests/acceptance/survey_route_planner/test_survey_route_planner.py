@@ -1,4 +1,4 @@
-"""APPROVED acceptance artifacts, approved specification checkpoint e382c77.
+"""DRAFT acceptance reconciliation for approved specification checkpoint 3b08820.
 
 The adapter executes production behavior; only transport/device/file faults are fakes.
 See HARNESS_CONTRACT.md. Missing new seam skips; broken existing seam fails.
@@ -39,6 +39,79 @@ POINTS = [{"id": str(i), "name": f"조사지 {i}", "xy": [127 + i / 1000, 37]} f
 TIME = [[0, 1, 20, 20], [20, 0, 1, 20], [20, 20, 0, 1], [1, 20, 20, 0]]
 DISTANCE = [[0, 30, 30, 2], [2, 0, 30, 30], [30, 2, 0, 30], [30, 30, 2, 0]]
 ROAD = {"type": "LineString", "coordinates": [[127, 37], [127.001, 37.003], [127.002, 37]]}
+LEGS = [
+    {"distance_m": 100, "duration_s": 20},
+    {"distance_m": 200, "duration_s": 100},
+    {"distance_m": 300, "duration_s": 120},
+    {"distance_m": 634, "duration_s": 216},
+]
+DIRECTIONS_LEGS = [
+    {"distance": leg["distance_m"], "duration": leg["duration_s"]}
+    for leg in LEGS
+]
+ETA = [60, 180, 300]
+
+
+def vroom_response(*, include_arrivals):
+    """Raw VROOM 1.14 response fixture; ETA comes only from job-step arrival."""
+    steps = [
+        {"type": "start", "location": [127, 37]},
+        {"type": "job", "id": 2, "location": POINTS[2]["xy"]},
+        {"type": "job", "id": 0, "location": POINTS[0]["xy"]},
+        {"type": "job", "id": 1, "location": POINTS[1]["xy"]},
+        {"type": "end", "location": [127, 37]},
+    ]
+    if include_arrivals:
+        for step, arrival in zip(steps, [0, *ETA, 456]):
+            step["arrival"] = arrival
+    return {
+        "code": 0,
+        "summary": {"cost": 456, "routes": 1, "unassigned": 0, "duration": 456, "distance": 1234},
+        "unassigned": [],
+        "routes": [{
+            "vehicle": 0,
+            "cost": 456,
+            "duration": 456,
+            "distance": 1234,
+            "steps": steps,
+        }],
+    }
+
+
+def invalid_vroom_timing(fault):
+    """Malformed timing is injected only in the raw optimizer response."""
+    response = vroom_response(include_arrivals=True)
+    jobs = [step for step in response["routes"][0]["steps"] if step["type"] == "job"]
+    if fault == "iso":
+        jobs[0]["arrival"] = "2026-09-14T01:00:00Z"
+    elif fault == "partial":
+        del jobs[-1]["arrival"]
+    elif fault == "negative":
+        jobs[0]["arrival"] = -1
+    elif fault == "nonfinite":
+        jobs[0]["arrival"] = float("inf")
+    return response
+
+
+DIRECTIONS_RESPONSE = {
+    "type": "FeatureCollection",
+    "features": [{
+        "type": "Feature",
+        "properties": {"summary": {"distance": 1234, "duration": 456}, "segments": DIRECTIONS_LEGS},
+        "geometry": ROAD,
+    }],
+}
+
+PORTABLE_SETTINGS = {
+    "server_url": "https://routing.invalid/ors",
+    "optimizer_url": "https://optimizer.invalid/vroom",
+    "backend": "ors-vroom",
+    "profile": "driving-car",
+    "timeout_ms": 1250,
+    "max_road_offset_m": 50,
+    "default_start": [127.123, 37.456],
+    "mapping": {"layer": "custom_targets", "id": "custom_id", "name": "title", "completed": "done"},
+}
 
 
 def ids(route):
@@ -86,13 +159,33 @@ def test_ac002_selection(run, count):
         assert sorted(ids(r["candidate"])) == sorted(r["submitted_ids"])
 
 
-@pytest.mark.parametrize("scope,expected", [("all", ["0", "1", "2"]), ("uncompleted", ["1", "2"])])
-def test_ac003_scope_mapping(run, scope, expected):
-    features = [{"custom_id": p["id"], "title": p["name"], "done": p["id"] == "0", "xy": p["xy"]} for p in POINTS[:3]]
+@pytest.mark.parametrize("scope,expected", [("all", ["0", "1", "2", "3"]), ("uncompleted", ["1", "2", "3"])])
+def test_ac003_ac010_scope_mapping(run, scope, expected):
+    features = [
+        {"custom_id": "0", "title": POINTS[0]["name"], "done": True, "xy": POINTS[0]["xy"]},
+        {"custom_id": "1", "title": POINTS[1]["name"], "done": False, "xy": POINTS[1]["xy"]},
+        {"custom_id": "2", "title": POINTS[2]["name"], "done": None, "xy": POINTS[2]["xy"]},
+        {"custom_id": "3", "title": POINTS[3]["name"], "xy": POINTS[3]["xy"]},
+    ]
     r = run(operation="calculate", scope=scope, features=features,
+            survey_type="simple_inventory",
             mapping={"layer": "custom_targets", "id": "custom_id", "name": "title", "completed": "done"})
     assert sorted(r["submitted_ids"]) == expected
     assert {s["source_layer"] for s in r["candidate"]["stops"]} == {"custom_targets"}
+
+
+def test_ac003_site_default_mapping(run):
+    features = [{"site_id": p["id"], "site_name": p["name"], "xy": p["xy"]} for p in POINTS[:3]]
+    r = run(operation="calculate", scope="all", survey_type="temporary_plots", features=features)
+    assert r["submitted_ids"] == ["0", "1", "2"]
+    assert {s["source_layer"] for s in r["candidate"]["stops"]} == {"site"}
+
+
+def test_ac003_type1_requires_explicit_mapping(run):
+    r = run(operation="calculate", scope="all", survey_type="simple_inventory",
+            features=POINTS[:3], mapping=None, seed_saved=True)
+    rejected(r)
+    no_calls(r)
 
 
 @pytest.mark.parametrize("bad_ids", [["x", "x"], ["", "y"], [None, "y"]])
@@ -118,7 +211,7 @@ def test_ac004_missing_gps(run):
 
 @pytest.mark.parametrize("objective,expected", [("time", ["0", "1", "2"]), ("distance", ["2", "1", "0"])])
 def test_ac005_road_cost_request(run, objective, expected):
-    r = run(operation="road_cost", features=POINTS[:3], objective=objective,
+    r = run(operation="road_cost", backend="ors-vroom", features=POINTS[:3], objective=objective,
             time_matrix=TIME, distance_matrix=DISTANCE, backend_order=expected)
     assert r["optimizer_request"]["objective"] == objective
     assert r["optimizer_request"]["cost_matrix"] == (TIME if objective == "time" else DISTANCE)
@@ -138,37 +231,63 @@ def test_ac006_failures_preserve_saved(run, fault):
     r = run(operation="calculate_failure", fault=fault, seed_saved=True, key=KEY)
     rejected(r)
     assert r["candidate"] is None
-    assert KEY not in r["logs"] and KEY not in str(r["saved_after"])
+    assert KEY not in str(r["logs"]) and KEY not in str(r["saved_after"])
     assert r["active_after"] == r["active_before"]
 
 
 @pytest.mark.parametrize("extras", [False, True])
 def test_ac007_result_roundtrip(run, extras):
-    supplied = {"distance_m": 1234.5, "duration_s": 456, "order": ["2", "0", "1"],
-                "road_geometry": ROAD if extras else None,
-                "eta": ["2026-09-14T01:00:00Z", "2026-09-14T01:02:00Z", "2026-09-14T01:04:00Z"] if extras else None,
-                "legs": [{"distance_m": 100, "duration_s": 20}] * 4 if extras else None}
-    r = run(operation="result_roundtrip", response=supplied)
+    r = run(operation="result_roundtrip", backend="ors-vroom",
+            optimizer_response=vroom_response(include_arrivals=extras),
+            directions_response=DIRECTIONS_RESPONSE if extras else None)
     route = r["reloaded"]
     for field in ("route_id", "name", "backend", "status"):
         assert route[field]
     datetime.fromisoformat(route["created_at"].replace("Z", "+00:00"))
-    assert route["distance_m"] == 1234.5 and route["duration_s"] == 456
-    assert ids(route) == supplied["order"]
+    assert route["distance_m"] == 1234 and route["duration_s"] == 456
+    assert ids(route) == ["2", "0", "1"]
     assert [s["sequence"] for s in route["stops"]] == [1, 2, 3]
+    assert route["eta"] == (ETA if extras else None)
+    assert route["eta_basis"] == ("relative_seconds" if extras else None)
+    assert route["road_geometry"] == (ROAD if extras else None)
+    assert route["legs"] == (LEGS if extras else None)
+    assert r["saved"] == route
     for field in ("road_geometry", "eta", "legs"):
-        assert route[field] == supplied[field]
         assert r["availability"][field] is extras
+    if extras:
+        assert all(type(value) in {int, float} for value in route["eta"])
+
+
+@pytest.mark.parametrize("fault", ["iso", "partial", "negative", "nonfinite"])
+def test_ac007_invalid_eta_rejected(run, fault):
+    r = run(operation="result_roundtrip", backend="ors-vroom",
+            optimizer_response=invalid_vroom_timing(fault), directions_response=None,
+            seed_saved=True)
+    rejected(r)
+    assert r["candidate"] is None
+    assert r["active_after"] == r["active_before"]
+    assert r["requests"]
 
 
 def test_ac008_offline_restart_relocation(run):
-    r = run(operation="save_two_restart_move", offline=True, clear_session_key=True)
+    r = run(operation="save_two_restart_move", offline=True, clear_session_key=True,
+            settings=PORTABLE_SETTINGS, key=KEY)
     assert len(r["saved_before"]) == 2
     assert len({v["route_id"] for v in r["saved_before"]}) == 2
     assert r["saved_after"] == r["saved_before"]
     assert r["active_after"] == r["active_before"]
     assert Path(r["old_dir"]).resolve() != Path(r["project_dir"]).resolve()
+    assert not Path(r["old_dir"]).exists()
     assert r["selected_route_ids"] == [v["route_id"] for v in r["saved_before"]]
+    assert r["settings_before"] == PORTABLE_SETTINGS
+    assert r["settings_after"] == PORTABLE_SETTINGS
+    assert r["session_key_present_after"] is False
+    assert KEY not in str(r["settings_before"]) and KEY not in str(r["settings_after"])
+    assert KEY not in str(r["saved_before"]) and KEY not in str(r["saved_after"])
+    assert KEY not in str(r["logs"])
+    for path in Path(r["project_dir"]).rglob("*"):
+        if path.is_file():
+            assert KEY.encode() not in path.read_bytes()
     no_calls(r)
 
 
@@ -187,10 +306,16 @@ def test_ac009_storage_recovery(run, fault):
 
 @pytest.mark.parametrize("completion_source", ["field", "route_stop"])
 def test_ac010_completion(run, completion_source):
-    r = run(operation="complete", features=POINTS[:8], completed_ids=["0", "2"], source=completion_source)
+    mapping = {"layer": "site", "id": "id", "name": "name"}
+    if completion_source == "field":
+        mapping["completed"] = "done"
+    features = [dict(point, done=False) if completion_source == "field" else point for point in POINTS[:8]]
+    r = run(operation="complete", features=features, completed_ids=["0", "2"],
+            source=completion_source, mapping=mapping)
     assert r["completed_count"] == 2 and r["total_count"] == 8
     assert r["next_id"] == "1"
     assert {s["site_id"] for s in r["active"]["stops"] if s["completed"]} == {"0", "2"}
+    assert {s["site_id"] for s in r["reloaded"]["stops"] if s["completed"]} == {"0", "2"}
     assert r["summary_counts"] == [2, 8]
     no_calls(r)
 
@@ -231,7 +356,7 @@ def test_ac012_road_and_naver(run, launch):
 def test_ac013_no_network_or_secrets(run, action):
     r = run(operation="passive_action", action=action, key=KEY)
     no_calls(r)
-    assert KEY not in r["logs"]
+    assert KEY not in str(r["logs"])
     root = Path(r["project_dir"])
     assert list(root.rglob("*"))
     for path in root.rglob("*"):
@@ -358,11 +483,20 @@ def test_ac016_direct_generated_geometry(run, kind):
     assert r["rtree_ids"] == r["feature_ids"]
 
 
-@pytest.mark.parametrize("fault", ["mixed_families", "empty", "invalid_geometry", "unknown_crs"])
-def test_ac015_ac017_invalid_geometry(run, fault):
+@pytest.mark.parametrize("fault", ["mixed_families", "empty", "invalid_geometry"])
+def test_ac015_invalid_geometry(run, fault):
     r = run(operation="geometry_failure", fault=fault)
     assert r["ok"] is False and r["message"].strip()
     assert r["published_features"] == []
+    no_calls(r)
+
+
+@pytest.mark.parametrize("fault", ["missing_crs", "invalid_crs", "transform_failure"])
+def test_ac017_invalid_source_crs_preserves_saved(run, fault):
+    r = run(operation="geometry_failure", fault=fault, seed_saved=True)
+    rejected(r)
+    assert r["published_features"] == []
+    assert r["active_after"] == r["active_before"]
     no_calls(r)
 
 
@@ -375,10 +509,6 @@ CENTROIDS = {"Point": [0, 0], "LineString": [8 / 3, 1 / 3], "Polygon": [2, 1],
 @pytest.mark.parametrize("crs", ["EPSG:4326", "EPSG:3857"])
 @pytest.mark.parametrize("kind", GEOMETRIES)
 def test_ac017_representatives_numerical(run, crs, kind):
-    # Conditional proposal assertion: O-SRP-003 remains open, see design; not a silent policy decision.
-    if kind != "Point" and (crs != "EPSG:4326" or kind == "MultiPoint"):
-        if os.environ.get("FIELDBUILD_SRP_CENTROID_POLICY") != "source_crs_centroid":
-            pytest.skip("O-SRP-003 candidate policy unresolved; opt-in characterization only")
     import math
 
     geom = GEOJSON[kind]
@@ -386,8 +516,7 @@ def test_ac017_representatives_numerical(run, crs, kind):
     if crs == "EPSG:3857":
         x, y = expected[0] * 100000 + 1000000, expected[1] * 100000 + 5000000
         expected = [math.degrees(x / 6378137), math.degrees(2 * math.atan(math.exp(y / 6378137)) - math.pi / 2)]
-    r = run(operation="representative", wkt=fixture_wkt(geom, projected=crs == "EPSG:3857"), crs=crs,
-            candidate_policy="source_crs_centroid")
+    r = run(operation="representative", wkt=fixture_wkt(geom, projected=crs == "EPSG:3857"), crs=crs)
     assert r["coordinate"] == pytest.approx(expected, abs=1e-7)
     assert r["original_after"] == r["original_before"]
     assert r["request_coordinate"] == pytest.approx(expected, abs=1e-7)
@@ -445,10 +574,43 @@ def test_ac010_ac011_no_remaining(run):
     no_calls(r)
 
 
-def test_ac013_backend_settings(run):
-    settings = {"server_url": "https://routing.invalid/custom", "backend": "acceptance_backend",
-                "profile": "car", "timeout_ms": 1250, "max_road_offset_m": 50, "key": KEY}
-    r = run(operation="configured_calculate", settings=settings)
-    assert r["effective_settings"] == settings
+@pytest.mark.parametrize("configured_offset,expected_offset", [(50, 50), (None, 1000)])
+def test_ac013_backend_settings(run, configured_offset, expected_offset):
+    settings = {"server_url": "https://routing.invalid/ors",
+                "optimizer_url": "https://optimizer.invalid/vroom", "backend": "ors-vroom",
+                "profile": "driving-car", "timeout_ms": 1250, "objective": "distance", "key": KEY}
+    if configured_offset is not None:
+        settings["max_road_offset_m"] = configured_offset
+    r = run(operation="configured_calculate", settings=settings, seed_saved=True)
+    assert r["transport_settings"] == dict(settings, max_road_offset_m=expected_offset)
+    expected_persisted = dict(settings, max_road_offset_m=expected_offset)
+    expected_persisted.pop("key")
+    expected_persisted.pop("objective")
+    assert {key: r["persisted_settings"][key] for key in expected_persisted} == expected_persisted
+    assert "key" not in r["persisted_settings"]
     assert r["requests"]
-    assert KEY not in r["logs"] and KEY not in str(r["saved_after"])
+    assert r["saved_before"] and r["saved_after"] == r["saved_before"]
+    assert r["active_after"] == r["active_before"]
+    assert KEY not in str(r["logs"]) and KEY not in str(r["persisted_settings"])
+    assert KEY not in str(r.get("message")) and KEY not in str(r.get("qml_errors"))
+    root = Path(r["project_dir"])
+    for path in root.rglob("*"):
+        if path.is_file():
+            assert KEY.encode() not in path.read_bytes()
+
+
+def test_ac006_ac013_unknown_backend_rejected_before_request(run):
+    settings = {"server_url": "https://routing.invalid/ors",
+                "optimizer_url": "https://optimizer.invalid/vroom", "backend": "unknown-backend",
+                "profile": "driving-car", "timeout_ms": 1250, "max_road_offset_m": 50,
+                "objective": "time", "key": KEY}
+    r = run(operation="configured_calculate", settings=settings, seed_saved=True)
+    rejected(r)
+    no_calls(r)
+    assert r["active_after"] == r["active_before"]
+    assert "key" not in r["persisted_settings"]
+    assert KEY not in str(r["logs"]) and KEY not in str(r["saved_after"])
+    assert KEY not in str(r.get("message")) and KEY not in str(r.get("qml_errors"))
+    for path in Path(r["project_dir"]).rglob("*"):
+        if path.is_file():
+            assert KEY.encode() not in path.read_bytes()

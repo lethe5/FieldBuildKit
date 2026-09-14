@@ -1,4 +1,4 @@
-"""APPROVED design-only fixture/oracle check; never executes application code."""
+"""DRAFT design-only fixture/oracle check; never executes application code."""
 import ast
 import importlib.util
 import math
@@ -16,6 +16,23 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 coverage = set(re.findall(r"ac(\d{3})", path.read_text(encoding="utf-8-sig")))
 assert {f"{i:03d}" for i in range(1, 19)} <= coverage
+wire = module.vroom_response(include_arrivals=True)
+route = wire["routes"][0]
+arrivals = [step["arrival"] for step in route["steps"] if step["type"] == "job"]
+assert arrivals == module.ETA and all(type(value) in {int, float} for value in arrivals)
+assert "eta" not in route
+assert all("arrival" not in step for step in module.vroom_response(include_arrivals=False)["routes"][0]["steps"])
+invalid_arrivals = {}
+for fault in ["iso", "partial", "negative", "nonfinite"]:
+    steps = module.invalid_vroom_timing(fault)["routes"][0]["steps"]
+    invalid_arrivals[fault] = [step.get("arrival") for step in steps if step["type"] == "job"]
+assert isinstance(invalid_arrivals["iso"][0], str)
+assert invalid_arrivals["partial"][-1] is None
+assert invalid_arrivals["negative"][0] < 0
+assert not math.isfinite(invalid_arrivals["nonfinite"][0])
+assert module.PORTABLE_SETTINGS["backend"] == "ors-vroom"
+assert module.PORTABLE_SETTINGS["max_road_offset_m"] == 50
+assert "key" not in module.PORTABLE_SETTINGS
 for kind, center in module.CENTROIDS.items():
     x, y = center[0] * 100000 + 1000000, center[1] * 100000 + 5000000
     lon, lat = transform("EPSG:3857", "EPSG:4326", [x], [y])
@@ -45,4 +62,4 @@ for fmt in ["SHP", "ZIP", "GPKG"]:
             except FixtureChecked:
                 count += 1
 assert count == 18
-print("Design checks: syntax; 18 AC IDs; 6 documented centroid fixtures; 6 Mercator controls; 1 EPSG:5186 control; 18 real upload fixtures verified. No application tests executed.")
+print("Design checks: syntax; 18 AC IDs; raw VROOM relative arrivals/no route.eta; 4 invalid timing fixtures; portable non-secret settings; 6 documented centroid fixtures; 6 Mercator controls; 1 EPSG:5186 control; 18 real upload fixtures verified. No application tests executed.")
