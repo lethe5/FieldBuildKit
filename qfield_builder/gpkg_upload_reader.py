@@ -22,15 +22,17 @@ import sqlite3
 import struct
 from pathlib import Path
 
-from .errors import BuildError
+from .errors import BuildError, InvalidGeometryBuildError
 from .gpkg_functions import _wkb_envelope, envelope_from_gpkg_blob, strip_gpkg_geometry_header
 from .wkt import (
     WKB_MULTIPOLYGON,
     WKB_POLYGON,
     _reject_if_z_or_m,
     _wkb_type_info,
+    envelope_of,
     wkb_to_multipolygon_wkb,
     wkb_to_wkt,
+    wkt_to_wkb,
 )
 
 
@@ -253,10 +255,9 @@ def preview_first_feature_layer(
 def read_first_feature_layer(gpkg_path: str) -> list[dict]:
     """Read the first feature layer's rows.
 
-    Returns ``[{"attributes": {col: value, ...}, "geom_wkt": str}, ...]``. Rows with a NULL
-    geometry are skipped. Raises :class:`qfield_builder.errors.BuildError` (``malformed_upload``)
-    if the file is not a readable GeoPackage, has no feature layer, or contains a geometry type
-    this application cannot round-trip.
+    Returns ``[{"attributes": {col: value, ...}, "geom_wkt": str}, ...]``. Raises
+    :class:`qfield_builder.errors.BuildError` if the file is not a readable GeoPackage, has no
+    feature layer, or contains a missing or unsupported geometry.
     """
     conn = _open(gpkg_path)
     try:
@@ -276,7 +277,9 @@ def read_first_feature_layer(gpkg_path: str) -> list[dict]:
             attrs = dict(zip(attr_cols, row[:-1], strict=False))
             geom_blob = row[-1]
             if geom_blob is None:
-                continue
+                raise InvalidGeometryBuildError(
+                    f"테이블 '{table}'에 geometry가 비어 있는 feature가 있습니다."
+                )
             try:
                 wkb = strip_gpkg_geometry_header(bytes(geom_blob))
                 wkt, _geom_type = wkb_to_wkt(wkb)
@@ -317,7 +320,9 @@ def read_first_feature_layer_raw(gpkg_path: str) -> list[dict]:
             attrs = dict(zip(attr_cols, row[:-1], strict=False))
             geom_blob = row[-1]
             if geom_blob is None:
-                continue
+                raise InvalidGeometryBuildError(
+                    f"테이블 '{table}'에 geometry가 비어 있는 feature가 있습니다."
+                )
             try:
                 raw_blob = bytes(geom_blob)
                 wkb = strip_gpkg_geometry_header(raw_blob)
@@ -331,13 +336,14 @@ def read_first_feature_layer_raw(gpkg_path: str) -> list[dict]:
                 # Decode the complete nested geometry tree, consume Z/M ordinates safely, and
                 # normalize polygon members (including GeometryCollection members) to the
                 # application's plain 2D MultiPolygon storage contract.
-                normalized_wkb = wkb_to_multipolygon_wkb(wkb)
+                text, geometry_type = wkb_to_wkt(wkb)
+                normalized_wkb = wkt_to_wkb(text, geometry_type)
                 # Normal GeoPackage blobs carry an XY envelope in their header, so this stays
                 # constant-time even for million-vertex boundaries.  Only nonstandard blobs
                 # without an envelope need the linear fallback scan.
                 envelope = envelope_from_gpkg_blob(raw_blob)
                 if envelope is None:
-                    envelope = _wkb_envelope(wkb)
+                    envelope = envelope_of(text, geometry_type)
             except Exception as exc:  # noqa: BLE001 - re-raised as a structured BuildError below.
                 raise BuildError(
                     "malformed_upload",
@@ -348,7 +354,7 @@ def read_first_feature_layer_raw(gpkg_path: str) -> list[dict]:
                     "attributes": attrs,
                     "geom_wkb": normalized_wkb,
                     "envelope": envelope,
-                    "geometry_type": "POLYGON" if geom_type == WKB_POLYGON else "MULTIPOLYGON",
+                    "geometry_type": geometry_type,
                 }
             )
         return results

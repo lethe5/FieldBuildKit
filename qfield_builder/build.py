@@ -125,7 +125,7 @@ def _resolve_seed_sites(config: dict, work_dir: Path | None = None) -> list[dict
         sites = config["sites"]
         for site in sites:
             try:
-                validate_geometry(site["geom_wkt"], SITE_GEOMETRY_TYPE)
+                validate_geometry(site["geom_wkt"], config.get("site_geometry_type", SITE_GEOMETRY_TYPE))
             except InvalidGeometryError as exc:
                 # NOTE: the "invalid geometry" phrase below is deliberately kept in English --
                 # tests/acceptance/qfield_project_builder/test_error_handling.py's
@@ -465,6 +465,14 @@ def build_project(
             )
         report_stage("사이트 경계 읽기 및 좌표 변환")
         seed_sites = _resolve_seed_sites(config, work_dir=temp_root)
+        from .wkt import wkb_to_wkt, geometry_data
+        site_types = {wkb_to_wkt(site["geom_wkb"])[1] if "geom_wkb" in site else geometry_data(site["geom_wkt"])[0] for site in seed_sites}
+        if len({kind.removeprefix("MULTI") for kind in site_types}) > 1:
+            raise InvalidGeometryBuildError("서로 다른 계열의 조사대상 도형을 섞을 수 없습니다.")
+        site_geometry_type = config.get("site_geometry_type", SITE_GEOMETRY_TYPE)
+        if config.get("sites_upload"):
+            if not site_types: raise InvalidGeometryBuildError("업로드한 조사대상 도형이 비어 있습니다.")
+            site_geometry_type = next(iter(site_types)) if len(site_types) == 1 else "MULTI" + next(iter(site_types)).removeprefix("MULTI")
         seed_plots = _resolve_seed_plots(config) if survey_type == "permanent_plots" else []
         seed_temp_points = (
             config.get("temporary_plot_seed_points") or []
@@ -586,6 +594,7 @@ def build_project(
             survey_type,
             project_id,
             seed_sites=seed_sites,
+            site_geometry_type=site_geometry_type,
             seed_plots=seed_plots,
             seed_temporary_plot_points=seed_temp_points,
             taxonomy_reference_available=requires_accepted_name_lookup,
@@ -794,6 +803,7 @@ def build_project(
             asset_path.parent.mkdir(parents=True, exist_ok=True)
             asset_path.write_text(svg_content, encoding="utf-8")
 
+        shutil.copytree(Path(__file__).resolve().parent / "qfield_routes", temp_project_dir / "qfield_routes")
         plugin_qml_path = temp_project_dir / f"{project_slug}.qml"
         plugin_qml_path.write_text(
             qml_plugin.render_project_plugin_qml(

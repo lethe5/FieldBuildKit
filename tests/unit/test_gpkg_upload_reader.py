@@ -131,7 +131,7 @@ def test_read_first_feature_layer_multiple_rows(tmp_path):
     assert [r["attributes"]["site_name"] for r in rows] == ["Site A", "Site B"]
 
 
-def test_read_first_feature_layer_skips_null_geometry_rows(tmp_path):
+def test_read_first_feature_layer_rejects_null_geometry_rows(tmp_path):
     gpkg_path = str(tmp_path / "sites.gpkg")
     _build_minimal_external_gpkg(gpkg_path, [("Site A", VALID_SITE_WKT)], name_col="site_name")
     conn = sqlite3.connect(gpkg_path)
@@ -139,10 +139,11 @@ def test_read_first_feature_layer_skips_null_geometry_rows(tmp_path):
     conn.commit()
     conn.close()
 
-    rows = read_first_feature_layer(gpkg_path)
+    with pytest.raises(BuildError) as excinfo:
+        read_first_feature_layer(gpkg_path)
 
-    assert len(rows) == 1
-    assert rows[0]["attributes"]["site_name"] == "Site A"
+    assert excinfo.value.error_code == "invalid_geometry"
+    assert "geometry가 비어 있는 feature" in excinfo.value.message
 
 
 def test_read_first_feature_layer_rejects_non_sqlite_file(tmp_path):

@@ -54,7 +54,7 @@ a = Analysis(
     # has packaged this application's own Python modules into its own archive format).
     datas=[
         (str(REPO_ROOT / "resources"), "resources"),
-    ] + gis_datas + collect_data_files("qfield_builder", includes=["templates/*"]),
+    ] + gis_datas + collect_data_files("qfield_builder", includes=["templates/*", "qfield_routes/*"]),
     hiddenimports=gis_imports,
     hookspath=[str(REPO_ROOT / "packaging" / "hooks")],
     hooksconfig={},

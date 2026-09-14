@@ -5006,6 +5006,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import org.qfield
 import Theme
+import "qfield_routes" as Routes
 
 // Shared QField project plugin for {project_slug!r} (D-83/D-85/D-87).
 Item {{
@@ -5024,6 +5025,13 @@ Item {{
 {shared_functions}
 {report_members}
 {identification_members}
+    Routes.RoutePanel {{
+        layerAliases: {{var aliases={{}};qpbReportDefinition.tables.forEach(function(t){{aliases[t.name]=t.display_name;}});return aliases;}}
+        parent: iface.mainWindow().contentItem
+        defaultLayer: {json.dumps("" if survey_type == "simple_inventory" else "site")}
+        defaultId: {json.dumps("" if survey_type == "simple_inventory" else "site_id")}
+        defaultName: {json.dumps("" if survey_type == "simple_inventory" else "site_name")}
+    }}
 
     Component.onCompleted: {{
         // QField can recreate a project-plugin Item while restoring an already-open project.

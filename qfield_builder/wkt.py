@@ -13,6 +13,9 @@ import struct
 from dataclasses import dataclass
 
 WKB_POINT = 1
+WKB_LINESTRING = 2
+WKB_MULTIPOINT = 4
+WKB_MULTILINESTRING = 5
 WKB_POLYGON = 3
 WKB_MULTIPOLYGON = 6
 WKB_GEOMETRYCOLLECTION = 7
@@ -182,40 +185,89 @@ def parse_multipolygon(wkt: str) -> list[list[Ring]]:
     return polygons
 
 
+GEOMETRY_TYPES = ("POINT", "LINESTRING", "POLYGON", "MULTIPOINT", "MULTILINESTRING", "MULTIPOLYGON")
+
+
+def geometry_data(wkt: str) -> tuple[str, list]:
+    """Parse complete WKT, normalize dimensional coordinates to XY, reject malformed shapes."""
+    import math
+    match = re.fullmatch(r"\s*([A-Za-z]+)\s*(ZM|Z|M)?\s*(\(.*\))\s*", wkt, re.S | re.I)
+    if not match or match[1].upper() not in GEOMETRY_TYPES:
+        raise InvalidGeometryError("비어 있거나 지원하지 않는 도형입니다")
+    kind, dimensional, body = match[1].upper(), (match[2] or "").upper(), match[3]
+    tokens = re.findall(r"[(),]|[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?", body)
+    if re.sub(r"\s+", "", "".join(tokens)) != re.sub(r"\s+", "", body):
+        raise InvalidGeometryError("도형 좌표를 읽을 수 없습니다")
+    position = 0
+    def group():
+        nonlocal position
+        if position >= len(tokens) or tokens[position] != "(":
+            raise InvalidGeometryError("도형 괄호가 올바르지 않습니다")
+        position += 1
+        result = []
+        while position < len(tokens) and tokens[position] != ")":
+            if tokens[position] == "(":
+                result.append(group())
+            else:
+                point = []
+                while position < len(tokens) and tokens[position] not in (",", ")", "("):
+                    point.append(float(tokens[position])); position += 1
+                if len(point) != 2 + len(dimensional) or not all(math.isfinite(v) for v in point):
+                    raise InvalidGeometryError("유한한 좌표쌍이 필요합니다")
+                result.append(tuple(point[:2]))
+            if position < len(tokens) and tokens[position] == ",":
+                position += 1
+                if position >= len(tokens) or tokens[position] == ")":
+                    raise InvalidGeometryError("좌표가 누락되었습니다")
+            elif position < len(tokens) and tokens[position] != ")":
+                raise InvalidGeometryError("좌표 구분자가 누락되었습니다")
+        if position >= len(tokens) or not result:
+            raise InvalidGeometryError("도형이 비어 있거나 완성되지 않았습니다")
+        position += 1
+        return result
+    data = group()
+    if position != len(tokens): raise InvalidGeometryError("도형 뒤에 잘못된 데이터가 있습니다")
+    if kind == "POINT":
+        if len(data) != 1: raise InvalidGeometryError("점에는 좌표 하나만 필요합니다")
+        data = data[0]
+    if kind == "MULTIPOINT":
+        data = [v[0] if isinstance(v, list) and len(v) == 1 else v for v in data]
+    def point(v):
+        if not isinstance(v, tuple) or len(v) != 2: raise InvalidGeometryError("좌표쌍이 필요합니다")
+    def line(v):
+        if not isinstance(v, list): raise InvalidGeometryError("선의 좌표 목록이 필요합니다")
+        for p in v: point(p)
+        if len(set(v)) < 2: raise InvalidGeometryError("선에는 서로 다른 점이 2개 이상 필요합니다")
+    def polygon(v):
+        if not isinstance(v, list) or not v: raise InvalidGeometryError("면의 고리가 필요합니다")
+        for ring in v:
+            line(ring)
+            if len(ring) < 4 or ring[0] != ring[-1] or len(set(ring)) < 3:
+                raise InvalidGeometryError("면에는 닫힌 고리와 서로 다른 점 3개 이상이 필요합니다")
+            if _ring_self_intersects(ring) or abs(sum(a[0]*b[1]-b[0]*a[1] for a,b in zip(ring,ring[1:]))) == 0:
+                raise InvalidGeometryError("면의 고리가 자기 교차하거나 면적이 없습니다")
+    validate = {"POINT": point, "LINESTRING": line, "POLYGON": polygon}
+    if kind.startswith("MULTI"):
+        for part in data: validate[kind[5:]](part)
+    else: validate[kind](data)
+    return kind, data
+
+
 def validate_geometry(wkt: str, expected_type: str) -> None:
-    """Raise InvalidGeometryError if `wkt` is malformed or not of `expected_type`."""
-    upper = wkt.strip().upper()
-    if expected_type == "POINT":
-        if not upper.startswith("POINT"):
-            raise InvalidGeometryError(f"POINT geometry가 필요하지만 다음 값을 받았습니다: {wkt!r}")
-        parse_point(wkt)
-    elif expected_type == "MULTIPOLYGON":
-        if upper.startswith("MULTIPOLYGON"):
-            parse_multipolygon(wkt)
-        elif upper.startswith("POLYGON"):
-            # A bare POLYGON is accepted and treated as a single-member MultiPolygon.
-            parse_polygon(wkt)
-        else:
-            raise InvalidGeometryError(
-                f"POLYGON/MULTIPOLYGON geometry가 필요하지만 다음 값을 받았습니다: {wkt!r}"
-            )
-    else:
-        raise InvalidGeometryError(f"지원되지 않는 geometry 유형입니다: {expected_type!r}")
+    kind, _ = geometry_data(wkt)
+    if kind != expected_type and not (expected_type.startswith("MULTI") and kind == expected_type[5:]):
+        raise InvalidGeometryError(f"{expected_type} geometry가 필요하지만 {kind}입니다")
 
 
 def envelope_of(wkt: str, expected_type: str) -> Envelope:
-    if expected_type == "POINT":
-        x, y = parse_point(wkt)
-        return Envelope(min_x=x, max_x=x, min_y=y, max_y=y)
-    if expected_type == "MULTIPOLYGON":
-        upper = wkt.strip().upper()
-        polygons = (
-            parse_multipolygon(wkt) if upper.startswith("MULTIPOLYGON") else [parse_polygon(wkt)]
-        )
-        xs = [pt[0] for poly in polygons for ring in poly for pt in ring]
-        ys = [pt[1] for poly in polygons for ring in poly for pt in ring]
-        return Envelope(min_x=min(xs), max_x=max(xs), min_y=min(ys), max_y=max(ys))
-    raise InvalidGeometryError(f"지원되지 않는 geometry 유형입니다: {expected_type!r}")
+    validate_geometry(wkt, expected_type)
+    _, data = geometry_data(wkt)
+    def points(v):
+        if isinstance(v, tuple): yield v
+        else:
+            for child in v: yield from points(child)
+    xy = list(points(data))
+    return Envelope(min(p[0] for p in xy), max(p[0] for p in xy), min(p[1] for p in xy), max(p[1] for p in xy))
 
 
 def _pack_ring(ring: Ring) -> bytes:
@@ -249,17 +301,18 @@ def _wkb_multipolygon(polygons: list[list[Ring]]) -> bytes:
 
 
 def wkt_to_wkb(wkt: str, expected_type: str) -> bytes:
-    """Convert WKT to standard (non-GeoPackage-header) little-endian WKB bytes."""
     validate_geometry(wkt, expected_type)
-    upper = wkt.strip().upper()
-    if expected_type == "POINT":
-        x, y = parse_point(wkt)
-        return _wkb_point(x, y)
-    if expected_type == "MULTIPOLYGON":
-        if upper.startswith("MULTIPOLYGON"):
-            return _wkb_multipolygon(parse_multipolygon(wkt))
-        return _wkb_multipolygon([parse_polygon(wkt)])
-    raise InvalidGeometryError(f"지원되지 않는 geometry 유형입니다: {expected_type!r}")
+    kind, data = geometry_data(wkt)
+    if kind != expected_type: data = [data]
+    def encode(kind, data):
+        code = GEOMETRY_TYPES.index(kind)  # explicit OGC numbering below
+        code = {"POINT": 1, "LINESTRING": 2, "POLYGON": 3, "MULTIPOINT": 4, "MULTILINESTRING": 5, "MULTIPOLYGON": 6}[kind]
+        header = struct.pack("<BI", 1, code)
+        if kind == "POINT": return header + struct.pack("<dd", *data)
+        if kind == "LINESTRING": return header + _pack_ring(data)
+        if kind == "POLYGON": return header + _wkb_polygon_body(data)
+        return header + struct.pack("<I", len(data)) + b"".join(encode(kind[5:], part) for part in data)
+    return encode(expected_type, data)
 
 
 def wkb_to_gpkg_blob(wkb: bytes, srs_id: int, envelope: Envelope | None = None) -> bytes:
@@ -349,7 +402,7 @@ def _wkb_type_info(geom_type: int) -> tuple[int, int, bool]:
 def _reject_if_z_or_m(geom_type: int) -> None:
     """Compatibility validator retained for callers; dimensional WKB is now decoded safely."""
     base, _dimensions, _has_srid = _wkb_type_info(geom_type)
-    if base not in (WKB_POINT, WKB_POLYGON, WKB_MULTIPOLYGON, WKB_GEOMETRYCOLLECTION):
+    if base not in range(1, 8):
         raise InvalidGeometryError(f"지원되지 않는 WKB geometry 유형 코드입니다: {geom_type}")
 
 
@@ -376,6 +429,10 @@ def _read_wkb_geometry(wkb: bytes, offset: int = 0) -> tuple[dict, int]:
         return values[0], values[1]
     if base_type == WKB_POINT:
         return {"type": base_type, "point": point()}, offset
+    if base_type == WKB_LINESTRING:
+        if offset + 4 > len(wkb): raise InvalidGeometryError("WKB 선이 잘렸습니다")
+        count = struct.unpack_from(f"{byte_order}I", wkb, offset)[0]; offset += 4
+        return {"type": base_type, "points": [point() for _ in range(count)]}, offset
     if base_type == WKB_POLYGON:
         if offset + 4 > len(wkb): raise InvalidGeometryError("WKB polygon이 잘렸습니다")
         count = struct.unpack_from(f"{byte_order}I", wkb, offset)[0]; offset += 4
@@ -385,7 +442,7 @@ def _read_wkb_geometry(wkb: bytes, offset: int = 0) -> tuple[dict, int]:
             points = struct.unpack_from(f"{byte_order}I", wkb, offset)[0]; offset += 4
             rings.append([point() for _ in range(points)])
         return {"type": base_type, "rings": rings}, offset
-    if base_type in (WKB_MULTIPOLYGON, WKB_GEOMETRYCOLLECTION):
+    if base_type in (WKB_MULTIPOINT, WKB_MULTILINESTRING, WKB_MULTIPOLYGON, WKB_GEOMETRYCOLLECTION):
         if offset + 4 > len(wkb): raise InvalidGeometryError("WKB collection이 잘렸습니다")
         count = struct.unpack_from(f"{byte_order}I", wkb, offset)[0]; offset += 4
         geometries = []
@@ -439,6 +496,16 @@ def wkb_to_wkt(wkb: bytes) -> tuple[str, str]:
     if base_type == WKB_POINT:
         x, y = geometry["point"]
         return f"POINT({x} {y})", "POINT"
+    if base_type == WKB_LINESTRING:
+        return "LINESTRING" + _ring_to_wkt(geometry["points"]), "LINESTRING"
+    if base_type in (WKB_MULTIPOINT, WKB_MULTILINESTRING):
+        kind = "MULTIPOINT" if base_type == WKB_MULTIPOINT else "MULTILINESTRING"
+        parts = []
+        for child in geometry["geometries"]:
+            if child["type"] != (WKB_POINT if base_type == WKB_MULTIPOINT else WKB_LINESTRING):
+                raise InvalidGeometryError("다중 도형의 구성 유형이 다릅니다")
+            parts.append(_ring_to_wkt([child["point"]] if base_type == WKB_MULTIPOINT else child["points"]))
+        return kind + "(" + ",".join(parts) + ")", kind
     polygons = _polygon_members(geometry)
     if base_type == WKB_POLYGON:
         rings = geometry["rings"]

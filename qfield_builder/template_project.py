@@ -142,7 +142,11 @@ def build_qgis_project(
     probability_raster_relative_path: str | None = None,
     canonical_runtime_lookup_resource: dict | None = None,
 ) -> dict:
-    schema = schemas.get_schema(survey_type, taxonomy_reference_available=bool(ktsn_lookup_table_name))
+    with sqlite3.connect(gpkg_path) as geometry_db:
+        site_row = geometry_db.execute("SELECT geometry_type_name FROM gpkg_geometry_columns WHERE table_name='site'").fetchone()
+    geometry_db.close()
+    site_kind = site_row[0] if site_row else "MULTIPOLYGON"
+    schema = schemas.get_schema(survey_type, taxonomy_reference_available=bool(ktsn_lookup_table_name), site_geometry_type=site_kind)
     root = ET.parse(TEMPLATES / f"{survey_type}.qgs").getroot()
     project_dir = Path(qgs_path).parent.resolve()
     relative_data = "./" + Path(gpkg_path).resolve().relative_to(project_dir).as_posix()
@@ -229,6 +233,20 @@ def build_qgis_project(
                         candidate_selection_enabled=table_name != "community",
                     )
         table = schema.get(table_name)
+        if table_name == "site":
+            family = site_kind.removeprefix("MULTI")
+            layer.set("geometry", {"POINT": "Point", "LINESTRING": "Line", "POLYGON": "Polygon"}[family])
+            _set_text(layer, "wkbType", {"POINT": "Point", "LINESTRING": "LineString", "POLYGON": "Polygon", "MULTIPOINT": "MultiPoint", "MULTILINESTRING": "MultiLineString", "MULTIPOLYGON": "MultiPolygon"}[site_kind])
+            if family != "POLYGON":
+                old = layer.find("renderer-v2")
+                if old is not None: layer.remove(old)
+                renderer = ET.SubElement(layer, "renderer-v2", {"type": "singleSymbol"})
+                symbols = ET.SubElement(renderer, "symbols")
+                symbol = ET.SubElement(symbols, "symbol", {"name": "0", "type": "marker" if family == "POINT" else "line", "alpha": "1"})
+                symbol_layer = ET.SubElement(symbol, "layer", {"class": "SimpleMarker" if family == "POINT" else "SimpleLine", "enabled": "1"})
+                options = ET.SubElement(symbol_layer, "Option", {"type": "Map"})
+                for key, value in ({"name": "circle", "color": "44,117,183,255", "size": "3"} if family == "POINT" else {"line_color": "44,117,183,255", "line_width": "0.6"}).items():
+                    ET.SubElement(options, "Option", {"name": key, "value": value, "type": "QString"})
         if svg_relative_path and table and table.geometry and table.geometry.geom_type == "POINT":
             renderer = ET.parse(TEMPLATES / "svg.xml").getroot()
             for option in renderer.iter("Option"):

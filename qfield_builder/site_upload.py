@@ -91,20 +91,11 @@ def read_upload_features(
     fmt: str, path: str, encoding: str = "cp949"
 ) -> list[UploadFeature]:
     """Read every feature; ``encoding`` applies to Shapefile DBF attributes."""
-    if fmt == "zipped_shapefile":
-        shapes = shapefile_reader.read_zipped_shapefile(path, encoding)
-        features = []
-        for shape in shapes:
-            wkt = shapefile_reader.shape_to_wkt(shape, "MULTIPOLYGON")
-            features.append(UploadFeature(attributes=dict(shape.attributes), geom_wkt=wkt))
-        return features
-    if fmt == "shapefile":
-        shapes = shapefile_reader.read_shapefile(path, encoding)
-        features = []
-        for shape in shapes:
-            wkt = shapefile_reader.shape_to_wkt(shape, "MULTIPOLYGON")
-            features.append(UploadFeature(attributes=dict(shape.attributes), geom_wkt=wkt))
-        return features
+    if fmt in ("shapefile", "zipped_shapefile"):
+        import fiona
+        source = "zip://" + str(Path(path).resolve()) if fmt == "zipped_shapefile" else path
+        with fiona.open(source, encoding=encoding) as layer:
+            return [UploadFeature(dict(f.properties), geometry_to_wkt(f.geometry)) for f in layer]
     if fmt == "gpkg":
         records = gpkg_upload_reader.read_first_feature_layer(path)
         return [
@@ -200,9 +191,16 @@ def preview_summary(
         return gpkg_upload_reader.preview_first_feature_layer(path, max_rows=max_rows)
 
     if fmt in ("shapefile", "zipped_shapefile"):
-        return shapefile_reader.preview_shapefile(
-            path, encoding, zipped=fmt == "zipped_shapefile", max_rows=max_rows
-        )
+        import fiona
+        source = "zip://" + str(Path(path).resolve()) if fmt == "zipped_shapefile" else path
+        with fiona.open(source, encoding=encoding) as layer:
+            samples = []
+            kinds = []
+            for index, feature in enumerate(layer):
+                if index >= max_rows: break
+                samples.append(dict(feature.properties))
+                kinds.append(feature.geometry.type.upper() if feature.geometry else "EMPTY")
+            return {"fields": list(layer.schema["properties"]), "geometry_type": layer.schema["geometry"].upper(), "feature_count": len(layer), "sample_attributes": samples, "sample_geometry_types": kinds}
 
     features = read_upload_features(fmt, path, encoding)
     rows = features[:max_rows]
@@ -215,3 +213,20 @@ def preview_summary(
             feature.geom_wkt.split("(", 1)[0].strip() for feature in rows
         ],
     }
+
+
+def geometry_to_wkt(geometry) -> str:
+    """Encode Fiona/GeoJSON input as XY WKT without losing multi parts or holes."""
+    from .wkt import geometry_data
+    if geometry is None: raise BuildError("invalid_geometry", "빈 도형은 가져올 수 없습니다.")
+    kind = geometry["type"].upper()
+    def encode(value):
+        if isinstance(value[0], (int, float)): return f"{value[0]} {value[1]}"
+        return "(" + ",".join(encode(child) for child in value) + ")"
+    try:
+        value = encode(geometry["coordinates"])
+        text = kind + ("(" + value + ")" if kind == "POINT" else value)
+        geometry_data(text)
+        return text
+    except (ValueError, IndexError, KeyError, TypeError) as exc:
+        raise BuildError("invalid_geometry", f"도형을 읽을 수 없습니다: {exc}") from exc

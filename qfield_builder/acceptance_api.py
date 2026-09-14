@@ -465,3 +465,9 @@ def render_html_report_integrated_fixture(fixture: dict) -> dict:
 def render_html_report_refresh_fixture(fixture: dict) -> dict:
     """Run the refreshed report through the generated production collector seam."""
     return _render_html_report_refresh_fixture(fixture)
+
+
+def run_survey_route_acceptance(*, case: dict, work_dir: str) -> dict:
+    """Drive the generated production route controller and desktop geometry paths."""
+    from .survey_route_acceptance import run
+    return run(case=case, work_dir=work_dir)

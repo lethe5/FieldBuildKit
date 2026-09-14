@@ -287,6 +287,7 @@ def build_geopackage(
     seed_plots: list[dict] | None = None,
     seed_temporary_plot_points: list[dict] | None = None,
     taxonomy_reference_available: bool = True,
+    site_geometry_type: str = "MULTIPOLYGON",
 ) -> None:
     """Create a fresh GeoPackage for `survey_type` at `gpkg_path`, with any provided seed data.
 
@@ -308,7 +309,7 @@ def build_geopackage(
         _write_gpkg_application_id(conn)
         _create_core_gpkg_tables(conn)
 
-        schema = schemas.get_schema(survey_type, taxonomy_reference_available=taxonomy_reference_available)
+        schema = schemas.get_schema(survey_type, taxonomy_reference_available=taxonomy_reference_available, site_geometry_type=site_geometry_type)
         for table in schema.values():
             _create_domain_table(conn, table)
             if table.geometry is not None:
@@ -333,7 +334,8 @@ def build_geopackage(
             for site in seed_sites:
                 site_id = new_uuid()
                 if site.get("geom_wkb") is not None:
-                    source_wkb = polygon_wkb_to_multipolygon(site["geom_wkb"])
+                    from .wkt import wkb_to_wkt, wkt_to_wkb
+                    source_wkb = wkt_to_wkb(wkb_to_wkt(site["geom_wkb"])[0], site_geometry_type)
                     envelope = site.get("geom_envelope")
                     blob = wkb_to_gpkg_blob(source_wkb, 4326, envelope)
                     if envelope is None:
@@ -345,7 +347,7 @@ def build_geopackage(
                     if envelope is None:
                         raise ValueError("업로드 geometry의 envelope를 계산할 수 없습니다")
                 else:
-                    blob, envelope = wkt_to_gpkg_geometry(site["geom_wkt"], "MULTIPOLYGON")
+                    blob, envelope = wkt_to_gpkg_geometry(site["geom_wkt"], site_geometry_type)
                 cur = conn.execute(
                     'INSERT INTO "site" (site_id, site_name, site_geom) VALUES (?, ?, ?);',
                     (site_id, site["site_name"], blob),

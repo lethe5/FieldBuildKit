@@ -720,6 +720,10 @@ class SiteInputPage(QWizardPage):
         upload_layout.addWidget(self.upload_status_label)
         self.upload_group.setLayout(upload_layout)
 
+        self.geometry_type_combo = QComboBox()
+        for label, kind in (("점", "Point"), ("선", "LineString"), ("면", "Polygon")):
+            self.geometry_type_combo.addItem(label, kind)
+        self.geometry_type_combo.setCurrentIndex(2)
         self.draw_site_name_edit = QLineEdit("그려진 사이트")
         self.draw_map_canvas = MapCanvas()
         self.draw_map_canvas.set_mode("polygon")
@@ -753,6 +757,8 @@ class SiteInputPage(QWizardPage):
         draw_layout.setSpacing(8)
         draw_layout.addWidget(QLabel("사이트 이름:"))
         draw_layout.addWidget(self.draw_site_name_edit)
+        draw_layout.addWidget(self.geometry_type_combo)
+        self.geometry_type_combo.currentIndexChanged.connect(self._change_geometry_type)
         draw_layout.addWidget(self.draw_map_canvas)
         draw_buttons_row = QHBoxLayout()
         draw_buttons_row.setSpacing(8)
@@ -863,11 +869,23 @@ class SiteInputPage(QWizardPage):
                 lambda checked, sender=radio: keep_one_checked(sender, checked)
             )
 
+    def _change_geometry_type(self) -> None:
+        if self._committed_sites:
+            previous = self._committed_sites[0]["geom_wkt"].split("(", 1)[0].upper()
+            index = ["POINT", "LINESTRING", "POLYGON"].index(previous)
+            self.geometry_type_combo.blockSignals(True)
+            self.geometry_type_combo.setCurrentIndex(index)
+            self.geometry_type_combo.blockSignals(False)
+            self.draw_status_label.setText("저장한 대상과 같은 종류의 도형을 사용하세요.")
+            return
+        self._clear_drawn_shape()
+        self.draw_map_canvas.set_mode({"Point": "point", "LineString": "line", "Polygon": "polygon"}[self.geometry_type_combo.currentData()])
+
     def _finish_drawn_shape(self) -> None:
         # MapCanvas retains both finish_polygon() and finish_bbox_at() drawing semantics; this
         # wizard page intentionally continues to use the existing polygon workflow.
         try:
-            wkt = self.draw_map_canvas.finish_polygon()
+            wkt = self.draw_map_canvas.finish_site_shape(self.geometry_type_combo.currentData())
         except ValueError as exc:
             self.draw_status_label.setText(str(exc))
             return
@@ -875,7 +893,10 @@ class SiteInputPage(QWizardPage):
 
     def _on_polygon_drawn(self, wkt: str) -> None:
         try:
-            validate_geometry(wkt, "MULTIPOLYGON")
+            if wkt.startswith("MULTIPOLYGON"):
+                from ..wkt import parse_multipolygon, _ring_to_wkt
+                wkt = "POLYGON(" + ",".join(_ring_to_wkt(r) for r in parse_multipolygon(wkt)[0]) + ")"
+            validate_geometry(wkt, self.geometry_type_combo.currentData().upper())
         except InvalidGeometryError as exc:
             self._drawn_site_wkt = None
             self.draw_status_label.setText(f"잘못된 도형입니다: {exc}")
@@ -899,7 +920,7 @@ class SiteInputPage(QWizardPage):
         name = self.drawn_site_name()
         self._committed_sites.append({"site_name": name, "geom_wkt": self._drawn_site_wkt})
         self.committed_sites_list.addItem(name)
-        self.draw_map_canvas.commit_finished_polygon()
+        self.draw_map_canvas.commit_site_shape(self._drawn_site_wkt)
         self._drawn_site_wkt = None
         self.draw_site_name_edit.setText("그려진 사이트")
         self.draw_status_label.setText(
@@ -2766,6 +2787,7 @@ class ReviewAndBuildPage(QWizardPage):
             drawn_sites = site_input_page.drawn_sites()
             if drawn_sites:
                 config["sites"] = drawn_sites
+                config["site_geometry_type"] = site_input_page.geometry_type_combo.currentData().upper()
             else:
                 upload_path = wizard.field("sites_upload_path")
                 if upload_path:

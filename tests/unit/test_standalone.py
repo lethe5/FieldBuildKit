@@ -421,10 +421,43 @@ def test_projected_upload_preserves_geometry_and_attributes(tmp_path):
     reproject_uploaded_gpkg_layer(str(source), "sites", str(output), "EPSG:4326")
     with fiona.open(output) as data:
         feature = next(iter(data))
-        lon, lat = feature.geometry.coordinates[0][0][0]
+        assert feature.geometry.type == "Polygon"
+        lon, lat = feature.geometry.coordinates[0][0]
         assert lon == pytest.approx(127, abs=0.001)
         assert 36 < lat < 38
         assert feature.properties["name"] == "한글 사이트"
+
+
+def test_gpkg_upload_rejects_mixed_null_geometry_without_partial_output(tmp_path):
+    source = tmp_path / "mixed-null.gpkg"
+    output = tmp_path / "output"
+    with fiona.open(
+        source,
+        "w",
+        driver="GPKG",
+        layer="sites",
+        crs="EPSG:4326",
+        schema={"geometry": "Point", "properties": {"name": "str"}},
+    ) as data:
+        data.write({"geometry": {"type": "Point", "coordinates": (127.0, 37.0)},
+                    "properties": {"name": "normal"}})
+        data.write({"geometry": None, "properties": {"name": "missing"}})
+
+    result = build.build_project(
+        {
+            "project_display_name": "Mixed null geometry",
+            "survey_type": "temporary_plots",
+            "sites_upload": {"format": "gpkg", "path": str(source)},
+            "basemap": {"mode": "none"},
+        },
+        str(output),
+    )
+
+    assert result["success"] is False
+    assert result["error_code"] == "invalid_geometry"
+    assert result["error_message"].strip()
+    assert result["gpkg_path"] is None
+    assert not output.exists()
 
 
 def test_templates_have_no_workstation_data_or_embedded_widget_code():

@@ -79,8 +79,9 @@ DEFAULT_TILE_SIZE = 256
 MODE_PAN = "pan"
 MODE_POLYGON = "polygon"
 MODE_POINT = "point"
+MODE_LINE = "line"
 MODE_BBOX = "bbox"
-_VALID_MODES = (MODE_PAN, MODE_POLYGON, MODE_POINT, MODE_BBOX)
+_VALID_MODES = (MODE_PAN, MODE_POLYGON, MODE_POINT, MODE_BBOX, MODE_LINE)
 
 
 def _nice_grid_step(span_degrees: float) -> float:
@@ -337,6 +338,7 @@ class MapCanvas(QWidget):
         touching any other in-progress/finished drawing state. A separate operation from
         `reset_drawing` on purpose -- see that method's own docstring."""
         self._finished_polygons = []
+        self._finished_site_shapes = []
         self._finished_polygon_vertices = []
         self.update()
 
@@ -390,6 +392,22 @@ class MapCanvas(QWidget):
         self.polygon_drawn.emit(wkt)
         return wkt
 
+    def finish_site_shape(self, kind: str) -> str:
+        from ..wkt import validate_geometry
+        if kind == "Point":
+            text = self.last_point_wkt
+            if not text: raise ValueError("지도에서 점을 하나 지정하세요.")
+        elif kind == "LineString":
+            text = "LINESTRING(" + ",".join(f"{x} {y}" for x,y in self._vertices) + ")"
+        else:
+            ring = list(self._vertices)
+            if ring and ring[0] != ring[-1]: ring.append(ring[0])
+            text = "POLYGON((" + ",".join(f"{x} {y}" for x,y in ring) + "))"
+        validate_geometry(text, kind.upper())
+        self._polygon_finished = True
+        self.update()
+        return text
+
     def is_polygon_finished(self) -> bool:
         """Whether the in-progress polygon has been finished (closed) -- used by
         :meth:`_paint_drawing_overlay` to decide whether to render an open polyline (still being
@@ -428,6 +446,12 @@ class MapCanvas(QWidget):
         self.last_polygon_wkt = None
         self.update()
         return self._finished_polygons[-1]
+
+    def commit_site_shape(self, text: str) -> None:
+        from ..wkt import geometry_data
+        if not hasattr(self, "_finished_site_shapes"): self._finished_site_shapes = []
+        self._finished_site_shapes.append(geometry_data(text))
+        self.reset_drawing()
 
     def place_point_at(self, x: float, y: float) -> str:
         lon, lat = self.widget_to_lonlat(x, y)
@@ -503,7 +527,7 @@ class MapCanvas(QWidget):
         if self._mode == MODE_PAN:
             self._panning = True
             self._pan_last_pos = pos
-        elif self._mode == MODE_POLYGON:
+        elif self._mode in (MODE_POLYGON, MODE_LINE):
             self.add_polygon_vertex_at(pos.x(), pos.y())
         elif self._mode == MODE_POINT:
             self.place_point_at(pos.x(), pos.y())
@@ -642,11 +666,17 @@ class MapCanvas(QWidget):
                 points = [QPointF(*self.lonlat_to_widget(lon, lat)) for lon, lat in vertices]
                 painter.drawPolygon(QPolygonF(points))
 
+        painter.setPen(QPen(QColor(120, 120, 130), 2))
+        for kind, coords in getattr(self, "_finished_site_shapes", []):
+            if kind == "POINT": painter.drawEllipse(QPointF(*self.lonlat_to_widget(*coords)), 5, 5)
+            elif kind == "LINESTRING": painter.drawPolyline(QPolygonF([QPointF(*self.lonlat_to_widget(*p)) for p in coords]))
+            else:
+                for ring in coords: painter.drawPolygon(QPolygonF([QPointF(*self.lonlat_to_widget(*p)) for p in ring]))
         painter.setPen(pen)
 
-        if self._mode == MODE_POLYGON and self._vertices:
+        if self._mode in (MODE_POLYGON, MODE_LINE) and self._vertices:
             points = [QPointF(*self.lonlat_to_widget(lon, lat)) for lon, lat in self._vertices]
-            if self._polygon_finished:
+            if self._polygon_finished and self._mode == MODE_POLYGON:
                 # Finished shapes must render as an unambiguous closed ring -- `drawPolygon`
                 # (unlike `drawPolyline`) always draws the closing segment back to the first
                 # point, matching the closed ring that `finish_polygon` already builds for WKT.

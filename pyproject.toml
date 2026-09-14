@@ -51,7 +51,7 @@ build-backend = "setuptools.build_meta"
 include = ["qfield_builder*"]
 
 [tool.setuptools.package-data]
-qfield_builder = ["templates/*.qgs", "templates/*.xml", "templates/*.json"]
+qfield_builder = ["templates/*.qgs", "templates/*.xml", "templates/*.json", "qfield_routes/*.qml", "qfield_routes/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

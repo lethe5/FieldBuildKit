@@ -457,7 +457,7 @@ _BUILDERS = {
 }
 
 
-def get_schema(survey_type: str, *, taxonomy_reference_available: bool = True) -> dict[str, TableDef]:
+def get_schema(survey_type: str, *, taxonomy_reference_available: bool = True, site_geometry_type: str = "MULTIPOLYGON") -> dict[str, TableDef]:
     """Return the ordered {table_name: TableDef} mapping for a survey type.
 
     Tables are returned in dependency order (parents before children) so callers can create
@@ -466,6 +466,11 @@ def get_schema(survey_type: str, *, taxonomy_reference_available: bool = True) -
     if survey_type not in _BUILDERS:
         raise ValueError(f"Unknown survey_type: {survey_type!r}")
     schema = _BUILDERS[survey_type]()
+    from .wkt import GEOMETRY_TYPES
+    if site_geometry_type not in GEOMETRY_TYPES:
+        raise ValueError("지원하지 않는 사이트 도형 유형입니다")
+    if "site" in schema:
+        schema["site"] = replace(schema["site"], geometry=replace(schema["site"].geometry, geom_type=site_geometry_type))
     if not taxonomy_reference_available:
         schema = {
             name: replace(table, columns=tuple(c for c in table.columns if c.name != "selected_ktsn"))

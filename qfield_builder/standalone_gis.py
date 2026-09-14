@@ -35,17 +35,22 @@ def _reproject(source_path, destination_path, target_crs, *, layer=None, source_
         crs = source.crs_wkt or source_crs
         if not crs:
             raise BuildError("missing_upload_crs", "업로드 자료의 좌표계를 확인할 수 없습니다.")
-        schema = dict(source.schema, geometry="MultiPolygon")
+        records = list(source)
+        kinds = {feature.geometry.type for feature in records if feature.geometry is not None}
+        supported = {"Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"}
+        families = {kind.removeprefix("Multi") for kind in kinds}
+        if not records or not kinds <= supported or len(families) != 1 or any(f.geometry is None for f in records):
+            raise BuildError("invalid_geometry", "빈 도형 또는 서로 다른 계열의 도형은 가져올 수 없습니다.")
+        kind = next(iter(kinds)) if len(kinds) == 1 else "Multi" + next(iter(families))
+        schema = dict(source.schema, geometry=kind)
         with fiona.open(
             destination_path, "w", driver="GPKG", layer="reprojected", schema=schema, crs=target_crs
         ) as output:
-            for feature in source:
+            for feature in records:
                 geometry = feature.geometry
-                if geometry is None or geometry.type not in ("Polygon", "MultiPolygon"):
-                    raise BuildError("invalid_geometry", "사이트 자료는 폴리곤이어야 합니다.")
                 geometry = transform_geom(crs, target_crs, geometry)
-                if geometry.type == "Polygon":
-                    geometry = {"type": "MultiPolygon", "coordinates": [geometry.coordinates]}
+                if kind.startswith("Multi") and not geometry.type.startswith("Multi"):
+                    geometry = {"type": kind, "coordinates": [geometry.coordinates]}
                 output.write({"geometry": geometry, "properties": dict(feature.properties)})
     return {"success": True, "output_path": destination_path}
 

@@ -34,49 +34,9 @@ def _parse_gpkg_geometry_header(blob: bytes) -> tuple[int, bytes]:
 
 
 def _wkb_envelope(wkb: bytes) -> Envelope | None:
-    if not wkb:
-        return None
-    byte_order = "<" if wkb[0] == 1 else ">"
-    (geom_type,) = struct.unpack_from(f"{byte_order}I", wkb, 1)
-    base_type = geom_type % 1000  # strip Z/M/ZM flavor offsets if present
-    offset = 5
-    xs: list[float] = []
-    ys: list[float] = []
-
-    def read_point(off: int) -> int:
-        x, y = struct.unpack_from(f"{byte_order}dd", wkb, off)
-        xs.append(x)
-        ys.append(y)
-        return off + 16
-
-    if base_type == 1:  # Point
-        read_point(offset)
-    elif base_type in (3,):  # Polygon
-        (num_rings,) = struct.unpack_from(f"{byte_order}I", wkb, offset)
-        offset += 4
-        for _ in range(num_rings):
-            (num_points,) = struct.unpack_from(f"{byte_order}I", wkb, offset)
-            offset += 4
-            for _ in range(num_points):
-                offset = read_point(offset)
-    elif base_type in (6,):  # MultiPolygon
-        (num_polys,) = struct.unpack_from(f"{byte_order}I", wkb, offset)
-        offset += 4
-        for _ in range(num_polys):
-            offset += 5  # nested geometry's own byte-order + type header
-            (num_rings,) = struct.unpack_from(f"{byte_order}I", wkb, offset)
-            offset += 4
-            for _ in range(num_rings):
-                (num_points,) = struct.unpack_from(f"{byte_order}I", wkb, offset)
-                offset += 4
-                for _ in range(num_points):
-                    offset = read_point(offset)
-    else:
-        return None
-
-    if not xs:
-        return None
-    return Envelope(min_x=min(xs), max_x=max(xs), min_y=min(ys), max_y=max(ys))
+    from .wkt import wkb_to_wkt, envelope_of
+    text, kind = wkb_to_wkt(wkb)
+    return envelope_of(text, kind)
 
 
 def _envelope_from_blob(blob) -> Envelope | None:
