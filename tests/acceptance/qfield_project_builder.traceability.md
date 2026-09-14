@@ -282,3 +282,12 @@ AC-QPB-040–046/049/050/069–072). See
 [`qfield_project_builder_post_mvp_identification.traceability.md`](qfield_project_builder_post_mvp_identification.traceability.md)
 for that round's own, separate traceability table — this file's own content above remains exactly
 as originally approved.
+
+## 2026-09-14 routing/site-geometry extension — acceptance artifacts approved 2026-09-14
+
+Approved specification `survey-route-planner.md` (checkpoint `e382c77`) supersedes site-only
+polygon restrictions of FR-QPB-025–028/DR-QPB-008, retaining UUID/relations and other layers'
+geometry meanings. See [AC-SRP-001–018 map](survey_route_planner.traceability.md),
+[test design](survey_route_planner.test-design.md) and
+[harness contract](survey_route_planner/HARNESS_CONTRACT.md). New acceptance artifacts were explicitly approved on 2026-09-14; historical rows above are preserved and do not establish new-feature PASS.
+Current QGIS-free runtime and optional references are governed by current shared docs.

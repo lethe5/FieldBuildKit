@@ -4,6 +4,27 @@ Executable acceptance tests live here, one set per feature, authored by the `tes
 
 Each feature's tests should be accompanied by a traceability file (e.g. `<feature>.traceability.md`) mapping every acceptance criterion ID (`AC-n`) in the corresponding spec to the test(s) that verify it.
 
+
+## Current approved routing and geometry acceptance artifacts (2026-09-14)
+
+Current product is FieldBuild Kit 0.2.8, using the QGIS-free standalone runtime and optional
+reference assets. Older QGIS-installation and mandatory private-data requirements below are
+historical; use [current runtime](../../docs/standalone.md) and dated
+[verification evidence](../../docs/qfield-runtime-verification.md) for present behavior.
+
+The [route specification](../../specs/survey-route-planner.md) was approved on 2026-09-14
+(checkpoint `e382c77`). The following **acceptance artifacts were explicitly approved on 2026-09-14**:
+
+- [Executable tests](survey_route_planner/test_survey_route_planner.py)
+- [Test design and user-run cases](survey_route_planner.test-design.md)
+- [AC-SRP-001–018 traceability](survey_route_planner.traceability.md)
+- [New harness contract](survey_route_planner/HARNESS_CONTRACT.md)
+
+The missing new adapter is an explicit unimplemented-harness skip, not proof of conformance.
+Set `FIELDBUILD_REQUIRE_SRP_HARNESS=1` in implementation/review gates. O-SRP-003 policy-dependent
+numerical cases require explicit characterization opt-in; QField/Naver checks remain user-run.
+Other existing acceptance history is retained below and is not reclassified as current PASS.
+
 ## QField Project Builder
 
 - Specification: [`specs/qfield-project-builder.md`](../../specs/qfield-project-builder.md) (approved MVP baseline).
@@ -12,9 +33,9 @@ Each feature's tests should be accompanied by a traceability file (e.g. `<featur
 - Test harness contract (what the `implementer` must expose for these tests to run):
   [`qfield_project_builder/HARNESS_CONTRACT.md`](qfield_project_builder/HARNESS_CONTRACT.md).
 
-No application code exists yet as of this writing. Every test that needs the
+**Historical baseline note (not current state):** The original authoring round had no application code. Every test that needs the
 `qfield_builder.acceptance_api` module is written with `pytest.importorskip`, so the suite
-currently **skips** (not fails) — this is the expected state before implementation exists.
+originally **skipped** (not failed) — this is the expected state before implementation exists.
 Some criteria that require real QGIS/QField version pinning (Open Question O-9) or physical
 iOS/Android devices are written as documented, explicitly skipped placeholders (`qgis`,
 `device`, `manual`, `network` markers) rather than silently omitted; see the traceability file

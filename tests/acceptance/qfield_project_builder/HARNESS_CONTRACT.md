@@ -2242,3 +2242,13 @@ All collection is synthetic, in memory, read-only, offline, and repository-local
 not access a user-owned report, Downloads, a QGIS/browser profile, simulator, physical device, or
 network. AC-FBKR-001 remains the skipped physical iPhone/QField manual gate and is outside this
 adapter's scope.
+
+## 2026-09-14 routing/geometry acceptance extension — acceptance artifacts approved 2026-09-14
+
+The approved route specification (checkpoint `e382c77`) extends site geometry only. Current
+standalone runtime supersedes historical QGIS Desktop dependency and mandatory reference inputs.
+The new `run_survey_route_acceptance` seam is described in
+[route harness contract](../survey_route_planner/HARNESS_CONTRACT.md), with
+[design](../survey_route_planner.test-design.md) and
+[traceability](../survey_route_planner.traceability.md). These acceptance artifacts were explicitly approved on 2026-09-14. This addition does not approve a provider, storage format or unresolved centroid policy.
+Earlier entries remain historical evidence; no runtime PASS is claimed by this index update.
