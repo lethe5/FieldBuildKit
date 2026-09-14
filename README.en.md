@@ -5,7 +5,7 @@
 A desktop application for **creating ecological field-survey projects for QField without
 installing QGIS Desktop**. Its Korean-language wizard configures survey types, basemaps and
 optional reference data, then generates a project folder with forms and relationships.
-This guide describes **app version 0.2.8**.
+This guide describes **app version 0.2.9**.
 
 ## Install and run
 
@@ -220,5 +220,5 @@ storage contracts is **DRAFT pending user artifact approval**.
 Implementation attempt 2 is uncommitted. Before reconciliation the automated result was
 **104 passed, 2 contract failures and 12 skipped**. Native QField/iOS/Android, the live provider
 and Naver launch have not been performed, so this is not a current-app availability or final PASS
-claim. Version stays **0.2.8**.
+claim. The current source version is **0.2.9**.
 See the [current documentation map](docs/README.md) for current behavior, drafts and historical evidence.

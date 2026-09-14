@@ -4,7 +4,7 @@
 
 QGIS Desktop을 설치하지 않고 **QField 현장 생태조사 프로젝트를 만드는 데스크톱 앱**입니다.
 한국어 마법사에서 조사 유형, 배경지도, 선택 참조 자료를 설정하면 조사 폼과 관계가 구성된
-프로젝트 폴더를 생성합니다. 이 문서는 **앱 0.2.8**을 기준으로 합니다.
+프로젝트 폴더를 생성합니다. 이 문서는 **앱 0.2.9**를 기준으로 합니다.
 
 ▶ [웹 발표자료에서 주요 기능과 사용 흐름 보기](https://lethe5.github.io/FieldBuildKit/)
 
@@ -203,7 +203,7 @@ contract를 구체화한 **Category B 정합본은 DRAFT이며 사용자 산출�
 implementation attempt 2는 uncommitted입니다. 정합 전 자동 결과는
 **104 passed, 2 contract-failing, 12 skipped**이며, QField/iOS/Android와 실제 provider 및
 네이버지도 실행은 미수행입니다. 따라서 현재 앱 기능 또는 최종 PASS로 표시하지 않습니다.
-버전은 **0.2.8**을 유지합니다.
+현재 소스 버전은 **0.2.9**입니다.
 
 ## 추가 문서 및 문의
 

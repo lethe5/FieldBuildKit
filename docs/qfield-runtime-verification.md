@@ -2,7 +2,7 @@
 
 > Current-document index: [documentation map](README.md). The dated records below retain their
 > original versions, commands, outcomes and limitations; they are not a single current PASS.
-> 2026-09-14 route reconciliation: version remains 0.2.8. Baseline specification `e382c77` and
+> 2026-09-14 route reconciliation: current source version is 0.2.9. Baseline specification `e382c77` and
 > acceptance checkpoint `ed8ac81` are approved; the current Category B clarification is DRAFT.
 > Implementation attempt 2 is uncommitted and has no final reviewer PASS or merge claim.
 

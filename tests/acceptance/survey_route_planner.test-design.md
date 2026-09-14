@@ -7,7 +7,7 @@
 
 ## Current authority and scope
 
-FieldBuild Kit 0.2.8 uses the standalone QGIS-free generator, optional taxonomy, conditional
+FieldBuild Kit 0.2.9 uses the standalone QGIS-free generator, optional taxonomy, conditional
 TIFF inputs and portable generated project folders. Historical QGIS Desktop/runtime/private-data
 requirements in inherited tests do not govern new route tests. Existing evidence remains in
 `docs/qfield-runtime-verification.md`; earlier macOS QField 4.2.11 loading is not route evidence.

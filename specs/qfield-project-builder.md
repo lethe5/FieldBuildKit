@@ -2,7 +2,7 @@
 
 > **Current-app reconciliation (2026-09-14):** This integrated specification preserves the
 > approved source-product baseline and later decisions; it is not a complete description of
-> today's runtime. Product name: FieldBuild Kit; repository: FieldBuildKit; version: **0.2.8**.
+> today's runtime. Product name: FieldBuild Kit; repository: FieldBuildKit; version: **0.2.9**.
 > [Current document map](../docs/README.md), [standalone runtime](../docs/standalone.md),
 > [identity/compatibility](../docs/independence.md), and [dated verification](../docs/qfield-runtime-verification.md)
 > supersede inherited installed-QGIS, mandatory private-reference and credential-migration rules.

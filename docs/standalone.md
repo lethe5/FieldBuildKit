@@ -95,7 +95,7 @@ The 0.2.8 report-warning correction reads observation dates from the joined surv
 instead of an obsolete unqualified output-column key. The loaded-layer collector also omits
 undefined provider attributes, so a nonexistent parent notes field cannot conflict with a
 present NULL observation note. Real differing values remain preserved in separate columns.
-The user requested that the version remain 0.2.8. Existing generated projects embed their own
+The current source version is 0.2.9. Existing generated projects embed their own
 report QML and need updated project code before their subsequent reports use this correction.
 
 Validation replayed the affected report's attributes through the updated collector: observation
@@ -144,7 +144,7 @@ and [Fiona manual](https://fiona.readthedocs.io/en/stable/manual.html).
 
 ## Documentation reconciliation and uncommitted routing work (2026-09-14)
 
-Version remains **0.2.8**; no new build or release is claimed by this update.
+The current source version is **0.2.9**; no release is claimed by this update.
 The active public `qgis_worker.py` build/reprojection wrappers dispatch to `template_project.py`
 and `standalone_gis.py`. Only the retained private PyQGIS implementations are development-only;
 do not bypass these wrappers or revive QGIS discovery based on inherited naming.

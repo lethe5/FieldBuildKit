@@ -48,7 +48,7 @@ The original baseline is approved; each later amendment retains its own approval
 
 ## Current scope and documentation status (2026-09-14)
 
-Current version is **0.2.8**, frozen by user instruction. QGIS Desktop is not an app runtime
+Current version is **0.2.9**. QGIS Desktop is not an app runtime
 requirement. Python/PySide6 with packaged independent GIS libraries creates portable QField
 folders; QField remains separately installed on the field device. Platform delivery and actual
 verification claims must follow [runtime evidence](qfield-runtime-verification.md), not the

@@ -7,7 +7,7 @@ Each feature's tests should be accompanied by a traceability file (e.g. `<featur
 
 ## Survey routing and geometry acceptance reconciliation (2026-09-14)
 
-Current product is FieldBuild Kit 0.2.8, using the QGIS-free standalone runtime and optional
+Current product is FieldBuild Kit 0.2.9, using the QGIS-free standalone runtime and optional
 reference assets. Older QGIS-installation and mandatory private-data requirements below are
 historical; use [current runtime](../../docs/standalone.md) and dated
 [verification evidence](../../docs/qfield-runtime-verification.md) for present behavior.

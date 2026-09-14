@@ -123,8 +123,6 @@ or an action outside existing authorization. Detailed reconciliation: `docs/chan
 
 ## Version policy
 
-- User override (2026-09-08): keep **0.2.8** until the user explicitly requests a version change.
-  This overrides automatic increments.
 - When a version change is authorized, use patch for fixes, minor for new features and major for
   breaking changes; increment once per logical change. Documentation-only work needs no bump.
 - Check these actual implementation paths for synchronized versions:

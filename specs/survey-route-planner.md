@@ -21,7 +21,7 @@
 승인 뒤 새 test-designer가 acceptance 산출물과 traceability를 정합해야 한다.
 [현재 문서 지도](../docs/README.md), [런타임](../docs/standalone.md),
 [호환성](../docs/independence.md), [검증 기록](../docs/qfield-runtime-verification.md)을 함께 읽는다.
-제품은 FieldBuild Kit, 저장소는 FieldBuildKit, 내부 패키지는 qfield_builder, 버전은 0.2.8이다.
+제품은 FieldBuild Kit, 저장소는 FieldBuildKit, 내부 패키지는 qfield_builder, 현재 버전은 0.2.9이다.
 
 **사용자 확정 범위:** 선택/전체/미조사 대상의 도로망 최적화, Project Plugin 하단 패널,
 명시 계산에만 API 호출, 오프라인 영구 경로 조회, 여러 경로, 완료/남은 지점 재계산,
@@ -65,7 +65,9 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
 - D-SRP-005 (기술 후보 — 명세 승인, 실현 가능성 검증 전): QField 4.2.4의 프로젝트 내 FileUtils로 이중 JSON 사본에
   route/route_stop/LineString을 저장한다. “GeoPackage 등” 영구 저장의 후보이며 실제 충족 여부는 검증 전이다.
   기존 조사 GPKG와 분리한다. QML 임의 SQLite transaction API를 추정하지 않는다.
-- D-SRP-006: 앱 버전은 AGENTS.md의 사용자 지시에 따라 0.2.8 유지.
+- D-SRP-006 (2026-09-14에 폐기): 앱 버전을 0.2.8로 유지하던 지침.
+- D-SRP-014 (2026-09-14, Category C): 사용자가 앱 버전을 0.2.9로 변경하고
+  AGENTS.md의 0.2.8 고정 문구를 삭제하도록 명시했다.
 - D-SRP-007: 작업 저장소는 사용자 지시로 fieldbuild_standalone. 이전 qfield_builder의
   삭제된 파일 상태는 건드리지 않는다.
 - D-SRP-008 (2026-09-14, Category B, **제안**): 승인된 범위를 바꾸지 않고 구현 중 확인된

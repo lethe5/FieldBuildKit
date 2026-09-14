@@ -1,6 +1,6 @@
 # FieldBuild Kit documentation map
 
-Updated 2026-09-14 for version **0.2.8** (frozen). Product: FieldBuild Kit; repository: FieldBuildKit.
+Updated 2026-09-14 for version **0.2.9**. Product: FieldBuild Kit; repository: FieldBuildKit.
 This map records document status and source observations, not new approvals or test results.
 
 | Document | Current purpose and status |
@@ -40,4 +40,4 @@ AC-SRP-013's unregistered `acceptance_backend` token. Native QField/iOS/Android,
 Naver execution remain unperformed; there is no final PASS or merge claim. This documentation-only
 Category B draft changes no code or acceptance artifact. After explicit spec approval, a fresh
 test-designer must update the affected acceptance artifacts for separate approval. Existing
-generated projects are not automatically migrated. Version remains 0.2.8.
+generated projects are not automatically migrated. The current source version is 0.2.9.
