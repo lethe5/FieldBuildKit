@@ -186,6 +186,13 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests/unit/test_optional
 검사는 별도 환경이 필요하며, 과거 전체 테스트에는 알려진 실패가 남아 있습니다.
 [검증 기록](docs/qfield-runtime-verification.md)에서 통과 범위와 제한을 확인하세요.
 
+## 프로젝트 이름과 개발 지침
+
+제품명은 **FieldBuild Kit**, GitHub 저장소명은 **FieldBuildKit**입니다.
+폴더 이름 `qfield_builder/`는 호환성을 유지하는 내부 Python 패키지명이며,
+이전 프로젝트를 참조하는 폴더가 아닙니다. [이름 구분과 호환성](docs/independence.md)을 참고하세요.
+개발 시 역할 분담·승인·검증·병합 절차는 [AGENTS.md](AGENTS.md)를 따릅니다.
+
 ## 추가 문서 및 문의
 
 - [영어 README](README.en.md)

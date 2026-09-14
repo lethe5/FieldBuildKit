@@ -1,6 +1,6 @@
 # Change Control: Classifying and Routing User Feedback
 
-This document is the detailed reference for the triage policy summarized in `CLAUDE.md`'s
+This document is the detailed reference for the triage policy summarized in `AGENTS.md`'s
 "User-feedback triage and change control" section. It exists so the orchestrator (and any
 subagent that needs the full rationale) can classify incoming feedback correctly without
 guessing, and so the same category is always routed through the same artifacts in the same
@@ -154,6 +154,8 @@ accumulated several rounds of user-directed fixes before anyone formally routed 
    criteria, and the actual diff — never from any implementer's conversational account of their
    own work.
 
-Do not perform broad refactoring unrelated to the reconciliation itself, and do not commit or
-push without the user's explicit, per-checkpoint approval (see `CLAUDE.md`'s Git checkpoint
-rules).
+Do not perform broad refactoring unrelated to the reconciliation itself. Follow the
+"Branches, checkpoints and merging" section of `AGENTS.md`: retain explicit specification/test
+artifact approvals and separate checkpoints; local commits/merges use the existing standing
+authorization without a second per-commit approval request. Pushes require explicit per-push
+authorization.

@@ -45,3 +45,18 @@ independent package metadata and the packaged app's `--check-runtime` command.
 In this repository's own virtual environment, 96 focused tests and 3 wizard-branding tests
 passed. The CLI runtime check and `pip check` passed as well.
 The inherited report/wizard test issues documented in `docs/standalone.md` remain separate.
+
+## Internal package paths and agent workflow
+
+The product is FieldBuild Kit; FieldBuildKit is the GitHub repository name. The directory
+`qfield_builder/` contains this app's own Python source. It is deliberately retained from the
+original implementation, as is `packaging/qfield_builder.spec`. The `fieldbuild-kit` command
+resolves to `qfield_builder.ui.app:main`; these names are not links to the old project folder.
+Changing a directory alone would break imports, packaging and tests. A package rename is a
+separate compatibility migration, not a product-label correction.
+
+[AGENTS.md](../AGENTS.md) is the current, self-contained workflow authority for the orchestrator
+and fresh spec-writer, test-designer, implementer and reviewer subagents. It consolidates the
+legacy CLAUDE.md process without depending on missing `.claude/agents/` files. Specification
+and acceptance-artifact approvals remain required; already authorized local Git operations
+do not require repeated per-commit approval. Historical CLAUDE.md status notes are not live status.
