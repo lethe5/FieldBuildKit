@@ -195,10 +195,15 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests/unit/test_optional
 
 ## 개발 중인 변경
 
-[조사 경로·도형 확장 명세](specs/survey-route-planner.md)는 **APPROVED(2026-09-14 명세 승인, 구현·테스트 산출물 승인 전)**입니다.
-도로망 방문 순서·저장 경로·네이버지도, 점/선/면 직접 입력과 6유형 업로드가 요청되어 있습니다.
-현재 앱에서 사용 가능한 기능으로 표시하지 않으며, 버전은 **0.2.8**을 유지합니다.
-백엔드·저장 방식·MultiPoint 대표점·QField API 버전은 아직 기술 제안입니다.
+[조사 경로·도형 확장 명세](specs/survey-route-planner.md)의 기준본(`e382c77`)과 acceptance
+산출물(`ed8ac81`)은 승인되었습니다. 도로망 방문 순서·영구 오프라인 경로·네이버지도,
+점/선/면 직접 입력과 6유형 업로드라는 승인 범위는 유지됩니다. ETA/provider/default/storage
+contract를 구체화한 **Category B 정합본은 DRAFT이며 사용자 산출물 승인 대기**입니다.
+
+implementation attempt 2는 uncommitted입니다. 정합 전 자동 결과는
+**104 passed, 2 contract-failing, 12 skipped**이며, QField/iOS/Android와 실제 provider 및
+네이버지도 실행은 미수행입니다. 따라서 현재 앱 기능 또는 최종 PASS로 표시하지 않습니다.
+버전은 **0.2.8**을 유지합니다.
 
 ## 추가 문서 및 문의
 

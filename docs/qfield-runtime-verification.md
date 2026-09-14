@@ -2,9 +2,25 @@
 
 > Current-document index: [documentation map](README.md). The dated records below retain their
 > original versions, commands, outcomes and limitations; they are not a single current PASS.
-> 2026-09-14 documentation reconciliation: version remains 0.2.8. No route API, route persistence,
-> six-geometry input, Naver launch or route-device verification was run or passed in this stage.
-> [Routing specification](../specs/survey-route-planner.md) and its acceptance artifacts are drafts.
+> 2026-09-14 route reconciliation: version remains 0.2.8. Baseline specification `e382c77` and
+> acceptance checkpoint `ed8ac81` are approved; the current Category B clarification is DRAFT.
+> Implementation attempt 2 is uncommitted and has no final reviewer PASS or merge claim.
+
+## Survey route planner evidence before contract reconciliation (2026-09-14)
+
+The recorded automated result for uncommitted implementation attempt 2 is **104 passed,
+2 contract-failing, 12 skipped**. AC-SRP-007 fails because its approved fixture injects arbitrary
+ISO strings while the pinned VROOM 1.14 provider contract supplies numeric arrival seconds.
+AC-SRP-013 fails because its fixture selects unknown `acceptance_backend`, while production accepts
+registered `ors-vroom` and rejects unknown providers before transport. These are specification/test
+contract ambiguities routed through the current Category B DRAFT, not a reason to silently change
+the approved acceptance files.
+
+Passing automated fault/restart/move cases provide evidence for the current double-JSON candidate's
+storage semantics. They do not verify QField FileUtils, native atomicity/recovery, iOS/Android,
+live ORS/VROOM calls, Naver launch or actual device UI. All those checks remain unperformed, and
+the skipped count is not evidence of success. After explicit clarification approval, a fresh
+test-designer must revise the affected acceptance artifacts before implementation review resumes.
 
 ## Optional reference inputs: verification record
 

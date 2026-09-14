@@ -33,11 +33,19 @@ renames compatibility identifiers; [independence](independence.md) governs these
 See [standalone](standalone.md) for runtime and [verification](qfield-runtime-verification.md)
 for dated evidence, including known failures and device checks that remain unperformed.
 
-The [route specification](../specs/survey-route-planner.md) was **approved on 2026-09-14; implementation and feasibility verification are pending**. Project Plugin delivery,
-separated routing/storage/coordinate/navigation responsibilities and centroid use for line/area
-routing are user-requested scope. ORS/VROOM, a specific QField version, JSON vs GeoPackage,
-MultiPoint representative and concrete API calls are not approved architecture decisions.
-Untracked route helper files are incomplete work, not proof of integration or persistence.
+The [route specification](../specs/survey-route-planner.md) baseline (`e382c77`) and acceptance
+checkpoint (`ed8ac81`) are approved. Project Plugin delivery, separated
+routing/storage/coordinate/navigation responsibilities, persistent offline routes and centroid use
+for line/area routing remain approved scope. The current Category B clarification is **DRAFT pending
+user artifact approval**: it proposes initial registered provider ID `ors-vroom`, VROOM numeric
+relative-second ETA metadata, source-CRS centroids for all non-Point supported types, project-local
+non-secret settings and storage-format-independent recovery semantics. These are not shared
+architecture decisions until that artifact is approved.
+
+The double-JSON/FileUtils design remains an implementation candidate. Automated fault/restart/move
+evidence does not prove native QField file behavior. Implementation attempt 2 is uncommitted;
+its pre-reconciliation result (104 passed, 2 contract-failing, 12 skipped) is not a final PASS.
+Native QField/iOS/Android and live provider behavior remain unverified.
 
 ## Historical deployment and runtime architecture (2026-08-10; superseded for this app)
 

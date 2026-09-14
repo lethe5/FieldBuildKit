@@ -163,3 +163,19 @@ Do not perform broad refactoring unrelated to the reconciliation itself. Follow 
 artifact approvals and separate checkpoints; local commits/merges use the existing standing
 authorization without a second per-commit approval request. Pushes require explicit per-push
 authorization.
+
+## Active Category B case: survey-route provider contract (2026-09-14)
+
+The approved route baseline (`e382c77`) and acceptance checkpoint (`ed8ac81`) remain in force.
+Uncommitted implementation attempt 2 exposed two direct contract conflicts and several default
+omissions: VROOM 1.14 numeric arrival seconds versus AC-SRP-007 ISO fixtures; registered production
+providers versus AC-SRP-013's unknown backend token; and incomplete representative-point,
+completion, Type 1, road-offset, portable-settings and persistence-format rules.
+
+The spec-writer route is a DRAFT update to
+`specs/survey-route-planner.md` D-SRP-008–013 and existing FR/AC IDs. It changes no application or
+acceptance file. User approval of that concrete artifact is the next gate. Only afterward may a
+fresh test-designer revise AC-SRP-007/AC-SRP-013 tests and the other affected traceability/default
+coverage for separate approval. The uncommitted attempt, its 104 passed/2 contract-failing/12
+skipped result and automated double-JSON checks are implementation evidence, not requirement
+authority, native QField proof or final PASS.

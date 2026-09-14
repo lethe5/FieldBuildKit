@@ -142,20 +142,28 @@ end user's machine. Mobile QField behavior still needs a real-device smoke test 
 Independent-library API references: [Rasterio windowed I/O](https://rasterio.readthedocs.io/en/latest/topics/windowed-rw.html)
 and [Fiona manual](https://fiona.readthedocs.io/en/stable/manual.html).
 
-## Documentation reconciliation and pending routing work (2026-09-14)
+## Documentation reconciliation and uncommitted routing work (2026-09-14)
 
-Version remains **0.2.8**; no new build, release or verification run is claimed by this update.
+Version remains **0.2.8**; no new build or release is claimed by this update.
 The active public `qgis_worker.py` build/reprojection wrappers dispatch to `template_project.py`
 and `standalone_gis.py`. Only the retained private PyQGIS implementations are development-only;
 do not bypass these wrappers or revive QGIS discovery based on inherited naming.
-`build.py` still validates site input against `MULTIPOLYGON`, and the wizard's direct site
-entry is polygon-based. Point/line drawing and six-type upload support are requested extensions,
-not current behavior established by the route helper files.
+The approved/released app behavior before this branch is polygon-based. The working tree now
+contains uncommitted implementation attempt 2 for point/line/polygon drawing, six-type upload and
+the routing path. It is not requirement authority or a claim that current users have the feature.
 
-[Survey routing and geometry extension](../specs/survey-route-planner.md) was approved on 2026-09-14; acceptance artifacts and implementation are pending.
-No phase is marked complete: the current untracked geometry/navigation/repository helpers are
-incomplete and unverified, without an integrated panel/backend/project-generation path.
-The new spec preserves road-network optimization, durable offline route reuse and failure safety;
-it labels backend/storage/API versions/MultiPoint choices as proposals. Existing project-folder
-portability, reference inputs, report coordinates and compatibility identifiers remain applicable.
+[Survey routing and geometry extension](../specs/survey-route-planner.md) has an approved baseline
+(`e382c77`) and approved acceptance checkpoint (`ed8ac81`). Its Category B ETA/provider/default/
+storage clarification is DRAFT pending user artifact approval. Before reconciliation the automated
+result was 104 passed, 2 contract-failing and 12 skipped. AC-SRP-007 still injects ISO ETA values
+that do not match VROOM 1.14 relative-second arrivals; AC-SRP-013 uses an unregistered backend token
+instead of the supported provider plus transport seam. Native QField/iOS/Android, live provider and
+Naver execution are unperformed, so no phase has final reviewer PASS and nothing is merged.
+
+The durable requirements remain road-network optimization, multiple offline routes, failure-safe
+preservation, completion/reoptimization, Naver navigation and original-geometry preservation.
+Double JSON is a current storage candidate with automated fault/restart/move evidence; native
+QField FileUtils feasibility remains unverified, and the persistence semantics apply regardless of
+format. Existing project-folder portability, reference inputs, report coordinates and compatibility
+identifiers remain applicable.
 See the [documentation map](README.md) for current and historical artifacts.

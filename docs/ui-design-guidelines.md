@@ -377,11 +377,14 @@ best-effort visual convention. The corrected active convention is:
 - iPhone QField review confirms the rendered icon target(s) are nonblank and nonduplicated and
   that activating each retains its existing action.
 
-## Requested route and geometry controls (specification approved 2026-09-14)
+## Route and geometry controls (approved baseline; implementation unverified)
 
 The user requests initial point/line/polygon drawing selection and a collapsible QField bottom
-route panel with Korean labels, completion count and next-stop navigation. These controls are
-future scope in [survey-route-planner](../specs/survey-route-planner.md), not implemented visual
-conventions. Expanding the panel or loading a saved route must not trigger optimization.
+route panel with Korean labels, completion count and next-stop navigation. The baseline scope and
+acceptance artifacts are approved; the ETA/provider/default/storage clarification remains DRAFT in
+[survey-route-planner](../specs/survey-route-planner.md). An uncommitted implementation attempt exists,
+but native QField/iOS/Android layout and interaction have not been verified, so these controls are
+not yet established shipped visual conventions. Expanding the panel or loading a saved route must
+not trigger optimization.
 Existing toolbar icon requirements remain active; adding route UI must preserve existing
 report/identification actions and avoid duplicate registrations.

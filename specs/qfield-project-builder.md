@@ -7,8 +7,10 @@
 > [identity/compatibility](../docs/independence.md), and [dated verification](../docs/qfield-runtime-verification.md)
 > supersede inherited installed-QGIS, mandatory private-reference and credential-migration rules.
 > The standalone public `qgis_worker.py` wrappers remain active but delegate to independent engines.
-> The 2026-09-14 [route/geometry amendment](survey-route-planner.md) is **APPROVED on 2026-09-14; acceptance/implementation pending**;
-> its user-authorized scope does not approve proposed storage/API/MultiPoint choices or establish implementation.
+> The 2026-09-14 [route/geometry amendment](survey-route-planner.md) baseline is approved at
+> `e382c77`, with acceptance artifacts approved at `ed8ac81`. A Category B contract clarification
+> is now **DRAFT pending user artifact approval**; it does not revoke the approved feature scope or
+> establish that the uncommitted implementation attempt has passed review.
 > Historical header dates below are provenance, not the latest overall status. D-98 was reused
 > historically for candidate-limit removal and optional-reference inputs; cite its date/title as
 > well as the ID to disambiguate. This reconciliation does not renumber either historical record.
@@ -2294,12 +2296,19 @@ Acceptance: conditional selection and real portable builds in
 `tests/unit/test_optional_reference_inputs.py`, standalone raster/build checks in
 `tests/unit/test_standalone.py`, and versioned evidence in `docs/qfield-runtime-verification.md`.
 
-## 2026-09-14: 조사 경로와 조사대상 도형 확장 (명세 승인: 2026-09-14)
+## 2026-09-14: 조사 경로와 조사대상 도형 확장 (기준 명세·acceptance 승인; Category B 정합 DRAFT)
 
-사용자 직접 지시 범위와 승인할 산출물을 구분한다.
-[경로 명세](survey-route-planner.md)의 D-SRP-001–007 및 FR/AC-SRP를 참조한다.
+사용자 직접 지시 범위와 승인할 산출물을 구분한다. 기준 명세 `e382c77`과 acceptance
+`ed8ac81`은 승인되었다. [경로 명세](survey-route-planner.md)의 D-SRP-001–007과 기존
+FR/AC-SRP는 그 승인 이력을 보존한다. 현재 D-SRP-008–013 및 관련 FR/AC 문구는 구현 증거가
+드러낸 모호성을 해소하는 Category B 정합 DRAFT이며 사용자 산출물 승인 전에는 새 기준이 아니다.
 점/선/면 직접 입력, SHP/ZIP/GPKG의 단일/다중 6유형 자동 인식, 선·면 centroid 기반 TSP는
-요청된 변경이다. 기존 site 폴리곤 전용 FR-QPB-025–028 및 데이터 계약의 확장은 승인된 명세에 따라
-후속 구현·테스트에 반영할 예정이며 현재 코드가 지원한다고 주장하지 않는다.
+요청·승인된 변경이다. 현재 정합은 초기 `ors-vroom`의 숫자 상대초 ETA, 등록 provider 경계,
+6유형 source-CRS 대표점, Boolean 완료/Type 1 명시 매핑/1000 m 기본 이격거리,
+non-secret 프로젝트 설정 이동과 session-only key, 저장 형식과 독립적인 보존 의미를 구체화한다.
+기존 site 폴리곤 전용 FR-QPB-025–028 및 데이터 계약의 확장은 승인된 명세에 따라 후속 구현·테스트에
+반영한다. implementation attempt 2는 uncommitted이고 정합 전 자동 결과는
+104 passed/2 contract-failing/12 skipped이므로 현재 코드가 최종 PASS라고 주장하지 않는다.
 폴리곤 입력/기존 관계/UUID와 보고서의 비포인트 좌표 미생성 계약은 유지한다.
-기술 제안과 미정 사항은 경로 명세 §0/§8에 기록한다. 과거 결정 이력과 무관한 요구는 유지한다.
+QField/iOS/Android와 live provider/Naver 실행은 미수행이다. 기술 제안과 미정 사항은 경로 명세
+§0/§8에 기록한다. 과거 결정 이력과 무관한 요구는 유지한다.

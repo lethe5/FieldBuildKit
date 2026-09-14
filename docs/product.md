@@ -62,12 +62,19 @@ is superseded. Current reports use Korean display headers, omit UUID/FK display 
 internal identities, and export coordinates only for usable point rows. Existing generated
 projects embed their own QML and are not automatically updated by changing the desktop app.
 
-**Approved specification (2026-09-14), implementation pending:** [survey-route-planner](../specs/survey-route-planner.md)
-adds road-network visit optimization, project-local saved routes/offline retrieval, completion,
-Naver navigation, point/line/polygon drawing and six upload geometry types. Lines/polygons use
-centroids only for routing. Routing coordinates will be sent to an explicitly configured
-external service only for user-requested calculation; this extends the existing service list.
-No routing feature or geometry expansion is claimed implemented. Backend, storage, MultiPoint
-representative and QField API/version choices are candidates within the approved specification, awaiting feasibility verification.
+**Approved baseline with Category B clarification pending:**
+[survey-route-planner](../specs/survey-route-planner.md) baseline `e382c77` and acceptance checkpoint
+`ed8ac81` cover road-network visit optimization, project-local multiple routes/offline retrieval,
+completion/reoptimization, failure preservation, Naver navigation, point/line/polygon drawing and
+six upload geometry types. Original geometries remain unchanged; non-Point representative points
+are only for routing. Network calls occur only on an explicit calculation.
+
+The clarification DRAFT proposes a registered initial `ors-vroom` provider, numeric relative-second
+ETA with explicit basis metadata, source-CRS centroids, strict Boolean completion, explicit Type 1
+mapping, a configurable 1000 m road-offset default, project-local non-secret settings and a
+session-only API key. Double JSON remains a storage candidate; required persistence behavior is
+format-independent. Implementation attempt 2 is uncommitted and its pre-reconciliation automated
+result is 104 passed, 2 contract-failing and 12 skipped. Native QField/iOS/Android and live provider/
+Naver behavior are unperformed, so no implementation or final PASS is claimed.
 
 Use the [documentation map](README.md) to distinguish current behavior, draft work and history.
