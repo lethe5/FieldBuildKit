@@ -1,4 +1,12 @@
-# Optional reference inputs: verification record
+# FieldBuild Kit runtime verification records
+
+> Current-document index: [documentation map](README.md). The dated records below retain their
+> original versions, commands, outcomes and limitations; they are not a single current PASS.
+> 2026-09-14 documentation reconciliation: version remains 0.2.8. No route API, route persistence,
+> six-geometry input, Naver launch or route-device verification was run or passed in this stage.
+> [Routing specification](../specs/survey-route-planner.md) and its acceptance artifacts are drafts.
+
+## Optional reference inputs: verification record
 
 Date: 2026-09-08. App version: **0.1.11 → 0.2.0**. Decision: D-98 in
 `specs/qfield-project-builder.md`.

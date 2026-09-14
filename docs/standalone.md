@@ -1,6 +1,6 @@
 # FieldBuild Kit
 
-Independent repository, branch `main`; see [app identity and separation](independence.md).
+Independent repository; see [app identity and separation](independence.md).
 This app replaces the installed-QGIS requirement in the earlier MVP specification.
 No QGIS discovery, PyQGIS import,
 or QGIS subprocess is used by the application build workflow.
@@ -141,3 +141,21 @@ end user's machine. Mobile QField behavior still needs a real-device smoke test 
 
 Independent-library API references: [Rasterio windowed I/O](https://rasterio.readthedocs.io/en/latest/topics/windowed-rw.html)
 and [Fiona manual](https://fiona.readthedocs.io/en/stable/manual.html).
+
+## Documentation reconciliation and pending routing work (2026-09-14)
+
+Version remains **0.2.8**; no new build, release or verification run is claimed by this update.
+The active public `qgis_worker.py` build/reprojection wrappers dispatch to `template_project.py`
+and `standalone_gis.py`. Only the retained private PyQGIS implementations are development-only;
+do not bypass these wrappers or revive QGIS discovery based on inherited naming.
+`build.py` still validates site input against `MULTIPOLYGON`, and the wizard's direct site
+entry is polygon-based. Point/line drawing and six-type upload support are requested extensions,
+not current behavior established by the route helper files.
+
+[Survey routing and geometry extension](../specs/survey-route-planner.md) was approved on 2026-09-14; acceptance artifacts and implementation are pending.
+No phase is marked complete: the current untracked geometry/navigation/repository helpers are
+incomplete and unverified, without an integrated panel/backend/project-generation path.
+The new spec preserves road-network optimization, durable offline route reuse and failure safety;
+it labels backend/storage/API versions/MultiPoint choices as proposals. Existing project-folder
+portability, reference inputs, report coordinates and compatibility identifiers remain applicable.
+See the [documentation map](README.md) for current and historical artifacts.

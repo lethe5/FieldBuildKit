@@ -7,6 +7,10 @@ guessing, and so the same category is always routed through the same artifacts i
 order — regardless of whether the user happens to label their own feedback as a "bug," a
 "change," a "UX complaint," or nothing at all.
 
+Per [AGENTS.md](../AGENTS.md), scope authorization does not approve an unseen specification or
+acceptance artifact. Category C below preserves the user decision; the concrete revised artifacts
+still require their stage approvals before test design/implementation. No DRAFT is checkpointed.
+
 The user is never required to pre-classify their own feedback. Classification is the
 orchestrator's job, every time, using the categories below.
 

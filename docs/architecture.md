@@ -14,7 +14,32 @@ credential-migration requirements do not apply to this app.
 - Use a lightweight decision-record style per entry: the decision, the date, the reason, and any alternatives considered.
 - Cross-cutting concerns relevant to a QField-building tool (e.g. how QGIS/QField project files are represented, offline-first data capture, coordinate reference systems, sync strategy) belong here once decided — not before.
 
-## Deployment and runtime architecture (2026-08-10)
+## Current runtime map (2026-09-14; source reconciliation)
+
+This is an implementation inventory, not a new user-approved architecture decision.
+`fieldbuild-kit` enters `qfield_builder.ui.app:main`. The wizard dispatches expensive local jobs
+through `worker_process.py`; `build.py` coordinates GeoPackage creation and output publication.
+The public functions in **`qgis_worker.py` are still active compatibility wrappers**:
+`build_qgis_project` delegates to `template_project.py`, and upload reprojection delegates to
+`standalone_gis.py`. Their names do not imply an installed-QGIS dependency. The retained private
+PyQGIS exporters/inspectors are development helpers, not normal generation or fallback engines.
+SQLite handles project data/tiles, Fiona handles upload transformations, Rasterio handles TIFFs,
+and packaged QGIS-authored templates preserve forms/relations/styles. `qml_plugin.py` renders
+the generated project sidecar. Structural validation does not claim an actual QGIS/QField open.
+
+Normal generation does not discover private `storage/` assets or require `QPB_*` variables.
+Only selected reference inputs are materialized in the project folder. Product naming never
+renames compatibility identifiers; [independence](independence.md) governs these details.
+See [standalone](standalone.md) for runtime and [verification](qfield-runtime-verification.md)
+for dated evidence, including known failures and device checks that remain unperformed.
+
+The [route specification](../specs/survey-route-planner.md) was **approved on 2026-09-14; implementation and feasibility verification are pending**. Project Plugin delivery,
+separated routing/storage/coordinate/navigation responsibilities and centroid use for line/area
+routing are user-requested scope. ORS/VROOM, a specific QField version, JSON vs GeoPackage,
+MultiPoint representative and concrete API calls are not approved architecture decisions.
+Untracked route helper files are incomplete work, not proof of integration or persistence.
+
+## Historical deployment and runtime architecture (2026-08-10; superseded for this app)
 
 Source: explicit stakeholder decision recorded in `specs/qfield-project-builder.md` (Draft;
 Decision Log D-9 through D-11, D-19). This is the first application-technology decision made for
@@ -57,7 +82,7 @@ product below.
   deployment; it may still be relevant if a different, server-hosted product is ever built on
   this same repository convention, but that is not this product's deployment model.
 
-## File and storage structure
+## Historical file and storage structure (not the current runtime contract)
 
 This is a repository-layout convention, not a storage-backend decision — no backend has been
 chosen (see the open question at the end of this section).

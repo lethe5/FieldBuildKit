@@ -208,3 +208,11 @@ scope and limitations.
 
 The `specs/` directory and older acceptance documents also retain requirements from earlier
 implementations. Refer to this README and the latest change notes for current user-facing behavior.
+
+## Pending changes and documentation status
+
+The [route and geometry specification](specs/survey-route-planner.md) is **APPROVED on 2026-09-14; acceptance artifacts and implementation pending**. Requested scope includes road-network visit optimization, persistent offline routes,
+Naver navigation, point/line/polygon drawing and six single/multipart upload types. These are not
+claimed available in the current app. Backend, storage, MultiPoint representative and QField API
+version choices remain proposals. Version stays **0.2.8**.
+See the [current documentation map](docs/README.md) for current behavior, drafts and historical evidence.

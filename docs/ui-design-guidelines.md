@@ -1,11 +1,11 @@
 # UI / Visual-Design Guidelines
 
 > Owned and updated by: spec-writer
-> Scope: durable, observable UI/visual-design conventions for the QField Project Builder desktop
+> Scope: durable, observable UI/visual-design conventions for the FieldBuild Kit desktop
 > application (wizard styling, layout, and window sizing). This document is a **guideline**, not
 > a traceable specification: nothing here is numbered as a formal FR/NFR/AC, and nothing here
 > should be read as introducing or changing a functional or data requirement. Functional/data
-> requirements remain exclusively in `specs/qfield-project-builder.md`.
+> requirements remain in the relevant `specs/` feature artifact; see [documentation map](README.md).
 
 ## How to use this file
 
@@ -36,7 +36,7 @@ the actual current behavior, not an aspirational target.
 ## Application-wide Qt style and palette
 
 - **Qt widget style**: `QApplication.setStyle("Fusion")`. Fusion is applied application-wide so
-  every widget (across all six wizard pages) renders consistently regardless of the host OS's
+  every widget (across all seven wizard pages) renders consistently regardless of the host OS's
   native widget theme.
 - **Wizard style**: `QWizard.WizardStyle.ModernStyle`, set explicitly via
   `self.setWizardStyle(QWizard.WizardStyle.ModernStyle)` in `ProjectBuilderWizard`. This was a
@@ -100,25 +100,22 @@ per-page values:
 `ProjectBuilderWizard` bounds its own overall window size rather than leaving it fully
 user-resizable or letting it grow unbounded to fit the largest page:
 
-- **Minimum size**: 900 x 700 px (`setMinimumSize`).
+- **Minimum size**: 900 x 600 px (`setMinimumSize`).
 - **Maximum size**: 1200 x 820 px (`setMaximumSize`).
-- **Initial size**: 1000 x 760 px (`resize`), shown on first display.
+- **Initial size**: 1000 x 620 px (`resize`), shown on first display.
 
 These three bounds are shared module-level constants (`_WIZARD_MIN_SIZE`, `_WIZARD_MAX_SIZE`,
 `_WIZARD_INITIAL_SIZE`) rather than per-page or per-platform values.
 
-## Draft: wizard content/button-bar layout defect (2026-09-03)
+## Wizard content/button-bar layout (D-96; reconciled 2026-09-14)
 
-**Status: DRAFT — post-D-95 UI defect revision; not an implemented convention.** The user
-reported that the VWorld API area, Pl@ntNet API area, and canonical Excel candidate/preview area
-can become clipped, overlapped, or hidden by the bottom wizard buttons. The detailed, traceable
-proposal is [fieldbuild-kit-wizard-ui-layout-defect.md](../specs/fieldbuild-kit-wizard-ui-layout-defect.md).
-
-The proposed change is wizard-wide: all seven pages should use a page-level scrollable content
-viewport above the native QWizard button bar. Step 4 and Step 5 receive focused API/Excel controls,
-keyboard, resize, DPI, and provenance acceptance coverage. Until the draft is approved and
-implemented, the numeric values in the preceding sections remain a description of current code,
-not a claim that this defect is resolved.
+[The layout specification](../specs/fieldbuild-kit-wizard-ui-layout-defect.md) records approval
+on 2026-09-04. Current `wizard.py` implements `_PageContentScrollArea` and
+`_install_page_scroll_container` for scrollable content above the native wizard button bar.
+The minimum/initial heights above match current source (600/620 px). This corrects the old
+"draft/not implemented" description; it does not claim every DPI or mobile check passed.
+Later taxonomy auto-validation removes the separate candidate confirmation action; selected
+valid uploads become ready immediately, as documented in [standalone](standalone.md).
 
 ## Resolved cosmetic gaps
 
@@ -379,3 +376,12 @@ best-effort visual convention. The corrected active convention is:
   two-button condition.
 - iPhone QField review confirms the rendered icon target(s) are nonblank and nonduplicated and
   that activating each retains its existing action.
+
+## Requested route and geometry controls (specification approved 2026-09-14)
+
+The user requests initial point/line/polygon drawing selection and a collapsible QField bottom
+route panel with Korean labels, completion count and next-stop navigation. These controls are
+future scope in [survey-route-planner](../specs/survey-route-planner.md), not implemented visual
+conventions. Expanding the panel or loading a saved route must not trigger optimization.
+Existing toolbar icon requirements remain active; adding route UI must preserve existing
+report/identification actions and avoid duplicate registrations.

@@ -1,5 +1,18 @@
 # Feature: QField Project Builder — Integrated Product Specification
 
+> **Current-app reconciliation (2026-09-14):** This integrated specification preserves the
+> approved source-product baseline and later decisions; it is not a complete description of
+> today's runtime. Product name: FieldBuild Kit; repository: FieldBuildKit; version: **0.2.8**.
+> [Current document map](../docs/README.md), [standalone runtime](../docs/standalone.md),
+> [identity/compatibility](../docs/independence.md), and [dated verification](../docs/qfield-runtime-verification.md)
+> supersede inherited installed-QGIS, mandatory private-reference and credential-migration rules.
+> The standalone public `qgis_worker.py` wrappers remain active but delegate to independent engines.
+> The 2026-09-14 [route/geometry amendment](survey-route-planner.md) is **APPROVED on 2026-09-14; acceptance/implementation pending**;
+> its user-authorized scope does not approve proposed storage/API/MultiPoint choices or establish implementation.
+> Historical header dates below are provenance, not the latest overall status. D-98 was reused
+> historically for candidate-limit removal and optional-reference inputs; cite its date/title as
+> well as the ID to disambiguate. This reconciliation does not renumber either historical record.
+
 > Status: APPROVED (user approval recorded 2026-09-03)
 > Approved amendment: 2026-09-07 — D-98 removes the application-imposed identification candidate limit. Section 13.2a supersedes all earlier three-result/three-candidate requirements, including the original Requirements Draft; historical text below is retained for provenance.
 > Approved amendment: 2026-09-04 — Category B Decision Log D-97 clarifies the iPhone-QField verification outcome for an online VWorld `Satellite` layer and the project-local SVG contract for QField plugin-toolbar actions. User approval recorded 2026-09-04; it does not alter the approval status of D-95 or any earlier decision.
@@ -2280,3 +2293,13 @@ workbook retain their previous filename parsing contract.
 Acceptance: conditional selection and real portable builds in
 `tests/unit/test_optional_reference_inputs.py`, standalone raster/build checks in
 `tests/unit/test_standalone.py`, and versioned evidence in `docs/qfield-runtime-verification.md`.
+
+## 2026-09-14: 조사 경로와 조사대상 도형 확장 (명세 승인: 2026-09-14)
+
+사용자 직접 지시 범위와 승인할 산출물을 구분한다.
+[경로 명세](survey-route-planner.md)의 D-SRP-001–007 및 FR/AC-SRP를 참조한다.
+점/선/면 직접 입력, SHP/ZIP/GPKG의 단일/다중 6유형 자동 인식, 선·면 centroid 기반 TSP는
+요청된 변경이다. 기존 site 폴리곤 전용 FR-QPB-025–028 및 데이터 계약의 확장은 승인된 명세에 따라
+후속 구현·테스트에 반영할 예정이며 현재 코드가 지원한다고 주장하지 않는다.
+폴리곤 입력/기존 관계/UUID와 보고서의 비포인트 좌표 미생성 계약은 유지한다.
+기술 제안과 미정 사항은 경로 명세 §0/§8에 기록한다. 과거 결정 이력과 무관한 요구는 유지한다.

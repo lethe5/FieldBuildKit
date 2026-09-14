@@ -193,7 +193,16 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests/unit/test_optional
 이전 프로젝트를 참조하는 폴더가 아닙니다. [이름 구분과 호환성](docs/independence.md)을 참고하세요.
 개발 시 역할 분담·승인·검증·병합 절차는 [AGENTS.md](AGENTS.md)를 따릅니다.
 
+## 개발 중인 변경
+
+[조사 경로·도형 확장 명세](specs/survey-route-planner.md)는 **APPROVED(2026-09-14 명세 승인, 구현·테스트 산출물 승인 전)**입니다.
+도로망 방문 순서·저장 경로·네이버지도, 점/선/면 직접 입력과 6유형 업로드가 요청되어 있습니다.
+현재 앱에서 사용 가능한 기능으로 표시하지 않으며, 버전은 **0.2.8**을 유지합니다.
+백엔드·저장 방식·MultiPoint 대표점·QField API 버전은 아직 기술 제안입니다.
+
 ## 추가 문서 및 문의
+
+- [현재 문서 지도와 승인/구현 상태](docs/README.md)
 
 - [영어 README](README.en.md)
 - [독립 실행 구현 및 변경 기록](docs/standalone.md)

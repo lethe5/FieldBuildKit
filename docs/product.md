@@ -9,12 +9,12 @@
 - Every entry should be traceable to a conversation with the user or to an approved spec under `specs/`.
 - Keep feature-specific detail out of this file — it belongs in that feature's spec.
 
-## Product: QField Project Builder
+## Product: FieldBuild Kit
 
 Cross-cutting product requirements below are traceable to the stakeholder's explicit statements
-during the requirements-clarification conversation for `specs/qfield-project-builder.md` (still
-Draft; see that specification for full detail, acceptance criteria, and the decision log). This
-section will be revisited when that specification is approved.
+during the requirements-clarification conversation for [integrated specification](../specs/qfield-project-builder.md), with later independent-app
+changes in [standalone runtime](standalone.md) and [identity/compatibility](independence.md).
+The original baseline is approved; each later amendment retains its own approval status.
 
 - **Target users**: ecological field researchers who need to run structured vegetation/species
   surveys without writing SQL or manually configuring QGIS/QField. The intended end users are
@@ -35,7 +35,7 @@ section will be revisited when that specification is approved.
 - **Local-first data**: all survey records, geometries, relations, and attachment paths remain
   in a local GeoPackage-based project folder; the only network access affecting the delivered
   project is to explicitly selected external services (an online VWorld basemap, VWorld tile
-  downloads for an offline basemap, and, in a later phase, the Pl@ntNet identification API). The
+  downloads for an offline basemap, and the optional Pl@ntNet identification API). The
   wizard's interactive drawing canvas additionally fetches OpenStreetMap tiles as an ephemeral,
   UI-only visual aid while the user draws; that imagery is never written into, or referenced by,
   the generated project (see `specs/qfield-project-builder.md` FR-QPB-011 and Decision Log D-24).
@@ -45,3 +45,29 @@ section will be revisited when that specification is approved.
 - **Transfer model**: generated projects are self-contained folders copied directly between the
   desktop application and a smartphone; QFieldSync packaging is not part of the required
   workflow.
+
+## Current scope and documentation status (2026-09-14)
+
+Current version is **0.2.8**, frozen by user instruction. QGIS Desktop is not an app runtime
+requirement. Python/PySide6 with packaged independent GIS libraries creates portable QField
+folders; QField remains separately installed on the field device. Platform delivery and actual
+verification claims must follow [runtime evidence](qfield-runtime-verification.md), not the
+historical macOS-first delivery plan above. No new release or platform test is implied here.
+
+The seven-page wizard supports four survey types. Taxonomy is optional; a valid upload applies
+automatically. Without it, names are manual and KTSN is absent. Probability TIFF input requires
+both taxonomy and photo identification; current filename/NoData rules are in [README](../README.md).
+Remembered keys remain in this independent app's encrypted store; legacy credential migration
+is superseded. Current reports use Korean display headers, omit UUID/FK display columns, preserve
+internal identities, and export coordinates only for usable point rows. Existing generated
+projects embed their own QML and are not automatically updated by changing the desktop app.
+
+**Approved specification (2026-09-14), implementation pending:** [survey-route-planner](../specs/survey-route-planner.md)
+adds road-network visit optimization, project-local saved routes/offline retrieval, completion,
+Naver navigation, point/line/polygon drawing and six upload geometry types. Lines/polygons use
+centroids only for routing. Routing coordinates will be sent to an explicitly configured
+external service only for user-requested calculation; this extends the existing service list.
+No routing feature or geometry expansion is claimed implemented. Backend, storage, MultiPoint
+representative and QField API/version choices are candidates within the approved specification, awaiting feasibility verification.
+
+Use the [documentation map](README.md) to distinguish current behavior, draft work and history.

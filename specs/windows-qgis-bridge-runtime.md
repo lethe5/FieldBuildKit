@@ -3,7 +3,9 @@
 > Status: DRAFT — awaiting stakeholder review
 > Owner: spec-writer
 > Last updated: 2026-08-31
-> Scope: Windows QGIS/PyQGIS bridge runtime discovery and process-environment hardening
+> Scope: Historical source-product Windows QGIS/PyQGIS bridge work; not this app runtime
+> Current applicability: [standalone runtime](../docs/standalone.md) supersedes installed-QGIS discovery.
+> Retained as a historical DRAFT; it does not require a QGIS installation for FieldBuild Kit.
 
 ## 1. Summary
 
