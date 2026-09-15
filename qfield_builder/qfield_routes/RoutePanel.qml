@@ -3,6 +3,8 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import org.qgis
 import org.qfield
+import org.qfield.core
+import org.qfield.gui
 import "controller.js" as Controller
 import "geometry.js" as Geometry
 import "repository.js" as Repository
@@ -37,16 +39,16 @@ Rectangle {
     anchors.bottom: parent.bottom
     z: 100
 
-    ExpressionEvaluator { id: evaluator; project: qgisProject }
-    FeatureModel { id: completionFeature; project: qgisProject }
-    AttributeFormModel { id: completionForm; featureModel: completionFeature }
+    QfExpressionEvaluator { id: evaluator; project: qgisProject }
+    QfFeatureModel { id: completionFeature; project: qgisProject }
+    QfAttributeFormModel { id: completionForm; featureModel: completionFeature }
     Component { id: timeoutFactory; Timer {} }
     Component {
         id: roadFactory
-        LinePolygon {
+        QfLinePolygon {
             property var storedGeometry: null
             mapSettings: panel.canvas.mapSettings
-            geometry: QgsGeometryWrapper { qgsGeometry: storedGeometry; crs: panel.canvas.mapSettings.destinationCrs }
+            geometry: QfGeometryWrapper { qgsGeometry: storedGeometry; crs: panel.canvas.mapSettings.destinationCrs }
             color: "#1769e0"
             lineWidth: 4
         }
@@ -81,7 +83,7 @@ Rectangle {
             var host=iface.findItemByObjectName("featureForm"), model=host && host.model;
             if(model && model.selectedLayer===layer) features=model.selectedFeatures || [];
         } else {
-            var iterator=LayerUtils.createFeatureIterator(layer);
+            var iterator=QfLayerUtils.createFeatureIterator(layer);
             try {while(iterator.hasNext()) features.push(iterator.next());} finally {iterator.close();}
         }
         return features.map(function(feature) {
@@ -93,7 +95,7 @@ Rectangle {
         });
     }
     function setCompleted(mapping,id,value) {
-        var layer=layerFor(mapping), iterator=LayerUtils.createFeatureIterator(layer), found=null;
+        var layer=layerFor(mapping), iterator=QfLayerUtils.createFeatureIterator(layer), found=null;
         try {while(iterator.hasNext()) {var feature=iterator.next();evaluator.layer=layer;evaluator.feature=feature;if(String(evaluator.evaluate("attribute($currentfeature,"+Geometry.literal(mapping.id)+")"))===id) {found=feature;break;}}} finally {iterator.close();}
         if(!found) throw new Error("완료 상태를 변경할 대상을 찾지 못했습니다.");
         completionFeature.currentLayer=layer;completionFeature.feature=found;
@@ -141,7 +143,7 @@ Rectangle {
         try {
             var directory=String(evaluator.evaluate("@project_folder"));
             controller=Controller.create({geometry:Geometry,repository:Repository,backend:{calculate:function(s,t,o,r,x){var provider=panel.routingBackends[s.backend];return provider ? provider.calculate(s,t,o,r,x) : Promise.reject(new Error("지원하지 않는 경로 backend입니다."));}},navigation:Navigation,
-                base:directory+"/survey-routes",io:{exists:FileUtils.fileExists,read:FileUtils.readFileContent,write:FileUtils.writeFileContent},
+                base:directory+"/survey-routes",io:{exists:QfFileUtils.fileExists,read:QfFileUtils.readFileContent,write:QfFileUtils.writeFileContent},
                 features:records,setCompleted:setCompleted,transport:transport,openUrl:function(url){return panel.urlLauncher(url);},
                 gps:function(){var p=iface.findItemByObjectName("positionSource"), info=p && p.positionInformation;if(!p || !p.active || !info || !info.latitudeValid || !info.longitudeValid)throw new Error("GPS 위치가 없습니다. 위치 수신 후 다시 계산하세요.");return [info.longitude,info.latitude];},
                 uuid:function(){return String(evaluator.evaluate("uuid('WithoutBraces')"));},changed:updateView});

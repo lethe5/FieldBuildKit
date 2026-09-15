@@ -6,7 +6,7 @@ from urllib.parse import unquote
 os.environ['QT_QPA_PLATFORM']='offscreen'
 os.environ['QT_QUICK_CONTROLS_STYLE']='Basic'
 os.environ['QT_QPA_FONTDIR']='C:/Windows/Fonts'
-from PySide6.QtCore import QObject, Slot, QByteArray, QUrl, QMetaObject, Qt, qInstallMessageHandler
+from PySide6.QtCore import QObject, Slot, QUrl, QMetaObject, Qt, qInstallMessageHandler
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlEngine, QQmlComponent, QQmlNetworkAccessManagerFactory
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
@@ -117,14 +117,18 @@ window=QQuickWindow();window.resize(800,900);boundary=Boundary();engine.rootCont
 stubs=folder/'host-fixture'
 def put(module,name,text):
     target=stubs/module.replace('.','/');target.mkdir(parents=True,exist_ok=True);(target/name).write_text(text,encoding='utf8')
-put('org.qfield','qmldir','module org.qfield\nExpressionEvaluator 1.0 ExpressionEvaluator.qml\nFeatureModel 1.0 FeatureModel.qml\nAttributeFormModel 1.0 AttributeFormModel.qml\nLinePolygon 1.0 LinePolygon.qml\nQgsGeometryWrapper 1.0 QgsGeometryWrapper.qml\nsingleton LayerUtils 1.0 LayerUtils.qml\nsingleton FileUtils 1.0 FileUtils.qml\n')
-put('org.qfield','ExpressionEvaluator.qml','import QtQml\nQtObject {property var project;property var layer;property var feature:null;function evaluate(text){return boundaryHost.evaluate(text,feature)}}')
-put('org.qfield','FeatureModel.qml','import QtQml\nQtObject {property var project;property var currentLayer;property var feature}')
-put('org.qfield','AttributeFormModel.qml','import QtQml\nQtObject {property var featureModel;property bool result:false;function applyFeatureModel(){} function save(){return result} function changeAttribute(field,value){result=boundaryHost.complete(String(featureModel.feature.attributes.site_id||featureModel.feature.attributes.custom_id),value);return result}}')
-put('org.qfield','LinePolygon.qml','import QtQuick\nItem {property var mapSettings;property var geometry;property color color;property real lineWidth}')
-put('org.qfield','QgsGeometryWrapper.qml','import QtQml\nQtObject {property var qgsGeometry;property var crs}')
-put('org.qfield','FileUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function fileExists(p){return boundaryHost.exists(p)} function readFileContent(p){return boundaryHost.read(p)} function writeFileContent(p,t){return boundaryHost.write(p,t)}}')
-put('org.qfield','LayerUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function createFeatureIterator(layer){var rows=fixtureFeatures, i=0;return {hasNext:function(){return i<rows.length},next:function(){return rows[i++]},close:function(){}}}}')
+put('org.qfield','qmldir','module org.qfield\nQfToolButton 1.0 QfToolButton.qml\n')
+put('org.qfield','QfToolButton.qml','import QtQuick.Controls\nToolButton {}')
+put('org.qfield.core','qmldir','module org.qfield.core\nQfFeatureModel 1.0 QfFeatureModel.qml\nQfLinePolygon 1.0 QfLinePolygon.qml\nQfGeometryWrapper 1.0 QfGeometryWrapper.qml\nsingleton QfLayerUtils 1.0 QfLayerUtils.qml\nsingleton QfFileUtils 1.0 QfFileUtils.qml\nsingleton QfFeatureUtils 1.0 QfFeatureUtils.qml\n')
+put('org.qfield.core','QfFeatureModel.qml','import QtQml\nQtObject {property var project;property var currentLayer;property var feature}')
+put('org.qfield.core','QfLinePolygon.qml','import QtQuick\nItem {property var mapSettings;property var geometry;property color color;property real lineWidth}')
+put('org.qfield.core','QfGeometryWrapper.qml','import QtQml\nQtObject {property var qgsGeometry;property var crs}')
+put('org.qfield.core','QfFileUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function fileExists(p){return boundaryHost.exists(p)} function readFileContent(p){return boundaryHost.read(p)} function writeFileContent(p,t){return boundaryHost.write(p,t)}}')
+put('org.qfield.core','QfLayerUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function createFeatureIterator(layer){var rows=fixtureFeatures, i=0;return {hasNext:function(){return i<rows.length},next:function(){return rows[i++]},close:function(){}}}}')
+put('org.qfield.core','QfFeatureUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function createBlankFeature(){return ({})} function attributeIsNull(value){return value===null || value===undefined}}')
+put('org.qfield.gui','qmldir','module org.qfield.gui\nQfExpressionEvaluator 1.0 QfExpressionEvaluator.qml\nQfAttributeFormModel 1.0 QfAttributeFormModel.qml\n')
+put('org.qfield.gui','QfExpressionEvaluator.qml','import QtQml\nQtObject {property var project;property var layer;property var feature:null;function evaluate(text){return boundaryHost.evaluate(text,feature)}}')
+put('org.qfield.gui','QfAttributeFormModel.qml','import QtQml\nQtObject {property var featureModel;property bool result:false;function applyFeatureModel(){} function save(){return result} function changeAttribute(field,value){result=boundaryHost.complete(String(featureModel.feature.attributes.site_id||featureModel.feature.attributes.custom_id),value);return result}}')
 put('org.qgis','qmldir','module org.qgis\nDummy 1.0 Dummy.qml\n');put('org.qgis','Dummy.qml','import QtQml\nQtObject {}')
 engine.addImportPath(str(stubs));engine.rootContext().setContextProperty('fixtureFeatures',[])
 # IDs and display names come from the generated .qgs, never from the selected mapping.
@@ -335,7 +339,7 @@ def main():
             storage_fault=case['fault'];result['ok']=save('수정');storage_fault='';result['outcome']='committed' if result['ok'] else 'rejected';result['last_good_after']=stored()
         elif case['fault']=='revision_conflict':
             # A second real panel commits while the first candidate remains pending.
-            old=panel;old_js=engine.newQObject(old);panel2=component.create();panel2.setParentItem(window.contentItem());engine.globalObject().setProperty('other',engine.newQObject(panel2));js('other.controller.complete("0",true)');newer=stored();result['last_good_before']=newer;result['ok']=save('충돌');result['outcome']='committed' if result['ok'] else 'rejected';result['last_good_after']=stored();panel2.deleteLater()
+            old=panel;_old_js=engine.newQObject(old);panel2=component.create();panel2.setParentItem(window.contentItem());engine.globalObject().setProperty('other',engine.newQObject(panel2));js('other.controller.complete("0",true)');newer=stored();result['last_good_before']=newer;result['ok']=save('충돌');result['outcome']='committed' if result['ok'] else 'rejected';result['last_good_after']=stored();panel2.deleteLater()
         else:
             if case['fault']=='corrupt_latest':save('추가');latest=state()['snapshot']['slot'];(folder/('survey-routes.'+latest+'.json')).write_text('broken')
             else:

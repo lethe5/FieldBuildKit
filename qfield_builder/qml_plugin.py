@@ -575,20 +575,7 @@ _SHARED_JS_FUNCTIONS = r"""
     // source code never lifts that restriction (see `qpbReadFileBytes`'s own comment for the full
     // citation). Resolves `relPath` to an absolute path via `@project_folder` (the same confirmed
     // `expression.evaluate(...)` mechanism used throughout this file) and reads it through
-    // QField's own `FileUtils.readFileContent()` singleton instead.
-    //
-    // Naming correction (this round): the two prior fix rounds researched this against QField's
-    // master/HEAD source, which uses a `Qf`-prefixed class (`QfFileUtils`) registered under a
-    // separate `org.qfield.core` module URI. A real on-device retest against the stakeholder's
-    // actually-installed QField **4.2.4** showed the widget still failing to render, and a direct
-    // fetch of the real `v4.2.4`-tagged source (not master/HEAD) confirmed that naming convention
-    // does not exist at 4.2.4 at all -- it was introduced in some QField release after 4.2.4. At
-    // v4.2.4 the equivalent class is plain `FileUtils` (same `Q_INVOKABLE static QByteArray
-    // readFileContent(const QString &filePath)` signature, same behavior), registered via
-    // `REGISTER_SINGLETON("org.qfield", FileUtils, "FileUtils")` -- i.e. under the `org.qfield` URI
-    // already used elsewhere in this file, with no `Qf` prefix. Confirmed directly against
-    // `https://raw.githubusercontent.com/opengisch/QField/v4.2.4/src/core/utils/fileutils.h` and
-    // `.../v4.2.4/src/core/qgismobileapp.cpp`.
+    // QField 4.3.1's `QfFileUtils.readFileContent()` singleton instead.
     //
     // Conformance-defect fix (real on-device crash retest after Decision Log D-47's 183MB->36.7MB
     // file-size reduction still crashed "in the same way"): this previously eagerly parsed every
@@ -632,7 +619,7 @@ _SHARED_JS_FUNCTIONS = r"""
         }
         var text;
         try {
-            var content = FileUtils.readFileContent(String(absPath));
+            var content = QfFileUtils.readFileContent(String(absPath));
             if (content === undefined || content === null) { return null; }
             // Unconfirmed detail, disclosed honestly (see the module docstring's "Honesty" note
             // and `qpbReadFileBytes`'s own identical caveat): this implementation round could not
@@ -728,7 +715,7 @@ _SHARED_JS_FUNCTIONS = r"""
         }
         var text;
         try {
-            var content = FileUtils.readFileContent(String(absPath));
+            var content = QfFileUtils.readFileContent(String(absPath));
             if (content === undefined || content === null) { return set; }
             // See `qpbLoadCsv`'s identical comment above -- same unconfirmed QByteArray-to-JS
             // marshaling detail, and the same UTF-8 decode need, apply here.
@@ -1310,7 +1297,7 @@ def _render_html_report_members(report_definition: str) -> str:
     // the current QField layers at export time.  No report Timer or background collection exists.
     readonly property var qpbReportDefinition: (__QPB_REPORT_DEFINITION__)
 
-    ExpressionEvaluator {
+    QfExpressionEvaluator {
         id: qpbReportGeometryEvaluator
         project: qgisProject
     }
@@ -1341,7 +1328,7 @@ def _render_html_report_members(report_definition: str) -> str:
         if (!layer) { return null; }
         var iterator = null, fallbackRows = [];
         try {
-            iterator = LayerUtils.createFeatureIterator(layer);
+            iterator = QfLayerUtils.createFeatureIterator(layer);
             if (!iterator || typeof iterator.hasNext !== "function" || typeof iterator.next !== "function") {
                 return null;
             }
@@ -1474,7 +1461,7 @@ __QPB_REPORT_CORE_JS__
         if (value === undefined) { return undefined; }
         if (value === null) { return null; }
         try {
-            if (typeof FeatureUtils !== "undefined" && FeatureUtils.attributeIsNull(value)) {
+            if (typeof QfFeatureUtils !== "undefined" && QfFeatureUtils.attributeIsNull(value)) {
                 return null;
             }
         } catch (e) { /* preserve the provider value below */ }
@@ -1573,7 +1560,7 @@ __QPB_REPORT_CORE_JS__
                         "@layer_crs, 'EPSG:4326'), 8), NULL)))" + ")))))))";
                     evaluated = qpbReportGeometryEvaluator.evaluate(expression);
                 } finally {
-                    qpbReportGeometryEvaluator.feature = FeatureUtils.createBlankFeature();
+                    qpbReportGeometryEvaluator.feature = QfFeatureUtils.createBlankFeature();
                     qpbReportGeometryEvaluator.layer = null;
                 }
                 // QField ExpressionEvaluator returns QVariant::toString(), not a QVariantMap.
@@ -2015,7 +2002,7 @@ __QPB_REPORT_CORE_JS__
                         }
                         var geometryExpression = "geometry(get_feature(@layer, '" +
                             configuredUuidField.replace(/'/g, "''") + "', '" + uuid.replace(/'/g, "''") + "'))";
-                        shape = qpbGeometryToGeoJson(FeatureUtils.createBlankFeature(), nativeLayer,
+                        shape = qpbGeometryToGeoJson(QfFeatureUtils.createBlankFeature(), nativeLayer,
                             {geometry_field:geometryColumn}, geometryExpression);
                         if (shape.outcome === "actual_empty") {
                             shape = {valid:false, outcome:"serialization_failure",
@@ -2273,7 +2260,7 @@ __QPB_REPORT_CORE_JS__
         // QField's whole-layer API: every current saved feature, including provider/edit-buffer
         // attributes, is visited at the moment of export and the iterator is always closed.
         var iterator;
-        try { iterator = LayerUtils.createFeatureIterator(layer); } catch (iteratorError) {
+        try { iterator = QfLayerUtils.createFeatureIterator(layer); } catch (iteratorError) {
             qpbAddReportCollectionLimitation("레이어 반복을 시작할 수 없습니다: " + table.name);
             return [];
         }
@@ -3187,11 +3174,11 @@ __QPB_MAP_FEATURE_DISPATCH__
         // QField does not expose a single stable version/capability object to project plugins.
         // Report the actual feature probes used by this plugin; never substitute generic Qt
         // runtime values for a QField capability claim.
-        var hasIterator = typeof LayerUtils !== "undefined" &&
-            typeof LayerUtils.createFeatureIterator === "function";
-        var hasFileReadWrite = typeof FileUtils !== "undefined" &&
-            typeof FileUtils.readFileContent === "function" &&
-            typeof FileUtils.writeFileContent === "function";
+        var hasIterator = typeof QfLayerUtils !== "undefined" &&
+            typeof QfLayerUtils.createFeatureIterator === "function";
+        var hasFileReadWrite = typeof QfFileUtils !== "undefined" &&
+            typeof QfFileUtils.readFileContent === "function" &&
+            typeof QfFileUtils.writeFileContent === "function";
         var hasTransform = typeof QgsCoordinateTransform !== "undefined" &&
             typeof QgsCoordinateReferenceSystem !== "undefined";
         var hasProjectLayers = typeof qgisProject !== "undefined" && qgisProject &&
@@ -3941,12 +3928,12 @@ if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded"
             // folder write is unavailable; no alternate destination is attempted.
             qpbLastReportHtml = reportContent;
             var csvContent = qpbBuildJoinedCsv(payload);
-            var reportWritten = FileUtils.writeFileContent(reportPath, reportContent);
+            var reportWritten = QfFileUtils.writeFileContent(reportPath, reportContent);
             if (!reportWritten) {
                 iface.mainWindow().displayToast("내보내기 실패: 현재 프로젝트 폴더에 HTML 보고서를 쓸 수 없습니다: " + reportPath + ". 프로젝트 폴더 권한을 확인하고 다시 시도하세요.");
                 return;
             }
-            var csvWritten = FileUtils.writeFileContent(csvPath, csvContent);
+            var csvWritten = QfFileUtils.writeFileContent(csvPath, csvContent);
             if (!csvWritten) {
                 iface.mainWindow().displayToast("내보내기 일부 완료: HTML 보고서는 " + reportPath + "에 저장했지만 통합 CSV를 " + csvPath + "에 쓸 수 없습니다. 프로젝트 폴더 권한을 확인하고 다시 시도하세요.");
                 return;
@@ -4346,7 +4333,7 @@ def _render_identification_project_plugin_members(taxonomy_reference_available: 
         if (trace.length > 20) {{ trace.shift(); }}
         qpbWriteBackTrace = trace;
         try {{
-            FileUtils.writeFileContent(
+            QfFileUtils.writeFileContent(
                 qgisProject.homePath + "/" + "{PENDING_WRITE_BACK_TRACE_RELPATH}",
                 JSON.stringify({{ entries: trace }})
             );
@@ -4381,7 +4368,7 @@ def _render_identification_project_plugin_members(taxonomy_reference_available: 
         try {{
             var absPath = qpbPendingWriteBackAbsPath();
             var content;
-            try {{ content = FileUtils.readFileContent(absPath); }} catch (e) {{ return; }}
+            try {{ content = QfFileUtils.readFileContent(absPath); }} catch (e) {{ return; }}
             if (content === undefined || content === null) {{ return; }}
             var text = qpbBytesToUtf8String(new Uint8Array(content));
             if (!text || text.trim().length === 0) {{ return; }}
@@ -4893,7 +4880,7 @@ def _render_identification_project_plugin_members(taxonomy_reference_available: 
 
     function qpbClearPendingWriteBack(absPath) {{
         try {{
-            var clearResult = FileUtils.writeFileContent(absPath, "");
+            var clearResult = QfFileUtils.writeFileContent(absPath, "");
             // FileUtils may be unavailable or return undefined when the overwrite did not
             // happen. Only an explicit truthy result means that the request was consumed;
             // otherwise retain the file so the poller can retry cleanup.
@@ -5005,6 +4992,8 @@ def render_project_plugin_qml(
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import org.qfield
+import org.qfield.core
+import org.qfield.gui
 import Theme
 import "qfield_routes" as Routes
 
@@ -5234,7 +5223,7 @@ _CANONICAL_RUNTIME_LOOKUP_FUNCTIONS = r"""
         } catch (e) { return unavailable("canonical_taxonomy_lookup_resource_unavailable"); }
         var content;
         try {
-            content = FileUtils.readFileContent(String(absPath));
+            content = QfFileUtils.readFileContent(String(absPath));
         } catch (e2) { return unavailable("canonical_taxonomy_lookup_resource_unavailable"); }
         if (content === undefined || content === null) {
             return unavailable("canonical_taxonomy_lookup_resource_unavailable");
@@ -5425,26 +5414,15 @@ def render_identification_widget_qml(
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import org.qfield 1.0
+import org.qfield.core
 
 // Embedded "QML Widget" attribute-form action (FR-QPB-101, further revised; Decision Log D-31/
-// D-46). The `org.qfield` import above exposes the `FileUtils` singleton used by
+// D-46). The `org.qfield.core` import above exposes the `QfFileUtils` singleton used by
 // `qpbReadFileBytes` below to read a local attachment file's bytes (Decision Log D-46). This is a
 // QField-specific QML module that QGIS Desktop's plain QML engine never registers; per Decision
 // Log D-46's explicit, disclosed, stakeholder-approved tradeoff, this is expected to make this
 // entire widget fail to load in QGIS Desktop -- QML has no conditional-import mechanism, so there
 // is no workaround for this, and none is required by the specification.
-//
-// Naming correction (this round): the prior two fix rounds researched this against QField's
-// master/HEAD source, which uses a `Qf`-prefixed class (`QfFileUtils`) under a separate
-// `org.qfield.core` module URI. A real on-device retest against the stakeholder's actually
-// installed QField **4.2.4** showed this widget still failing to render, and a direct fetch of
-// the real `v4.2.4`-tagged source (not master/HEAD) confirmed that entire naming convention does
-// not exist at 4.2.4 -- it was introduced in some later QField release. At v4.2.4 the equivalent
-// class is plain `FileUtils` (same `readFileContent(filePath)` method/behavior), registered under
-// the `org.qfield` URI (the same URI already used by `render_project_plugin_qml` above), with no
-// `Qf` prefix and no separate `org.qfield.core` module. Confirmed directly against
-// `https://raw.githubusercontent.com/opengisch/QField/v4.2.4/src/core/utils/fileutils.h` and
-// `.../v4.2.4/src/core/qgismobileapp.cpp`.
 //
 // Confirmed real mechanism (docs.qfield.org, "Define QML Widgets"): a QML Widget embedded in an
 // attribute form is given an `expression` context property whose `.evaluate("<QGIS expression>")`
@@ -5525,7 +5503,7 @@ Column {{
             var relPath = "{PROBABILITY_BAND_INDEX_RELPATH}";
             var absPath = expression.evaluate("@project_folder + '/' + '" +
                 qpbEscapeForExpressionLiteral(relPath) + "'");
-            var content = FileUtils.readFileContent(String(absPath).replace(/\\\\/g, "/"));
+            var content = QfFileUtils.readFileContent(String(absPath).replace(/\\\\/g, "/"));
             if (content === undefined || content === null) {{ return null; }}
             var parsed = JSON.parse(qpbBytesToUtf8String(new Uint8Array(content)));
             if (!parsed || parsed.stack_path !== "{PROBABILITY_STACK_RELPATH}" ||
@@ -5578,7 +5556,7 @@ Column {{
         try {{
             var path = expression.evaluate("@project_folder + '/" +
                 "{IDENTIFICATION_RUNTIME_TRACE_RELPATH}'");
-            FileUtils.writeFileContent(String(path), JSON.stringify({{ entries: trace }}));
+            QfFileUtils.writeFileContent(String(path), JSON.stringify({{ entries: trace }}));
         }} catch (e) {{}}
     }}
 
@@ -5815,23 +5793,12 @@ Column {{
         // QField's own application code never lifts that restriction -- corroborated by real,
         // identical on-device QField failures ("Could not read any attached photo file for
         // identification.") even after the path resolution itself was already correct. QField ships
-        // its own native mechanism for exactly this need: the `FileUtils` singleton (`import
-        // org.qfield` at the top of this file), whose `readFileContent(filePath)` method --
-        // confirmed from its C++ signature at the real `v4.2.4`-tagged source, `QByteArray
-        // FileUtils::readFileContent(const QString &filePath)` -- takes a plain absolute filesystem
+        // its own native mechanism for exactly this need: the `QfFileUtils` singleton (`import
+        // org.qfield.core` at the top of this file), whose `readFileContent(filePath)` method takes
+        // a plain absolute filesystem
         // path, not a URL, and is restricted to files within the current project directory
         // (matching this application's own attachment files). The `@project_folder`-based
         // absolute-path resolution below is unchanged from the prior fix round.
-        //
-        // Naming correction (this round): a real on-device retest against QField **4.2.4** showed
-        // this still failing after the two prior fix rounds, which had researched the class/module
-        // naming against QField's master/HEAD source (the `Qf`-prefixed `QfFileUtils` under a
-        // separate `org.qfield.core` module). Fetching the real `v4.2.4`-tagged source directly
-        // confirmed that naming does not exist at 4.2.4 -- it is `FileUtils` under the `org.qfield`
-        // URI at that version (see this function's docstring "Naming correction" note above for
-        // the exact URLs consulted). This class/namespace naming may differ again on a newer
-        // QField release than 4.2.4 if `FileUtils`/`org.qfield` is itself renamed away in the
-        // future -- a disclosed, unresolved forward-compatibility risk, not something fixed here.
         //
         // Unconfirmed detail, disclosed honestly (see the module docstring's "Honesty" note): this
         // implementation round could not independently confirm, from this environment, exactly how
@@ -5858,7 +5825,7 @@ Column {{
                 return null;
             }}
             try {{
-                var content = FileUtils.readFileContent(String(absPath));
+                var content = QfFileUtils.readFileContent(String(absPath));
                 if (content === undefined || content === null) {{ return null; }}
                 return new Uint8Array(content);
             }} catch (e) {{ return null; }}
@@ -5933,9 +5900,9 @@ Column {{
             }}
             var qpbResizedBytes = originalBytes;
             try {{
-                FileUtils.writeFileContent(String(qpbResizeTempAbsPath), originalBytes.buffer);
-                FileUtils.restrictImageSize(String(qpbResizeTempAbsPath), 1280);
-                var qpbResizedContent = FileUtils.readFileContent(String(qpbResizeTempAbsPath));
+                QfFileUtils.writeFileContent(String(qpbResizeTempAbsPath), originalBytes.buffer);
+                QfFileUtils.restrictImageSize(String(qpbResizeTempAbsPath), 1280);
+                var qpbResizedContent = QfFileUtils.readFileContent(String(qpbResizeTempAbsPath));
                 if (qpbResizedContent !== undefined && qpbResizedContent !== null) {{
                     qpbResizedBytes = new Uint8Array(qpbResizedContent);
                 }}
@@ -5946,7 +5913,7 @@ Column {{
                 // over one photo's resize failure.
             }} finally {{
                 try {{
-                    FileUtils.writeFileContent(String(qpbResizeTempAbsPath), "");
+                    QfFileUtils.writeFileContent(String(qpbResizeTempAbsPath), "");
                 }} catch (e2) {{
                     // Best-effort cleanup -- ignore a second failure here.
                 }}
@@ -6168,7 +6135,7 @@ Column {{
                 qpbStatusLabel.text = "동정 결과를 대기열에 등록할 수 없어 재시도합니다.";
                 return false;
             }}
-            var writeResult = FileUtils.writeFileContent(String(absPath), JSON.stringify(payload));
+            var writeResult = QfFileUtils.writeFileContent(String(absPath), JSON.stringify(payload));
             // FileUtils returns a falsy value when the request cannot be written.  Treat both
             // false and an unavailable/undefined result as failure so a selection is never
             // reported as queued without a durable request file.

@@ -20,6 +20,17 @@ def test_generated_route_assets_load_after_relocation(tmp_path):
     observed=_qml_probe(result,tmp_path)
     assert observed['qml_errors']==[] and set(observed['loaded_features'])>={'routes','report','identification'}
     assert {p.name for p in (moved/'qfield_routes').iterdir()}>={'RoutePanel.qml','backend.js','controller.js','geometry.js','repository.js','navigation.js'}
+    root_qml=Path(result['qgs_path']).with_suffix('.qml').read_text(encoding='utf8')
+    route_qml=(moved/'qfield_routes/RoutePanel.qml').read_text(encoding='utf8')
+    assert 'import org.qfield.core\n' in root_qml
+    assert 'import org.qfield.gui\n' in root_qml
+    assert 'import org.qfield.core\n' in route_qml
+    assert 'import org.qfield.gui\n' in route_qml
+    native_names = (
+        'QfExpressionEvaluator', 'QfFeatureModel', 'QfAttributeFormModel',
+        'QfLinePolygon', 'QfGeometryWrapper', 'QfLayerUtils', 'QfFileUtils',
+    )
+    assert all(name in route_qml for name in native_names)
 
 
 def test_load_button_restores_mapping_for_both_calculations(tmp_path):

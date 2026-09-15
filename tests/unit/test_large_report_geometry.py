@@ -24,7 +24,7 @@ def _run(script):
 
 def test_native_guard_runs_before_geometry_serialization_and_releases_feature():
     result = _run(r"""
-        var expressionText="", FeatureUtils={createBlankFeature:function(){return null;}};
+        var expressionText="", QfFeatureUtils={createBlankFeature:function(){return null;}};
         var qpbReportGeometryEvaluator={evaluate:function(expression){
             expressionText=expression;
             return JSON.stringify({empty:false,simplified:1,
@@ -48,7 +48,7 @@ def test_native_guard_runs_before_geometry_serialization_and_releases_feature():
 
 def test_native_empty_failure_and_following_small_polygon_remain_distinct():
     result = _run(r"""
-        var FeatureUtils={createBlankFeature:function(){return null;}};
+        var QfFeatureUtils={createBlankFeature:function(){return null;}};
         var responses=[{empty:true},null,{empty:false,simplified:false,
             wkt:"POLYGON((127 37,128 37,128 38,127 37),"+
                 "(127.1 37.1,127.2 37.1,127.2 37.2,127.1 37.1))"}];
@@ -76,7 +76,7 @@ def test_legacy_wkt_size_is_checked_before_parsing():
 
 def test_native_vertex_limit_failure_never_falls_back_to_a_rectangle():
     result = _run(r"""
-        var FeatureUtils={createBlankFeature:function(){return null;}};
+        var QfFeatureUtils={createBlankFeature:function(){return null;}};
         var qpbReportGeometryEvaluator={evaluate:function(){
             return JSON.stringify({empty:false,limited:true,wkt:null});}};
         var feature={get geometry(){throw new Error("must not expand native geometry");}};
@@ -101,7 +101,7 @@ def test_large_saved_row_uses_shared_native_simplification_without_loading_blob(
             [{name:"site_id"},{name:"site_name"},{name:"geom"}]:
             [{site_id:"quote'id",site_name:"보존할 이름",__qpb_geometry_bytes:80000000,
                 __qpb_geometry_prefix:[],__qpb_geometry_full:null}];}
-        var FeatureUtils={createBlankFeature:function(){return null;}};
+        var QfFeatureUtils={createBlankFeature:function(){return null;}};
         var qpbReportGeometryEvaluator={evaluate:function(s){expressionText=s;
             return JSON.stringify({empty:false,simplified:1,
                 wkt:"POLYGON((127 37,128 37,127.5 37.5,128 38,127 37))"});}};
