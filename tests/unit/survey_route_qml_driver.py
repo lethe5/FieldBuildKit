@@ -105,6 +105,9 @@ class Network(QNetworkAccessManager):
 class Factory(QQmlNetworkAccessManagerFactory):
     def create(self,parent):return Network(parent)
 class Boundary(QObject):
+    @Slot(str,result='QVariant')
+    def geometryFromWkt(self,wkt):
+        return {'type':'LineString','coordinates':[[float(v) for v in p.split()] for p in re.search(r'LINESTRING\(([^\)]+)\)',wkt)[1].split(',')]}
     @Slot(str,'QVariant',result='QVariant')
     def evaluate(self,text,feature):
         expression_calls.append({'expression_text':text,'arity':1})
@@ -133,7 +136,9 @@ class Boundary(QObject):
                 from rasterio.warp import transform
                 xs,ys=transform(source,'EPSG:4326',[point[0]],[point[1]]);point=[xs[0],ys[0]]
             return point[0] if text.startswith('x(') else point[1]
-        if 'geom_from_wkt(' in text:return {'type':'LineString','coordinates':[[float(v) for v in p.split()] for p in re.search(r'LINESTRING\(([^\)]+)\)',text)[1].split(',')]}
+        if 'geom_from_wkt(' in text:
+            # Native QfExpressionEvaluator stringifies every evaluated value, including geometry.
+            return re.search(r'LINESTRING\([^\)]+\)',text)[0]
         raise ValueError(text)
     @Slot(str,result=bool)
     def exists(self,p):return Path(p).is_file()
@@ -174,10 +179,12 @@ def put(module,name,text):
     target=stubs/module.replace('.','/');target.mkdir(parents=True,exist_ok=True);(target/name).write_text(text,encoding='utf8')
 put('org.qfield','qmldir','module org.qfield\nQfToolButton 1.0 QfToolButton.qml\n')
 put('org.qfield','QfToolButton.qml','import QtQuick.Controls\nToolButton {}')
-put('org.qfield.core','qmldir','module org.qfield.core\nQfFeatureModel 1.0 QfFeatureModel.qml\nQfLinePolygon 1.0 QfLinePolygon.qml\nQfGeometryWrapper 1.0 QfGeometryWrapper.qml\nsingleton QfLayerUtils 1.0 QfLayerUtils.qml\nsingleton QfFileUtils 1.0 QfFileUtils.qml\nsingleton QfFeatureUtils 1.0 QfFeatureUtils.qml\n')
+put('org.qfield.core','qmldir','module org.qfield.core\nQfFeatureModel 1.0 QfFeatureModel.qml\nQfLinePolygon 1.0 QfLinePolygon.qml\nQfGeometryWrapper 1.0 QfGeometryWrapper.qml\nsingleton QfGeometryUtils 1.0 QfGeometryUtils.qml\nsingleton QfCoordinateReferenceSystemUtils 1.0 QfCoordinateReferenceSystemUtils.qml\nsingleton QfLayerUtils 1.0 QfLayerUtils.qml\nsingleton QfFileUtils 1.0 QfFileUtils.qml\nsingleton QfFeatureUtils 1.0 QfFeatureUtils.qml\n')
 put('org.qfield.core','QfFeatureModel.qml','import QtQml\nQtObject {property var project;property var currentLayer;property var feature}')
 put('org.qfield.core','QfLinePolygon.qml','import QtQuick\nItem {property var mapSettings;property var geometry;property color color;property real lineWidth}')
 put('org.qfield.core','QfGeometryWrapper.qml','import QtQml\nQtObject {property var qgsGeometry;property var crs}')
+put('org.qfield.core','QfGeometryUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function createGeometryFromWkt(wkt){return boundaryHost.geometryFromWkt(wkt)}}')
+put('org.qfield.core','QfCoordinateReferenceSystemUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function wgs84Crs(){return "EPSG:4326"}}')
 put('org.qfield.core','QfFileUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function fileExists(p){return boundaryHost.exists(p)} function readFileContent(p){return boundaryHost.read(p)} function writeFileContent(p,t){return boundaryHost.write(p,t)}}')
 put('org.qfield.core','QfLayerUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function createFeatureIterator(layer){var rows=fixtureFeatures, i=0;return {hasNext:function(){return i<rows.length},next:function(){return rows[i++]},close:function(){}}}}')
 put('org.qfield.core','QfFeatureUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function createBlankFeature(){return ({})} function attributeIsNull(value){return value===null || value===undefined}}')
@@ -421,7 +428,7 @@ def main():
         result['next_after']=json.loads(val('p.controller.next()'))['site_id']
     elif op=='reopen_navigate':
         calculate();save('도로선');open_panel();requests.clear();provider_dispatches.clear();transport_dispatches.clear();result['rendered_geometry']=json.loads(val('p.roadItem.storedGeometry'))
-        result['road_overlay']=json.loads(val('({parent_is_canvas:p.roadItem.parent===device.canvas,width:p.roadItem.width,height:p.roadItem.height,canvas_width:device.canvas.width,canvas_height:device.canvas.height,visible:p.roadItem.visible})'))
+        result['road_overlay']=json.loads(val('({parent_is_canvas:p.roadItem.parent===device.canvas,visible:p.roadItem.visible,geometry_crs:p.roadItem.geometry.crs})'))
         # Navigation target is an external OS test input; production navigation remains intact.
         js('p.controller.navigate('+json.dumps({'coordinate':case['destination'],'name':case['name'],'site_id':'nav'})+')');drain();result['launched_url']=launched[-1];result['navigation_message']=str(panel.property('message'));result['destination_app_success_claimed']=bool(re.search(r'(목적지|안내|도착).*(성공|완료)',result['navigation_message']))
     elif op=='storage_fault':
@@ -502,7 +509,7 @@ def main():
     if key_control:engine.globalObject().setProperty('routeKeyControl',engine.newQObject(key_control))
     result['route_key_input']={'available':key_control is not None,'enabled':bool(key_control and key_control.property('enabled')),
         'password_echo':bool(key_control and js('routeKeyControl.echoMode!==0').toBool())}
-    result['message']=panel.property('message');result['logs']='\n'.join(logs);result['transitions']=transitions;result['storage_writes']=writes;result['runtime']='Qt QML actual generated panel, injected QField host and HTTP transport; not native QField'
+    result['message']=panel.property('message');result['logs']='\n'.join(logs);result['transitions']=transitions;result['storage_writes']=writes;result['expression_calls']=detached(expression_calls);result['runtime']='Qt QML actual generated panel, injected QField host and HTTP transport; not native QField'
     return result
 try:print(json.dumps(main(),ensure_ascii=True))
 except Exception:

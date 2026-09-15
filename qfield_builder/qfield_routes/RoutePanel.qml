@@ -48,10 +48,9 @@ Rectangle {
     Component {
         id: roadFactory
         QfLinePolygon {
-            anchors.fill: parent
             property var storedGeometry: null
             mapSettings: panel.canvas.mapSettings
-            geometry: QfGeometryWrapper { qgsGeometry: storedGeometry; crs: panel.canvas.mapSettings.destinationCrs }
+            geometry: QfGeometryWrapper { qgsGeometry: storedGeometry; crs: QfCoordinateReferenceSystemUtils.wgs84Crs() }
             color: "#1769e0"
             lineWidth: 4
         }
@@ -68,7 +67,7 @@ Rectangle {
         if(roadItem) {roadItem.destroy();roadItem=null;}
         if(road && canvas) {
             var wkt=Geometry.lineWkt(road.coordinates);
-            var geom=evaluator.evaluate("transform(geom_from_wkt("+Geometry.literal(wkt)+"), 'EPSG:4326', @project_crs)");
+            var geom=QfGeometryUtils.createGeometryFromWkt(wkt);
             roadItem=roadFactory.createObject(canvas,{storedGeometry:geom});
         }
     }

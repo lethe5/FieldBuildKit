@@ -80,15 +80,15 @@ def test_vroom_numeric_arrival_persists_and_is_disclosed(tmp_path):
     assert r['availability']['eta'] is True
 
 
-def test_reopened_saved_road_overlay_fills_map_canvas(tmp_path):
+def test_reopened_saved_road_overlay_uses_native_geometry_with_wgs84_crs(tmp_path):
     road={'type':'LineString','coordinates':[[127,37],[127.001,37.003],[127.002,37]]}
     r=run(case={'operation':'reopen_navigate','road_geometry':road,'destination':[127.123,37.456],
                 'name':'조사지','launch_result':True},work_dir=str(tmp_path))
     assert r['rendered_geometry']==road
     overlay=r['road_overlay']
     assert overlay['parent_is_canvas'] is True and overlay['visible'] is True
-    assert overlay['width']==overlay['canvas_width']==640
-    assert overlay['height']==overlay['canvas_height']==480
+    assert overlay['geometry_crs']=='EPSG:4326'
+    assert not any('geom_from_wkt(' in call['expression_text'] for call in r['expression_calls'])
 
 
 def test_remaining_with_completed_stops_drops_partial_eta_and_roundtrips(tmp_path):
