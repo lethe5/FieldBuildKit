@@ -36,7 +36,11 @@ from . import (
     vworld,
 )
 from . import manifest as manifest_mod
-from .credential_store import apply_plantnet_retention_policy, apply_retention_policy
+from .credential_store import (
+    apply_plantnet_retention_policy,
+    apply_retention_policy,
+    apply_route_retention_policy,
+)
 from .errors import (
     BuildCancelledError,
     BuildError,
@@ -320,6 +324,15 @@ def _resolve_plantnet_config(plantnet_config: dict) -> dict:
     return plantnet_config
 
 
+def _resolve_route_config(route_config: dict) -> dict:
+    """Keep a route key only when plaintext project inclusion was explicitly accepted."""
+    key = str(route_config.get("api_key") or "").strip()
+    apply_route_retention_policy(key, bool(route_config.get("remember_key")))
+    if not key or not route_config.get("consent_accepted"):
+        return {"consent_accepted": False}
+    return {"api_key": key, "consent_accepted": True}
+
+
 def _resolve_reference_data_dir(config: dict) -> str:
     """Section 13.3 (FR-QPB-105/112/113): resolves the reference-data source directory.
 
@@ -585,6 +598,7 @@ def build_project(
             # consent-gated retention/embedding config, mirroring the VWorld online-basemap
             # handling below.
             plantnet_config = _resolve_plantnet_config(config.get("plantnet") or {})
+        route_config = _resolve_route_config(config.get("survey_route") or {})
         report_stage("참조 자료 확인")
 
         gpkg_relpath = f"data/{project_slug}.gpkg"
@@ -848,6 +862,8 @@ def build_project(
                 svg_relative_path=svg_relative_path,
                 ktsn_lookup_table_name=ktsn_lookup_table_name,
             )
+            if route_config.get("consent_accepted"):
+                qgis_kwargs["route_config"] = route_config
             if ktsn_taxonomy_table_name:
                 qgis_kwargs["ktsn_taxonomy_table_name"] = ktsn_taxonomy_table_name
             if canonical_runtime_resource is not None:

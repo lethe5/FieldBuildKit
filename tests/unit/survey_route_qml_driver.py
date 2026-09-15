@@ -6,22 +6,58 @@ from urllib.parse import unquote
 os.environ['QT_QPA_PLATFORM']='offscreen'
 os.environ['QT_QUICK_CONTROLS_STYLE']='Basic'
 os.environ['QT_QPA_FONTDIR']='C:/Windows/Fonts'
-from PySide6.QtCore import QObject, Slot, QUrl, QMetaObject, Qt, qInstallMessageHandler
+from PySide6.QtCore import QObject, Slot, QUrl, QMetaObject, Qt, QPointF, qInstallMessageHandler
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlEngine, QQmlComponent, QQmlNetworkAccessManagerFactory
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from PySide6.QtQuick import QQuickWindow
 
 payload=json.load(sys.stdin);case=payload['case'];folder=Path(payload['project_dir']);op=case['operation']
-requests=[];provider_dispatches=[];transport_dispatches=[];logs=[];transitions=[];writes=[];fault='';geometry_fault='';storage_fault='';launched=[];use_case_responses=False
+requests=[];provider_dispatches=[];transport_dispatches=[];logs=[];transitions=[];writes=[];expression_calls=[];evaluator_writes=[];fault='';geometry_fault='';completion_fault='';storage_fault='';launched=[];use_case_responses=False
 features=case.get('features',[{'id':str(i),'name':'조사지 '+str(i),'xy':[127+i/1000,37]} for i in range(3)])
+if op=='generated_geometry_calculate':features=[{'id':'generated','name':'생성 경로 대상','xy':[127,37]}]
 gps=case.get('gps',[127,37]);map_center=[128,38];response=case.get('response',{})
 def detached(x):return json.loads(json.dumps(x))
+def case_shape():
+    if op!='generated_geometry_calculate' or not case.get('wkt'):return None
+    from qfield_builder.wkt import geometry_data
+    kind,coordinates=geometry_data(case['wkt'])
+    names={name.upper():name for name in ('Point','LineString','Polygon','MultiPoint','MultiLineString','MultiPolygon')}
+    return {'type':names[kind], 'coordinates':coordinates}
+generated_shape=case_shape()
+def representative_xy(shape):
+    coords=shape['coordinates'];weighted=[]
+    def line(points):
+        for a,b in zip(points,points[1:]):
+            w=((b[0]-a[0])**2+(b[1]-a[1])**2)**.5
+            if w:weighted.append(((a[0]+b[0])/2,(a[1]+b[1])/2,w))
+    def polygon(rings):
+        for index,ring in enumerate(rings):
+            area=x=y=0
+            for a,b in zip(ring,ring[1:]):
+                cross=a[0]*b[1]-b[0]*a[1];area+=cross;x+=(a[0]+b[0])*cross;y+=(a[1]+b[1])*cross
+            if not area:raise ValueError('degenerate polygon')
+            weighted.append((x/(3*area),y/(3*area),abs(area)*(1 if index==0 else -1)))
+    if shape['type']=='Point':return coords[:2]
+    if shape['type']=='MultiPoint':weighted.extend((p[0],p[1],1) for p in coords)
+    elif shape['type']=='LineString':line(coords)
+    elif shape['type']=='MultiLineString':
+        for points in coords:line(points)
+    elif shape['type']=='Polygon':polygon(coords)
+    elif shape['type']=='MultiPolygon':
+        for rings in coords:polygon(rings)
+    total=sum(v[2] for v in weighted)
+    return [sum(v[0]*v[2] for v in weighted)/total,sum(v[1]*v[2] for v in weighted)/total]
 class HTTP(BaseHTTPRequestHandler):
     def log_message(self,*args):pass
     def do_POST(self):
-        req={'url':self.headers['X-Original-Url'],'method':'POST','body':json.loads(self.rfile.read(int(self.headers['Content-Length']))),'headers':{'Authorization':self.headers.get('Authorization',''),'Content-Type':self.headers.get('Content-Type','')}}
-        requests.append(req);body=req['body'];logs.append('HTTP '+req['url'])
+        body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+        url=self.headers['X-Original-Url']
+        kind='matrix' if 'locations' in body else 'optimizer' if 'jobs' in body else 'directions'
+        headers={'Content-Type':self.headers.get('Content-Type','')}
+        if self.headers.get('Authorization') is not None:headers['Authorization']=self.headers['Authorization']
+        req={'kind':kind,'url':url,'method':'POST','body':body,'headers':headers}
+        requests.append(req);logs.append('HTTP '+req['url'])
         if fault in ('timeout','network','status_0') and (op!='remaining' or 'jobs' in body):
             if fault=='timeout':time.sleep(.15)
             self.close_connection=True;return
@@ -71,16 +107,32 @@ class Factory(QQmlNetworkAccessManagerFactory):
 class Boundary(QObject):
     @Slot(str,'QVariant',result='QVariant')
     def evaluate(self,text,feature):
+        expression_calls.append({'expression_text':text,'arity':1})
         if text=='@project_folder':return str(folder)
+        if text=='@fieldbuild_route_api_key':
+            import xml.etree.ElementTree as ET
+            root=ET.parse(next(folder.glob('*.qgs'))).getroot()
+            names=[v.text or '' for v in root.findall('./properties/Variables/variableNames/value')]
+            values=[v.text or '' for v in root.findall('./properties/Variables/variableValues/value')]
+            return dict(zip(names,values)).get('fieldbuild_route_api_key','')
         if text.startswith('uuid('):return str(uuid.uuid4())
         if hasattr(feature,'toVariant'):feature=feature.toVariant()
         if text=='is_valid($geometry)':return True
+        if text=='geometry_type($geometry)':return feature['geometry']['type'].removeprefix('Multi').replace('LineString','Line')
+        if text=='is_multipart($geometry)':return feature['geometry']['type'].startswith('Multi')
         if text=='geom_to_geojson($geometry,17)':return json.dumps(feature['geometry'])
         if text.startswith('attribute('):return feature['attributes'].get(re.search(r",'(.*)'\)",text)[1].replace("''","'"))
-        if 'make_point(' in text:
+        if text.startswith(('x(transform(', 'y(transform(')):
             if geometry_fault:
-                return {'missing_crs':'','invalid_crs':'not-json','transform_failure':'null'}[geometry_fault]
-            m=re.search(r'make_point\(([^,]+),([^\)]+)\)',text);return json.dumps({'type':'Point','coordinates':[float(m[1]),float(m[2])]})
+                raise ValueError(geometry_fault)
+            if 'make_point(' in text:
+                m=re.search(r'make_point\(([^,]+),([^\)]+)\)',text);point=[float(m[1]),float(m[2])]
+            else:point=representative_xy(feature['geometry'])
+            source=case.get('crs','EPSG:4326') if '@layer_crs' in text else 'EPSG:4326'
+            if source!='EPSG:4326':
+                from rasterio.warp import transform
+                xs,ys=transform(source,'EPSG:4326',[point[0]],[point[1]]);point=[xs[0],ys[0]]
+            return point[0] if text.startswith('x(') else point[1]
         if 'geom_from_wkt(' in text:return {'type':'LineString','coordinates':[[float(v) for v in p.split()] for p in re.search(r'LINESTRING\(([^\)]+)\)',text)[1].split(',')]}
         raise ValueError(text)
     @Slot(str,result=bool)
@@ -98,6 +150,7 @@ class Boundary(QObject):
         writes.append({'path':str(target),'ok':ok,'bytes':target.read_text(encoding='utf8') if target.exists() else None});logs.append('write '+target.name+' '+str(ok));return ok
     @Slot(str,bool,result=bool)
     def complete(self,id,value):
+        if completion_fault:return False
         field=state()['mapping']['completed'];mapping=state()['mapping']
         for f in features:
             if str(f.get(mapping['id'],f.get('id')))==id:f[field]=value;device_inputs();return True
@@ -112,6 +165,8 @@ class Boundary(QObject):
     def transportEntry(self,s):transport_dispatches.append(json.loads(s))
     @Slot(str)
     def changed(self,s):transitions.append(json.loads(s))
+    @Slot(str)
+    def evaluatorWrite(self,name):evaluator_writes.append(name)
 app=QGuiApplication([]);engine=QQmlEngine();factory=Factory();engine.setNetworkAccessManagerFactory(factory)
 window=QQuickWindow();window.resize(800,900);boundary=Boundary();engine.rootContext().setContextProperty('boundaryHost',boundary)
 stubs=folder/'host-fixture'
@@ -127,14 +182,14 @@ put('org.qfield.core','QfFileUtils.qml','pragma Singleton\nimport QtQml\nQtObjec
 put('org.qfield.core','QfLayerUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function createFeatureIterator(layer){var rows=fixtureFeatures, i=0;return {hasNext:function(){return i<rows.length},next:function(){return rows[i++]},close:function(){}}}}')
 put('org.qfield.core','QfFeatureUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function createBlankFeature(){return ({})} function attributeIsNull(value){return value===null || value===undefined}}')
 put('org.qfield.gui','qmldir','module org.qfield.gui\nQfExpressionEvaluator 1.0 QfExpressionEvaluator.qml\nQfAttributeFormModel 1.0 QfAttributeFormModel.qml\n')
-put('org.qfield.gui','QfExpressionEvaluator.qml','import QtQml\nQtObject {property var project;property var layer;property var feature:null;function evaluate(text){return boundaryHost.evaluate(text,feature)}}')
+put('org.qfield.gui','QfExpressionEvaluator.qml','import QtQml\nQtObject {property var project;property var layer;property var feature:null;onProjectChanged:boundaryHost.evaluatorWrite("project");onLayerChanged:boundaryHost.evaluatorWrite("layer");onFeatureChanged:boundaryHost.evaluatorWrite("feature");function evaluate(text){return boundaryHost.evaluate(text,feature)}}')
 put('org.qfield.gui','QfAttributeFormModel.qml','import QtQml\nQtObject {property var featureModel;property bool result:false;function applyFeatureModel(){} function save(){return result} function changeAttribute(field,value){result=boundaryHost.complete(String(featureModel.feature.attributes.site_id||featureModel.feature.attributes.custom_id),value);return result}}')
 put('org.qgis','qmldir','module org.qgis\nDummy 1.0 Dummy.qml\n');put('org.qgis','Dummy.qml','import QtQml\nQtObject {}')
 engine.addImportPath(str(stubs));engine.rootContext().setContextProperty('fixtureFeatures',[])
 # IDs and display names come from the generated .qgs, never from the selected mapping.
 import xml.etree.ElementTree as ET
 layers=[{'id':l.findtext('id'),'name':l.findtext('layername')} for l in ET.parse(next(folder.glob('*.qgs'))).findall('./projectlayers/maplayer')]
-route_defaults={} if any(l['name']=='조사지' for l in layers) else {'defaultLayer':'','defaultId':'','defaultName':''}
+route_defaults={'surveyType':case.get('survey_type','temporary_plots')}
 layers.append({'id':'custom_7e04','name':'custom_targets'})
 def js(code):
     v=engine.evaluate(code)
@@ -156,7 +211,7 @@ iface=Iface();engine.rootContext().setContextProperty('iface',iface)
 qInstallMessageHandler(lambda typ,ctx,msg:logs.append(str(msg)))
 component=QQmlComponent(engine,QUrl.fromLocalFile(str(folder/'qfield_routes/RoutePanel.qml')));panel=None;components=[component]
 def device_inputs():
-    rows=[{'attributes':{'site_id':f.get('id'),'site_name':f.get('name'),'inventory_id':f.get('id'),'selected_korean_name':f.get('name'),**f},'geometry':{'type':'Point','coordinates':f['xy']}} for f in features]
+    rows=[{'attributes':{'site_id':f.get('id'),'site_name':f.get('name'),'inventory_id':f.get('id'),'selected_korean_name':f.get('name'),**f},'geometry':generated_shape or {'type':'Point','coordinates':f['xy']}} for f in features]
     engine.rootContext().setContextProperty('fixtureFeatures',rows)
     selected=[r for r in rows if 'selected_ids' not in case or str(r['attributes'].get('id',r['attributes'].get('custom_id'))) in case['selected_ids']]
     js('device.canvas=hostCanvas;hostCanvas.mapSettings={destinationCrs:"EPSG:4326",getCenter:function(){return '+json.dumps({'x':map_center[0],'y':map_center[1]})+'}};device.gps='+json.dumps({'active':gps is not None,'positionInformation':{'latitudeValid':gps is not None,'longitudeValid':gps is not None,'longitude':gps[0] if gps else None,'latitude':gps[1] if gps else None}})+';device.locator={positionInformation:device.gps.positionInformation};device.form={model:{selectedLayer:qgisProject.mapLayersByName('+json.dumps('custom_targets' if case.get('mapping') else '조사지')+')[0],selectedFeatures:'+json.dumps(selected)+'}};')
@@ -180,6 +235,13 @@ def drain():
             app.processEvents();break
         if time.monotonic()>end:raise RuntimeError('QML action did not settle')
         time.sleep(.001)
+def wait_for(predicate, timeout=2):
+    end=time.monotonic()+timeout
+    while time.monotonic()<end:
+        app.processEvents()
+        if predicate():return
+        time.sleep(.005)
+    raise RuntimeError('QML observation did not settle')
 def open_panel():
     global panel
     device_inputs()
@@ -193,8 +255,10 @@ def open_panel():
     panel.property('message')
     panel.messageChanged.connect(lambda:logs.append(str(panel.property('message'))))
     panel.routeChanged.connect(lambda:transitions.append(active()))
-def settings(values=None):
-    values={'optimizer_url':'https://vroom.invalid','key':case.get('key',''),**(values or {})}
+def settings(values=None, seed_defaults=True):
+    defaults={'optimizer_url':'https://vroom.invalid'} if seed_defaults else {}
+    if seed_defaults and not case.get('use_project_key'):defaults['key']=case.get('key','')
+    values=defaults | (values or {})
     names={'server_url':'serverEdit','optimizer_url':'optimizerEdit','backend':'backendEdit','key':'keyEdit','profile':'profileEdit','timeout_ms':'timeoutEdit','max_road_offset_m':'offsetEdit'}
     for k,v in values.items():
         if k in names:control(names[k],str(v))
@@ -213,6 +277,16 @@ def stored():
         r=json.loads(val('storeProbe.readSlot({exists:function(p){return boundaryHost.exists(p)},read:function(p){return boundaryHost.read(p)}},'+json.dumps(str(f))+')'))
         if r:records.append(r)
     return max(records,key=lambda r:r['revision'])['data'] if records else None
+def seed_inactive_saved_fixture():
+    source=(folder/'qfield_routes/repository.js').read_text(encoding='utf8')
+    js("var seedRepository=(function(){"+source+";return {save:save};})();")
+    row=features[0];route={'route_id':'seeded-route','name':'기존 경로','created_at':'2026-09-15T00:00:00Z',
+        'backend':'ors-vroom','status':'ready','revision':1,'start':[127,37],'end':[127,37],
+        'distance_m':1,'duration_s':1,'stops':[{'site_id':str(row.get('id','seed')),'source_layer':'site',
+        'name':str(row.get('name','기존 대상')),'sequence':1,'completed':False,'coordinate':row.get('xy',[127,37])}],
+        'road_geometry':None,'legs':None,'eta':None,'eta_basis':None,'optimality_guaranteed':False}
+    data={'schema':1,'active_id':'','routes':[route],'settings':{}}
+    js("seedRepository.save({exists:function(p){return boundaryHost.exists(p)},read:function(p){return boundaryHost.read(p)},write:function(p,t){return boundaryHost.write(p,t)}},"+json.dumps(str(folder/'survey-routes'))+","+json.dumps(data)+",0)")
 def saved():
     data=stored();return data['routes'] if data else []
 
@@ -258,21 +332,24 @@ def decoded_transport_settings():
     if costs==matrices['distances'] and costs!=matrices['durations']:objective='distance'
     elif costs==matrices['durations'] and costs!=matrices['distances']:objective='time'
     else:raise RuntimeError('optimizer objective cannot be decoded')
-    return {'server_url':server_url,'optimizer_url':optimizer['url'],'backend':provider_dispatches[0]['backend'],'profile':unquote(profile),'timeout_ms':matrix['timeout_ms'],'max_road_offset_m':provider_dispatches[0]['max_road_offset_m'],'objective':objective,'key':requests[0]['headers']['Authorization']}
+    return {'server_url':server_url,'optimizer_url':optimizer['url'],'backend':provider_dispatches[0]['backend'],'profile':unquote(profile),'timeout_ms':matrix['timeout_ms'],'max_road_offset_m':provider_dispatches[0]['max_road_offset_m'],'objective':objective,'key':requests[0]['headers'].get('Authorization','')}
 def main():
-    global features,gps,map_center,fault,geometry_fault,storage_fault,folder,component,response,use_case_responses
+    global features,gps,map_center,fault,geometry_fault,completion_fault,storage_fault,folder,component,response,use_case_responses
     original_response=response;response={};original_gps=gps;gps=[127,37]
+    type1_without_mapping=case.get('survey_type')=='simple_inventory' and not case.get('mapping')
+    if type1_without_mapping:seed_inactive_saved_fixture()
     open_panel();settings();original=features
-    if op!='mapping_settings_restart_move':
+    if op!='mapping_settings_restart_move' and not type1_without_mapping:
         features=[{'id':str(i),'name':'조사지 '+str(i),'xy':[127+i/1000,37]} for i in range(len(original))]
         if not panel.property('defaultLayer'):
             for name,value in [('layerEdit','custom_targets'),('idEdit','inventory_id'),('nameEdit','selected_korean_name')]:control(name,value)
         control('scopeCombo',1,'currentIndex');calculate();save();features=original;response=original_response;gps=original_gps;device_inputs();requests.clear();provider_dispatches.clear();transport_dispatches.clear()
     use_case_responses=True
-    if case.get('survey_type')=='simple_inventory' and not case.get('mapping'):
-        for name in ('layerEdit','idEdit','nameEdit'):control(name,'')
+    if op=='completion_write_failure':
+        for key,name in [('layer','layerEdit'),('id','idEdit'),('name','nameEdit'),('completed','completionEdit')]:control(name,{'layer':'site','id':'id','name':'name','completed':'done'}[key])
+        click('서버 설정 저장 (키 제외)');features=[dict(f,done=False) for f in original];device_inputs()
     before=saved();result={'saved_before':before,'active_before':state()['snapshot']['data']['active_id'],'project_dir':str(folder),'ok':True}
-    if op in ('calculate','start','road_cost','calculate_failure','configured_calculate','result_roundtrip','geometry_failure'):
+    if op in ('calculate','start','road_cost','calculate_failure','configured_calculate','result_roundtrip','geometry_failure','generated_geometry_calculate'):
         if case.get('mapping'):
             for key,name in [('layer','layerEdit'),('id','idEdit'),('name','nameEdit'),('completed','completionEdit')]:control(name,case['mapping'][key])
         control('scopeCombo',['selected','all','uncompleted'].index(case.get('scope','all')),'currentIndex')
@@ -285,9 +362,12 @@ def main():
                 map_center=case['coordinate'];device_inputs();panel.setProperty('canvas',js('device.canvas'));click('지도 중심을 출발지로 지정');click('지정 위치를 기본 출발지로 저장');open_panel();settings();control('scopeCombo',1,'currentIndex');control('startCombo',3,'currentIndex')
         if op=='road_cost':settings({'objective':case['objective']})
         if op=='configured_calculate':
-            settings(case['settings']);click('서버 설정 저장 (키 제외)')
+            if case.get('fresh_project'):open_panel()
+            elif 'optimizer_url' not in case['settings']:control('optimizerEdit','')
+            settings(case['settings'],False);click('서버 설정 저장 (키 제외)')
         if op=='calculate_failure':fault=case['fault'];settings({'timeout_ms':30})
         if op=='geometry_failure':geometry_fault=case['fault']
+        if op=='generated_geometry_calculate':geometry_fault=case.get('fault','')
         result['ok']=calculate()
         if op=='result_roundtrip':
             if result['ok']:save('왕복 경로');open_panel()
@@ -297,6 +377,10 @@ def main():
             result['transport_settings']=decoded_transport_settings();result['transport_headers']=detached([r['headers'] for r in requests]);result['persisted_settings']=detached(stored()['settings'])
         if op=='geometry_failure':
             result['published_features']=state()['candidate']['stops'] if state()['candidate'] else [];result['source_before']=detached(original);result['source_after']=detached(features)
+        if op=='generated_geometry_calculate':
+            result['failure_reason']=case.get('fault');result['generic_crs_error_shown']='원본 CRS와 WGS84' in str(panel.property('message'))
+            result['expression_evaluator']={'native_type':'QfExpressionEvaluator','qml_type':'ExpressionEvaluator','properties_written':sorted(set(evaluator_writes)),'unknown_property_writes':[],'evaluate_calls':detached(expression_calls)}
+            result['qml_errors']=[line for line in logs if 'file:///' in line]
     elif op=='save_two_restart_move':
         calculate();save('둘째 경로');result['selected_route_ids']=[]
         for i in range(len(saved())):load(i);result['selected_route_ids'].append(active()['route_id'])
@@ -312,6 +396,7 @@ def main():
         for id in case.get('completed_ids',[]):complete(id)
         if op=='complete':
             result['active']=active();open_panel();result['reloaded']=active();result['completed_count']=panel.property('completedCount');result['total_count']=len(panel.property('stops').toVariant());header=next(o.property('text') for o in visual_objects(panel) if str(o.property('text')).startswith(('▸ ','▾ ')));result['summary_counts']=[int(v) for v in header.rsplit(' · ',1)[1].split('/')]
+            result['source_completion_after']={str(f.get('id')):True for f in features if f.get('done') is True} if case.get('source')=='field' else {}
         elif op=='remaining':
             result['saved_before']=active();result['completed_before']=[s for s in active()['stops'] if s['completed']]
             if case['outcome']=='failure':fault='timeout';settings({'timeout_ms':30})
@@ -329,6 +414,11 @@ def main():
                 QMetaObject.invokeMethod(button,'clicked',Qt.DirectConnection);drain()
             result['expanded']=panel.property('expanded')
         nxt=json.loads(val('p.controller.next()'));result['next_id']=nxt['site_id'] if nxt else None
+    elif op=='completion_write_failure':
+        result['source_completion_before']={str(f['id']):f['done'] for f in features}
+        result['next_before']=json.loads(val('p.controller.next()'))['site_id'];completion_fault=case['fault'];complete(case['completed_id'])
+        result['ok']=False;result['source_completion_after']={str(f['id']):f['done'] for f in features}
+        result['next_after']=json.loads(val('p.controller.next()'))['site_id']
     elif op=='reopen_navigate':
         calculate();save('도로선');open_panel();requests.clear();provider_dispatches.clear();transport_dispatches.clear();result['rendered_geometry']=json.loads(val('p.roadItem.storedGeometry'))
         # Navigation target is an external OS test input; production navigation remains intact.
@@ -361,16 +451,58 @@ def main():
         mapping=case['mapping'];features=[{'custom_id':'A','title':'첫 대상','done':False,'xy':[127,37]},{'custom_id':'B','title':'둘째 대상','done':False,'xy':[127.001,37]}];device_inputs()
         for key,name in [('layer','layerEdit'),('id','idEdit'),('name','nameEdit'),('completed','completionEdit')]:control(name,mapping[key])
         click('서버 설정 저장 (키 제외)');result['persisted_mapping']=detached(stored()['settings']['mapping']);result['active_before']=stored()['active_id'];new=Path(str(folder)+'-moved');shutil.move(folder,new);folder=new;components.append(component);component=QQmlComponent(engine,QUrl.fromLocalFile(str(folder/'qfield_routes/RoutePanel.qml')));requests.clear();provider_dispatches.clear();transport_dispatches.clear();open_panel();result['project_dir']=str(folder);result['reopened_mapping']={k:panel.findChild(QObject,n).property('text') for k,n in [('layer','layerEdit'),('id','idEdit'),('name','nameEdit'),('completed','completionEdit')]};control('scopeCombo',1,'currentIndex');result['ok']=calculate();result['calculated_mapping']=state()['candidate']['mapping'] if state()['candidate'] else None;result['active_after']=stored()['active_id']
+    elif op=='panel_layout':
+        window.resize(int(case['viewport_width']),900);window.show();panel.setProperty('expanded',True)
+        for _ in range(5):app.processEvents()
+        content=panel.findChild(QObject,'routeContent');scroll=panel.findChild(QObject,'routeScroll')
+        def rect(obj):
+            point=obj.mapToItem(panel,QPointF(0,0));return {'left':point.x(),'right':point.x()+obj.width(),'top':point.y(),'bottom':point.y()+obj.height()}
+        field_names=['layerEdit','idEdit','nameEdit','completionEdit','scopeCombo','startCombo','targetEdit','serverEdit','optimizerEdit','backendEdit','profileEdit','keyEdit','timeoutEdit','offsetEdit','objectiveCombo','routeName','savedCombo']
+        fields=[]
+        for name in field_names:
+            item=panel.findChild(QObject,name);measured=rect(item);measured.update(name=name,row=str(round(measured['top'])));fields.append(measured)
+        label_names=['selectionHelpLabel','completionHelpLabel','scopeHelpLabel','messageLabel','availabilityLabel']
+        labels=[]
+        for name in label_names:
+            item=panel.findChild(QObject,name);measured=rect(item);measured.update(name=name,wrap_enabled=True);labels.append(measured)
+        content_rect=rect(content);shot=folder/'panel-layout.png';window.grabWindow().save(str(shot))
+        result.update(content_rect={'left':content_rect['left'],'right':content_rect['right']},fields=fields,labels_help_errors=labels,
+            horizontal_overflow=content.width()>scroll.property('availableWidth')+0.5 or any(f['left']<content_rect['left']-0.5 or f['right']>content_rect['right']+0.5 for f in fields),screenshot_path=str(shot))
+    elif op=='selection_live':
+        panel.setProperty('expanded',True);counts=[];all_ids=[str(f.get('id',f.get('custom_id'))) for f in features]
+        for count in case.get('selection_counts',[0,1,len(features)]):
+            case['selected_ids']=all_ids[:count];device_inputs()
+            wait_for(lambda count=count:int(panel.property('selectedCount'))==count)
+            text_value=str(panel.findChild(QObject,'selectionHelpLabel').property('text'))
+            counts.append(int(re.search(r'(\d+)\s*$',text_value)[1]))
+        result['recognized_counts_before_calculate']=counts
+    elif op=='route_key_availability':
+        pass
     else:raise RuntimeError('unsupported '+op)
     mat=next((r for r in requests if 'locations' in r['body']),None);opt=next((r for r in requests if 'jobs' in r['body']),None)
     objective=None
     if opt:
         matrices=opt['body']['matrices']['car'];objective='distance' if matrices['costs']==matrices['distances'] and matrices['costs']!=matrices['durations'] else 'time' if matrices['costs']==matrices['durations'] and matrices['costs']!=matrices['distances'] else None
-    result.update(requests=detached(requests),provider_dispatches=detached(provider_dispatches),transport_dispatches=detached(transport_dispatches),submitted_ids=[j['description'] for j in opt['body']['jobs']] if opt else [],request_start=mat['body']['locations'][0] if mat else None,optimizer_request={'objective':objective,'cost_matrix':opt['body']['matrices']['car']['costs'],'return_to_start':opt['body']['vehicles'][0].get('end_index')==0} if opt else None)
+    result.update(requests=detached(requests),provider_dispatches=detached(provider_dispatches),transport_dispatches=detached(transport_dispatches),submitted_ids=[j['description'] for j in opt['body']['jobs']] if opt else [],request_start=mat['body']['locations'][0] if mat else None,request_coordinate=mat['body']['locations'][1] if mat and len(mat['body']['locations']) > 1 else None,optimizer_request={'objective':objective,'cost_matrix':opt['body']['matrices']['car']['costs'],'return_to_start':opt['body']['vehicles'][0].get('end_index')==0} if opt else None)
+    if case.get('restart_after_calculate'):
+        open_panel();result['session_key_present_after_restart']=bool(state()['settings']['key'])
     result.setdefault('saved_after',saved() if panel.property('controller') is not None else [])
     result['active_after']=state()['snapshot']['data']['active_id'] if panel.property('controller') is not None else None
+    controller_ready=panel.property('controller') is not None
+    selection_text=str(panel.findChild(QObject,'selectionHelpLabel').property('text'))
+    selection_count=re.search(r'(\d+)\s*$',selection_text)
+    result['selection_help']={'recognized_count':int(selection_count[1]) if selection_count else None,
+        'explains_layer_selection':all(word in selection_text for word in ('대상 레이어','선택','체크')),
+        'focus_is_selection':controller_ready and case.get('focused_id') in [s['site_id'] for s in state()['listed']]}
+    completion_text=str(panel.findChild(QObject,'completionHelpLabel').property('text'))
+    result['completion_help']={'mapped_boolean_only':all(word in completion_text for word in ('Boolean','true','false','NULL','missing')),
+        'blank_mapping_uses_route_local':all(word in completion_text for word in ('비우면','저장 경로'))}
+    key_control=panel.findChild(QObject,'keyEdit')
+    if key_control:engine.globalObject().setProperty('routeKeyControl',engine.newQObject(key_control))
+    result['route_key_input']={'available':key_control is not None,'enabled':bool(key_control and key_control.property('enabled')),
+        'password_echo':bool(key_control and js('routeKeyControl.echoMode!==0').toBool())}
     result['message']=panel.property('message');result['logs']='\n'.join(logs);result['transitions']=transitions;result['storage_writes']=writes;result['runtime']='Qt QML actual generated panel, injected QField host and HTTP transport; not native QField'
     return result
-try:print(json.dumps(main(),ensure_ascii=False))
+try:print(json.dumps(main(),ensure_ascii=True))
 except Exception:
-    import traceback;traceback.print_exc();print(json.dumps(logs,ensure_ascii=False),file=sys.stderr);sys.exit(1)
+    import traceback;traceback.print_exc();print(json.dumps(logs,ensure_ascii=True),file=sys.stderr);sys.exit(1)

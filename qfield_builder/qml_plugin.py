@@ -5017,9 +5017,7 @@ Item {{
     Routes.RoutePanel {{
         layerAliases: {{var aliases={{}};qpbReportDefinition.tables.forEach(function(t){{aliases[t.name]=t.display_name;}});return aliases;}}
         parent: iface.mainWindow().contentItem
-        defaultLayer: {json.dumps("" if survey_type == "simple_inventory" else "site")}
-        defaultId: {json.dumps("" if survey_type == "simple_inventory" else "site_id")}
-        defaultName: {json.dumps("" if survey_type == "simple_inventory" else "site_name")}
+        surveyType: {json.dumps(survey_type or "")}
     }}
 
     Component.onCompleted: {{

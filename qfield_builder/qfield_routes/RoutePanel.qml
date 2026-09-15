@@ -26,11 +26,13 @@ Rectangle {
     property bool expanded: false
     property bool busy: false
     property int completedCount: 0
+    property int selectedCount: 0
     property var canvas: null
-    property string defaultLayer: "site"
+    property string surveyType: ""
+    property string defaultLayer: surveyType === "simple_inventory" ? "" : "site"
     property var layerAliases: ({site:"조사지"})
-    property string defaultId: "site_id"
-    property string defaultName: "site_name"
+    property string defaultId: surveyType === "simple_inventory" ? "" : "site_id"
+    property string defaultName: surveyType === "simple_inventory" ? "" : "site_name"
     color: "#f8fafc"
     border.color: "#94a3b8"
     height: expanded ? Math.min(parent.height * 0.72, 640) : 44
@@ -77,11 +79,24 @@ Rectangle {
         if(matches.length===1) return matches[0];
         throw new Error("대상 레이어를 찾지 못했습니다. 레이어 이름 또는 ID를 설정하세요.");
     }
+    function selectedFeatures(mapping) {
+        if(!mapping || !mapping.layer) return [];
+        var layer=layerFor(mapping);
+        var host=iface.findItemByObjectName("featureForm"), model=host && host.model;
+        return model && model.selectedLayer===layer ? (model.selectedFeatures || []) : [];
+    }
+    function refreshSelectedCount() {
+        try {
+            selectedCount=selectedFeatures({layer:layerEdit.text}).length;
+        } catch(e) {
+            selectedCount=0;
+        }
+    }
     function records(mapping,scope) {
         var layer=layerFor(mapping), features=[];
         if(scope==="selected") {
-            var host=iface.findItemByObjectName("featureForm"), model=host && host.model;
-            if(model && model.selectedLayer===layer) features=model.selectedFeatures || [];
+            features=selectedFeatures(mapping);
+            selectedCount=features.length;
         } else {
             var iterator=QfLayerUtils.createFeatureIterator(layer);
             try {while(iterator.hasNext()) features.push(iterator.next());} finally {iterator.close();}
@@ -133,8 +148,8 @@ Rectangle {
     function pickMapStart() {
         if(!canvas || !canvas.mapSettings) throw new Error("지도 중심 위치를 확인할 수 없습니다.");
         var p=canvas.mapSettings.getCenter(true);
-        var point=JSON.parse(evaluator.evaluate("geom_to_geojson(transform(make_point("+p.x+","+p.y+"), @project_crs, 'EPSG:4326'),17)"));
-        controller.state.mapStart=Geometry.coordinate(point.coordinates);
+        var transformed="transform(make_point("+p.x+","+p.y+"), @project_crs, 'EPSG:4326')";
+        controller.state.mapStart=Geometry.coordinate([Number(evaluator.evaluate("x("+transformed+")")),Number(evaluator.evaluate("y("+transformed+")"))]);
         startCombo.currentIndex=1;message="지도 중심을 출발지로 지정했습니다.";
     }
     function calculate(remaining) {try {applyControls();controller.calculate(remaining);}catch(e){controller.error(e);}}
@@ -145,28 +160,35 @@ Rectangle {
             controller=Controller.create({geometry:Geometry,repository:Repository,backend:{calculate:function(s,t,o,r,x){var provider=panel.routingBackends[s.backend];return provider ? provider.calculate(s,t,o,r,x) : Promise.reject(new Error("지원하지 않는 경로 backend입니다."));}},navigation:Navigation,
                 base:directory+"/survey-routes",io:{exists:QfFileUtils.fileExists,read:QfFileUtils.readFileContent,write:QfFileUtils.writeFileContent},
                 features:records,setCompleted:setCompleted,transport:transport,openUrl:function(url){return panel.urlLauncher(url);},
+                projectKey:function(){return evaluator.evaluate("@fieldbuild_route_api_key");},
                 gps:function(){var p=iface.findItemByObjectName("positionSource"), info=p && p.positionInformation;if(!p || !p.active || !info || !info.latitudeValid || !info.longitudeValid)throw new Error("GPS 위치가 없습니다. 위치 수신 후 다시 계산하세요.");return [info.longitude,info.latitude];},
                 uuid:function(){return String(evaluator.evaluate("uuid('WithoutBraces')"));},changed:updateView});
             if(!controller.active() && !controller.state.snapshot.data.settings.mapping) controller.state.mapping={layer:defaultLayer,id:defaultId,name:defaultName,completed:""};
             syncMapping();
-            var s=controller.state.settings;serverEdit.text=s.server_url;optimizerEdit.text=s.optimizer_url;backendEdit.text=s.backend;profileEdit.text=s.profile;timeoutEdit.text=String(s.timeout_ms);offsetEdit.text=String(s.max_road_offset_m);
-            updateView();
+            var s=controller.state.settings;serverEdit.text=s.server_url;optimizerEdit.text=s.optimizer_url;backendEdit.text=s.backend;profileEdit.text=s.profile;keyEdit.text=s.key;timeoutEdit.text=String(s.timeout_ms);offsetEdit.text=String(s.max_road_offset_m);
+            updateView();refreshSelectedCount();
         } catch(e) {message=String(e.message||e);}
     }
+    onExpandedChanged: {if(expanded) refreshSelectedCount();}
     Component.onDestruction: {if(roadItem)roadItem.destroy();}
+    Timer {interval:500;repeat:true;running:controller!==null && expanded;onTriggered:refreshSelectedCount()}
     Timer {interval:1500;repeat:true;running:controller!==null && expanded && !busy;onTriggered:{try{controller.refresh();}catch(e){controller.error(e);}}}
     ColumnLayout {
         anchors.fill:parent;spacing:4
         Button {Layout.fillWidth:true;Layout.preferredHeight:40;text:(panel.expanded?"▾ ":"▸ ")+(panel.route?panel.route.name:"조사 경로")+" · "+panel.completedCount+"/"+(panel.route?panel.route.stops.length:0);onClicked:panel.expanded=!panel.expanded}
         ScrollView {
-            visible:panel.expanded;Layout.fillWidth:true;Layout.fillHeight:true;clip:true
+            id:routeScroll;objectName:"routeScroll";visible:panel.expanded;Layout.fillWidth:true;Layout.fillHeight:true;clip:true
+            contentWidth:availableWidth
+            ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
             ColumnLayout {
-                width:parent.width;spacing:6
-                Label {text:"대상 · 선택은 QField 목록의 체크된 피처를 사용합니다";wrapMode:Text.Wrap;Layout.fillWidth:true}
+                objectName:"routeContent";width:Math.max(0,routeScroll.availableWidth-24);x:12;spacing:6
+                Label {objectName:"selectionHelpLabel";text:"선택 대상: QField에서 대상 레이어를 열고 피처 선택/체크 도구로 계산할 피처를 체크한 뒤 이 패널로 돌아오세요. 현재 인식한 선택 수: "+panel.selectedCount;wrapMode:Text.Wrap;Layout.fillWidth:true}
                 TextField {id:layerEdit;objectName:"layerEdit";Layout.fillWidth:true;placeholderText:"대상 레이어 이름 / ID";text:panel.defaultLayer}
-                RowLayout {TextField{id:idEdit;objectName:"idEdit";Layout.fillWidth:true;placeholderText:"ID 필드";text:panel.defaultId} TextField{id:nameEdit;objectName:"nameEdit";Layout.fillWidth:true;placeholderText:"이름 필드";text:panel.defaultName}}
+                RowLayout {Layout.fillWidth:true;spacing:6;TextField{id:idEdit;objectName:"idEdit";Layout.fillWidth:true;Layout.minimumWidth:0;placeholderText:"ID 필드";text:panel.defaultId} TextField{id:nameEdit;objectName:"nameEdit";Layout.fillWidth:true;Layout.minimumWidth:0;placeholderText:"이름 필드";text:panel.defaultName}}
                 TextField {id:completionEdit;objectName:"completionEdit";Layout.fillWidth:true;placeholderText:"완료 Boolean 필드 (비우면 경로별 완료)"}
+                Label {objectName:"completionHelpLabel";text:"완료 필드는 source layer의 Boolean 필드 이름입니다. 값이 true일 때만 완료이며 false/NULL/missing은 미완료입니다. 비우면 이 저장 경로 안에서만 완료 상태를 관리합니다.";wrapMode:Text.Wrap;Layout.fillWidth:true}
                 ComboBox {id:scopeCombo;objectName:"scopeCombo";model:["선택 대상","전체 대상","미조사 대상"];Layout.fillWidth:true}
+                Label {objectName:"scopeHelpLabel";text:"선택 대상은 QField에서 체크한 피처만, 전체 대상은 선택과 무관한 모든 유효 피처, 미조사 대상은 전체 중 완료되지 않은 피처를 사용합니다.";wrapMode:Text.Wrap;Layout.fillWidth:true}
                 ComboBox {id:startCombo;objectName:"startCombo";model:["현재 GPS 출발","지도 위치 출발","조사대상 출발","저장 기본 출발지"];Layout.fillWidth:true}
                 Button {text:"지도 중심을 출발지로 지정";onClicked:{try{pickMapStart();}catch(e){controller.error(e);}}}
                 TextField {id:targetEdit;objectName:"targetEdit";Layout.fillWidth:true;placeholderText:"출발 조사대상 ID"}
@@ -178,12 +200,12 @@ Rectangle {
                 TextField {id:backendEdit;objectName:"backendEdit";Layout.fillWidth:true;placeholderText:"경로 backend ID"}
                 TextField {id:profileEdit;objectName:"profileEdit";Layout.fillWidth:true;placeholderText:"ORS profile"}
                 TextField {id:keyEdit;objectName:"keyEdit";Layout.fillWidth:true;placeholderText:"API 키 (저장하지 않음)";echoMode:TextInput.Password}
-                RowLayout {TextField{id:timeoutEdit;objectName:"timeoutEdit";Layout.fillWidth:true;placeholderText:"제한시간(ms)"} TextField{id:offsetEdit;objectName:"offsetEdit";Layout.fillWidth:true;placeholderText:"도로 이격거리(m)"}}
-                ComboBox {id:objectiveCombo;objectName:"objectiveCombo";model:["시간 최소화","거리 최소화"]}
+                RowLayout {Layout.fillWidth:true;spacing:6;TextField{id:timeoutEdit;objectName:"timeoutEdit";Layout.fillWidth:true;Layout.minimumWidth:0;placeholderText:"제한시간(ms)"} TextField{id:offsetEdit;objectName:"offsetEdit";Layout.fillWidth:true;Layout.minimumWidth:0;placeholderText:"도로 이격거리(m)"}}
+                ComboBox {id:objectiveCombo;objectName:"objectiveCombo";model:["시간 최소화","거리 최소화"];Layout.fillWidth:true}
                 Button {text:"서버 설정 저장 (키 제외)";onClicked:{try{applyControls();controller.saveSettings();}catch(e){controller.error(e);}}}
                 RowLayout {Button{text:"새 경로 계산";enabled:controller!==null&&!busy;onClicked:calculate(false)} Button{text:"남은 지점 계산";enabled:controller!==null&&!busy&&route!==null;onClicked:calculate(true)}}
-                Label {text:panel.message;Layout.fillWidth:true;wrapMode:Text.Wrap}
-                Label {text:(candidate||route)?"거리 "+(candidate||route).distance_m+" m / 시간 "+(candidate||route).duration_s+" s":"결과 없음"}
+                Label {objectName:"messageLabel";text:panel.message;Layout.fillWidth:true;wrapMode:Text.Wrap}
+                Label {text:(candidate||route)?"거리 "+(candidate||route).distance_m+" m / 시간 "+(candidate||route).duration_s+" s":"결과 없음";Layout.fillWidth:true;wrapMode:Text.Wrap}
                 Label {objectName:"availabilityLabel";text:((candidate||route)&&(candidate||route).road_geometry?"도로선 제공":"도로선 없음")+" · "+((candidate||route)&&(candidate||route).eta?"ETA 제공 (출발 기준 초)":"ETA 미제공")+" · "+((candidate||route)&&(candidate||route).legs?"구간 값 제공":"구간 값 미제공");Layout.fillWidth:true;wrapMode:Text.Wrap}
                 TextField {id:routeName;objectName:"routeName";Layout.fillWidth:true;placeholderText:"저장할 경로 이름"}
                 Button {text:"계산 결과 저장";enabled:candidate!==null;onClicked:controller.save(routeName.text)}

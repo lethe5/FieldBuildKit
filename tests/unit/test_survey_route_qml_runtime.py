@@ -33,6 +33,38 @@ def test_generated_route_assets_load_after_relocation(tmp_path):
     assert all(name in route_qml for name in native_names)
 
 
+def test_selection_help_polls_current_selection_before_calculate(tmp_path):
+    project=_build(tmp_path)
+    features=[{'id':str(i),'name':'조사지 '+str(i),'xy':[127+i/1000,37]} for i in range(3)]
+    r=_node({'operation':'selection_live','features':features,'selection_counts':[0,1,3]},project['project_dir'])
+    assert r['recognized_counts_before_calculate']==[0,1,3]
+    assert r['requests']==[]
+
+
+@pytest.mark.parametrize(('survey_type','expected'),[
+    ('simple_inventory',{'layer':'','id':'','name':''}),
+    ('temporary_plots',{'layer':'site','id':'site_id','name':'site_name'}),
+])
+def test_generated_project_owns_route_mapping_defaults(tmp_path,survey_type,expected):
+    project=_build(tmp_path,survey_type=survey_type)
+    observed=_qml_probe(project,tmp_path)
+    assert observed['qml_errors']==[]
+    assert observed['mapping_defaults']==expected
+
+
+def test_builder_route_key_uses_real_worker_and_desktop_encryption(tmp_path):
+    secret='UNIT_SYNTHETIC_ROUTE_KEY'
+    r=run(case={'operation':'builder_route_key','input_key':secret,'consent':False,
+                'remember':True,'outcome':'success'},work_dir=str(tmp_path))
+    project=Path(r['project_dir']);store=Path(r['desktop_credential_store'])
+    assert r['project_published'] and Path(r['qgs_path']).is_file()
+    assert r['manual_session_available'] is True
+    assert r['remembered_key_available_to_qfield'] is False
+    assert store.name=='credentials.enc' and store.is_file()
+    assert secret.encode() not in store.read_bytes()
+    assert all(secret.encode() not in path.read_bytes() for path in project.rglob('*') if path.is_file())
+
+
 def test_load_button_restores_mapping_for_both_calculations(tmp_path):
     r=run(case={'operation':'mapping_reload'},work_dir=str(tmp_path))
     expected={'layer':'site','id':'site_id','name':'site_name','completed':'doneA'}
@@ -118,7 +150,7 @@ def test_transport_observation_comes_from_provider_and_http_boundaries(tmp_path,
     changes={
         'server': ('base + "/v2/matrix/"', '"https://wrong.invalid/v2/matrix/"'),
         'profile': ('encodeURIComponent(settings.profile)', 'encodeURIComponent("wrong-profile")'),
-        'header': ('Authorization: settings.key || ""', 'Authorization: "wrong-key"'),
+        'header': ('headers.Authorization = settings.key', 'headers.Authorization = "wrong-key"'),
         'timeout': ('timeout_ms: settings.timeout_ms', 'timeout_ms: 9999'),
         'objective': ('settings.objective === "distance"', 'false'),
     }
@@ -158,6 +190,19 @@ def test_type1_project_mapping_survives_no_route_restart_and_move(tmp_path):
     assert r['active_before']==r['active_after']==''
     assert r['persisted_mapping']==r['reopened_mapping']==r['calculated_mapping']==mapping
     assert r['submitted_ids']==['A','B']
+
+
+def test_generated_qml_centroids_one_member_multipoint(tmp_path):
+    r=run(case={'operation':'generated_geometry_calculate',
+                'geometry_type':'MultiPoint','wkt':'MULTIPOINT ((127 37))','crs':'EPSG:4326'},
+          work_dir=str(tmp_path))
+    expressions=[call['expression_text'].lower()
+                 for call in r['expression_evaluator']['evaluate_calls']]
+    assert r['ok'] is True and r['request_coordinate']==pytest.approx([127,37])
+    assert 'is_multipart($geometry)' in expressions
+    assert any(expression.startswith('x(transform(centroid($geometry)') for expression in expressions)
+    assert any(expression.startswith('y(transform(centroid($geometry)') for expression in expressions)
+    assert r['original_after']==r['original_before'] and r['qml_errors']==[]
 
 
 def test_geometry_roundtrip_source_really_contains_z_and_product_strips_it(tmp_path):

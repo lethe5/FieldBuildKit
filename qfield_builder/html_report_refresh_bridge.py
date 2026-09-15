@@ -101,7 +101,8 @@ def render_html_report_refresh_fixture(fixture: dict[str, Any]) -> dict[str, Any
             runner_path.write_text(runner, encoding="utf-8")
             completed = subprocess.run(
                 [node, str(runner_path)], input=json.dumps(payload, ensure_ascii=False),
-                text=True, capture_output=True, timeout=45, check=True,
+                text=True, encoding="utf-8", errors="replace", capture_output=True,
+                timeout=45, check=True,
             )
         return json.loads(completed.stdout)
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as exc:

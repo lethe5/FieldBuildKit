@@ -46,11 +46,14 @@ function featurePoint(evaluator, layer, feature) {
         evaluator.layer = layer;
         evaluator.feature = feature;
         if (!evaluator.evaluate("is_valid($geometry)")) throw new Error("조사대상 도형이 유효하지 않습니다.");
-        var shape = JSON.parse(String(evaluator.evaluate("geom_to_geojson($geometry,17)")));
-        var p = representative(shape);
-        var projected = JSON.parse(String(evaluator.evaluate("geom_to_geojson(transform(make_point(" + p[0] + "," + p[1] + "), @layer_crs, 'EPSG:4326'),17)")));
-        if (!projected || projected.type !== "Point") throw new Error("좌표 변환 결과가 없습니다.");
-        return coordinate(projected.coordinates);
+        var kind = String(evaluator.evaluate("geometry_type($geometry)"));
+        var multipart = Boolean(evaluator.evaluate("is_multipart($geometry)"));
+        var point = kind === "Point" && !multipart ? "$geometry" : "centroid($geometry)";
+        var transformed = "transform(" + point + ", @layer_crs, 'EPSG:4326')";
+        return coordinate([
+            Number(evaluator.evaluate("x(" + transformed + ")")),
+            Number(evaluator.evaluate("y(" + transformed + ")"))
+        ]);
     } catch (error) {
         if (String(error.message || error).indexOf("조사대상") >= 0) throw error;
         throw new Error("조사대상 원본 CRS와 WGS84 좌표 변환을 확인하세요.");

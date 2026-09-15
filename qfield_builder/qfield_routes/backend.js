@@ -14,8 +14,12 @@ function calculate(settings, targets, start, roundtrip, transport) {
     if (settings.backend !== "ors-vroom") return Promise.reject(new Error("지원하지 않는 경로 backend입니다."));
     if (!targets.length) return Promise.reject(new Error("계산할 조사대상을 선택하세요."));
     var locations = [start].concat(targets.map(function(t) { return t.coordinate; }));
-    var base = settings.server_url.replace(/\/$/, "");
-    function post(url, body) { return transport({url: url, method: "POST", body: body, headers: {Authorization: settings.key || "", "Content-Type": "application/json"}, timeout_ms: settings.timeout_ms}); }
+    var base = settings.server_url.replace(/\/+$/, "");
+    function post(url, body) {
+        var headers = {"Content-Type": "application/json"};
+        if (settings.key) headers.Authorization = settings.key;
+        return transport({url: url.replace(/\/+$/, ""), method: "POST", body: body, headers: headers, timeout_ms: settings.timeout_ms});
+    }
     return post(base + "/v2/matrix/" + encodeURIComponent(settings.profile), {locations: locations, metrics: ["duration", "distance"], resolve_locations: true}).then(function(response) {
         var times = matrix(response.durations, locations.length), distances = matrix(response.distances, locations.length);
         if (!Array.isArray(response.sources) || response.sources.length !== locations.length) throw new Error("도로 연결 위치가 누락되었습니다.");

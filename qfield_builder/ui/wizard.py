@@ -2561,9 +2561,35 @@ class ReviewAndBuildPage(QWizardPage):
         self.result_label = QLabel("")
         self.result_label.setWordWrap(True)
 
+        self.route_api_key_edit = QLineEdit()
+        self.route_api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.route_key_warning_label = QLabel(
+            "이 키를 자동 사용하도록 동의하면 생성 프로젝트에 평문으로 포함됩니다. "
+            "프로젝트 폴더에 접근할 수 있는 사람은 누구나 키를 읽고 사용할 수 있으며, "
+            "암호화되지 않습니다. 동의하지 않거나 비워 두면 QField에서 세션마다 직접 입력합니다."
+        )
+        self.route_key_warning_label.setWordWrap(True)
+        self.route_key_consent_checkbox = QCheckBox(
+            "평문 프로젝트 포함 및 QField 자동 사용에 동의합니다"
+        )
+        self.route_key_remember_checkbox = QCheckBox(
+            "이 데스크톱에서 암호화해 기억 (QField 자동 전달과 별도)"
+        )
+        self.registerField("route_api_key", self.route_api_key_edit)
+        self.registerField("route_key_consent", self.route_key_consent_checkbox)
+        self.registerField("route_key_remember", self.route_key_remember_checkbox)
+        route_key_group = QGroupBox("ORS / HeiGIT 경로 API 키")
+        route_key_layout = QFormLayout()
+        route_key_layout.addRow("API 키:", self.route_api_key_edit)
+        route_key_layout.addRow("", self.route_key_warning_label)
+        route_key_layout.addRow(self.route_key_consent_checkbox)
+        route_key_layout.addRow(self.route_key_remember_checkbox)
+        route_key_group.setLayout(route_key_layout)
+
         layout = QVBoxLayout()
         _polish_layout(layout)
         layout.addWidget(_build_logo_banner_label())
+        layout.addWidget(route_key_group)
         layout.addWidget(self.summary_view)
         layout.addWidget(self.build_button)
         layout.addWidget(self.cancel_build_button)
@@ -2644,6 +2670,11 @@ class ReviewAndBuildPage(QWizardPage):
             summary_lines.append(
                 "경고: 생성되는 .qgs 프로젝트 파일에 Pl@ntNet API 키가 프로젝트 변수로 "
                 "포함됩니다. 프로젝트 폴더를 받는 사람은 누구나 이 키를 추출할 수 있습니다."
+            )
+        if wizard.field("route_api_key") and wizard.field("route_key_consent"):
+            summary_lines.append(
+                "경고: ORS / HeiGIT 경로 API 키가 생성 프로젝트에 평문 변수로 포함되어 "
+                "QField에서 자동 사용됩니다. 프로젝트 폴더 접근자는 누구나 읽고 사용할 수 있습니다."
             )
         if wizard.field("basemap_mode") == "offline":
             basemap_page: ConnectivityBasemapPage = wizard.page(3)
@@ -2739,6 +2770,12 @@ class ReviewAndBuildPage(QWizardPage):
                 "consent_accepted": bool(wizard.field("plantnet_consent_accepted")),
                 "remember_key": bool(wizard.field("plantnet_remember_key")),
             }
+
+        config["survey_route"] = {
+            "api_key": (wizard.field("route_api_key") or "").strip(),
+            "consent_accepted": bool(wizard.field("route_key_consent")),
+            "remember_key": bool(wizard.field("route_key_remember")),
+        }
 
         # Only explicit, confirmed local selections enter the build config.
         reference_source = wizard.page(4).canonical_reference_config()
@@ -2934,7 +2971,8 @@ class ReviewAndBuildPage(QWizardPage):
         in the UI process, is the one point this is guaranteed to actually be reachable."""
         wants_vworld_remember = bool(config.get("basemap", {}).get("remember_key"))
         wants_plantnet_remember = bool(config.get("plantnet", {}).get("remember_key"))
-        if not (wants_vworld_remember or wants_plantnet_remember):
+        wants_route_remember = bool(config.get("survey_route", {}).get("remember_key"))
+        if not (wants_vworld_remember or wants_plantnet_remember or wants_route_remember):
             return
         if not credential_store.is_unlocked():
             if not credential_store.is_password_established():
@@ -2946,10 +2984,13 @@ class ReviewAndBuildPage(QWizardPage):
                 credential_store.unlock_session(password)
             except Exception:  # noqa: BLE001 - a failed/declined unlock must never block the build.
                 return
-        self._persist_remembered_keys(config, wants_vworld_remember, wants_plantnet_remember)
+        self._persist_remembered_keys(
+            config, wants_vworld_remember, wants_plantnet_remember, wants_route_remember
+        )
 
     def _persist_remembered_keys(
-        self, config: dict, wants_vworld_remember: bool, wants_plantnet_remember: bool
+        self, config: dict, wants_vworld_remember: bool, wants_plantnet_remember: bool,
+        wants_route_remember: bool,
     ) -> None:
         """Finding 1 fix (reviewer round, D-53/D-55): actually writes a requested "Remember this
         key" key into the encrypted `credentials.enc` store, from this (the UI) process, which
@@ -2972,6 +3013,10 @@ class ReviewAndBuildPage(QWizardPage):
         if wants_plantnet_remember:
             plantnet_key = config.get("plantnet", {}).get("api_key", "")
             if not credential_store.apply_plantnet_retention_policy(plantnet_key, True):
+                self._remember_persist_failed = True
+        if wants_route_remember:
+            route_key = config.get("survey_route", {}).get("api_key", "")
+            if not credential_store.apply_route_retention_policy(route_key, True):
                 self._remember_persist_failed = True
 
     def _on_build_finished(self, result: dict) -> None:

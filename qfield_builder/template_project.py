@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import sqlite3
 import xml.etree.ElementTree as ET
+from xml.sax.saxutils import escape
 from contextlib import closing
 from pathlib import Path
 
@@ -135,6 +136,7 @@ def build_qgis_project(
     mbtiles_relative_path: str | None = None,
     identification_enabled: bool = False,
     plantnet_config: dict | None = None,
+    route_config: dict | None = None,
     svg_relative_path: str | None = None,
     ktsn_lookup_table_name: str | None = None,
     ktsn_taxonomy_table_name: str | None = None,
@@ -315,13 +317,29 @@ def build_qgis_project(
     plantnet_key_embedded = bool(plantnet_config and plantnet_config.get("consent_accepted"))
     if plantnet_key_embedded:
         variables["qpb_plantnet_api_key"] = str(plantnet_config.get("api_key") or "")
+    route_key = str((route_config or {}).get("api_key") or "").strip()
+    route_key_embedded = bool(route_key and (route_config or {}).get("consent_accepted"))
+    if route_key_embedded:
+        variables["fieldbuild_route_api_key"] = route_key
     _set_variables(root, variables)
     Path(qgs_path).parent.mkdir(parents=True, exist_ok=True)
     ET.ElementTree(root).write(qgs_path, encoding="utf-8", xml_declaration=True)
+    if route_key_embedded and "]]>" not in route_key:
+        # QGIS accepts CDATA in QStringList values.  It also keeps the user's
+        # explicit plaintext-project consent literal: readers can see the exact
+        # key rather than only its XML entity representation.
+        path = Path(qgs_path)
+        document = path.read_text(encoding="utf-8")
+        encoded = f"<value>{escape(route_key)}</value></variableValues>"
+        document = document.replace(
+            encoded, f"<value><![CDATA[{route_key}]]></value></variableValues>", 1
+        )
+        path.write_text(document, encoding="utf-8")
     return {
         "online_key_embedded": online_key_embedded,
         "vworld_key_saved": "qpb_vworld_api_key" in variables,
         "plantnet_key_embedded": plantnet_key_embedded,
+        "route_key_embedded": route_key_embedded,
         "probability_raster_registration_count": int(bool(probability_raster_relative_path)),
     }
 

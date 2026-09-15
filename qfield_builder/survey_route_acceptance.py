@@ -11,6 +11,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -30,7 +31,7 @@ def _build(work: Path, **config):
 
 def _node(case, project_dir):
     driver = Path(__file__).resolve().parent.parent / "tests/unit/survey_route_qml_driver.py"
-    proc = subprocess.run([sys.executable, str(driver)], input=json.dumps({"case": case, "project_dir": project_dir}), text=True, encoding="utf-8", capture_output=True, check=False, timeout=45)
+    proc = subprocess.run([sys.executable, str(driver)], input=json.dumps({"case": case, "project_dir": project_dir}), text=True, encoding="utf-8", errors="replace", capture_output=True, check=False, timeout=45)
     if proc.returncode:
         raise RuntimeError(proc.stderr)
     return json.loads(proc.stdout)
@@ -123,10 +124,222 @@ def _output_geometry(result):
     return {"gpkg_path": result["gpkg_path"], "stored_geometries": [json.loads(json.dumps({"type":r.geometry.type,"coordinates":r.geometry.coordinates})) for r in rows], "metadata_matches_storage": all(r.geometry.type.upper()==metadata for r in rows), "project_geometry_type": layer.findtext("wkbType"), "stored_family": rows[0].geometry.type.removeprefix("Multi") if rows else None, "metadata_family": metadata.removeprefix("MULTI").title().replace("Linestring", "LineString"), "project_family": layer.findtext("wkbType").removeprefix("Multi"), "feature_ids": ids, "rtree_ids": tree, "site_ids": [r.properties["site_id"] for r in rows]}
 
 
+def _project_variables(qgs_path):
+    import xml.etree.ElementTree as ET
+    root = ET.parse(qgs_path).getroot()
+    names = [node.text or "" for node in root.findall("./properties/Variables/variableNames/value")]
+    values = [node.text or "" for node in root.findall("./properties/Variables/variableValues/value")]
+    return dict(zip(names, values))
+
+
+def _project_general_settings(qgs_path):
+    import xml.etree.ElementTree as ET
+    properties = ET.parse(qgs_path).getroot().find("./properties")
+    if properties is None:
+        return {}
+    return {
+        child.tag: ET.tostring(child, encoding="unicode")
+        for child in properties
+        if child.tag != "Variables"
+    }
+
+
+def _route_project_settings(project_dir):
+    records = []
+    for path in Path(project_dir).glob("survey-routes.*.json"):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(record, dict) and isinstance(record.get("revision"), int):
+            records.append(record)
+    if not records:
+        return {}
+    return max(records, key=lambda record: record["revision"]).get("data", {}).get("settings", {})
+
+
+def _builder_reports(project_dir, build_result):
+    reports = []
+    seen = set()
+    paths = list(Path(project_dir).glob("*VALIDATION_REPORT*.json")) if Path(project_dir).is_dir() else []
+    report_path = build_result.get("validation_report_path")
+    if report_path:
+        paths.append(Path(report_path))
+    for path in paths:
+        try:
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            reports.append(json.loads(path.read_text(encoding="utf-8")))
+            seen.add(resolved)
+        except (OSError, ValueError):
+            continue
+    if build_result.get("validation_report") and not reports:
+        reports.append(build_result["validation_report"])
+    return reports
+
+
+def _builder_route_key(case, work):
+    global _APP
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication, QLineEdit
+    from . import credential_store
+    from .ui.wizard import ProjectBuilderWizard, compute_final_output_dir
+
+    _APP = QApplication.instance() or QApplication([])
+    store_dir = work / ("credentials-" + uuid.uuid4().hex[:8])
+    previous_store = os.environ.get(credential_store._APP_DATA_DIR_ENV_OVERRIDE)
+    os.environ[credential_store._APP_DATA_DIR_ENV_OVERRIDE] = str(store_dir)
+    credential_store.lock_session()
+    credential_store.set_session_route_key(None)
+    wizard = None
+    try:
+        key = str(case.get("input_key") or "")
+        remember = bool(case.get("remember"))
+        if remember:
+            credential_store.establish_password("acceptance-only-password")
+        wizard = ProjectBuilderWizard()
+        display_name = "Synthetic route key " + uuid.uuid4().hex[:8]
+        output_parent = work
+        if case.get("outcome") == "generation_failure":
+            output_parent = work / ("blocked-parent-" + uuid.uuid4().hex[:8])
+            output_parent.write_text("builder storage fault", encoding="utf-8")
+        wizard.setField("project_display_name", display_name)
+        wizard.setField("output_dir", str(output_parent))
+        survey_page = wizard.page(1)
+        for radio in survey_page.radio_buttons:
+            if radio.property("survey_type_value") == "temporary_plots":
+                radio.setChecked(True)
+                break
+        page = wizard.page(6)
+        page.route_api_key_edit.setText(key)
+        page.route_key_consent_checkbox.setChecked(bool(case.get("consent")))
+        page.route_key_remember_checkbox.setChecked(remember)
+        warning = page.route_key_warning_label.text()
+        project_dir = Path(compute_final_output_dir(str(output_parent), display_name))
+        observed_results = []
+        progress = []
+        real_finished = page._on_build_finished
+        real_progress = page._on_build_progress
+
+        def observe_finished(result):
+            observed_results.append(json.loads(json.dumps(result)))
+            real_finished(result)
+
+        def observe_progress(update):
+            progress.append(json.loads(json.dumps(update)))
+            real_progress(update)
+
+        page._on_build_finished = observe_finished
+        page._on_build_progress = observe_progress
+        page.build_button.click()
+        worker = page._worker_thread
+        if case.get("outcome") == "cancel" and worker is not None:
+            page.cancel_build_button.click()
+        deadline = time.monotonic() + 120
+        while worker is not None and (worker.isRunning() or not observed_results):
+            _APP.processEvents()
+            if time.monotonic() > deadline:
+                worker.cancel()
+                worker.wait(5000)
+                raise RuntimeError("builder route-key action did not settle")
+            time.sleep(0.005)
+        _APP.processEvents()
+        built = observed_results[-1] if observed_results else {
+            "success": False,
+            "cancelled": False,
+            "error_code": "builder_not_started",
+            "error_message": page.result_label.text(),
+        }
+        qgs_candidates = list(project_dir.glob("*.qgs")) if project_dir.is_dir() else []
+        qgs_path = Path(built.get("qgs_path") or (qgs_candidates[0] if qgs_candidates else project_dir / "unpublished.qgs"))
+        published = bool(page.isComplete() and qgs_path.is_file())
+        variables = _project_variables(qgs_path) if published else {}
+        general_settings = _project_general_settings(qgs_path) if published else {}
+        routed = {}
+        if published:
+            node_case = {"operation": "route_key_availability", "scope": "all", "survey_type": "temporary_plots"}
+            if case.get("calculate_after_build"):
+                node_case["operation"] = "calculate"
+                if variables.get("fieldbuild_route_api_key"):
+                    node_case["use_project_key"] = True
+                else:
+                    node_case["key"] = str(case.get("manual_session_key") or "")
+                    node_case["restart_after_calculate"] = True
+            routed = _node(node_case, str(project_dir))
+        requests = routed.get("requests", [])
+        manual_key = str(case.get("manual_session_key") or "")
+        project_key = variables.get("fieldbuild_route_api_key", "")
+        expected_transport_key = project_key or manual_key
+        authorization_values = [request.get("headers", {}).get("Authorization") for request in requests]
+        transport_key_present = bool(requests) and bool(expected_transport_key) and all(
+            value == expected_transport_key for value in authorization_values
+        )
+        if transport_key_present and project_key:
+            qfield_key_source = "project_variable"
+        elif transport_key_present and manual_key:
+            qfield_key_source = "session"
+        else:
+            qfield_key_source = None
+        credential_path = credential_store.credentials_file_path()
+        remembered = bool(
+            remember and credential_path.is_file()
+            and credential_store.get_remembered_route_key() == key.strip()
+        )
+        qfield_credential_copies = list(project_dir.rglob("credentials.enc")) if published else []
+        route_key_input = routed.get("route_key_input", {})
+        result = {
+            "key_input_echo_mode": "password" if page.route_api_key_edit.echoMode() == QLineEdit.EchoMode.Password else str(page.route_api_key_edit.echoMode()),
+            "consent_required": bool(key and page.route_key_consent_checkbox.isEnabled()),
+            "warning_disclosures": {
+                "plaintext_project": "평문" in warning,
+                "folder_access_can_read_and_use": all(word in warning for word in ("프로젝트 폴더", "읽고 사용할")),
+                "not_encrypted": "암호화되지 않습니다" in warning,
+                "qfield_automatic_use": all(word in (warning + page.route_key_consent_checkbox.text()) for word in ("QField", "자동 사용")),
+            },
+            "project_published": published,
+            "project_dir": str(project_dir),
+            "qgs_path": str(qgs_path),
+            "project_variables": variables,
+            "general_settings": general_settings,
+            "persisted_settings": _route_project_settings(project_dir) if published else {},
+            "logs": {"builder_progress": progress, "builder_message": page.result_label.text(), "route_runtime": routed.get("logs", "")},
+            "errors": [] if published else [value for value in (built.get("error_code"), built.get("error_message")) if value],
+            "reports": _builder_reports(project_dir, built),
+            "message": routed.get("message", ""),
+            "qml_errors": routed.get("qml_errors", []),
+            "requests": requests,
+            "transport_key_present": transport_key_present,
+            "qfield_key_source": qfield_key_source,
+            "manual_session_available": bool(route_key_input.get("available") and route_key_input.get("enabled") and route_key_input.get("password_echo")),
+            "session_key_present_after_restart": bool(routed.get("session_key_present_after_restart")),
+            "desktop_credential_store": str(credential_path),
+            "remembered_key_available_to_qfield": bool(remembered and qfield_credential_copies),
+        }
+        return result
+    finally:
+        if wizard is not None:
+            page = wizard.page(6)
+            worker = page._worker_thread if page is not None else None
+            if worker is not None and worker.isRunning():
+                worker.cancel()
+                worker.wait(5000)
+            wizard.deleteLater()
+            _APP.processEvents()
+        credential_store.lock_session()
+        credential_store.set_session_route_key(None)
+        if previous_store is None:
+            os.environ.pop(credential_store._APP_DATA_DIR_ENV_OVERRIDE, None)
+        else:
+            os.environ[credential_store._APP_DATA_DIR_ENV_OVERRIDE] = previous_store
+
+
 def run(*, case: dict, work_dir: str):
     work = Path(work_dir)
     work.mkdir(parents=True, exist_ok=True)
     op = case["operation"]
+    if op == "builder_route_key":
+        return _builder_route_key(case, work)
     if op in {"draw", "direct_build"}:
         actual = dict(case)
         if op == "direct_build":
@@ -171,24 +384,29 @@ def run(*, case: dict, work_dir: str):
         return {"ok":result["success"],"message":result["error_message"] or "", "requests":[],"published_features":[] if not result["success"] else _output_geometry(result)["stored_geometries"]}
     if op == "representative":
         result = _build(work)
-        module = Path(result["project_dir"])/"qfield_routes/geometry.js"
-        script = r'''const vm=require('vm'),fs=require('fs'),cp=require('child_process');let input=JSON.parse(fs.readFileSync(0,'utf8'));let g={};vm.createContext(g);vm.runInContext(fs.readFileSync(input.module,'utf8'),g);let evaluator={evaluate:s=>{if(s==='is_valid($geometry)')return true;if(s==='geom_to_geojson($geometry,17)')return JSON.stringify(input.shape);const m=s.match(/make_point\(([^,]+),([^\)]+)\)/);let p=cp.spawnSync(input.python,['-c',"from rasterio.warp import transform;import sys,json;x,y=transform(sys.argv[1],'EPSG:4326',[float(sys.argv[2])],[float(sys.argv[3])]);print(json.dumps({'type':'Point','coordinates':[x[0],y[0]]}))",input.crs,m[1],m[2]],{encoding:'utf8'});if(p.status)throw Error(p.stderr);return p.stdout;}};process.stdout.write(JSON.stringify(g.featurePoint(evaluator,{},{})));'''
-        payload={"module":str(module),"shape":_geojson(case["wkt"]),"python":sys.executable,"crs":case["crs"]}
-        proc=subprocess.run(["node","-e",script],input=json.dumps(payload),text=True,encoding="utf-8",capture_output=True)
-        if proc.returncode: raise RuntimeError(proc.stderr)
         original=work/"representative-source.wkt"
         original.write_text(case["wkt"],encoding="utf-8")
         before=original.read_bytes()
-        coordinate=json.loads(proc.stdout)
-        route_result=_node({"operation":"calculate","features":[{"id":"source","name":"원본","xy":coordinate}]},result["project_dir"])
-        matrix_request=next(r for r in route_result["requests"] if "locations" in r["body"])
-        return {"coordinate":coordinate,"request_coordinate":matrix_request["body"]["locations"][1],"original_before":before,"original_after":original.read_bytes()}
+        route_result=_node({"operation":"generated_geometry_calculate","wkt":case["wkt"],"crs":case["crs"]},result["project_dir"])
+        coordinate=route_result["request_coordinate"]
+        return {"coordinate":coordinate,"request_coordinate":coordinate,"original_before":before,"original_after":original.read_bytes()}
     if op == "generate_plugin":
         result = _build(work, identification_enabled=True)
         observed = _qml_probe(result, work)
         observed["project_dir"] = result["project_dir"]
         observed["loaded_features"] = set(observed.get("loaded_features", []))
         observed["asset_paths"] = [str(p.relative_to(result["project_dir"])) for p in Path(result["project_dir"]).rglob("*") if p.is_file() and p.suffix in (".qml", ".js", ".svg")]
+        return observed
+    if op == "generated_geometry_calculate":
+        # The generated project supplies the production QML/JS.  The QField-shaped
+        # driver supplies the source feature and layer CRS so projected fixtures do
+        # not get written into the builder's fixed WGS84 site store.
+        result = _build(work)
+        gpkg = Path(result["gpkg_path"])
+        before = gpkg.read_bytes()
+        observed = _node(case, result["project_dir"])
+        observed["original_before"] = before.hex()
+        observed["original_after"] = gpkg.read_bytes().hex()
         return observed
     if op == "regression":
         return _regression(case, work)
@@ -198,7 +416,7 @@ def run(*, case: dict, work_dir: str):
 
 def _qml_probe(result, work, widget_source=None):
     driver = Path(__file__).resolve().parent.parent / "tests/unit/survey_route_qml_probe.py"
-    proc = subprocess.run([sys.executable, str(driver)], input=json.dumps({"project_dir":result["project_dir"],"qml_path":str(Path(result["qgs_path"]).with_suffix(".qml")),"work_dir":str(work),"widget_source":widget_source}), text=True,encoding="utf-8",capture_output=True,timeout=45)
+    proc = subprocess.run([sys.executable, str(driver)], input=json.dumps({"project_dir":result["project_dir"],"qml_path":str(Path(result["qgs_path"]).with_suffix(".qml")),"work_dir":str(work),"widget_source":widget_source}), text=True,encoding="utf-8",errors="replace",capture_output=True,timeout=45)
     if proc.returncode:raise RuntimeError(proc.stderr)
     return json.loads(proc.stdout)
 

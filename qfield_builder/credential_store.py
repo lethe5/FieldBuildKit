@@ -55,6 +55,7 @@ _VERIFIER_PLAINTEXT = b"fieldbuild-standalone-credential-store-verifier-v1"
 
 _VWORLD_FIELD = "vworld_api_key"
 _PLANTNET_FIELD = "plantnet_api_key"
+_ROUTE_FIELD = "route_api_key"
 
 
 class CredentialStoreError(Exception):
@@ -89,6 +90,7 @@ _unlocked_fernet_key: bytes | None = None
 
 _session_key: str | None = None
 _plantnet_session_key: str | None = None
+_route_session_key: str | None = None
 
 
 # ---------------------------------------------------------------------------------------------
@@ -424,4 +426,33 @@ def apply_plantnet_retention_policy(api_key: str, remember: bool) -> bool:
         remember_plantnet_key(api_key)
         return True
     except Exception:  # noqa: BLE001 - a credential-store failure must not block the build
+        return False
+
+
+def remember_route_key(api_key: str) -> None:
+    _remember_field(_ROUTE_FIELD, api_key)
+
+
+def get_remembered_route_key() -> str | None:
+    return _get_field(_ROUTE_FIELD)
+
+
+def set_session_route_key(api_key: str | None) -> None:
+    global _route_session_key
+    _route_session_key = api_key
+
+
+def get_session_route_key() -> str | None:
+    return _route_session_key
+
+
+def apply_route_retention_policy(api_key: str, remember: bool) -> bool:
+    api_key = api_key.strip()
+    set_session_route_key(api_key)
+    if not remember:
+        return True
+    try:
+        remember_route_key(api_key)
+        return True
+    except Exception:  # noqa: BLE001 - remembering is optional and must not block a build
         return False

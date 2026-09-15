@@ -100,6 +100,9 @@ controls=[]
 for token,label in [('targets','대상 레이어 이름 / ID'),('settings','서버 설정 저장 (키 제외)'),('results','결과 없음'),('save','계산 결과 저장'),('load','저장 경로 불러오기')]:
     if label in texts or (panel and any(child.property('placeholderText')==label for child in panel.findChildren(QObject))):controls.append(token)
 result={'loaded_features':sorted(loaded),'qml_errors':messages,'runtime':'PySide6 Qt QML with injected QField host types; not native QField','panel':{'edge':'bottom' if panel and abs(panel.y()+collapsed-window.contentItem().height())<1 else None,'collapsed_rows':1 if collapsed==44 else None,'controls':controls}}
+if panel:
+    result['mapping_defaults']={name:panel.findChild(QObject,object_name).property('text') for name,object_name in (
+        ('layer','layerEdit'),('id','idEdit'),('name','nameEdit'))}
 # Edge observation must precede expansion; anchors continue to follow the bottom after it.
 if panel and abs(panel.y()+panel.height()-window.contentItem().height())<1:result['panel']['edge']='bottom'
 if payload.get('widget_source'):
@@ -114,4 +117,4 @@ if payload.get('widget_source'):
         result['widget_errors']=[value.toString()] if value.isError() else []
         candidates=widget.property('qpbCandidatesModel').toVariant()
         result['identification_candidate']=candidates[0] if candidates else None
-print(json.dumps(result,ensure_ascii=False))
+print(json.dumps(result,ensure_ascii=True))
