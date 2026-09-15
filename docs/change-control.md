@@ -164,18 +164,35 @@ artifact approvals and separate checkpoints; local commits/merges use the existi
 authorization without a second per-commit approval request. Pushes require explicit per-push
 authorization.
 
-## Active Category B case: survey-route provider contract (2026-09-14)
+## Approved Category B/C case: survey-route provider contract (2026-09-14~15)
 
 The approved route baseline (`e382c77`) and acceptance checkpoint (`ed8ac81`) remain in force.
 Uncommitted implementation attempt 2 exposed two direct contract conflicts and several default
 omissions: VROOM 1.14 numeric arrival seconds versus AC-SRP-007 ISO fixtures; registered production
 providers versus AC-SRP-013's unknown backend token; and incomplete representative-point,
-completion, Type 1, road-offset, portable-settings and persistence-format rules.
+completion, Type 1, road-offset, portable-settings and persistence-format rules. A later source
+inspection also found the deprecated `api.openrouteservice.org` routing default and an empty
+optimizer default. The current official service paths require a routing base that resolves to
+`api.heigit.org/openrouteservice/v2/...` and the complete VROOM endpoint
+`https://api.heigit.org/vroom/v0`, while preserving explicit custom/self-hosted configuration.
 
-The spec-writer route is a DRAFT update to
-`specs/survey-route-planner.md` D-SRP-008–013 and existing FR/AC IDs. It changes no application or
-acceptance file. User approval of that concrete artifact is the next gate. Only afterward may a
-fresh test-designer revise AC-SRP-007/AC-SRP-013 tests and the other affected traceability/default
+The spec-writer route updated
+`specs/survey-route-planner.md` D-SRP-008–013 and D-SRP-015–019 with existing and additive FR/AC IDs.
+The same slice records: a Category A false-CRS rejection against FR-SRP-017; a Category C masked
+builder route-key input; Category B/D scope and completion-field help; and Category D full-width
+panel fields. On 2026-09-15 the user approved the specification and resolved O-SRP-007 in favor of
+an explicit warning and consent followed by plaintext key embedding in the generated project for
+automatic QField use. Anyone with the project folder can read and use that key; the artifact does
+not claim encryption. A user who declines may leave the key blank and enter it manually for each
+QField session. In all paths the key remains excluded from logs, errors, reports, URLs, query
+parameters and request bodies. This reconciliation changes no application or acceptance file. A
+fresh test-designer must revise AC-SRP-007/AC-SRP-013 tests and the other affected traceability/default
 coverage for separate approval. The uncommitted attempt, its 104 passed/2 contract-failing/12
 skipped result and automated double-JSON checks are implementation evidence, not requirement
 authority, native QField proof or final PASS.
+
+The official 2026-04-28 notice originally scheduled `api.openrouteservice.org` shut-off for
+2026-08-24. Its 2026-08-27 follow-up says the host was not shut down immediately, reduced its quota
+to 10%, and moved shut-off to 2026-09-28. The specification records both notices and treats the host
+as deprecated regardless of temporary reachability; this avoids turning a changing external
+timeline into fallback behavior.
