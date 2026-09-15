@@ -80,6 +80,17 @@ def test_vroom_numeric_arrival_persists_and_is_disclosed(tmp_path):
     assert r['availability']['eta'] is True
 
 
+def test_reopened_saved_road_overlay_fills_map_canvas(tmp_path):
+    road={'type':'LineString','coordinates':[[127,37],[127.001,37.003],[127.002,37]]}
+    r=run(case={'operation':'reopen_navigate','road_geometry':road,'destination':[127.123,37.456],
+                'name':'조사지','launch_result':True},work_dir=str(tmp_path))
+    assert r['rendered_geometry']==road
+    overlay=r['road_overlay']
+    assert overlay['parent_is_canvas'] is True and overlay['visible'] is True
+    assert overlay['width']==overlay['canvas_width']==640
+    assert overlay['height']==overlay['canvas_height']==480
+
+
 def test_remaining_with_completed_stops_drops_partial_eta_and_roundtrips(tmp_path):
     features=[{'id':str(i),'name':'조사지 '+str(i),'xy':[127+i/1000,37]} for i in range(12)]
     r=run(case={'operation':'remaining','features':features,'completed_ids':['0','1','2','3'],

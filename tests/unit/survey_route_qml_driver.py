@@ -198,7 +198,7 @@ def js(code):
 engine.globalObject().setProperty('boundaryHost',engine.newQObject(boundary))
 js('var hostLayers='+json.dumps(layers)+';var qgisProject={mapLayer:function(id){return hostLayers.find(function(l){return l.id===id})||null},mapLayersByName:function(name){return hostLayers.filter(function(l){return l.name===name})}};var device={};')
 engine.rootContext().setContextProperty('qgisProject',js('qgisProject'))
-canvas_component=QQmlComponent(engine);canvas_component.setData(b'import QtQuick\nItem {property var mapSettings}',QUrl());host_canvas=canvas_component.create();host_canvas.setParentItem(window.contentItem());engine.globalObject().setProperty('hostCanvas',engine.newQObject(host_canvas))
+canvas_component=QQmlComponent(engine);canvas_component.setData(b'import QtQuick\nItem {property var mapSettings}',QUrl());host_canvas=canvas_component.create();host_canvas.setParentItem(window.contentItem());host_canvas.setWidth(640);host_canvas.setHeight(480);engine.globalObject().setProperty('hostCanvas',engine.newQObject(host_canvas))
 class Iface(QObject):
     @Slot(str,result='QVariant')
     def findItemByObjectName(self,name):
@@ -421,6 +421,7 @@ def main():
         result['next_after']=json.loads(val('p.controller.next()'))['site_id']
     elif op=='reopen_navigate':
         calculate();save('도로선');open_panel();requests.clear();provider_dispatches.clear();transport_dispatches.clear();result['rendered_geometry']=json.loads(val('p.roadItem.storedGeometry'))
+        result['road_overlay']=json.loads(val('({parent_is_canvas:p.roadItem.parent===device.canvas,width:p.roadItem.width,height:p.roadItem.height,canvas_width:device.canvas.width,canvas_height:device.canvas.height,visible:p.roadItem.visible})'))
         # Navigation target is an external OS test input; production navigation remains intact.
         js('p.controller.navigate('+json.dumps({'coordinate':case['destination'],'name':case['name'],'site_id':'nav'})+')');drain();result['launched_url']=launched[-1];result['navigation_message']=str(panel.property('message'));result['destination_app_success_claimed']=bool(re.search(r'(목적지|안내|도착).*(성공|완료)',result['navigation_message']))
     elif op=='storage_fault':

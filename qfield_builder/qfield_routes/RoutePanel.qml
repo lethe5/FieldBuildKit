@@ -48,6 +48,7 @@ Rectangle {
     Component {
         id: roadFactory
         QfLinePolygon {
+            anchors.fill: parent
             property var storedGeometry: null
             mapSettings: panel.canvas.mapSettings
             geometry: QfGeometryWrapper { qgsGeometry: storedGeometry; crs: panel.canvas.mapSettings.destinationCrs }
