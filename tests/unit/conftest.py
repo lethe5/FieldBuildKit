@@ -130,7 +130,8 @@ def _isolate_credential_store(monkeypatch: pytest.MonkeyPatch, tmp_path):
     This autouse fixture points `credential_store.app_data_dir()`/`legacy_app_data_dir()` at
     fresh, test-owned `tmp_path` subdirectories instead, so every `credential_store` function
     (`is_password_established`, `establish_password`, `unlock_session`,
-    `remember_key`/`get_remembered_key`/`forget_remembered_key`, their Pl@ntNet mirrors, and
+    `remember_key`/`get_remembered_key`/`forget_remembered_key`, their Pl@ntNet and route-key
+    mirrors, and
     `migrate_legacy_credentials`) runs its real, unmodified implementation against isolated,
     empty-by-default directories -- never the real ones. It also resets this module's own
     process-lifetime ("this application session") state -- the cached unlocked derived key and
@@ -154,7 +155,9 @@ def _isolate_credential_store(monkeypatch: pytest.MonkeyPatch, tmp_path):
     credential_store_module.lock_session()
     credential_store_module.set_session_key(None)
     credential_store_module.set_session_plantnet_key(None)
+    credential_store_module.set_session_route_key(None)
     yield
     credential_store_module.lock_session()
     credential_store_module.set_session_key(None)
     credential_store_module.set_session_plantnet_key(None)
+    credential_store_module.set_session_route_key(None)

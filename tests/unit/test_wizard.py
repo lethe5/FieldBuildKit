@@ -2346,6 +2346,46 @@ def test_identification_page_wrong_password_at_unlock_prompt_leaves_field_empty_
 
 
 # ---------------------------------------------------------------------------------------------
+# AC-SRP-019: a route key selected for encrypted desktop retention must be restored on the next
+# application session, just like the existing VWorld and Pl@ntNet remembered-key flows.
+# ---------------------------------------------------------------------------------------------
+
+
+def test_review_page_reloads_remembered_route_key_on_next_session(tmp_path, monkeypatch):
+    synthetic_key = "SYNTHETIC-ROUTE-KEY"
+    synthetic_password = "synthetic-encryption-password"  # noqa: S105
+    credential_store_module.establish_password(synthetic_password)
+
+    first_wizard = _make_wizard_with_fields(tmp_path, monkeypatch)
+    first_page: ReviewAndBuildPage = first_wizard.page(6)
+    first_page.route_api_key_edit.setText(synthetic_key)
+    first_page.route_key_remember_checkbox.setChecked(True)
+    first_page._maybe_unlock_for_remembering(first_page._collect_config())
+    assert credential_store_module.get_remembered_route_key() == synthetic_key
+    assert (
+        synthetic_key.encode()
+        not in credential_store_module.credentials_file_path().read_bytes()
+    )
+
+    credential_store_module.lock_session()  # Simulate closing and reopening the application.
+    prompt_calls = []
+
+    def _unlock_prompt(_parent=None):
+        prompt_calls.append(True)
+        return synthetic_password
+
+    second_wizard = _make_wizard_with_fields(tmp_path, monkeypatch)
+    second_page: ReviewAndBuildPage = second_wizard.page(6)
+    second_page._password_prompt_fn = _unlock_prompt
+    second_page.initializePage()
+
+    assert prompt_calls == [True]
+    assert second_page.route_api_key_edit.text() == synthetic_key
+    assert second_page.route_key_remember_checkbox.isChecked()
+    assert second_page.route_api_key_edit.echoMode() == QLineEdit.EchoMode.Password
+
+
+# ---------------------------------------------------------------------------------------------
 # 12c. NFR-QPB-073: the "remember new key" store-time unlock prompt
 #      (`ReviewAndBuildPage._maybe_unlock_for_remembering`) -- the point at which a *newly*
 #      checked "Remember this key" request is actually about to be encrypted and persisted, for

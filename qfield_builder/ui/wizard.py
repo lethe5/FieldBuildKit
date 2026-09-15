@@ -2620,6 +2620,7 @@ class ReviewAndBuildPage(QWizardPage):
         )
 
     def initializePage(self) -> None:
+        self._load_remembered_route_key()
         wizard = self.wizard()
         final_output_dir = compute_final_output_dir(
             wizard.field("output_dir"), wizard.field("project_display_name")
@@ -2701,6 +2702,42 @@ class ReviewAndBuildPage(QWizardPage):
             "마세요(README_TRANSFER_KO.md 참고)."
         )
         self.summary_view.setPlainText("\n".join(summary_lines))
+
+    def _load_remembered_route_key(self) -> None:
+        """Reload an encrypted desktop-only route key at its point of use."""
+        self.route_key_remember_checkbox.setEnabled(
+            credential_store.is_password_established()
+        )
+        if not self.route_key_remember_checkbox.isEnabled():
+            self.route_key_remember_checkbox.setToolTip(
+                "암호화 저장 비밀번호가 설정되지 않아 사용할 수 없습니다."
+            )
+
+        try:
+            saved_key = credential_store.get_remembered_route_key()
+        except credential_store.CredentialStoreLockedError:
+            password = self._password_prompt_fn(self)
+            if password is None:
+                return
+            try:
+                credential_store.unlock_session(password)
+            except credential_store.CredentialDecryptionError:
+                self.result_label.setText(
+                    "비밀번호가 올바르지 않아 저장된 경로 API 키를 불러올 수 없습니다. "
+                    "API 키를 직접 입력해야 합니다."
+                )
+                return
+            except Exception:  # noqa: BLE001 - must never block the wizard.
+                return
+            try:
+                saved_key = credential_store.get_remembered_route_key()
+            except Exception:  # noqa: BLE001 - store failure must not block the wizard.
+                saved_key = None
+        except Exception:  # noqa: BLE001 - store failure must not block the wizard.
+            saved_key = None
+        if saved_key:
+            self.route_api_key_edit.setText(saved_key)
+            self.route_key_remember_checkbox.setChecked(True)
 
     def _symbol_styling_summary_ko(self, wizard) -> str:
         """FR-QPB-040's review-screen "schema summary" -- a short, human-readable restatement of
