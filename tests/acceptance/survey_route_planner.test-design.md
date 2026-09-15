@@ -1,8 +1,8 @@
 # Survey Route Planner — acceptance test design reconciliation
 
-> **DRAFT — 2026-09-14. Pending explicit user approval of these reconciled acceptance artifacts.**
-> Input: approved Category B clarification in `specs/survey-route-planner.md` at checkpoint
-> `3b08820`, plus current shared docs and integrated spec. The acceptance checkpoint `ed8ac81`
+> **DRAFT — 2026-09-15. Pending explicit user approval of these reconciled acceptance artifacts.**
+> Input: approved service, key, CRS-defect and usability specification in
+> `specs/survey-route-planner.md` at checkpoint `bd625d6`, plus current shared docs and integrated spec. The acceptance checkpoint `ed8ac81`
 > remains the approved baseline. This stage authors tests, not implementation or product PASS.
 
 ## Current authority and scope
@@ -14,7 +14,7 @@ requirements in inherited tests do not govern new route tests. Existing evidence
 No application implementation/resource files or prior role transcripts were read for this design.
 
 The approved `ed8ac81` suite remains the historical baseline. This draft changes only expectations
-affected by D-SRP-008–013 and the listed existing FR/AC. No historical PASS, device result or
+affected by D-SRP-008–013 and D-SRP-015–019 with their listed FR/AC. No historical PASS, device result or
 approval is deleted or reinterpreted. Existing acceptance files with pre-route polygon-only
 assumptions remain historical; do not silently weaken them. D-SRP-002 supersedes only the site
 geometry restriction, not plot/community/observation semantics.
@@ -26,6 +26,7 @@ Tests: `survey_route_planner/test_survey_route_planner.py`; contract:
 runs production actions with synthetic external-boundary inputs. Tests assert captured HTTP/
 provider calls, detached and independently reopened storage snapshots, real portable files,
 Fiona/SQLite geometry and GPKG metadata/rtree, actual generated panel/button/timer/UI diagnostics,
+strict QField-shaped expression-evaluator calls, rendered layout screenshots, builder key UI,
 and generated report data. The harness must not copy case values, invent observations or recompute
 product state. This is a contract suite, not a separate implementation of routing or storage.
 Adapter implementation is a later role.
@@ -61,11 +62,21 @@ No real network requests or purchased keys are needed for this stage.
   data, stale-writer rejection and unpublished partial candidate through real storage fault seams.
   Server and optimizer URLs, registered backend, profile, timeout, 50 m road offset, default start
   and target mapping move with the folder. The session key does not.
+- Fresh registered `ors-vroom` projects dispatch matrix and directions to
+  `https://api.heigit.org/openrouteservice/v2/...` and POST optimization directly to
+  `https://api.heigit.org/vroom/v0`. Requests never append `/post` or use the deprecated host.
+  Trailing slashes normalize once. Exact legacy routing and missing/empty/exact legacy optimizer
+  values migrate independently; lookalike and mixed custom/self-hosted values remain unchanged.
+  Nonempty project/session keys appear only in the three selected requests' `Authorization`
+  headers. Hosted defaults reject blank keys before transport; custom/self-hosted endpoints allow
+  keyless requests and omit the header.
 - 8 stops with 2 completed through a configured Boolean field and, separately, through route-local
   storage when no field is mapped; next is the lowest incomplete sequence after immediate refresh
   and restart. 12 with 4 complete produces GPS
   plus exactly 8 remaining jobs. Preview/failure cannot change saved state; save increases revision
   and preserves route identity/completed records. All complete produces no backend request.
+  Inline help states the strict Boolean and blank-mapping route-local meanings. Read-only and
+  incompatible-field writes fail visibly and preserve source, saved route, active route and next.
 - Real SHP, ZIP and GPKG fixtures × Point/LineString/Polygon/MultiPoint/MultiLineString/MultiPolygon.
   Two named records each; actual source files remain unchanged; reread output feature count,
   topology/parts, unique IDs, metadata, rtree count, integrity and project geometry. Additional
@@ -83,6 +94,13 @@ No real network requests or purchased keys are needed for this stage.
   coordinate and is reprojected when needed. The other five types always use their source-CRS
   centroid before transformation. Missing/invalid CRS and transformation failure reject the
   candidate, preserve the active saved route and issue no request.
+- The same 12 valid type/CRS cases are generated as actual FieldBuild Kit project layers and then
+  calculated through the unchanged generated route QML. Its mock is limited to QField's documented
+  `QfExpressionEvaluator` surface: exact writable context properties plus `evaluate()` and
+  `evaluate(text)`, with dynamic properties rejected. The trace must set feature/layer/project,
+  use supported centroid → transform → x/y expressions, and never execute the unsupported
+  `geom_to_geojson` function that reproduced the false generic CRS message. This is a QField-shaped
+  runtime contract, not native QField proof.
 - Naver Korean destination name contains `&/#?`; parse exact URL and assert longitude, latitude,
   decoded destination and no fragment. Launcher refusal needs a visible error; successful OS
   dispatch must not imply arrival or Naver internal acceptance.
@@ -95,6 +113,16 @@ No real network requests or purchased keys are needed for this stage.
   data and full logs.
   Passive operations count *all queued routing requests* after setup, including delayed tasks.
   Existing basemap traffic is isolated, not confused with routing API calls.
+- Builder tests drive the real masked key input. A nonblank value requires a warning that names
+  plaintext project storage, folder-reader access/use, lack of encryption and QField automatic use.
+  Consent permits exactly one plaintext project variable location and proves automatic header use.
+  Decline and blank builds contain no key and accept a session-only key that disappears on restart.
+  Cancel/build-failure paths publish no project. Logs, errors, reports, URLs, query, bodies and
+  general settings never contain the key; optional desktop remember remains `credentials.enc` and
+  is not QField delivery.
+- Narrow (320 px) and wide (1024 px) generated panels are loaded and rendered. Measured fields fill
+  the common content rectangle, same-row fields split it evenly, labels/help/errors align and wrap,
+  and neither viewport has horizontal overflow. Screenshots are test evidence, not device evidence.
 - Regression: four survey types × no reference/fictional reference; retain UUID/relations and
   non-site geometries, execute report and identification paths after relocation, enforce no
   fabricated non-point report coordinates and conditional KTSN. No real private workbook.
@@ -104,9 +132,11 @@ No real network requests or purchased keys are needed for this stage.
 | Item | Treatment without weakening invariant requirements |
 | --- | --- |
 | O-SRP-002 provider/QField API/version/profile support | Registered initial `ors-vroom` wire behavior is tested at intercepted transport boundaries; actual service and each device version still need verification. No real service call or optimum claim. |
-| O-SRP-003 source CRS centroid order/MultiPoint | Resolved at `3b08820`. All 12 type/CRS numerical cases run unconditionally; no test-side policy switch exists. |
+| O-SRP-003 source CRS centroid order/MultiPoint | Resolved at `bd625d6`. All 12 type/CRS numerical cases and all 12 generated-QML cases run unconditionally; no test-side policy switch exists. |
 | O-SRP-004 storage mechanism | Assert restart/move/integrity/atomic publication and revision semantics independently of file format. Actual QField file API and recovery feasibility are unverified. |
-| O-SRP-005 completion/Type 1/offset/settings | Resolved at `3b08820`: strict Boolean completion, Type 1 explicit mapping, 1000 m default, project-local non-secrets and session-only key are acceptance gates. |
+| O-SRP-005 completion/Type 1/offset/settings | Resolved at `bd625d6`: strict Boolean completion, Type 1 explicit mapping, 1000 m default and project-local non-secrets are acceptance gates. |
+| O-SRP-006 hosted endpoints/migration/auth | Resolved at `bd625d6`: current HeiGIT defaults, exact legacy migration, custom preservation and request-header-only authentication are executable gates. |
+| O-SRP-007 generated-project key | Resolved at `bd625d6`: explicit plaintext consent permits one generated project variable; decline/blank stays manual-session only. |
 | Candidate Z/M and GeometryCollection policy | XY and polygon holes covered; Z candidate exercised. M and polygon-bearing GeometryCollection need fixtures once normalization policy is fixed; preserving prior compatible behavior remains required. |
 | Zero input and missing mapping | Zero selected, no remaining and invalid IDs covered. Type 1 without explicit layer/ID/name mapping fails before transport. |
 | Generated QML and desktop UI | Adapter executes actual generated logic and real widgets. Native QField import compatibility, touchscreen layout and OS navigation need manual evidence. |
@@ -123,10 +153,10 @@ operation per AGENTS.md; automated sidecar checks never substitute for this evid
 
 | Case | Steps and expected result | AC |
 | --- | --- | --- |
-| M01 | Move generated folder to device, permit plugin, verify report/identify and bottom single-row name/completion panel. Expand/collapse while manipulating map. Select 0/1/N, focus unselected row, verify site defaults, configure Type 1 layer/ID/name and omit it once. Lists follow actual selection; zero and missing Type 1 mapping are clearly blocked. | 001–003,013 |
-| M02 | Disable GNSS, calculate and see actionable failure. Enable valid GPS; test map/target/saved departure after reopen, default return. Configure real `ors-vroom` with user-entered key and chosen time/distance profile, calculate a small known road detour/asymmetric route, compare provider jobs/units/order/road response and numeric relative ETA. Capture redacted provider evidence; no assertion of globally optimal route. | 004–007,017 |
+| M01 | Move generated folder to device, permit plugin, verify report/identify and bottom single-row name/completion panel. Expand/collapse at narrow and wide device widths while manipulating map; fields fill the common margins without horizontal overflow. Select 0/1/N, focus unselected row, verify the visible recognized count and selection instructions, site defaults, and Type 1 layer/ID/name. Lists follow actual selection; zero and missing Type 1 mapping are clearly blocked. | 001–003,013,020 |
+| M02 | Build one consented project and one declined project without exposing the test key in evidence. On device, verify automatic key use only in the consented project and session-only manual entry in the declined project. Disable GNSS, calculate and see actionable failure. Enable valid GPS; test map/target/saved departure after reopen, default return. Configure real `ors-vroom` with current hosted endpoints and chosen time/distance profile, calculate a small known road detour/asymmetric route, compare redacted provider jobs/units/order/road response and numeric relative ETA. Capture redacted provider evidence; no assertion of globally optimal route. | 004–007,013,017,019 |
 | M03 | Save two routes, activate each, close app fully, remove connectivity and session key, reopen; move whole folder and repeat. Data/road line/next target remain identical. Simulate copied-project corrupted storage only, observe safe recovery/refusal; never corrupt real user data. Passive actions produce zero routing-service traffic. | 008,009,011,013 |
-| M04 | Set configured layer values to Boolean true/false/NULL/missing then return to the panel, and repeat without a completion field using route-local controls. Verify 2/8 summary/next, then 4/12 complete and remaining calculation from current GPS sends 8 stops, saves higher revision, retains completed history. Cancel or fail calculation and check old saved route. | 010,011 |
+| M04 | Read the visible completion help. Set configured layer values to Boolean true/false/NULL/missing then return to the panel, and repeat without a completion field using route-local controls. Verify 2/8 summary/next and a visible write failure against a disposable read-only/incompatible field without state loss. Then mark 4/12 complete and calculate remaining from current GPS; it sends 8 stops, saves higher revision and retains completed history. Cancel or fail calculation and check the old saved route. | 010,011 |
 | M05 | Reload saved road geometry offline and compare map. Navigate to Korean/special-character destination in installed Naver; verify target coordinates. Test OS launch refusal/unavailable handler and useful error. OS dispatch alone is not proof of app-internal success. | 007,012,013 |
 | M06 | Desktop direct point/line/polygon drawing, invalid finish and two named sites; upload all six types. Open moved outputs on device, inspect each geometry/style/form. Existing polygons, UUID relations, observation/plot/community and report/identification remain functional; report non-point rows have no centroid-derived coordinates. | 014–018 |
 

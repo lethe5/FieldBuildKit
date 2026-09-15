@@ -1,4 +1,4 @@
-"""DRAFT acceptance reconciliation for approved specification checkpoint 3b08820.
+"""DRAFT acceptance reconciliation for approved specification checkpoint bd625d6.
 
 The adapter executes production behavior; only transport/device/file faults are fakes.
 See HARNESS_CONTRACT.md. Missing new seam skips; broken existing seam fails.
@@ -34,6 +34,20 @@ def run(tmp_path):
 
 
 KEY = "SRP_SYNTHETIC_SECRET_94_&/"
+HOSTED_ROUTING_BASE = "https://api.heigit.org/openrouteservice"
+HOSTED_OPTIMIZER_URL = "https://api.heigit.org/vroom/v0"
+LEGACY_ROUTING_BASE = "https://api.openrouteservice.org"
+LEGACY_OPTIMIZER_URL = "https://api.openrouteservice.org/optimization"
+QFIELD_EXPRESSION_EVALUATOR = {
+    "native_type": "QfExpressionEvaluator",
+    "qml_type": "ExpressionEvaluator",
+    "writable_properties": [
+        "appExpressionContextScopesGenerator", "attributeFormModel", "expressionText",
+        "feature", "layer", "mapSettings", "mode", "project", "variables",
+    ],
+    "evaluate_arities": [0, 1],
+    "allow_dynamic_properties": False,
+}
 POINTS = [{"id": str(i), "name": f"조사지 {i}", "xy": [127 + i / 1000, 37]} for i in range(12)]
 # Directed costs for depot,A,B,C. Time winner O-A-B-C-O = 4; distance O-C-B-A-O = 8.
 TIME = [[0, 1, 20, 20], [20, 0, 1, 20], [20, 20, 0, 1], [1, 20, 20, 0]]
@@ -129,6 +143,44 @@ def rejected(result):
     assert result["saved_after"] == result["saved_before"]
 
 
+def requests_by_kind(result):
+    requests = {}
+    for request in result["requests"]:
+        requests.setdefault(request["kind"], []).append(request)
+    return requests
+
+
+def assert_authorization_only(result, key):
+    for request in result["requests"]:
+        headers = request["headers"]
+        if key is None:
+            assert "Authorization" not in headers
+        else:
+            assert headers.get("Authorization") == key
+        without_auth = dict(request, headers={k: v for k, v in headers.items() if k != "Authorization"})
+        if key is not None:
+            assert key not in str(without_auth)
+
+
+def assert_no_key_outside_project_variable(result, *, embedded):
+    for field in ("general_settings", "logs", "errors", "reports", "message", "qml_errors"):
+        assert KEY not in str(result.get(field))
+    assert KEY not in str(result.get("persisted_settings"))
+    assert_authorization_only(result, KEY if result.get("transport_key_present") else None)
+    secret_files = []
+    root = Path(result["project_dir"])
+    if root.exists():
+        for path in root.rglob("*"):
+            if path.is_file() and KEY.encode() in path.read_bytes():
+                secret_files.append(path.resolve())
+    if embedded:
+        assert secret_files == [Path(result["qgs_path"]).resolve()]
+        assert result["project_variables"] == {"fieldbuild_route_api_key": KEY}
+    else:
+        assert secret_files == []
+        assert "fieldbuild_route_api_key" not in result.get("project_variables", {})
+
+
 def test_ac001_generated_plugin(run):
     r = run(operation="generate_plugin", identification=True)
     root = Path(r["project_dir"]).resolve()
@@ -150,6 +202,9 @@ def test_ac002_selection(run, count):
     r = run(operation="calculate", scope="selected", features=POINTS,
             selected_ids=[p["id"] for p in wanted], focused_id="11")
     assert r["listed_ids"] == [p["id"] for p in wanted]
+    assert r["selection_help"]["recognized_count"] == count
+    assert r["selection_help"]["explains_layer_selection"] is True
+    assert r["selection_help"]["focus_is_selection"] is False
     if count == 0:
         rejected(r)
         no_calls(r)
@@ -168,6 +223,7 @@ def test_ac003_ac010_scope_mapping(run, scope, expected):
         {"custom_id": "3", "title": POINTS[3]["name"], "xy": POINTS[3]["xy"]},
     ]
     r = run(operation="calculate", scope=scope, features=features,
+            selected_ids=["3"],
             survey_type="simple_inventory",
             mapping={"layer": "custom_targets", "id": "custom_id", "name": "title", "completed": "done"})
     assert sorted(r["submitted_ids"]) == expected
@@ -317,6 +373,19 @@ def test_ac010_completion(run, completion_source):
     assert {s["site_id"] for s in r["active"]["stops"] if s["completed"]} == {"0", "2"}
     assert {s["site_id"] for s in r["reloaded"]["stops"] if s["completed"]} == {"0", "2"}
     assert r["summary_counts"] == [2, 8]
+    assert r["completion_help"]["mapped_boolean_only"] is True
+    assert r["completion_help"]["blank_mapping_uses_route_local"] is True
+    assert r["source_completion_after"] == ({"0": True, "2": True} if completion_source == "field" else {})
+    no_calls(r)
+
+
+@pytest.mark.parametrize("fault", ["read_only", "invalid_type"])
+def test_ac010_completion_write_failure_preserves_state(run, fault):
+    r = run(operation="completion_write_failure", fault=fault, completed_id="0", seed_saved=True)
+    rejected(r)
+    assert r["source_completion_after"] == r["source_completion_before"]
+    assert r["active_after"] == r["active_before"]
+    assert r["next_after"] == r["next_before"]
     no_calls(r)
 
 
@@ -493,9 +562,10 @@ def test_ac015_invalid_geometry(run, fault):
 
 @pytest.mark.parametrize("fault", ["missing_crs", "invalid_crs", "transform_failure"])
 def test_ac017_invalid_source_crs_preserves_saved(run, fault):
-    r = run(operation="geometry_failure", fault=fault, seed_saved=True)
+    r = run(operation="generated_geometry_calculate", fault=fault, seed_saved=True,
+            evaluator_contract=QFIELD_EXPRESSION_EVALUATOR)
     rejected(r)
-    assert r["published_features"] == []
+    assert r["failure_reason"] == fault
     assert r["active_after"] == r["active_before"]
     no_calls(r)
 
@@ -506,20 +576,53 @@ CENTROIDS = {"Point": [0, 0], "LineString": [8 / 3, 1 / 3], "Polygon": [2, 1],
              "MultiPoint": [3, 3], "MultiLineString": [8 / 3, 1 / 3], "MultiPolygon": [118 / 33, 31 / 33]}
 
 
-@pytest.mark.parametrize("crs", ["EPSG:4326", "EPSG:3857"])
-@pytest.mark.parametrize("kind", GEOMETRIES)
-def test_ac017_representatives_numerical(run, crs, kind):
+def expected_wgs84(kind, crs):
     import math
 
-    geom = GEOJSON[kind]
     expected = CENTROIDS[kind]
     if crs == "EPSG:3857":
         x, y = expected[0] * 100000 + 1000000, expected[1] * 100000 + 5000000
-        expected = [math.degrees(x / 6378137), math.degrees(2 * math.atan(math.exp(y / 6378137)) - math.pi / 2)]
+        return [math.degrees(x / 6378137), math.degrees(2 * math.atan(math.exp(y / 6378137)) - math.pi / 2)]
+    return expected
+
+
+@pytest.mark.parametrize("crs", ["EPSG:4326", "EPSG:3857"])
+@pytest.mark.parametrize("kind", GEOMETRIES)
+def test_ac017_representatives_numerical(run, crs, kind):
+    geom = GEOJSON[kind]
+    expected = expected_wgs84(kind, crs)
     r = run(operation="representative", wkt=fixture_wkt(geom, projected=crs == "EPSG:3857"), crs=crs)
     assert r["coordinate"] == pytest.approx(expected, abs=1e-7)
     assert r["original_after"] == r["original_before"]
     assert r["request_coordinate"] == pytest.approx(expected, abs=1e-7)
+
+
+@pytest.mark.parametrize("crs", ["EPSG:4326", "EPSG:3857"])
+@pytest.mark.parametrize("kind", GEOMETRIES)
+def test_ac017_generated_geometry_uses_qfield_expression_evaluator(run, crs, kind):
+    expected = expected_wgs84(kind, crs)
+    r = run(operation="generated_geometry_calculate", geometry_type=kind,
+            wkt=fixture_wkt(GEOJSON[kind], projected=crs == "EPSG:3857"), crs=crs,
+            evaluator_contract=QFIELD_EXPRESSION_EVALUATOR)
+    assert r["ok"] is True
+    assert r["generic_crs_error_shown"] is False
+    assert r["request_coordinate"] == pytest.approx(expected, abs=1e-7)
+    assert r["original_after"] == r["original_before"]
+    evaluator = r["expression_evaluator"]
+    assert evaluator["native_type"] == "QfExpressionEvaluator"
+    assert evaluator["qml_type"] == "ExpressionEvaluator"
+    assert {"feature", "layer", "project"} <= set(evaluator["properties_written"])
+    assert not evaluator["unknown_property_writes"]
+    assert evaluator["evaluate_calls"]
+    assert {call["arity"] for call in evaluator["evaluate_calls"]} <= {0, 1}
+    expressions = [call["expression_text"].lower() for call in evaluator["evaluate_calls"]]
+    assert all("geom_to_geojson" not in expression for expression in expressions)
+    assert any("transform" in expression for expression in expressions)
+    assert any("x(" in expression for expression in expressions)
+    assert any("y(" in expression for expression in expressions)
+    if kind != "Point":
+        assert any("centroid" in expression for expression in expressions)
+    assert r["qml_errors"] == []
 
 
 @pytest.mark.parametrize("survey_type", ["simple_inventory", "temporary_plots", "permanent_plots", "vegetation_mapping"])
@@ -597,6 +700,143 @@ def test_ac013_backend_settings(run, configured_offset, expected_offset):
     for path in root.rglob("*"):
         if path.is_file():
             assert KEY.encode() not in path.read_bytes()
+
+
+def assert_provider_urls(result, routing_base, optimizer_url):
+    requests = requests_by_kind(result)
+    assert set(requests) == {"matrix", "optimizer", "directions"}
+    expected = {"matrix": f"{routing_base}/v2/matrix/driving-car",
+                "directions": f"{routing_base}/v2/directions/driving-car/geojson",
+                "optimizer": optimizer_url}
+    assert all({request["url"] for request in requests[kind]} == {url} for kind, url in expected.items())
+    assert all(request["method"] == "POST" for request in result["requests"])
+    assert all("/vroom/v0/post" not in request["url"] for request in result["requests"])
+
+
+def test_ac013_fresh_hosted_defaults_and_authorization(run):
+    r = run(operation="configured_calculate", settings={"backend": "ors-vroom", "profile": "driving-car",
+                                                         "key": KEY}, fresh_project=True, seed_saved=True)
+    assert r["transport_settings"]["server_url"] == HOSTED_ROUTING_BASE
+    assert r["transport_settings"]["optimizer_url"] == HOSTED_OPTIMIZER_URL
+    assert_provider_urls(r, HOSTED_ROUTING_BASE, HOSTED_OPTIMIZER_URL)
+    assert_authorization_only(r, KEY)
+    assert all("api.openrouteservice.org" not in request["url"] for request in r["requests"])
+
+
+def test_ac013_trailing_slashes_are_normalized_once(run):
+    settings = {"server_url": HOSTED_ROUTING_BASE + "/", "optimizer_url": HOSTED_OPTIMIZER_URL + "/",
+                "backend": "ors-vroom", "profile": "driving-car", "key": KEY}
+    r = run(operation="configured_calculate", settings=settings, seed_saved=True)
+    assert_provider_urls(r, HOSTED_ROUTING_BASE, HOSTED_OPTIMIZER_URL)
+    assert r["persisted_settings"]["server_url"] == HOSTED_ROUTING_BASE
+    assert r["persisted_settings"]["optimizer_url"] == HOSTED_OPTIMIZER_URL
+    assert_authorization_only(r, KEY)
+
+
+@pytest.mark.parametrize("server_url,optimizer_url,expected_server,expected_optimizer", [
+    (LEGACY_ROUTING_BASE, None, HOSTED_ROUTING_BASE, HOSTED_OPTIMIZER_URL),
+    (LEGACY_ROUTING_BASE + "/", "", HOSTED_ROUTING_BASE, HOSTED_OPTIMIZER_URL),
+    ("https://routing.example/ors", LEGACY_OPTIMIZER_URL,
+     "https://routing.example/ors", HOSTED_OPTIMIZER_URL),
+    (LEGACY_ROUTING_BASE, "https://optimizer.example/custom",
+     HOSTED_ROUTING_BASE, "https://optimizer.example/custom"),
+    (LEGACY_ROUTING_BASE + "/custom", LEGACY_OPTIMIZER_URL,
+     LEGACY_ROUTING_BASE + "/custom", HOSTED_OPTIMIZER_URL),
+])
+def test_ac013_exact_legacy_default_migration(run, server_url, optimizer_url, expected_server, expected_optimizer):
+    settings = {"server_url": server_url, "backend": "ors-vroom", "profile": "driving-car", "key": KEY}
+    if optimizer_url is not None:
+        settings["optimizer_url"] = optimizer_url
+    r = run(operation="configured_calculate", settings=settings, seed_saved=True)
+    assert r["persisted_settings"]["server_url"] == expected_server
+    assert r["persisted_settings"]["optimizer_url"] == expected_optimizer
+    assert_provider_urls(r, expected_server, expected_optimizer)
+    assert_authorization_only(r, KEY)
+
+
+def test_ac013_custom_self_hosted_urls_allow_no_key(run):
+    settings = {"server_url": "http://routing.local/ors/",
+                "optimizer_url": "https://optimizer.local/vroom/custom/", "backend": "ors-vroom",
+                "profile": "driving-car"}
+    r = run(operation="configured_calculate", settings=settings, seed_saved=True)
+    assert_provider_urls(r, "http://routing.local/ors", "https://optimizer.local/vroom/custom")
+    assert r["persisted_settings"]["server_url"] == "http://routing.local/ors"
+    assert r["persisted_settings"]["optimizer_url"] == "https://optimizer.local/vroom/custom"
+    assert_authorization_only(r, None)
+
+
+def test_ac013_hosted_default_rejects_blank_key_before_request(run):
+    r = run(operation="configured_calculate", settings={"backend": "ors-vroom", "profile": "driving-car"},
+            fresh_project=True, seed_saved=True)
+    rejected(r)
+    assert r["active_after"] == r["active_before"]
+    no_calls(r)
+
+
+def test_ac019_builder_key_consent_embeds_only_project_variable(run):
+    r = run(operation="builder_route_key", input_key=KEY, consent=True, outcome="success",
+            calculate_after_build=True)
+    assert r["key_input_echo_mode"] == "password"
+    assert r["consent_required"] is True
+    assert r["warning_disclosures"] == {
+        "plaintext_project": True, "folder_access_can_read_and_use": True,
+        "not_encrypted": True, "qfield_automatic_use": True,
+    }
+    assert r["qfield_key_source"] == "project_variable"
+    assert r["transport_key_present"] is True
+    assert_no_key_outside_project_variable(r, embedded=True)
+
+
+@pytest.mark.parametrize("input_key,consent", [(KEY, False), ("", None)])
+def test_ac019_decline_or_blank_uses_manual_session_only(run, input_key, consent):
+    r = run(operation="builder_route_key", input_key=input_key, consent=consent, outcome="success",
+            manual_session_key=KEY, calculate_after_build=True)
+    assert r["key_input_echo_mode"] == "password"
+    assert r["manual_session_available"] is True
+    assert r["qfield_key_source"] == "session"
+    assert r["session_key_present_after_restart"] is False
+    assert r["transport_key_present"] is True
+    assert_no_key_outside_project_variable(r, embedded=False)
+
+
+@pytest.mark.parametrize("outcome", ["cancel", "generation_failure"])
+def test_ac019_key_never_leaks_from_aborted_builder_flow(run, outcome):
+    r = run(operation="builder_route_key", input_key=KEY, consent=True, outcome=outcome)
+    assert r["project_published"] is False
+    assert r["transport_key_present"] is False
+    no_calls(r)
+    assert_no_key_outside_project_variable(r, embedded=False)
+
+
+def test_ac019_desktop_remember_is_not_qfield_delivery(run):
+    r = run(operation="builder_route_key", input_key=KEY, consent=False, remember=True, outcome="success")
+    assert Path(r["desktop_credential_store"]).name == "credentials.enc"
+    assert r["remembered_key_available_to_qfield"] is False
+    assert r["manual_session_available"] is True
+    assert r["transport_key_present"] is False
+    assert_no_key_outside_project_variable(r, embedded=False)
+
+
+@pytest.mark.parametrize("viewport_width", [320, 1024])
+def test_ac020_route_panel_fields_fill_available_width(run, viewport_width):
+    r = run(operation="panel_layout", viewport_width=viewport_width)
+    left, right = r["content_rect"]["left"], r["content_rect"]["right"]
+    assert 0 <= left < right <= viewport_width
+    rows = {}
+    for field in r["fields"]:
+        assert left <= field["left"] < field["right"] <= right
+        rows.setdefault(field["row"], []).append(field)
+    assert rows
+    for fields in rows.values():
+        assert min(field["left"] for field in fields) == pytest.approx(left, abs=1)
+        assert max(field["right"] for field in fields) == pytest.approx(right, abs=1)
+        assert max(field["right"] - field["left"] for field in fields) - min(
+            field["right"] - field["left"] for field in fields) <= 1
+    assert all(item["left"] == pytest.approx(left, abs=1) for item in r["labels_help_errors"])
+    assert all(item["right"] <= right + 1 and item["wrap_enabled"] for item in r["labels_help_errors"])
+    assert r["horizontal_overflow"] is False
+    screenshot = Path(r["screenshot_path"])
+    assert screenshot.is_file() and screenshot.stat().st_size > 0
 
 
 def test_ac006_ac013_unknown_backend_rejected_before_request(run):
