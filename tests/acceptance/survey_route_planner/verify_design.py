@@ -1,10 +1,11 @@
-"""DRAFT bd625d6 design-only fixture/oracle check; never executes application code."""
+"""Approved 2026-09-16 design-only fixture/oracle check; never executes application code."""
 import ast
 import importlib.util
 import math
 import re
 import tempfile
 from pathlib import Path
+from urllib.parse import quote
 
 import fiona
 from fiona.transform import transform
@@ -15,7 +16,7 @@ spec = importlib.util.spec_from_file_location("srp_test_design", path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 coverage = set(re.findall(r"ac(\d{3})", path.read_text(encoding="utf-8-sig")))
-assert {f"{i:03d}" for i in range(1, 21)} <= coverage
+assert {f"{i:03d}" for i in range(1, 31)} <= coverage
 wire = module.vroom_response(include_arrivals=True)
 route = wire["routes"][0]
 arrivals = [step["arrival"] for step in route["steps"] if step["type"] == "job"]
@@ -43,6 +44,30 @@ assert {"expressionText", "feature", "layer", "project"} <= set(evaluator["writa
 assert evaluator["evaluate_arities"] == [0, 1]
 assert evaluator["allow_dynamic_properties"] is False
 source = path.read_text(encoding="utf-8-sig")
+assert 'operation="remaining"' not in source
+assert "remaining_recalculation_is_superseded" in source
+assert all(case in source for case in ["M01_project_dropdowns_layout", "M02_schema2_live_route",
+                                       "M03_offline_storage_toggle", "M04_completion_progression_overlays",
+                                       "M05_naver_android_ios", "M06_geometry_regression"])
+assert module.canonical_naver_url("조사지 A & B/#?") == (
+    "nmap://navigation?dlat=37.456&dlng=127.123&dname="
+    + quote("조사지 A & B/#?", safe="") + "&appname=ch.opengis.qfield")
+for roundtrip, count in [(False, 3), (True, 4)]:
+    response = module.schema2_directions_response(roundtrip=roundtrip)
+    feature = response["features"][0]
+    assert len(feature["properties"]["segments"]) == count
+    assert len(feature["geometry"]["coordinates"]) == count + 1
+    assert feature["properties"]["summary"]["distance"] == sum(module.SCHEMA2_DISTANCES[:count])
+    assert feature["properties"]["summary"]["duration"] == sum(module.SCHEMA2_DURATIONS[:count])
+legacy = module.schema2_legacy_document()
+assert legacy["schema"] == 1 and legacy["routes"][0]["revision"] == 7
+assert "legs" not in legacy["routes"][0]
+assert [layer["layer_id"] for layer in module.PROJECT_LAYERS] == [
+    "duplicate-a", module.SITE_LAYER_ID, "duplicate-b"]
+assert module.PROJECT_LAYERS[2]["fields"][-2:] == ["SECOND_ID", "SECOND_NAME"]
+assert all(text in source for text in ["조사 경로 계산 대상", "출발지", "저장 경로 이름",
+                                       "방문 순서대로 이동하고, 조사를 마친 지점을 체크하세요.",
+                                       "#1565C0", "사용 불가", "복귀 포함"])
 assert '"geom_to_geojson" not in expression' in source
 assert all(token in source for token in ['"centroid" in expression', '"transform" in expression',
                                          '"x(" in expression', '"y(" in expression'])
@@ -75,4 +100,4 @@ for fmt in ["SHP", "ZIP", "GPKG"]:
             except FixtureChecked:
                 count += 1
 assert count == 18
-print("Design checks: syntax; 20 AC IDs; raw VROOM relative arrivals/no route.eta; 4 invalid timing fixtures; current/legacy endpoint constants; strict QfExpressionEvaluator surface and supported centroid/transform/x/y expression assertions; portable non-secret settings; 6 documented centroid fixtures; 6 Mercator controls; 1 EPSG:5186 control; 18 real upload fixtures verified. No application tests executed.")
+print("Design checks: syntax; 30 AC IDs; no remaining-operation oracle; M01-M06 placeholders; exact encoded Naver URL; schema-2 open/roundtrip segment fixtures and schema-1 legacy fixture; dropdown order/case suffix fixtures; exact workflow/overlay/legacy text; raw VROOM relative arrivals/no route.eta; 4 invalid timing fixtures; current/legacy endpoint constants; strict QfExpressionEvaluator surface and supported centroid/transform/x/y expression assertions; portable non-secret settings; 6 documented centroid fixtures; 6 Mercator controls; 1 EPSG:5186 control; 18 real upload fixtures verified. No application tests executed.")

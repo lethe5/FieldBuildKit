@@ -1,4 +1,4 @@
-"""DRAFT acceptance reconciliation for approved specification checkpoint bd625d6.
+"""Approved 2026-09-16 acceptance reconciliation for specification checkpoint 1868b7a.
 
 The adapter executes production behavior; only transport/device/file faults are fakes.
 See HARNESS_CONTRACT.md. Missing new seam skips; broken existing seam fails.
@@ -10,7 +10,7 @@ import os
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 import pytest
 
@@ -115,6 +115,57 @@ DIRECTIONS_RESPONSE = {
         "geometry": ROAD,
     }],
 }
+
+SITE_LAYER_ID = "site-layer-stable-01"
+SCHEMA2_COORDINATES = [[127, 37], [127.001, 37.001], [127.002, 37.002], [127.003, 37.003], [127, 37]]
+SCHEMA2_DISTANCES = [100, 200, 300, 400]
+SCHEMA2_DURATIONS = [20, 100, 120, 216]
+
+
+def schema2_directions_response(*, roundtrip, distance_adjustment=0, duration_adjustment=0):
+    """Raw directions fixture whose way-point indexes make every required leg observable."""
+    count = 4 if roundtrip else 3
+    segments = [
+        {"distance": SCHEMA2_DISTANCES[i], "duration": SCHEMA2_DURATIONS[i], "way_points": [i, i + 1]}
+        for i in range(count)
+    ]
+    return {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "properties": {"summary": {
+                "distance": sum(SCHEMA2_DISTANCES[:count]) + distance_adjustment,
+                "duration": sum(SCHEMA2_DURATIONS[:count]) + duration_adjustment,
+            }, "segments": segments},
+            "geometry": {"type": "LineString", "coordinates": SCHEMA2_COORDINATES[:count + 1]},
+        }],
+    }
+
+
+def schema2_legacy_document(schema=1):
+    return {
+        "schema": schema,
+        "routes": [{
+            "route_id": "legacy-route-1", "name": "기존 경로", "revision": 7,
+            "distance_m": 600, "duration_s": 240,
+            "road_geometry": {"type": "LineString", "coordinates": SCHEMA2_COORDINATES[:4]},
+            "stops": [
+                {"site_id": str(i), "source_layer": SITE_LAYER_ID, "sequence": i + 1, "completed": False}
+                for i in range(3)
+            ],
+        }],
+        "active_route_id": "legacy-route-1",
+    }
+
+
+PROJECT_LAYERS = [
+    {"layer_id": "duplicate-a", "source_name": "plots_a", "alias": "표본구", "tree_path": "A/표본구",
+     "fields": ["uuid", "plot_id", "display_name", "done"]},
+    {"layer_id": SITE_LAYER_ID, "source_name": "site", "alias": "내부 site", "internal_role": "site",
+     "fields": ["uuid", "site_id", "site_name", "done"]},
+    {"layer_id": "duplicate-b", "source_name": "plots_b", "alias": "표본구", "tree_path": "B/표본구",
+     "fields": ["uuid", "manual_code", "manual_title", "SECOND_ID", "SECOND_NAME"]},
+]
 
 PORTABLE_SETTINGS = {
     "server_url": "https://routing.invalid/ors",
@@ -291,11 +342,11 @@ def test_ac006_failures_preserve_saved(run, fault):
     assert r["active_after"] == r["active_before"]
 
 
-@pytest.mark.parametrize("extras", [False, True])
-def test_ac007_result_roundtrip(run, extras):
+@pytest.mark.parametrize("timing", [False, True])
+def test_ac007_result_roundtrip(run, timing):
     r = run(operation="result_roundtrip", backend="ors-vroom",
-            optimizer_response=vroom_response(include_arrivals=extras),
-            directions_response=DIRECTIONS_RESPONSE if extras else None)
+            optimizer_response=vroom_response(include_arrivals=timing),
+            directions_response=DIRECTIONS_RESPONSE)
     route = r["reloaded"]
     for field in ("route_id", "name", "backend", "status"):
         assert route[field]
@@ -303,14 +354,15 @@ def test_ac007_result_roundtrip(run, extras):
     assert route["distance_m"] == 1234 and route["duration_s"] == 456
     assert ids(route) == ["2", "0", "1"]
     assert [s["sequence"] for s in route["stops"]] == [1, 2, 3]
-    assert route["eta"] == (ETA if extras else None)
-    assert route["eta_basis"] == ("relative_seconds" if extras else None)
-    assert route["road_geometry"] == (ROAD if extras else None)
-    assert route["legs"] == (LEGS if extras else None)
+    assert route["eta"] == (ETA if timing else None)
+    assert route["eta_basis"] == ("relative_seconds" if timing else None)
+    assert route["road_geometry"] == ROAD
+    assert route["legs"] == LEGS
     assert r["saved"] == route
-    for field in ("road_geometry", "eta", "legs"):
-        assert r["availability"][field] is extras
-    if extras:
+    assert r["availability"]["road_geometry"] is True
+    assert r["availability"]["legs"] is True
+    assert r["availability"]["eta"] is timing
+    if timing:
         assert all(type(value) in {int, float} for value in route["eta"])
 
 
@@ -389,32 +441,27 @@ def test_ac010_completion_write_failure_preserves_state(run, fault):
     no_calls(r)
 
 
-@pytest.mark.parametrize("outcome", ["preview", "save", "failure"])
-def test_ac011_remaining_revision(run, outcome):
-    r = run(operation="remaining", features=POINTS, completed_ids=["0", "1", "2", "3"],
-            gps=[127.55, 37.66], outcome=outcome)
-    assert sorted(r["submitted_ids"], key=int) == [str(i) for i in range(4, 12)]
-    assert r["request_start"] == [127.55, 37.66]
-    assert r["completed_after"] == r["completed_before"]
-    if outcome == "save":
-        assert r["saved_after"]["revision"] > r["saved_before"]["revision"]
-        assert r["saved_after"]["route_id"] == r["saved_before"]["route_id"]
-    else:
-        assert r["saved_after"] == r["saved_before"]
-    if outcome == "failure":
-        assert r["ok"] is False and r["message"].strip()
+def test_ac011_ac026_remaining_recalculation_is_superseded(run):
+    r = run(operation="route_progression", mode="roundtrip", completion_source="route_stop",
+            actions=[{"complete": "0"}, {"complete": "1"}], relocate=False)
+    assert "remaining_recalculate" not in r["controls"]
+    assert r["states"][-1]["prefix_length"] == 2
+    assert r["states"][-1]["remaining_leg_sequences"] == [3, 4]
+    assert r["full_route_after"] == r["full_route_before"]
+    no_calls(r)
 
 
 @pytest.mark.parametrize("launch", [True, False])
 def test_ac012_road_and_naver(run, launch):
     name = "조사지 A & B/#?"
-    r = run(operation="reopen_navigate", road_geometry=ROAD, destination=[127.123, 37.456], name=name, launch_result=launch)
+    r = run(operation="reopen_navigate", road_geometry=ROAD, destination=[127.123, 37.456], name=name,
+            platform="android", caller_id=None, launch_results=[launch, True])
     assert r["rendered_geometry"] == ROAD
-    url = urlsplit(r["launched_url"])
+    url = urlsplit(r["launcher_calls"][0]["url"])
     assert url.scheme == "nmap" and url.netloc == "navigation"
     query = parse_qs(url.query)
     assert float(query["dlng"][0]) == 127.123 and float(query["dlat"][0]) == 37.456
-    assert query["dname"] == [name] and not url.fragment
+    assert query["dname"] == [name] and query["appname"] == ["ch.opengis.qfield"] and not url.fragment
     if not launch:
         assert r["message"].strip()
     assert r["destination_app_success_claimed"] is False
@@ -422,7 +469,7 @@ def test_ac012_road_and_naver(run, launch):
 
 
 @pytest.mark.parametrize("action", ["expand", "collapse", "complete", "load", "restart"])
-def test_ac013_no_network_or_secrets(run, action):
+def test_ac013_ac030_no_network_or_secrets(run, action):
     r = run(operation="passive_action", action=action, key=KEY)
     no_calls(r)
     assert KEY not in str(r["logs"])
@@ -627,7 +674,7 @@ def test_ac017_generated_geometry_uses_qfield_expression_evaluator(run, crs, kin
 
 @pytest.mark.parametrize("survey_type", ["simple_inventory", "temporary_plots", "permanent_plots", "vegetation_mapping"])
 @pytest.mark.parametrize("reference", [False, True])
-def test_ac018_regression_portability(run, survey_type, reference):
+def test_ac018_ac030_regression_portability(run, survey_type, reference):
     r = run(operation="regression", survey_type=survey_type, reference=reference, relocate=True)
     assert r["uuid_after"] == r["uuid_before"]
     assert r["relations_after"] == r["relations_before"]
@@ -643,8 +690,9 @@ def test_ac018_regression_portability(run, survey_type, reference):
     assert r["existing_user_project_after"] == r["existing_user_project_before"]
 
 
-@pytest.mark.parametrize("case", ["M01_panel_selection", "M02_start_backend", "M03_offline_recovery", "M04_completion",
-                                  "M05_naver", "M06_drawing_regression"])
+@pytest.mark.parametrize("case", ["M01_project_dropdowns_layout", "M02_schema2_live_route",
+                                  "M03_offline_storage_toggle", "M04_completion_progression_overlays",
+                                  "M05_naver_android_ios", "M06_geometry_regression"])
 def test_manual_qfield_device(case):
     pytest.skip(f"User-run QField iOS/Android case {case}; see test design. No device PASS implied.")
 
@@ -668,12 +716,15 @@ def test_ac017_projected_control_point(run):
     assert r["original_after"] == r["original_before"]
 
 
-def test_ac010_ac011_no_remaining(run):
-    r = run(operation="remaining", features=POINTS[:1], completed_ids=["0"], gps=[127, 37], outcome="save")
-    assert r["next_id"] is None
-    assert r["submitted_ids"] == []
-    assert r["message"].strip()
-    assert r["saved_before"] == r["saved_after"]
+def test_ac010_ac011_ac027_all_complete_uses_saved_full_route(run):
+    r = run(operation="route_progression", mode="open", completion_source="route_stop",
+            actions=[{"complete": "0"}, {"complete": "1"}, {"complete": "2"}], relocate=False)
+    state = r["states"][-1]
+    assert state["next_id"] is None
+    assert state["prefix_length"] == 3
+    assert state["remaining_leg_sequences"] == []
+    assert state["remaining_distance_m"] == 0 and state["remaining_duration_s"] == 0
+    assert r["full_route_after"] == r["full_route_before"]
     no_calls(r)
 
 
@@ -854,3 +905,328 @@ def test_ac006_ac013_unknown_backend_rejected_before_request(run):
     for path in Path(r["project_dir"]).rglob("*"):
         if path.is_file():
             assert KEY.encode() not in path.read_bytes()
+
+
+def test_ac021_layer_dropdown_uses_alias_stable_id_and_site_default(run):
+    r = run(operation="project_dropdowns", layers=PROJECT_LAYERS, stored_mapping=None,
+            actions=["open", "reopen"])
+    assert [option["layer_id"] for option in r["layer_options"]] == [
+        layer["layer_id"] for layer in PROJECT_LAYERS]
+    assert len({option["label"] for option in r["layer_options"]}) == len(PROJECT_LAYERS)
+    assert all(option["label"].startswith("표본구") for option in
+               [r["layer_options"][0], r["layer_options"][2]])
+    site = next(option for option in r["layer_options"] if option["layer_id"] == SITE_LAYER_ID)
+    assert site == {"label": "조사지", "layer_id": SITE_LAYER_ID, "source_name": "site"}
+    assert r["selected_layer_id"] == SITE_LAYER_ID
+    assert r["stored_mapping"]["layer_id"] == SITE_LAYER_ID
+
+
+def test_ac021_duplicate_label_resolves_by_stable_id(run):
+    r = run(operation="project_dropdowns", layers=PROJECT_LAYERS,
+            stored_mapping={"layer_id": "duplicate-b", "id_field": "manual_code", "name_field": "manual_title"},
+            actions=["open", "save", "reopen"])
+    assert r["selected_layer_id"] == "duplicate-b"
+    assert r["selected_fields"] == {"id": "manual_code", "name": "manual_title"}
+    assert r["stored_mapping"]["layer_id"] == "duplicate-b"
+    assert r["field_options"] == PROJECT_LAYERS[2]["fields"]
+
+
+@pytest.mark.parametrize("trigger", ["layer_change", "panel_reopen", "schema_change", "calculate_preflight", "save_preflight"])
+def test_ac021_field_refresh_provider_order_defaults_and_stale_values(run, trigger):
+    fields = ["uuid", "first_ID", "first_NAME", "second_id", "second_name"]
+    r = run(operation="project_dropdowns", layers=PROJECT_LAYERS, selected_layer_id="duplicate-b",
+            stored_mapping={"layer_id": "duplicate-b", "id_field": "gone_id", "name_field": "gone_name"},
+            refreshed_fields=fields, actions=[trigger])
+    assert r["field_options"] == fields
+    assert r["selected_fields"] == {"id": "first_ID", "name": "first_NAME"}
+    assert r["refresh_triggers"] == [trigger]
+
+
+def test_ac021_no_field_match_and_stale_layer_clear_and_block(run):
+    r = run(operation="project_dropdowns",
+            layers=[{"layer_id": "only", "source_name": "targets", "alias": "대상", "fields": ["uuid", "title"]}],
+            stored_mapping={"layer_id": "removed", "id_field": "old_id", "name_field": "old_name"},
+            actions=["open", "calculate_preflight", "save_preflight"])
+    assert r["selected_layer_id"] is None
+    assert r["selected_fields"] == {"id": None, "name": None}
+    assert r["calculate_enabled"] is False and r["save_enabled"] is False
+    assert r["validation_message"].strip()
+    no_calls(r)
+
+
+@pytest.mark.parametrize("viewport_width", [320, 1024])
+@pytest.mark.parametrize("start_mode,visible", [
+    ("gps", {"map_center": False, "target": False}),
+    ("map", {"map_center": True, "target": False}),
+    ("target", {"map_center": False, "target": True}),
+])
+def test_ac022_ac024_labels_guidance_and_conditional_controls(run, viewport_width, start_mode, visible):
+    r = run(operation="route_workflow_ui", viewport_width=viewport_width, start_mode=start_mode,
+            targets=[{"id": "site-01", "name": "첫 조사지"}], selected_target_id="site-01")
+    assert r["labels"] == {"scope": "조사 경로 계산 대상", "start": "출발지", "saved_route": "저장 경로 이름"}
+    assert r["guidance"] == "방문 순서대로 이동하고, 조사를 마친 지점을 체크하세요."
+    assert r["controls_visible"]["map_center"] is visible["map_center"]
+    assert r["controls_visible"]["target"] is visible["target"]
+    assert r["target_options"] == [{"label": "첫 조사지 · site-01", "value": "site-01"}]
+    assert r["selected_target_id"] == "site-01"
+    assert r["horizontal_overflow"] is False
+    assert all(item["wrap_enabled"] for item in r["label_guidance_rects"])
+
+
+def test_ac022_stale_target_is_cleared_and_blocks_target_start(run):
+    r = run(operation="route_workflow_ui", viewport_width=320, start_mode="target",
+            targets=[{"id": "site-02", "name": "둘째 조사지"}], selected_target_id="removed",
+            mapping_changed=True)
+    assert r["selected_target_id"] is None
+    assert r["calculate_enabled"] is False and r["validation_message"].strip()
+    no_calls(r)
+
+
+def assert_project_relative_file(result, relative):
+    path = Path(relative)
+    root = Path(result["project_dir"]).resolve()
+    resolved = (root / path).resolve()
+    assert not path.is_absolute() and resolved.is_relative_to(root) and resolved.is_file()
+    return resolved
+
+
+@pytest.mark.parametrize("action", ["save_default_start", "save_route"])
+def test_ac023_storage_feedback_names_exact_committed_relative_path(run, action):
+    r = run(operation="storage_feedback", action=action, key=KEY,
+            coordinate=[127.123, 37.456], route_name="오전 경로")
+    feedback = r["feedback"]
+    assert feedback["success"] is True
+    assert feedback["project_relative_path"] == r["committed_project_relative_path"]
+    assert feedback["filename"] == Path(feedback["project_relative_path"]).name
+    assert feedback["project_relative_path"] in feedback["text"]
+    assert feedback["filename"] in feedback["text"]
+    assert_project_relative_file(r, feedback["project_relative_path"])
+    if action == "save_default_start":
+        assert all(value in feedback["text"] for value in ("127.123", "37.456"))
+    else:
+        assert "오전 경로" in feedback["text"]
+    exposed = str(feedback) + str(r["logs"]) + str(r["errors"])
+    assert "Authorization" not in str(feedback)
+    assert KEY not in exposed and quote(KEY, safe="") not in exposed
+
+
+@pytest.mark.parametrize("action", ["save_default_start", "save_route"])
+def test_ac023_storage_failure_has_no_success_or_secret_feedback(run, action):
+    r = run(operation="storage_feedback", action=action, key=KEY, fault="commit_failure",
+            coordinate=[127.123, 37.456], route_name="실패 경로")
+    assert r["feedback"]["success"] is False
+    assert r["success_feedback_count"] == 0 and r["committed_project_relative_path"] is None
+    assert r["saved_after"] == r["saved_before"]
+    exposed = str(r["feedback"]) + str(r["logs"]) + str(r["errors"])
+    assert "Authorization" not in str(r["feedback"])
+    assert KEY not in exposed and quote(KEY, safe="") not in exposed
+
+
+def canonical_naver_url(name, caller_id="ch.opengis.qfield"):
+    return ("nmap://navigation?dlat=37.456&dlng=127.123&dname="
+            f"{quote(name, safe='')}&appname={quote(caller_id, safe='')}")
+
+
+@pytest.mark.parametrize("caller_id", [None, "org.example.fieldbuild"])
+def test_ac025_exact_encoded_naver_url_and_honest_qt_true(run, caller_id):
+    name = "조사지 A & B/#?"
+    effective = caller_id or "ch.opengis.qfield"
+    r = run(operation="reopen_navigate", road_geometry=ROAD, destination=[127.123, 37.456], name=name,
+            platform="android", caller_id=caller_id, launch_results=[True])
+    assert r["launcher_calls"] == [{"url": canonical_naver_url(name, effective),
+                                     "via": "Qt.openUrlExternally", "result": True}]
+    assert r["os_request_accepted"] is True and r["fallback_count"] == 0
+    assert r["claims"] == {"app_started": False, "destination_accepted": False, "navigation_started": False}
+    no_calls(r)
+
+
+@pytest.mark.parametrize("platform,identifier", [("android", "com.nhn.android.nmap"), ("ios", "311867728")])
+def test_ac025_mobile_fallback_and_all_refused(run, platform, identifier):
+    r = run(operation="reopen_navigate", road_geometry=ROAD, destination=[127.123, 37.456], name="목적지",
+            platform=platform, caller_id=None, launch_results=[False, False])
+    assert r["launcher_calls"][0]["url"] == canonical_naver_url("목적지")
+    assert len(r["launcher_calls"]) == 2 and r["fallback_count"] == 1
+    assert r["fallback"]["platform"] == platform and r["fallback"]["identifier"] == identifier
+    assert identifier in r["launcher_calls"][1]["url"]
+    assert r["message"].strip() and r["claims"]["navigation_started"] is False
+    no_calls(r)
+
+
+def test_ac025_non_mobile_has_actionable_error_without_install_dispatch(run):
+    r = run(operation="reopen_navigate", road_geometry=ROAD, destination=[127.123, 37.456], name="목적지",
+            platform="desktop", caller_id=None, launch_results=[])
+    assert r["launcher_calls"] == [] and r["fallback_count"] == 0
+    assert r["message"].strip()
+    no_calls(r)
+
+
+@pytest.mark.parametrize("roundtrip,expected_count", [(False, 3), (True, 4)])
+def test_ac026_schema2_complete_immutable_legs_roundtrip(run, roundtrip, expected_count):
+    r = run(operation="schema2_roundtrip", return_to_start=roundtrip, layer_id=SITE_LAYER_ID,
+            directions_response=schema2_directions_response(roundtrip=roundtrip),
+            post_save_actions=["complete", "uncheck", "toggle", "load"])
+    document, route = r["reloaded_document"], r["reloaded_route"]
+    assert document["schema"] == 2 and document == r["saved_document"]
+    assert len(route["legs"]) == expected_count
+    assert [leg["sequence"] for leg in route["legs"]] == list(range(1, expected_count + 1))
+    assert route["legs"][0]["from"] == "start"
+    for index in range(3):
+        assert route["legs"][index]["to"] == {"layer_id": SITE_LAYER_ID, "site_id": str(index)}
+    for leg in route["legs"]:
+        assert leg["distance_m"] >= 0 and leg["duration_s"] >= 0
+        assert leg["geometry"]["type"] == "LineString"
+        assert all(-180 <= xy[0] <= 180 and -90 <= xy[1] <= 90 for xy in leg["geometry"]["coordinates"])
+    if roundtrip:
+        assert route["legs"][-1]["to"] == "start"
+    assert route["road_geometry"]["coordinates"] == SCHEMA2_COORDINATES[:expected_count + 1]
+    assert route["distance_m"] == sum(leg["distance_m"] for leg in route["legs"])
+    assert route["duration_s"] == sum(leg["duration_s"] for leg in route["legs"])
+    assert r["immutable_snapshots"] and all(snapshot == r["immutable_snapshots"][0]
+                                              for snapshot in r["immutable_snapshots"])
+    assert "remaining_recalculate" not in r["controls"]
+    assert r["post_save_requests"] == []
+
+
+@pytest.mark.parametrize("fault", ["missing_leg", "out_of_order_leg", "negative_leg", "nonfinite_leg",
+                                    "invalid_leg_geometry", "non_wgs84_leg", "mismatched_leg_count"])
+def test_ac026_invalid_schema2_leg_preserves_existing_route(run, fault):
+    r = run(operation="schema2_roundtrip", return_to_start=True, layer_id=SITE_LAYER_ID,
+            directions_response=schema2_directions_response(roundtrip=True), fault=fault, seed_saved=True)
+    rejected(r)
+    assert r["candidate"] is None and r["active_after"] == r["active_before"]
+
+
+@pytest.mark.parametrize("distance_adjustment,duration_adjustment,accepted", [
+    (5, 0, True), (5.01, 0, False), (0, 2.28, True), (0, 2.29, False),
+])
+def test_ac026_provider_total_tolerance(run, distance_adjustment, duration_adjustment, accepted):
+    r = run(operation="schema2_roundtrip", return_to_start=True, layer_id=SITE_LAYER_ID, seed_saved=True,
+            directions_response=schema2_directions_response(roundtrip=True,
+                distance_adjustment=distance_adjustment, duration_adjustment=duration_adjustment))
+    if accepted:
+        assert r["ok"] is True
+        assert r["reloaded_route"]["distance_m"] == 1000
+        assert r["reloaded_route"]["duration_s"] == 456
+    else:
+        rejected(r)
+
+
+@pytest.mark.parametrize("completion_source", ["field", "route_stop"])
+def test_ac027_prefix_out_of_order_uncheck_and_roundtrip_return(run, completion_source):
+    r = run(operation="route_progression", mode="roundtrip", completion_source=completion_source,
+            actions=[{"complete": "2"}, {"complete": "0"}, {"complete": "1"}, {"uncheck": "0"}],
+            relocate=False)
+    initial, out_of_order, first, gap_closed, restored = r["states"]
+    assert (initial["prefix_length"], initial["remaining_leg_sequences"]) == (0, [1, 2, 3, 4])
+    assert (initial["remaining_distance_m"], initial["remaining_duration_s"]) == (1000, 456)
+    assert initial["remaining_geometry"]["coordinates"] == SCHEMA2_COORDINATES
+    assert (out_of_order["prefix_length"], out_of_order["remaining_leg_sequences"]) == (0, [1, 2, 3, 4])
+    assert out_of_order["remaining_geometry"] == initial["remaining_geometry"]
+    assert "2" in out_of_order["visit_context_ids"] and out_of_order["completed_ids"] == ["2"]
+    assert (first["prefix_length"], first["remaining_leg_sequences"]) == (1, [2, 3, 4])
+    assert (first["remaining_distance_m"], first["remaining_duration_s"]) == (900, 436)
+    assert first["remaining_geometry"]["coordinates"] == SCHEMA2_COORDINATES[1:]
+    assert (gap_closed["prefix_length"], gap_closed["remaining_leg_sequences"]) == (3, [4])
+    assert (gap_closed["remaining_distance_m"], gap_closed["remaining_duration_s"]) == (400, 216)
+    assert gap_closed["remaining_geometry"]["coordinates"] == SCHEMA2_COORDINATES[3:]
+    assert gap_closed["remaining_note"] == "복귀 포함"
+    assert (restored["prefix_length"], restored["remaining_leg_sequences"]) == (0, [1, 2, 3, 4])
+    assert restored["remaining_geometry"] == initial["remaining_geometry"]
+    assert r["full_route_after"] == r["full_route_before"]
+    no_calls(r)
+
+
+@pytest.mark.parametrize("geometry_type", ["Point", "LineString", "Polygon"])
+@pytest.mark.parametrize("completion_source", ["field", "route_stop"])
+def test_ac027_completion_overlay_is_blue_accessible_nonpersistent_and_rederived(run, geometry_type, completion_source):
+    r = run(operation="completion_overlay", geometry_type=geometry_type, completion_source=completion_source,
+            color="#1565C0", actions=["complete", "uncheck", "complete", "restart", "load"])
+    completed = r["states"][1]
+    assert completed["check"] is True and completed["state_text"] == "완료"
+    assert completed["overlay"]["color"] == "#1565C0" and completed["overlay"]["persistent"] is False
+    if geometry_type == "Polygon":
+        assert completed["overlay"]["fill_opacity"] == pytest.approx(.35)
+        assert completed["overlay"]["outline_opacity"] == 1
+    else:
+        assert completed["overlay"]["opacity"] == 1
+    assert r["states"][2]["overlay"] is None
+    assert r["states"][-1]["overlay"] == r["states"][-2]["overlay"]
+    assert r["source_renderer_after"] == r["source_renderer_before"]
+    assert r["source_data_after"] == r["source_data_before"]
+    no_calls(r)
+
+
+def test_ac027_mapped_write_failure_preserves_overlay_metrics_and_source(run):
+    r = run(operation="completion_write_failure", fault="read_only", completed_id="0", seed_saved=True)
+    rejected(r)
+    for field in ("source_completion", "active", "next", "overlay", "metrics", "check"):
+        assert r[f"{field}_after"] == r[f"{field}_before"]
+    no_calls(r)
+
+
+@pytest.mark.parametrize("seconds,expected", [(0, {"0시간 00분", "00분"}), (1, {"01분", "0시간 01분"}),
+                                                (3599, {"1시간 00분"}), (3601, {"1시간 01분"})])
+def test_ac028_metric_formatting_and_bottom_bar(run, seconds, expected):
+    r = run(operation="metric_display", route_name="오전 경로", completed=2, total=3,
+            remaining_distance_m=1234, remaining_duration_s=seconds)
+    assert r["distance_text"] == "1.23 km" and r["duration_text"] in expected
+    assert r["bottom_bar"] == f"오전 경로 · 2/3 · 남은 1.23 km · {r['duration_text']}"
+    assert r["no_route_bottom_bar"] == "조사 경로 · 0/0 · 남은 0.00 km · 0시간 00분"
+
+
+def test_ac028_route_line_toggle_scope_persistence_move_and_zero_api(run):
+    r = run(operation="route_line_toggle", offline=True, move_folder=True,
+            transitions=["off", "route_switch", "panel_reopen", "app_restart", "folder_move"])
+    assert r["initial_show_route_line"] is True
+    assert all(state["show_route_line"] is False for state in r["states"])
+    assert r["other_project_initial_show_route_line"] is True
+    assert r["saved_geometry_after"] == r["saved_geometry_before"]
+    assert r["completed_overlay_after"] == r["completed_overlay_before"]
+    assert r["source_renderer_after"] == r["source_renderer_before"]
+    assert_project_relative_file(r, r["preference_project_relative_path"])
+    assert Path(r["old_dir"]).resolve() != Path(r["project_dir"]).resolve() and not Path(r["old_dir"]).exists()
+    no_calls(r)
+
+
+def test_ac027_ac028_progression_survives_restart_recovery_offline_move(run):
+    r = run(operation="route_progression", mode="roundtrip", completion_source="field",
+            actions=[{"complete": "0"}, {"complete": "2"}], relocate=True,
+            restart=True, recover_latest=True, offline=True)
+    assert r["reloaded_state"] == r["states"][-1]
+    assert r["recovered_state"] == r["states"][-1]
+    assert r["moved_state"] == r["states"][-1]
+    assert r["full_route_after"] == r["full_route_before"]
+    no_calls(r)
+
+
+def test_ac029_legacy_schema1_load_is_offline_nonmutating_and_unavailable(run):
+    legacy = schema2_legacy_document()
+    r = run(operation="legacy_route", document=legacy, action="load", offline=True)
+    assert r["loaded_document"] == legacy
+    assert r["storage_bytes_after"] == r["storage_bytes_before"]
+    assert r["displayed_full_geometry"] == legacy["routes"][0]["road_geometry"]
+    assert r["displayed_totals"] == {"distance_m": 600, "duration_s": 240}
+    assert r["displayed_stops"] == legacy["routes"][0]["stops"]
+    assert r["remaining"] == {"distance": "사용 불가", "time": "사용 불가", "geometry": "사용 불가"}
+    assert r["message_requires_new_full_calculation_and_save"] is True
+    assert r["inferred_legs"] == [] and r["writes"] == []
+    no_calls(r)
+
+
+def test_ac029_explicit_full_recalculation_is_only_schema2_upgrade(run):
+    legacy = schema2_legacy_document()
+    r = run(operation="legacy_route", document=legacy, action="explicit_calculate_and_save", offline=False,
+            directions_response=schema2_directions_response(roundtrip=False))
+    assert r["saved_document"]["schema"] == 2
+    assert r["saved_route"]["route_id"] == "legacy-route-1"
+    assert r["saved_route"]["revision"] > 7 and len(r["saved_route"]["legs"]) == 3
+    assert r["requests"], "the only permitted migration request is the explicit full calculation"
+
+
+def test_ac029_future_schema_is_preserved_and_rejected(run):
+    future = schema2_legacy_document(schema=3)
+    r = run(operation="legacy_route", document=future, action="load", offline=True)
+    assert r["ok"] is False and r["message"].strip()
+    assert r["storage_bytes_after"] == r["storage_bytes_before"]
+    assert r["writes"] == []
+    no_calls(r)

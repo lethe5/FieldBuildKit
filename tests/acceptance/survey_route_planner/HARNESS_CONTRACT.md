@@ -1,8 +1,8 @@
-# Survey route acceptance harness — DRAFT reconciliation, 2026-09-15
+# Survey route acceptance harness — APPROVED workflow reconciliation, 2026-09-16
 
-Specification checkpoint: `bd625d6` (approved service, key, CRS-defect and usability clarification). The earlier adapter
-contract and tests remain approved at `ed8ac81`; this reconciliation is **DRAFT pending explicit
-user acceptance-artifact approval**. It is an observation/test seam, not a new backend, file
+Specification checkpoint: `1868b7a` (approved route workflow and completion presentation). The earlier adapter
+contract and tests remain approved at `ed8ac81`; this reconciliation was **explicitly approved by
+the user on 2026-09-16**. It is an observation/test seam, not a new backend, file
 format, application API, or product behavior.
 
 ## Entry point and isolation
@@ -69,7 +69,8 @@ settles at the requested viewport width.
 Route snapshots expose `route_id`, `name`, `created_at` (ISO-8601), `backend`, `status`, `start`,
 `end` (WGS84 lon/lat arrays), `distance_m`, `duration_s`, `revision`, `stops`; stops expose
 `site_id` (string), `source_layer`, `sequence` (normalized one-based), `completed` (Boolean).
-Optional `eta`, `eta_basis`, `legs`, `road_geometry` are `None` if unavailable; `eta` and
+Optional `eta` and `eta_basis` are `None` if unavailable and occur together. New schema-2 routes always
+expose complete `legs` and `road_geometry`; only legacy schema-1 snapshots may lack legs. `eta` and
 `eta_basis` occur together. For `ors-vroom`, job-step VROOM `arrival` numbers become unchanged
 relative seconds and `eta_basis` is `relative_seconds`; no current time or `created_at` is used to
 invent an epoch. Associated availability flags must match actual UI disclosure.
@@ -123,7 +124,7 @@ QField evidence.
 | `storage_fault` | Seed valid route and update candidate. Inject failure at actual storage commit boundary: truncated write, full storage, newest copy corrupt, every readable store corrupt, or stale revision after independent update. Never hardcode two slots/JSON. For all-corrupt, immutable external last-good capture proves original data retained; explicit refusal is acceptable, fabricated recovery is not. Stale writer must not overwrite newer committed data. `published_partial` observes whether any consumer saw incomplete candidate. |
 | `complete` | Seed 8 stops in ID order. Mark supplied IDs through the configured actual layer Boolean field, or through local route-stop UI when no completion field is mapped. Observe immediately, reopen and return `reloaded`. Only explicit Boolean `true` is complete; `false`, `NULL` and a missing field are incomplete. Dates/observation existence must not infer completion. |
 | `completion_write_failure` | Seed a mapped Boolean field and nonempty saved/active route, then attempt one completion change through the real panel with a read-only layer or incompatible field type. Return independently reread source values, saved/active route and next-target state before/after. Display the write error and preserve all prior state. |
-| `remaining` | Seed route in ID order, mark supplied completed IDs, then press remaining with supplied GPS. Observe request; `preview` stops before saving; `save` persists; `failure` injects backend timeout. Preserve completed records and route identity; successful save increases revision. No remaining stops must not call backend. |
+| `route_progression` | Seed a schema-2 open/roundtrip full route, then perform the ordered completion/uncheck actions through the mapped Boolean or route-local controls. Observe each effective completion set, consecutive prefix, next target, visit context, remaining leg sequences/metrics/geometry and bottom state. Optional restart, last-good recovery, offline reopen and physical folder move must independently reload the same derived state. No routing request is allowed. The superseded `remaining` operation/control must not be exposed. |
 | `reopen_navigate` | Reload saved supplied LineString offline, activate render path, navigate to provided destination/name with injected OS launcher Boolean result. Return exact launched URL, rendered geometry, message and any success claim. No claim about Naver's internal success from OS dispatch alone. |
 | `passive_action` | Seed saved route with synthetic key retained only in session; perform action and inspect whole generated folder and full logs. `complete` changes actual completion; `restart` destroys session; `load` loads saved route. |
 | `configured_calculate` | Seed a saved active route, apply each supplied setting through the production project/session settings path and press calculate. With `fresh_project=True`, omit endpoint fields and observe generated defaults. Migrate only the exact legacy defaults before dispatch and the next normal settings save; normalize one trailing separator; preserve every other custom/self-hosted URL. Dispatch registered `ors-vroom` and return `transport_settings`, full request records, independently decoded `persisted_settings`, diagnostics and saved/active before/after. Hosted defaults require a key before any request; custom/self-hosted endpoints permit no key and omit `Authorization`. The calculation remains an unsaved preview. Omitted road offset defaults to 1000 m. An unknown provider ID fails before registry transport dispatch and preserves the saved/active route. A session key may reach request headers only; it must not enter persisted settings, project files, logs or errors. |
@@ -137,6 +138,14 @@ QField evidence.
 | `generated_geometry_calculate` | Generate and validate a real FieldBuild Kit project containing the supplied valid geometry/CRS, load the unchanged generated route QML with the strict evaluator contract above, select its feature and press calculate. Return the evaluator trace, exact request coordinate, original geometry before/after, QML diagnostics and whether the generic CRS message appeared. Valid WGS84/projected inputs must reach transport. For a supplied missing/invalid CRS or transform fault, seed a nonempty saved/active route, execute the same generated runtime path, make no request and return a precise failure reason with unchanged route state. |
 | `regression` | Build each survey type with and without fictional taxonomy, preserve representative pre-existing polygon fixture and a separate existing-user-project copy. Generate then relocate; validate sources/schema/relations, execute existing identification/report paths with synthetic response, read report row geometry/coordinates and KTSN presence. Type1 uses explicitly mapped inventory layer/ID; do not invent default site. Return actual before/after identities, non-site shapes, report rows and validation errors. |
 | `panel_layout` | Load the actual generated expanded route panel at the requested viewport width, wait for bindings/layout to settle, render a screenshot, and return measured scroll-content, editable/selector field, label/help/error rectangles and horizontal-overflow state. Do not infer geometry from source text. |
+| `project_dropdowns` | Create the supplied actual vector layers in layer-tree/provider order, open the generated panel and drive the listed reopen/layer/schema/preflight actions. Return observed layer options `{label, layer_id, source_name}`, stored stable IDs, provider-order actual field names, selected values, validation/enabled state and the refresh triggers emitted by production. Duplicate aliases, removed IDs and schema changes are fixture state, not adapter decisions. |
+| `route_workflow_ui` | Load the generated panel at the requested width, select the real start mode and project feature, then observe exact labels/guidance, conditional control visibility, target option label/value pairs, stale-target handling, wrap rectangles and overflow. |
+| `storage_feedback` | Save a default start or named route through its real control, optionally fault the commit boundary, and independently reopen committed storage. Return the exact user feedback and exact committed project-relative path. A success path must resolve to an existing file inside `project_dir`; failure must emit no success. Capture all diagnostics for synthetic-secret leakage checks. |
+| `schema2_roundtrip` | Calculate from the raw optimizer/directions boundary, validate and atomically save schema 2, restart and independently reopen it. Return the full document/route, candidate and old saved/active state. Inject named leg faults only at the raw boundary. After save, drive complete/uncheck/toggle/load and return immutable full-route snapshots plus requests limited to those actions. Provider totals may be adjusted to exercise the `max(1 unit, 0.5%)` boundary; canonical saved totals come from ordered immutable legs. |
+| `completion_overlay` | Complete/uncheck/recomplete one actual Point, LineString or Polygon feature through mapped or route-local state, restart and load. Return normalized rendered overlays, check/text state, source renderer and source bytes before/after. Overlay observations come from the production map-item/render path, not QML source strings. |
+| `metric_display` | Render an active and no-route bottom bar from supplied metric inputs and return the visible formatted strings. |
+| `route_line_toggle` | Create two saved routes and a separate project, turn the generated route-line control off, switch route, reopen panel, restart and move the folder with its settings while offline. Return actual overlay visibility, project-scoped preference storage path, completed overlay/source/full-route snapshots and action-window requests. |
+| `legacy_route` | Materialize the supplied schema-1 or future-schema bytes, then load offline or explicitly invoke full calculate-and-save. Return independently read bytes/documents, visible legacy totals/line/stops/unavailable state, inferred legs, writes and requests. Load never repairs/splits/writes; only the explicit action may issue requests and publish schema 2 with normal revision semantics. Future schema remains byte-preserved and rejected. |
 
 Fault names and their semantics are literal parameters in the test module. `status_0`, network,
 HTTP 401/429/500, timeout and truncated JSON are transport-boundary faults; malformed matrix,
@@ -152,3 +161,24 @@ completion, Type 1 mapping, 1000 m offset and project-local setting cases are un
 conformance tests. O-SRP-002/004 still require real-version/device verification: automated
 generated QML/JS and mocked external boundaries do not prove native QField FileUtils behavior,
 atomicity, iOS/Android loading, real provider operation or Naver execution.
+
+## 2026-09-16 observation additions
+
+All file paths returned for UI feedback are exact slash-normalized paths relative to `project_dir`,
+paired with the independently observed committed path and filename. They may not be synthesized
+from a configured route name. `launcher_calls` records every actual `Qt.openUrlExternally` call in
+order with URL, Boolean return and call surface. A true return means only that the OS accepted the
+open request; `claims` separately records and must not invent app launch, destination acceptance or
+navigation start. Mobile fallback records its platform and package/App Store identifier.
+
+Schema-2 legs expose `sequence`, `from`, `to`, finite non-negative distance/time and WGS84 GeoJSON
+LineString. `from`/`to` is literal `start` or `{layer_id, site_id}`. Full-route immutable snapshots
+include document schema, route revision, totals, ordered legs and full display geometry. Progression
+snapshots include prefix length, remaining leg sequence, visit context, metrics/geometry, completed
+IDs, check/text and overlay. Map overlay style is normalized only after rendering: Point/LineString
+use `#1565C0` at opacity 1; Polygon uses that color at fill opacity .35 and outline opacity 1.
+Renderer/source comparisons use nonempty bytes or full decoded records.
+
+The old `remaining` operation is deliberately removed from this contract. AC-SRP-011 remains in
+historical traceability, but D-SRP-023/FR-SRP-026 require no remaining-calculation control and zero
+routing requests for completion, uncheck, toggle, restart or load.

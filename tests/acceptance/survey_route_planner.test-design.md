@@ -1,8 +1,8 @@
-# Survey Route Planner — acceptance test design reconciliation
+# Survey Route Planner — acceptance test design workflow reconciliation
 
-> **DRAFT — 2026-09-15. Pending explicit user approval of these reconciled acceptance artifacts.**
-> Input: approved service, key, CRS-defect and usability specification in
-> `specs/survey-route-planner.md` at checkpoint `bd625d6`, plus current shared docs and integrated spec. The acceptance checkpoint `ed8ac81`
+> **APPROVED — explicit user approval of these reconciled acceptance artifacts, 2026-09-16.**
+> Input: approved workflow specification in `specs/survey-route-planner.md` at checkpoint
+> `1868b7a`, plus current shared docs and integrated spec. The acceptance checkpoint `ed8ac81`
 > remains the approved baseline. This stage authors tests, not implementation or product PASS.
 
 ## Current authority and scope
@@ -13,11 +13,16 @@ requirements in inherited tests do not govern new route tests. Existing evidence
 `docs/qfield-runtime-verification.md`; earlier macOS QField 4.2.11 loading is not route evidence.
 No application implementation/resource files or prior role transcripts were read for this design.
 
-The approved `ed8ac81` suite remains the historical baseline. This draft changes only expectations
-affected by D-SRP-008–013 and D-SRP-015–019 with their listed FR/AC. No historical PASS, device result or
+The approved `ed8ac81` suite remains the historical baseline. The 2026-09-15 reconciliation is
+retained and extended for D-SRP-020–030, FR-SRP-021–028, NFR-SRP-001–003 and AC-SRP-021–030. No historical PASS, device result or
 approval is deleted or reinterpreted. Existing acceptance files with pre-route polygon-only
 assumptions remain historical; do not silently weaken them. D-SRP-002 supersedes only the site
 geometry restriction, not plot/community/observation semantics.
+
+AC-SRP-011's approved historical “remaining recalculation” text remains traceable, but its old
+request/save oracle is no longer executable. D-SRP-023 and FR-SRP-026 supersede it with a missing
+control, immutable schema-2 full legs and zero-request completion derivation. Schema-1 fixtures are
+kept byte-for-byte and tested as non-mutating legacy reads; they are not silently split into legs.
 
 ## Executable boundary
 
@@ -27,14 +32,18 @@ runs production actions with synthetic external-boundary inputs. Tests assert ca
 provider calls, detached and independently reopened storage snapshots, real portable files,
 Fiona/SQLite geometry and GPKG metadata/rtree, actual generated panel/button/timer/UI diagnostics,
 strict QField-shaped expression-evaluator calls, rendered layout screenshots, builder key UI,
-and generated report data. The harness must not copy case values, invent observations or recompute
+ and generated report data. Workflow additions observe real project layer/field/feature models,
+exact committed relative paths, Qt launcher calls, schema documents/legs, rendered completion and
+route overlays, visible metrics and device-local project settings. The harness must not copy case values, invent observations or recompute
 product state. This is a contract suite, not a separate implementation of routing or storage.
 Adapter implementation is a later role.
 
 The missing new function is a distinct explicit skip. Once exposed, exceptions/malformed results
 and assertions fail. `FIELDBUILD_REQUIRE_SRP_HARNESS=1` turns absence into failure for implementation
 and review. Do not report skips as covered runtime behavior. Six manual placeholders always skip.
-No real network requests or purchased keys are needed for this stage.
+No real network requests or purchased keys are needed for this stage. All secret fixtures are
+synthetic and may appear only in the already-approved generated-project-variable exception or
+intercepted `Authorization` header.
 
 ## Fixtures and independent oracles
 
@@ -72,11 +81,10 @@ No real network requests or purchased keys are needed for this stage.
   keyless requests and omit the header.
 - 8 stops with 2 completed through a configured Boolean field and, separately, through route-local
   storage when no field is mapped; next is the lowest incomplete sequence after immediate refresh
-  and restart. 12 with 4 complete produces GPS
-  plus exactly 8 remaining jobs. Preview/failure cannot change saved state; save increases revision
-  and preserves route identity/completed records. All complete produces no backend request.
-  Inline help states the strict Boolean and blank-mapping route-local meanings. Read-only and
-  incompatible-field writes fail visibly and preserve source, saved route, active route and next.
+  and restart. Read-only and incompatible-field writes fail visibly and preserve source, saved
+  route, active route, check, completed overlay, metrics and next. The historical remaining-route
+  request is not executed: the control is absent and completion/uncheck derives from saved full legs
+  with zero requests.
 - Real SHP, ZIP and GPKG fixtures × Point/LineString/Polygon/MultiPoint/MultiLineString/MultiPolygon.
   Two named records each; actual source files remain unchanged; reread output feature count,
   topology/parts, unique IDs, metadata, rtree count, integrity and project geometry. Additional
@@ -123,6 +131,36 @@ No real network requests or purchased keys are needed for this stage.
 - Narrow (320 px) and wide (1024 px) generated panels are loaded and rendered. Measured fields fill
   the common content rectangle, same-row fields split it evenly, labels/help/errors align and wrap,
   and neither viewport has horizontal overflow. Screenshots are test evidence, not device evidence.
+- Project dropdown fixtures contain an internal `site` layer and two duplicate `표본구` aliases.
+  Layer-tree/provider order and stable IDs are independent oracles. Stored valid IDs and actual field
+  names survive reopen; stale selections refresh on layer/schema change and calculate/save preflight.
+  Provider-order suffix defaults use mixed-case `_ID`/`_NAME`; no match stays blank and blocks work.
+- Workflow UI cases assert exact `조사 경로 계산 대상`, `출발지`, `저장 경로 이름` and checklist
+  guidance, mode-only map/target controls and `이름 · ID` target values. Default-start and route-save
+  feedback must repeat the independently observed committed filename and project-relative path; a
+  commit fault emits no success and no secret-bearing feedback.
+- Naver uses an independently percent-encoded exact canonical `/navigation` URL with required
+  `appname`. Android and iOS false dispatches each make exactly one package/App Store fallback call;
+  true reports only OS request acceptance. Desktop/all-refused paths are actionable errors. Native
+  destination acceptance and guidance remain M05 device evidence.
+- Schema 2 uses three stops: open stores three legs and roundtrip four. Each raw directions segment
+  has independent way-point indexes and non-negative distance/time. Canonical totals are leg sums;
+  provider deltas at exactly `max(1 unit, 0.5%)` pass and deltas beyond it fail. Missing, reordered,
+  negative/non-finite, non-WGS84 or count-mismatched legs preserve the old route. Completion,
+  uncheck, toggle and load leave schema/revision/full legs/totals/geometry byte-equivalent.
+- Progression closes only the consecutive prefix: completing stop 3 first leaves all legs and visit
+  context; completing stops 1 then 2 leaves only the roundtrip return leg marked `복귀 포함`; unchecking
+  stop 1 restores every leg. Point/line completion uses opaque `#1565C0`; polygon uses 35% fill and
+  opaque outline. Check and `완료` text accompany color, source renderer/data remain unchanged, and
+  restart/load rederive the non-persistent overlay.
+- Metric controls cover 0, 1, 3599 and 3601 seconds, ceil-minute formatting, 1.23 km and exact active/
+  no-route bottom bars. A default-on route-line preference applies to all routes in one project,
+  leaves completion overlays/full geometry/source renderer unchanged, persists across switch/reopen/
+  restart/settings-bearing move, and does not affect a separate project's default.
+- A schema-1 route keeps line, totals, stops and bytes unchanged offline, shows enhanced remaining
+  values as `사용 불가`, infers no legs and explains the one explicit full calculate/save upgrade.
+  That explicit action alone may write schema 2 with a higher revision. Future schema is preserved
+  and rejected without request or write.
 - Regression: four survey types × no reference/fictional reference; retain UUID/relations and
   non-site geometries, execute report and identification paths after relocation, enforce no
   fabricated non-point report coordinates and conditional KTSN. No real private workbook.
@@ -140,6 +178,7 @@ No real network requests or purchased keys are needed for this stage.
 | Candidate Z/M and GeometryCollection policy | XY and polygon holes covered; Z candidate exercised. M and polygon-bearing GeometryCollection need fixtures once normalization policy is fixed; preserving prior compatible behavior remains required. |
 | Zero input and missing mapping | Zero selected, no remaining and invalid IDs covered. Type 1 without explicit layer/ID/name mapping fails before transport. |
 | Generated QML and desktop UI | Adapter executes actual generated logic and real widgets. Native QField import compatibility, touchscreen layout and OS navigation need manual evidence. |
+| D-SRP-020–030 workflow | Executable proxy gates cover actual project models, storage commits, launcher dispatch, schema documents, derived progression/render state and offline persistence. Native provider ordering, FileUtils/overlay rendering, touch/keyboard and mobile app handoff remain M01–M05. |
 
 A complete per-criterion map means tests/design are present; it does not mean every criterion has
 fully automated proof. The six manual/native gaps prevent blanket PASS until user-run evidence exists.
@@ -153,12 +192,12 @@ operation per AGENTS.md; automated sidecar checks never substitute for this evid
 
 | Case | Steps and expected result | AC |
 | --- | --- | --- |
-| M01 | Move generated folder to device, permit plugin, verify report/identify and bottom single-row name/completion panel. Expand/collapse at narrow and wide device widths while manipulating map; fields fill the common margins without horizontal overflow. Select 0/1/N, focus unselected row, verify the visible recognized count and selection instructions, site defaults, and Type 1 layer/ID/name. Lists follow actual selection; zero and missing Type 1 mapping are clearly blocked. | 001–003,013,020 |
-| M02 | Build one consented project and one declined project without exposing the test key in evidence. On device, verify automatic key use only in the consented project and session-only manual entry in the declined project. Disable GNSS, calculate and see actionable failure. Enable valid GPS; test map/target/saved departure after reopen, default return. Configure real `ors-vroom` with current hosted endpoints and chosen time/distance profile, calculate a small known road detour/asymmetric route, compare redacted provider jobs/units/order/road response and numeric relative ETA. Capture redacted provider evidence; no assertion of globally optimal route. | 004–007,013,017,019 |
-| M03 | Save two routes, activate each, close app fully, remove connectivity and session key, reopen; move whole folder and repeat. Data/road line/next target remain identical. Simulate copied-project corrupted storage only, observe safe recovery/refusal; never corrupt real user data. Passive actions produce zero routing-service traffic. | 008,009,011,013 |
-| M04 | Read the visible completion help. Set configured layer values to Boolean true/false/NULL/missing then return to the panel, and repeat without a completion field using route-local controls. Verify 2/8 summary/next and a visible write failure against a disposable read-only/incompatible field without state loss. Then mark 4/12 complete and calculate remaining from current GPS; it sends 8 stops, saves higher revision and retains completed history. Cancel or fail calculation and check the old saved route. | 010,011 |
-| M05 | Reload saved road geometry offline and compare map. Navigate to Korean/special-character destination in installed Naver; verify target coordinates. Test OS launch refusal/unavailable handler and useful error. OS dispatch alone is not proof of app-internal success. | 007,012,013 |
-| M06 | Desktop direct point/line/polygon drawing, invalid finish and two named sites; upload all six types. Open moved outputs on device, inspect each geometry/style/form. Existing polygons, UUID relations, observation/plot/community and report/identification remain functional; report non-point rows have no centroid-derived coordinates. | 014–018 |
+| M01 | On iOS and Android, move/open the generated folder and inspect the actual project layer dropdown order, duplicate-label disambiguation, `조사지` default and provider-order field lists. Rename/remove a disposable field/layer, reopen and verify refresh, fallback or blank blocking. At 320px-class and wide devices verify exact labels/guidance, mode-only controls, target `이름 · ID`, wrapping, touch and keyboard access. | 001–003,013,020–024; NFR-001 |
+| M02 | Build one consented and one declined project using only a synthetic key and redact evidence. Verify device key sourcing, GPS/map/target/saved start and a small real `ors-vroom` open and roundtrip route. Reopen schema 2 and compare every leg/total/full line. Finish/unfinish stops and verify zero provider traffic; no `남은 지점 계산` control exists. | 004–007,013,017,019,022–023,026; NFR-003 |
+| M03 | Save two routes and default start, confirm feedback points to actual accessible project-relative settings/route files, turn route line off, switch routes, reopen panel, terminate/restart offline, then move the whole folder with settings and repeat. Preference, full route, completion overlay and progression remain identical; use only a disposable copy for corruption/recovery. | 008–009,013,023,026–029; NFR-003 |
+| M04 | For mapped Boolean and route-local completion, complete point/line/polygon targets in order and out of order, close the gap, then uncheck. Verify Blue 800 opacity/fill, check and `완료` text, visit context, trimmed line, km/time/bottom bar and roundtrip return. Force a disposable write failure and verify every visual/metric/source value stays unchanged. | 010–011,024,027–028; NFR-002–003 |
+| M05 | Separately on Android and iOS with Naver installed, invoke a Korean/special-character target, verify exact destination and begin guidance manually. Repeat without/disabled app handler to verify package/App Store fallback and all-refused error. Record that Qt true proves only OS request acceptance; it is not handoff/destination/guidance proof. | 012–013,025 |
+| M06 | Desktop direct point/line/polygon drawing, invalid finish and two named sites; upload all six types. Open moved outputs on both device platforms, inspect each geometry/style/form. Existing polygons, UUID relations, observation/plot/community and report/identification remain functional; report non-point rows have no centroid-derived coordinates. Run the schema-1 unavailable/read-only case on a disposable legacy copy. | 014–018,029–030 |
 
 ## Stage validation
 
