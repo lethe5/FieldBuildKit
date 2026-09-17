@@ -1,14 +1,43 @@
 # Feature: 도로망 조사 경로 및 조사대상 도형 확장
 
-> Status: **APPROVED SPECIFICATION — 2026-09-16 경로 작업 흐름·진행 표시 개정안 사용자 승인**
-> Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; current specification slice approved 2026-09-16
+> Status: **APPROVED FOLLOW-UP — 2026-09-17 QField 실기 관찰 및 Step 7 설명 정합; 기존 승인 기준 유지**
+> Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; 2026-09-16 approved workflow/progress slice; D-SRP-031~035, FR-SRP-029~033 and AC-SRP-031~035 approved 2026-09-16; D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 and AC-SRP-036~041 approved 2026-09-17; D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 and AC-SRP-042~045 approved 2026-09-17. Target QField device verification remains **NOT RUN (미검증)**.
 > Owner: spec-writer
 > Extends: [통합 명세](qfield-project-builder.md)
-> Test design: [승인된 기준본](../tests/acceptance/survey_route_planner.test-design.md) — 승인된 현재 명세에 맞춘 ETA/backend/key 정합 필요
-> Traceability: [승인된 기준본](../tests/acceptance/survey_route_planner.traceability.md) — 현재 명세의 통과 증거 아님
+> Test design: [승인된 기준본](../tests/acceptance/survey_route_planner.test-design.md) — FR-SRP-029~039, AC-SRP-031~041 및 NFR-SRP-004까지 2026-09-17 반영·승인됨; 이번 승인 ID는 아직 반영되지 않음
+> Traceability: [승인된 기준본](../tests/acceptance/survey_route_planner.traceability.md) — 이번 승인 slice 또는 현재 구현의 통과 증거 아님
 
 
 ## 0. 문서 권한과 현재 상태 (2026-09-14)
+
+**2026-09-17 승인 실기 관찰 정합:** 실제 QField에서 `저장할 경로 이름`을 눌러도 모바일
+소프트 키보드가 열리지 않는 현상과 generated site/`조사지` feature의 이름 label이 보이지 않는
+현상은 각각 승인된 FR-SRP-034 및 FR-SRP-039에 대한 Category A conformance defect다. 저장 경로
+불러오기 dropdown을 같은 floating-label pattern에 포함하고 모든 label을 outline 상단선에 정확히
+걸치도록 맞추는 일, name field 부재 시 stable ID를 label fallback으로 쓰는 일, FieldBuild Kit
+wizard Step 7에 ORS key의 용도·미입력·평문 포함 동의를 설명하는 일은 Category D refinement다.
+아래 D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 및 AC-SRP-042~045는 기존 ID와 승인 이력을
+보존하는 **2026-09-17 승인 추가안**이다. 정적 문자열/QML/XML 검사는 구현 구조의 자동 proxy일 뿐 모바일
+키보드 개방이나 QField 지도 label 실제 렌더링의 PASS 증거가 될 수 없다.
+
+**2026-09-17 승인 후속 정합:** 계산 성공 뒤 경로 이름을 입력·수정하면 재계산 없이 즉시 저장되어야
+하는 현상은 FR-SRP-007/008의 Category A conformance defect다. 경로 패널 label 통일, 서버 설정의
+초기 접힘, 저장 위치·scope feedback, polygon 조사지 색과 name label은 Category D refinement다.
+`VROOM v1.14 서버 URL` 문구 단순화, session key와 동의 기반 평문 project variable의 구분,
+설정 snapshot 위치 설명, 공식 플랫폼별 NAVER dispatch/fallback, 방문 순서 밖 completion 입력의
+처리는 Category B clarification이다. 아래 D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 및
+AC-SRP-036~041은 기존 승인 ID와 이력을 보존하는 **승인된 명세 기준**이며, acceptance 산출물은 새
+test-designer가 별도로 정합하고 승인받아야 한다.
+
+**2026-09-16 승인 사용자 지시 정합:** `조사 경로 계산 대상`, `출발지`,
+조사지 layer/ID/name/completion selector의 in-control floating label, `선택 대상`에서만 보이는
+선택 안내·현재 수, 지도 중심 출발지의 임시 marker는 Category D UX refinement다. 조사대상 출발
+후보가 계산 scope와 정확히 같은 candidate set을 쓰는 규칙은 Category B clarification이다.
+유효한 line 조사지에서 새 경로 계산이 `도로 구간 순서 또는 도형이 올바르지 않습니다.`로 실패하는
+현상은 이미 승인된 FR-SRP-017/026에 대한 Category A conformance defect이며, 여섯 geometry family에
+공통인 provider-response acceptance와 provider/client 오류 구분은 Category B clarification이다.
+Point와 Polygon은 아직 실제 QField에서 수동 확인되지 않았으므로 PASS로 간주하지 않는다. 이 승인
+slice는 승인된 이력과 stable ID를 보존하며, 아래 supersession과 새 ID가 승인 기준본을 확장한다.
 
 **2026-09-16 승인 변경:** 대상/필드/출발을 project-backed dropdown으로 바꾸고 field label,
 조건부 control, 저장 피드백, 방문 안내와 표시 형식을 정리한다(Category C/D). 작동하지 않는
@@ -185,6 +214,114 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
 - D-SRP-025 (2026-09-16 승인, Category D): route-line toggle은 line만 숨긴다. default true인
   project-scoped device-local UI preference 하나를 모든 saved route에 적용한다. project-local 설정 파일이
   프로젝트 폴더와 함께 이동하면 panel reopen, app restart와 folder move 뒤에도 유지한다.
+- D-SRP-031 (2026-09-16 승인, Category D): FR-SRP-022의 `control 위 label` 배치를 승인 이력으로
+  보존하되 그 배치만 supersede한다. `조사 경로 계산 대상`, `출발지`,
+  `조사지 레이어`, `조사지 ID 필드`, `조사지 이름 필드`, `조사지 완료 필드(Boolean)`는 ORS 서버
+  URL field와 같은 in-control floating-label pattern을 쓴다. 별도 label row나 placeholder-only label은
+  쓰지 않으며, 내부 source/role/actual field name과 저장값은 바꾸지 않는다.
+- D-SRP-032 (2026-09-16 승인, Category D): 선택 준비 절차와 현재 선택 수는 scope가 `선택 대상`일
+  때만 보인다. scope control 바로 아래의 scope 설명 다음 줄에 두고, `전체 대상` 또는 `미조사 대상`으로
+  바꾸면 빈 자리 없이 숨긴다. 이는 D-SRP-018의 안내 의미를 유지하면서 정보 계층만 명확히 한다.
+- D-SRP-033 (2026-09-16 승인, Category D): `지도 중심을 출발지로 지정`은 현재 map center를
+  WGS84 출발 좌표로 확정한 직후 그 위치에 `출발지`임을 색 이외로도 식별할 수 있는 임시 marker
+  하나를 표시한다. marker는 지도 이동과 독립적으로 확정 좌표에 머물고 다시 지정하면 이동·교체한다.
+  panel collapse/reopen과 계산 성공/실패에는 유지하되 start mode 변경, 값 clear/invalid, project close에는
+  제거한다. source/route data에는 쓰지 않고 app restart에 독립 복원하지 않으며 원본 renderer를 바꾸지 않는다.
+- D-SRP-034 (2026-09-16 승인, Category B): `조사대상 출발` dropdown은 새 request 없이 현재
+  calculation preflight와 동일한 ordered stable-ID candidate set에서만 만든다. `선택 대상`은 현재 선택한
+  유효 조사지, `전체 대상`은 전체 유효 조사지, `미조사 대상`은 effective completion이 false인 전체
+  유효 조사지다. option population과 기존 선택 보존/clear를 먼저 수행하고, 그 뒤에 target mode의
+  required-selection validation을 실행한다. 비어 있는 기존 선택을 먼저 검증해 population 자체를 막지 않는다.
+- D-SRP-035 (2026-09-16 승인, Category A/B): 유효한 EPSG:4326 LineString 조사지 5개에서도
+  실 ORS 응답을 `도로 구간 순서 또는 도형이 올바르지 않습니다.`로 거부한 현상은 conformance defect다.
+  ORS GeoJSON directions의 `properties.segments[]`는 waypoint 사이 section의 distance/duration/steps이고,
+  geometry waypoint index sequence는 route-level `properties.way_points[]`다. 초기 `ors-vroom` adapter는
+  후자의 연속 index pair로 full LineString을 ordered leg geometry로 나누며, 문서에 없는
+  `segments[].way_points`를 요구하지 않는다. Point는 원점, MultiPoint/LineString/MultiLineString/
+  Polygon/MultiPolygon은 승인된 source-CRS centroid→WGS84 대표점을 사용한 뒤 source geometry family와
+  무관하게 같은 VROOM order와 ORS response validator를 통과한다. provider response 결함과 client
+  parsing/validation 결함은 서로 다른 actionable 오류로 알리고 마지막 정상 경로를 보존한다.
+- D-SRP-036 (2026-09-17 승인, Category A/B): 성공한 계산 결과(candidate)는 계산 입력과
+  계산 시점의 저장 revision에 결합한다. 저장 이름은 계산 입력이 아니므로 `저장할 경로 이름`의
+  입력·수정·focus 변화가 candidate를 무효화하거나 재계산을 요구하지 않는다. 저장 직전에는
+  candidate가 존재하고 base revision이 아직 같은지만 검사한다. 계산 입력 또는 snapshot revision이
+  실제로 바뀐 경우에만 재계산 또는 새 결과 선택을 요구하며, 이름 오류·저장 실패에는 candidate를
+  보존하여 수정 후 다시 저장할 수 있게 한다.
+- D-SRP-037 (2026-09-17 승인, Category D): 경로 패널의 주요 field/selector는 현재
+  `저장할 경로 이름`에서 선호된 outlined floating-label을 공통 pattern으로 쓴다. text field와
+  dropdown 모두 label이 outline에 걸쳐 항상 보이고 control 종류, empty/value/focus/error 상태에
+  따라 위치가 달라지지 않는다. exact user-facing labels는 `조사지`, `조사지 ID 필드`,
+  `조사지 이름 필드`, `조사 완료 필드`, `계산 대상`, `출발지`, `저장할 경로 이름`이다.
+  이 결정은 D-SRP-031/FR-SRP-029의 여섯 label 배치와 긴 문구만 supersede하며 stable layer ID,
+  actual field name, option value와 저장 의미는 바꾸지 않는다.
+- D-SRP-038 (2026-09-17 승인, Category B/D): `API URL/키 설정` section은 panel을 처음 열 때
+  접혀 있고 사용자가 명시적으로 펼친다. optimizer label은 version을 UI에 고정하지 않는
+  `VROOM 서버 URL`이다. QField에서 직접 입력한 key는 현재 app session의 메모리에만 있고
+  `서버 설정 저장 (키 제외)` snapshot에 쓰지 않는다. 단, builder에서 위험 고지에 동의한 project는
+  `.qgs` project variable에 평문 key를 포함하며 panel을 열 때 그 값을 session key로 읽는다.
+  이는 session field를 settings JSON에 저장한 것이 아니고 암호화도 아니다. key control 근처에는
+  `이번 세션만 사용` 또는 `프로젝트 파일의 평문 키 사용 중` 중 실제 source/persistence 상태를
+  명확히 표시한다. 일반 서버 설정 저장 성공은 현재 프로젝트 scope와 실제로 쓴
+  project-relative `survey-routes.a.json` 또는 `survey-routes.b.json` 경로를 표시하며 key 제외를
+  재확인한다. 이 파일은 route와 non-secret settings가 함께 있는 교대 snapshot이다.
+- D-SRP-039 (2026-09-17 승인, Category A/B): NAVER handoff는 구현 시점의 NAVER Cloud 공식
+  `지도 앱 연동 URL Scheme` 문서가 각 host context에 규정한 형식을 그대로 사용한다. Android
+  native/in-app context는 공식 `intent://...#Intent;scheme=nmap;...;package=com.nhn.android.nmap;end`
+  형식을 지원하는 host에서 이를 쓰고, iOS는 필수 `appname`을 포함한 공식 `nmap://navigation`
+  scheme과 documented App Store fallback을 쓴다. Android에서 intent URL을 host가 처리할 수 없으면
+  공식 문서가 허용한 native `nmap://navigation` dispatch와 documented Google Play fallback을
+  사용한다. 웹 fallback은 공식 문서가 해당 platform/context와 navigation action에 명시한 경우에만
+  그 문서의 URL을 사용하며, 임의의 `map.naver.com` URL이나 추정 parameter를 만들지 않는다.
+- D-SRP-040 (2026-09-17 승인, Category B/D): 사용자가 panel에서 완료로 바꿀 수 있는 stop은
+  현재 순서상 첫 미완료 stop 하나뿐이다. 그 뒤 stop을 check하려 하면 값을 바꾸지 않고
+  `다음 방문 지점부터 순서대로 완료하세요.`와 현재 다음 지점을 표시한다. 이미 완료된 stop은
+  현장 기록 정정을 위해 uncheck할 수 있다. 이때 뒤의 완료값은 지우지 않되 D-SRP-024의 prefix
+  계산에 따라 `순서 밖 완료`로 표시하고 earliest gap부터 남은 metric/geometry에 포함한다.
+  source Boolean에서 처음부터 발견된 out-of-order true도 같은 표시를 쓰고 자동 재계산·자동 해제·
+  API 호출을 하지 않는다. 이 규칙은 계산 없이도 안전하게 동작하는 현재 contiguous-prefix 구조를
+  유지하면서 실수로 남은 경로를 앞당기는 UX를 막는다.
+- D-SRP-041 (2026-09-17 승인, Category D): generated project의 polygon `site`/`조사지` layer는
+  회색 계열이 아닌 식별 가능한 accent outline/fill을 사용한다. 기본 제안은 green `#2E7D32`
+  outline과 같은 hue의 반투명 fill이며 basemap 위에서 경계를 식별할 수 있어야 한다. 조사지 feature는
+  configured name field 값을 지도 label로 표시하고 흰색 buffer/halo를 둘러 배경과 겹쳐도 읽히게
+  한다. 빈 name은 label을 만들지 않으며 label text는 data로 취급한다. style/label 설정은 원본
+  geometry, configured field value, route completion overlay와 stored route를 바꾸지 않는다.
+- D-SRP-042 (2026-09-17 승인, Category A): 실제 QField에서 `저장할 경로 이름`을 눌러도 모바일
+  소프트 키보드가 열리지 않는 현상은 D-SRP-036/FR-SRP-034의 입력 가능 계약에 대한 conformance
+  defect다. 이 control은 read-only 표시나 pointer-only surface가 아니라 QField가 native text input으로
+  인식하는 editable control이어야 한다. 사용자가 control 본문을 누르면 caret/focus가 나타나고 OS
+  소프트 키보드가 열리며, 한글·영문 입력, 선택, 삭제와 재입력이 candidate 재계산 없이 동작한다.
+  외부 키보드 연결 또는 OS의 소프트 키보드 비활성화처럼 앱이 제어하지 않는 조건은 별도로 기록한다.
+- D-SRP-043 (2026-09-17 승인, Category D): `저장 경로 불러오기` dropdown을 D-SRP-037의 공통
+  outlined floating-label component에 포함한다. text field와 dropdown의 모든 floating label은 label
+  글상자/표면색 notch의 수직 중심이 control의 top outline과 일치해 top border를 가로지르는 한
+  기준선을 쓴다. label 전체가 outline 아래로 처지거나 border 위에 떠 있으면 안 되며 empty/value/
+  focus/disabled/error 상태와 320 px 이상 viewport에서 그 기준선이 바뀌지 않는다. 이 결정은
+  D-SRP-037의 일곱 label을 여덟 label로 확장하고 배치 정밀도를 명시할 뿐 stored option value,
+  route ID, selection/load 동작은 바꾸지 않는다.
+- D-SRP-044 (2026-09-17 승인, Category A/D): 실제 generated project에서 승인된 name label이
+  보이지 않는 현상은 D-SRP-041/FR-SRP-039의 conformance defect다. Point/MultiPoint,
+  LineString/MultiLineString, Polygon/MultiPolygon site/`조사지` layer는 geometry family에 맞는
+  QGIS/QField label placement를 사용하고 feature마다 하나의 logical label을 그린다. label text는
+  trim한 configured name-field 값이 non-empty면 그 값, name field가 없거나 유효하지 않거나 해당
+  값이 비어 있으면 trim한 configured stable-ID-field 값, 둘 다 없거나 비어 있으면 label 없음이다.
+  임의의 다른 attribute를 추측하지 않는다. 이 fallback은 지도 표시만 위한 것이며 FR-SRP-021의
+  required route-name mapping validation을 충족한 것으로 간주하지 않는다. 모든 표시 label은 흰색
+  buffer/halo를 사용하고 markup처럼 보이는 값도 inert text로 취급한다. multipart feature의 각 part에
+  같은 text를 반복하지 않으며 원본 geometry/attribute/renderer contract와 route overlay를 바꾸지 않는다.
+- D-SRP-045 (2026-09-17 승인, Category D): FieldBuild Kit wizard Step 7의 route credential은
+  비기술 사용자에게 아래 exact copy와 의미를 제공한다. field/group title은 `ORS API 키 (선택)`이고,
+  목적 설명은 `조사 경로를 도로망에 맞춰 계산하고 조사지 방문 순서를 정할 때 사용합니다.`다.
+  미입력 설명은 `입력하지 않아도 프로젝트는 만들 수 있습니다. 다만 기본 ORS/HeiGIT 서비스로 경로를
+  계산하려면 QField를 열 때마다 키를 입력해야 합니다. 키가 필요 없는 자체 서버를 사용하는 경우에는
+  입력하지 않아도 됩니다.`다. 평문 포함 checkbox는 `프로젝트에 API 키를 평문으로 포함하는 데
+  동의합니다`이고, 그 바로 앞 경고는 `동의하면 QField가 자동으로 사용하도록 키가 프로젝트 파일에
+  암호화되지 않은 글자로 저장됩니다. 프로젝트 폴더를 열 수 있는 사람은 누구나 키를 확인하고 사용할 수
+  있습니다. 동의하지 않으면 프로젝트에 키를 넣지 않으며, QField를 열 때마다 직접 입력해야 합니다.`다.
+  입력값은 masked로 유지한다. desktop의 `암호화해 기억` 선택은 generated project의 평문 포함 동의와
+  별개이며 둘을 같은 저장으로 설명하지 않는다. blank key 또는 non-blank key+동의 거부는 project 생성을
+  막지 않고 generated project에서 key를 제외한다; non-blank key+동의만 D-SRP-017의 평문 project
+  variable을 만든다.
 
 ## 3. Functional Requirements
 - FR-SRP-001: 생성 프로젝트에 기존 보고서/식별 플러그인과 공존하는 하단 접이식 패널.
@@ -321,6 +458,119 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   펼친 panel에 default on인 `경로선 표시` toggle을 둔다. toggle은 API를 호출하거나 저장 route
   geometry를 변경하지 않고 overlay만 숨기며 D-SRP-030의 preference로 복구한다.
 
+### 3.2 2026-09-16 승인 경로 패널 UX·대상 범위·응답 검증 정합
+
+- FR-SRP-029 (2026-09-16 승인): `조사 경로 계산 대상`, `출발지`, `조사지 레이어`, `조사지 ID 필드`,
+  `조사지 이름 필드`, `조사지 완료 필드(Boolean)`의 이름은 각 selector의 control chrome 안에서
+  ORS 서버 URL field와 같은 방식으로 떠 있는 작은 label로 표시한다. 값, focus, empty 상태에서도
+  label을 계속 읽을 수 있고 option text·validation text와 겹치지 않아야 한다. 이 여섯 label을 위한
+  별도 row를 두지 않으며 placeholder를 유일한 accessible name으로 쓰지 않는다. 내부 layer role/source
+  `site`, stable layer ID와 actual field name 저장 계약은 그대로 유지하고 모든 사용자 노출 명칭은
+  `조사지`를 쓴다. FR-SRP-022의 `scope/start 위 label` 배치만 supersede한다.
+- FR-SRP-030 (2026-09-16 승인): start mode가 `지도 위치 출발`일 때 `지도 중심을 출발지로 지정`을 누르면
+  활성 map center를 project CRS에서 WGS84로 변환하여 start 값으로 확정하고, 성공과 동시에 정확히 그
+  위치에 high-contrast `출발지` 임시 marker 하나를 표시한다. map pan/zoom 뒤 marker는 선택 좌표에
+  고정되며 재지정은 기존 marker를 새 좌표로 이동·교체하고 중복 marker를 만들지 않는다. panel
+  collapse/reopen과 계산 성공/실패에는 유지한다. start mode 변경, start clear/invalid 또는 project
+  close에는 즉시 제거하고 source feature, 원본 renderer, saved route geometry에는 쓰지 않으며 app
+  restart에 독립적으로 복원하지 않는다. 좌표 변환 실패는 기존 유효 start/marker를 보존하고 원인을 알린다.
+- FR-SRP-031 (2026-09-16 승인): `조사대상 출발` dropdown은 계산 직전 preflight가 현재 scope에 대해 반환할
+  ordered candidate와 exact stable-ID set이 같아야 한다. `선택 대상`은 현재 QField에서 선택한 유효
+  조사지, `전체 대상`은 선택 여부와 무관한 전체 유효 조사지, `미조사 대상`은 전체 유효 조사지 중
+  effective completion이 false인 항목만 포함한다. option은 조사지 이름을 먼저 표시하고 stable ID를
+  `이름 · ID`로 함께 보여 같은 이름도 구분하며 실제 값은 ID다. layer/mapping/scope/current selection/
+  completion 변경 때 API 없이 option을 먼저 갱신하고, 기존 ID가 새 set에 있으면 보존하며 없으면
+  clear한 뒤 target mode의 필수 선택 오류를 표시한다. 빈 target을 먼저 검증하여 option population을
+  중단하면 안 된다. invalid feature의 처리와 계산 차단은 기존 ID/CRS/geometry/completion preflight와 같다.
+- FR-SRP-032 (2026-09-16 승인): scope selector의 공통 설명 바로 아래에
+  `조사지 레이어를 열고 피처 선택/체크 도구로 계산할 조사지를 선택한 뒤 이 패널로 돌아오세요. 현재 선택한 조사지: N개`
+  를 표시하되 scope가 `선택 대상`일 때만 보인다. `N`은 현재 인식한 선택 수이며 0/1/N 계산 차단·목록·
+  request 의미는 FR-SRP-002를 그대로 따른다. `전체 대상`과 `미조사 대상`에서는 이 안내와 count를
+  모두 숨기고 빈 layout row를 남기지 않는다.
+- FR-SRP-033 (2026-09-16 승인): 여섯 source geometry type은 FR-SRP-017의 대표점으로 정규화한 뒤 같은 provider
+  response 계약을 쓴다. Point는 원래 점, MultiPoint/LineString/MultiLineString/Polygon/
+  MultiPolygon은 source CRS centroid를 WGS84로 변환한다. VROOM job order는 요청 stable ID의 정확한
+  1회 permutation이어야 하고 missing/duplicate/unknown/unassigned ID는 provider-order defect다.
+  ORS GeoJSON directions는 route-level `feature.properties.way_points`의 strictly increasing integer
+  index sequence와 full WGS84 `feature.geometry` LineString을 사용한다. 각 ordered leg `i`는
+  `way_points[i]..way_points[i+1]` 좌표 slice와 같은 위치의 `properties.segments[i]` distance/duration으로
+  만든다. open/roundtrip leg 수·끝 index, finite coordinate/metric, LineString과 D-SRP-028 total tolerance가
+  유효하면 source가 점·선·면인지와 관계없이 결과를 받아야 한다. ORS가 문서화하지 않은
+  `segments[].way_points`를 요구하거나 road geometry가 원본 조사지 geometry type/vertex/containment와
+  다르다는 이유로 거부하지 않는다. snapping에 따른 대표점과 road endpoint 차이는 승인된 이격거리
+  규칙으로만 판정한다.
+
+  malformed/missing provider order·waypoint index·segment·geometry·metric은 대상/구간 번호와
+  missing/duplicate/invalid 원인을 밝히는 provider-response 오류로 거부하고 기존 경로를 보존한다.
+  provider contract를 충족한 응답의 local parsing/mapping/validation 실패는 `앱이 경로 응답을 처리하지
+  못했습니다` 계열의 client-processing 오류로 구분하여 처리 단계와 재시도 안내를 제공하고 기존 경로를
+  보존한다. 유효한 응답에 통합 문구 `도로 구간 순서 또는 도형이 올바르지 않습니다.`만 표시해서는 안
+  되며 어떤 오류에도 key, Authorization, key-bearing URL/query 또는 원시 secret-bearing payload를 넣지 않는다.
+
+### 3.3 2026-09-17 승인 경로 패널 후속 정합
+
+- FR-SRP-034 (2026-09-17 승인): 새 경로 계산이 성공하면 결과와 그 base revision을 저장 가능한 candidate로
+  유지한다. 이후 `저장할 경로 이름`을 입력하거나 바꾸는 동작은 calculation input change가 아니며
+  API request, candidate 폐기 또는 재계산 요구를 만들지 않는다. 같은 base revision에서 non-empty
+  trim name으로 `계산 결과 저장`을 누르면 즉시 그 이름으로 저장한다. 빈 이름, 저장 I/O 실패 또는
+  recoverable validation 오류는 candidate를 보존하고 수정·재시도를 허용한다. 실제 계산 입력이나
+  snapshot revision이 바뀐 경우에는 어떤 값이 바뀌었는지 알리는 stale-result feedback과 함께 저장을
+  막으며 기존 저장 경로와 candidate payload를 보존한다.
+- FR-SRP-035 (2026-09-17 승인): `조사지`, `조사지 ID 필드`, `조사지 이름 필드`, `조사 완료 필드`,
+  `계산 대상`, `출발지`, `저장할 경로 이름` control은 D-SRP-037의 동일한 outlined floating-label
+  component를 사용한다. dropdown의 indicator와 option text에도 label notch, 내부 여백, focus/error
+  outline이 충돌하지 않아야 한다. label은 항상 보이는 accessible name이며 placeholder로 대체하지
+  않는다. `조사 완료 필드`의 Boolean/blank 의미는 별도 help text가 설명한다.
+- FR-SRP-036 (2026-09-17 승인): `API URL/키 설정` disclosure는 panel initial open에서 접혀 있고 사용자가
+  명시적으로 펼치거나 다시 접을 수 있다. 펼치기 자체는 request와 저장을 하지 않는다. 내부에는
+  `ORS 서버 URL`, `VROOM 서버 URL`, backend/profile, masked API key, timeout, road offset, objective와
+  `서버 설정 저장 (키 제외)`를 둔다. key source/persistence 상태를 D-SRP-038 문구로 표시하고 manual
+  key는 app session 종료 때 폐기한다. save action은 key/objective를 제외한 현재 non-secret 설정을
+  route와 같은 project-local two-slot snapshot에 commit하고, 성공 때 현재 프로젝트 scope,
+  실제 상대 경로 `survey-routes.a.json` 또는 `survey-routes.b.json`, `키 제외`를 한 feedback에 표시한다.
+  실패 때 success 문구를 보이지 않고 기존 정상 snapshot과 입력 중 key를 보존한다.
+- FR-SRP-037 (2026-09-17 승인): 다음 지점 NAVER action은 runtime platform/context를 판별해 D-SRP-039의
+  공식 Android 또는 iOS dispatch를 만든다. 목적지 WGS84 latitude/longitude, name과 host를 식별하는
+  필수 `appname`을 official navigation parameter로 URL-encode한다. Android intent를 지원하는 host는
+  official package-bound intent form, iOS는 official `nmap://navigation` form을 우선한다. primary
+  dispatch를 처리하지 못하면 해당 platform 공식 install fallback을 한 번만 실행한다. navigation용
+  web fallback은 NAVER 공식 문서가 그 platform/context에서 지원하는 URL을 명시한 경우에만 제공한다.
+  모든 fallback이 실패하면 설치·지원 환경을 확인할 actionable error를 보이며, OS dispatch 성공을
+  앱 실행·목적지 수락·안내 시작으로 보고하지 않는다.
+- FR-SRP-038 (2026-09-17 승인): active saved route checklist에서 check 가능 상태는 순번이 가장 빠른 미완료
+  stop 하나뿐이다. 뒤 stop은 disabled 상태와 `순서대로 완료` 이유를 accessible text로 제공하고,
+  사용자가 시도할 수 있는 surface에서는 값을 쓰지 않은 채 다음 stop 이름/순번을 feedback으로 보인다.
+  완료 stop은 정정을 위해 uncheck 가능하다. uncheck 또는 외부 Boolean field 갱신으로 gap 뒤에
+  completed stop이 남으면 해당 row를 `순서 밖 완료`로 표시하고 D-SRP-024의 contiguous-prefix
+  remaining 값에 포함한다. gap을 닫으면 기존 true 값이 prefix에 들어오며 request/recalculation 없이
+  metric/geometry가 갱신된다. mapped write 실패는 기존 check/source/overlay/metric을 모두 보존한다.
+- FR-SRP-039 (2026-09-17 승인): generated project의 polygon `조사지` layer는 D-SRP-041의 non-gray accent
+  outline과 translucent fill을 저장하여 light/dark basemap에서 회색 경계로 보이지 않게 한다.
+  point/line/polygon 조사지에는 configured name field 기반 label을 표시하고 흰색 buffer/halo로
+  map background와 feature fill에서 분리한다. empty/null name은 label 없음으로 처리하고 field value를
+  실행 가능한 markup으로 해석하지 않는다. label과 base symbology는 completion overlay, route line,
+  start marker와 시각적으로 구분되며 원본 geometry/attribute를 수정하지 않는다.
+
+### 3.4 2026-09-17 승인 QField 실기 결함·wizard 설명 정합
+
+- FR-SRP-040 (2026-09-17 승인): QField route panel의 `저장할 경로 이름`은 focusable/editable text input이어야
+  한다. touch로 본문을 누르면 caret와 focus가 보이고 target mobile OS의 soft keyboard가 열려야 하며,
+  입력·수정·삭제한 최종 text는 FR-SRP-034의 trim/save 계약에 그대로 전달되어야 한다. focus/input은
+  route candidate, base revision 또는 routing API request를 바꾸지 않는다.
+- FR-SRP-041 (2026-09-17 승인): `조사지`, `조사지 ID 필드`, `조사지 이름 필드`, `조사 완료 필드`, `계산 대상`,
+  `출발지`, `저장할 경로 이름`, `저장 경로 불러오기` 여덟 control은 D-SRP-043의 동일한 outlined
+  floating-label component와 top-outline 중심선을 사용한다. dropdown indicator, selected route text,
+  focus/error state와 label이 겹치지 않고 accessible name은 placeholder에만 의존하지 않는다.
+- FR-SRP-042 (2026-09-17 승인): generated point/multipoint, line/multiline, polygon/multipolygon `조사지` layer는
+  D-SRP-044의 name→stable-ID→no-label fallback expression, geometry-family별 placement,
+  one-label-per-feature 및 흰색 buffer/halo를 project style에 저장한다. 생성물을 다른 기기로 옮기거나
+  다시 열어도 같은 style contract를 유지한다.
+- FR-SRP-043 (2026-09-17 승인): FieldBuild Kit wizard Step 7은 D-SRP-045의 exact purpose, blank-key behavior,
+  plaintext warning과 consent copy를 masked route-key input 옆에 읽기 순서대로 표시한다. key 없이
+  계속하기, key 입력 후 consent 거부, consent 후 생성, desktop-only encrypted remember의 네 상태를
+  구분하고, 사용자가 consent하지 않은 key를 generated `.qgs`, 일반 설정, 로그, 오류 또는 summary에
+  포함하지 않는다.
+
 ## 4. Data / Compatibility
 새 프로젝트 생성만 도형 메타데이터를 변경한다. 사용자의 기존 GPKG를 자동 마이그레이션하지
 않는다. 기본 도형 유형을 지정하지 않은 과거 호출은 MULTIPOLYGON 기본값을 유지한다.
@@ -393,6 +643,15 @@ max road offset, default start, layer/id/name/optional completion mapping이다.
 - NFR-SRP-001: 새 label/control/guidance/metric/feedback은 320 px 폭에서 overflow 없이 touch/keyboard로 동작한다.
 - NFR-SRP-002: 완료는 색만으로 전달하지 않고 check와 text/state indicator를 함께 제공한다.
 - NFR-SRP-003: refresh, completion/uncheck, toggle, restart/load는 offline에서 동작하고 route request 0회다.
+- NFR-SRP-004 (2026-09-17 승인): outlined labels, disclosure, persistence feedback, disabled-row
+  reason, map label와 halo는 320 px panel 및 supported light/dark basemap에서 잘림·겹침 없이 읽히고
+  keyboard/touch와 screen-reader accessible name/state를 유지한다.
+- NFR-SRP-005 (2026-09-17 승인): 모바일 입력과 지도 렌더링에 대한 증거 수준을 구분한다.
+  자동 검사는 editable/focus/input-method wiring, generated project의 labeling enablement/expression/
+  placement/buffer와 floating-label geometry를 proxy로 확인할 수 있다. 정적 문자열 존재, QML/XML
+  source inspection 또는 desktop/headless render만으로 실제 QField의 OS soft keyboard 개방이나
+  device map canvas의 feature label/halo 표시를 PASS로 판정하지 않는다. 해당 항목은 지원을 주장하는
+  각 mobile OS의 실제 QField에서 사용자 수동 증거가 있어야 PASS이며, 미수행은 `미검증`으로 남긴다.
 
 ## 5. Acceptance Criteria
 | ID | 관찰 가능한 조건 및 결과 |
@@ -427,12 +686,33 @@ max road offset, default start, layer/id/name/optional completion mapping이다.
 | AC-SRP-028 | distance는 km 소수점 2자리, duration은 ceil-minute `X시간 YY분` 또는 zero-hour `YY분`이고 bottom bar는 active/no-route 모두 remaining distance/time을 표시한다. default-on line toggle은 saved geometry/completed overlay를 바꾸지 않고 API 0회이며 project-scoped device-local preference가 route switch/panel reopen/app restart/settings 동반 folder move 뒤 유지된다. |
 | AC-SRP-029 | schema 1 legacy route를 offline에서 full line/total/stops 그대로 load/retain하고 remaining enhanced 값은 unavailable+새 전체 계산 1회 안내로 표시한다. automatic write/request/leg split 추정은 0회이며 explicit recalculation/save만 schema 2를 만들고 route revision 의미를 유지한다. future schema는 보존/거부한다. |
 | AC-SRP-030 | 기존 point/line/polygon/6유형 geometry·centroid/WGS84와 선택 0/1/N·scope 동작, 다중 route/last-good/revision/restart/recovery/offline/folder-move storage, key/header/generated-variable 및 로그·오류·feedback secret 경계가 2026-09-16 변경 전 승인 규칙대로 회귀 통과한다. completion/toggle/load에는 routing API 호출이 없다. |
+| AC-SRP-031 (2026-09-16 승인) | narrow/wide, empty/value/focus/error 상태에서 scope/start/layer/ID/name/completion 여섯 selector가 ORS 서버 URL field와 같은 in-control floating label을 계속 표시하고 별도 label row·겹침·잘림·placeholder-only accessible name은 0개다. UI text는 `조사지`를 쓰고 stable layer ID/actual field 저장값은 불변이다. |
+| AC-SRP-032 (2026-09-16 승인) | map을 pan한 뒤 `지도 중심을 출발지로 지정`하면 당시 center에 식별 가능한 `출발지` marker가 즉시 정확히 1개 생긴다. 이후 pan/zoom에는 고정, 재지정에는 이동/교체, collapse/reopen과 계산 성공/실패에는 유지되고 mode 변경·clear/invalid·project close에는 제거된다. source/renderer/saved route write는 0회이고 변환 실패는 기존 marker/start를 보존한다. |
+| AC-SRP-033 (2026-09-16 승인) | 0/1/N 및 중복 이름 fixture에서 target dropdown stable-ID set/order가 같은 순간의 calculation preflight와 정확히 일치한다. selected/all/uncompleted 전환, QField selection, completion, layer/mapping 변경은 API 0회로 options를 먼저 갱신하고 `이름 · ID`를 보인다. 유효한 기존 ID는 보존, stale ID는 clear한 다음 required error가 나타나며 empty-target 선검증 때문에 options가 비는 경우는 없다. |
+| AC-SRP-034 (2026-09-16 승인) | `선택 대상`에서만 scope 설명 바로 다음 줄에 exact 선택 절차와 `현재 선택한 조사지: N개`가 표시되고 0/1/N과 FR-SRP-002 결과가 일치한다. `전체 대상`/`미조사 대상`에는 해당 안내·count·빈 row가 없으며 scope 공통 설명은 유지된다. |
+| AC-SRP-035 (2026-09-16 승인) | Point 원점 및 MultiPoint/LineString/MultiLineString/Polygon/MultiPolygon source-CRS centroid fixture가 같은 stable-ID VROOM order와 ORS validator를 통과한다. `segments[]`에 `way_points`가 없고 route-level `properties.way_points`만 있는 유효 ORS GeoJSON fixture를 index-pair별 leg로 저장하며 open/roundtrip count/order/LineString/metric/total을 승인한다. missing/duplicate/unassigned order, invalid top-level index, segment/geometry/metric/tolerance defect는 원인·ID/구간을 밝힌 provider 오류와 기존 경로 보존이 되고, contract-valid fixture의 forced local parser failure는 별도 client-processing 오류가 된다. 실제 QField Point/Line/Polygon 수동 결과는 각각 수행된 경우에만 PASS로 기록한다. |
+| AC-SRP-036 (2026-09-17 승인) | 계산 성공 뒤 API request 0회 상태에서 경로 이름을 처음 입력하거나 여러 번 수정해 즉시 저장하면 마지막 trim name과 동일한 candidate route가 저장된다. name focus/change는 candidate와 base revision을 바꾸지 않는다. blank name·I/O failure는 candidate/기존 경로를 보존해 재시도할 수 있고, 실제 calculation input 또는 snapshot revision 변경만 구체적인 stale feedback과 함께 저장을 막는다. |
+| AC-SRP-037 (2026-09-17 승인) | 320 px 및 wide viewport의 empty/value/focus/error 상태에서 text/dropdown 일곱 control이 exact `조사지`, `조사지 ID 필드`, `조사지 이름 필드`, `조사 완료 필드`, `계산 대상`, `출발지`, `저장할 경로 이름` outlined floating label을 같은 위치·크기·여백으로 유지한다. label/option/indicator/error의 겹침·별도 label row·placeholder-only accessible name은 0개이고 stable stored values는 불변이다. |
+| AC-SRP-038 (2026-09-17 승인) | 새 panel session에서 `API URL/키 설정`은 접혀 있고 펼침/접힘에 request·write가 없다. 펼치면 `VROOM 서버 URL` exact label과 masked key가 보인다. manual key는 session 종료 후 복구되지 않고 settings save snapshot에 없으며, consented project variable key는 `.qgs` 평문 source 경고와 함께 session에 로드된다. save 성공 feedback은 현재 프로젝트, 실제 `survey-routes.a.json`/`.b.json` 상대 경로와 key 제외를 표시하고 readback 값에 key/objective가 없으며 route와 non-secret settings가 함께 복구된다. 실패는 success 0회와 last-good 보존이다. |
+| AC-SRP-039 (2026-09-17 승인) | Android supported host는 공식 package-bound navigation intent, iOS는 official `nmap://navigation`과 required encoded destination/appname을 사용한다. primary 불가 때 해당 공식 Google Play/App Store fallback은 1회, 지원되지 않은 임의 web URL은 0회다. 공식 문서가 navigation web fallback을 명시한 fixture에서만 그 exact documented URL을 사용한다. dispatch 결과는 OS request로만 보고하며 Android/iOS 실제 handoff는 기기별로 검증한다. |
+| AC-SRP-040 (2026-09-17 승인) | 1→2→3 route에서 stop 2/3은 stop 1 전 check 불가이고 시도 시 값·source·overlay·metric·geometry·revision·API가 불변이며 next-stop feedback이 보인다. 순서대로 check하면 하나씩 enable된다. 완료 stop uncheck 또는 mapped source의 out-of-order true는 뒤 true를 `순서 밖 완료`로 보존하고 earliest gap부터 remaining에 포함하며, gap closure 때 API 없이 prefix metric/geometry가 갱신된다. write failure는 모든 기존 상태를 보존한다. |
+| AC-SRP-041 (2026-09-17 승인) | generated polygon 조사지가 gray가 아닌 visible accent outline/fill로 light/dark basemap에서 식별되고 point/line/polygon 조사지 label이 configured name field와 정확히 일치하며 흰색 buffer/halo를 가진다. null/empty name label은 없고 markup-looking text는 inert하다. source geometry/attribute/renderer contract, completion overlay, route line과 start marker는 변경·혼동되지 않는다. |
+| AC-SRP-042 (2026-09-17 승인) | 실제 target QField mobile에서 외부 keyboard를 분리하고 OS soft keyboard를 켠 상태로 `저장할 경로 이름` 본문을 누르면 caret/focus와 soft keyboard가 나타난다. 한글·영문 입력, 선택, 삭제, 재입력 뒤 계산 request 0회로 마지막 trim name이 저장되고 candidate/revision은 불변이다. 자동 proxy는 editable/focus/input-method wiring과 save flow를 검사하되 keyboard 개방 PASS를 대신하지 않으며, 지원을 주장하는 각 OS의 수동 결과를 별도로 기록한다. |
+| AC-SRP-043 (2026-09-17 승인) | 320 px 및 wide viewport의 empty/value/focus/disabled/error 상태에서 여덟 exact label이 같은 typography/inset/notch를 쓰고 각 label box의 수직 중심이 top outline과 일치해 border line을 가로지른다. `저장 경로 불러오기`도 같은 floating label을 사용하며 indicator/selected text와 겹치지 않는다. label 전체가 border 아래로 처지거나 위로 뜨는 상태, 별도 label row, clipping, horizontal scroll, placeholder-only accessible name은 0개다. 구조/geometry 자동 검사는 가능한 proxy이고 target QField screenshot/interaction review가 실제 배치의 최종 증거다. |
+| AC-SRP-044 (2026-09-17 승인) | spaced fixture의 Point/MultiPoint, LineString/MultiLineString, Polygon/MultiPolygon 각 feature가 target QField의 적절한 zoom에서 정확히 하나의 readable label과 흰색 halo를 보인다. non-empty name은 exact trimmed name, name field missing/invalid 또는 value empty는 exact trimmed stable ID, 둘 다 없거나 empty면 label 0개이며 multipart part별 중복과 arbitrary-field fallback은 없다. markup-looking text는 inert이고 source/overlay는 불변이다. generated `.qgs`의 labeling enablement/expression/placement/buffer 자동 검사는 proxy일 뿐 device screenshot/manual render PASS를 대신하지 않는다. |
+| AC-SRP-045 (2026-09-17 승인) | wizard Step 7에서 masked `ORS API 키 (선택)` field 다음 읽기 순서에 D-SRP-045의 exact purpose와 blank-key 설명, exact plaintext warning과 consent label이 보이고 keyboard/screen-reader로 접근 가능하다. blank 또는 consent 거부는 생성 성공+generated key 0개+QField 세션 입력 안내, non-blank+consent는 평문 project variable 1개+review warning, desktop remember만 선택한 상태는 generated key 0개다. 네 상태 모두 raw key가 summary/log/error/general settings에 없으며 copy가 ORS 경로·방문 순서 용도와 평문 위험을 기술 용어 없이 구분한다. |
 
 ## 6. API 근거 / 검증 경계
 VROOM 근거는 초기 provider가 대상으로 삼은 **v1.14.0 tag**에 고정한다. 공식 문서는 timing을
 초 단위로 정의하고 relative planning horizon이면 `arrival`도 그 시작 기준이라고 명시한다.
 초기 provider 계약에 절대 epoch가 없으므로 D-SRP-009는 이를 `relative_seconds`로 정규화한다.
 - https://github.com/VROOM-Project/vroom/blob/v1.14.0/docs/API.md
+
+openrouteservice 공식 directions 문서는 GeoJSON route feature의 `properties.segments`를 waypoint 사이
+section(distance/duration/steps) 목록으로, geometry waypoint index를 별도의 route-level
+`properties.way_points`로 정의한다. FR-SRP-033은 이 구조를 따르며 segment 내부의 비문서화 index를
+가정하지 않는다.
+- https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/requests-and-return-types
 
 현재 hosted endpoint와 key migration 근거는 openrouteservice의 공식 공지다. 2026-04-28 공지는
 directions/matrix를 `api.heigit.org/openrouteservice/v2/...`, optimization을
@@ -460,13 +740,26 @@ unpinned 링크에 의존하지 않는다.
 `appname`, Android package, iOS App Store ID와 설치 fallback 책임을 명시한다. QField official
 plugin snippet은 `Qt.openUrlExternally` 사용을 지원한다. Qt contract에서 `true`는 OS open 요청
 성공일 뿐 외부 app 실행이나 URL 수락 결과는 아니다.
-- https://guide.ncloud-docs.com/docs/maps-url-scheme-url-scheme
+- https://guide.ncloud-docs.com/docs/maps-url-scheme
 - https://github.com/opengisch/QField/blob/master/docs/snippets.md
 - https://doc.qt.io/qt-6/qdesktopservices.html#openUrl
 - https://github.com/opengisch/QField/blob/master/CMakeLists.txt
 
+**2026-09-17 승인 정합:** 같은 NAVER 공식 문서는 Android mobile app/in-app/mobile-web
+context의 package-bound intent handling과 Google Play fallback, iOS의 direct `nmap` scheme,
+`LSApplicationQueriesSchemes` host requirement와 App Store fallback을 서로 다른 절차로 제시한다.
+FR-SRP-037은 generated project가 host manifest capability를 만들 수 있다고 가정하지 않으며,
+navigation web URL은 공식 문서가 해당 context에 명시한 경우에만 채택한다.
+
 실제 QField/iOS/Android와 네이버지도 실행 검증은 AGENTS.md에 따라 사용자 수행 항목이다.
 자동 QML/JS 검사를 실기 검증으로 기록하지 않는다. 서버 실호출 미실행도 구분한다.
+
+**2026-09-17 승인 증거 경계:** route-name control에 `editable`, focus 또는 input-method 관련
+property가 있고 테스트 driver가 text를 주입할 수 있다는 사실은 AC-SRP-042의 자동 proxy다. 그것만으로
+Android/iOS soft keyboard가 실제로 열렸다고 판정하지 않는다. generated `.qgs`에 label expression,
+placement와 white buffer가 있다는 사실은 AC-SRP-044의 자동 proxy다. 그것만으로 QField map canvas에서
+point/line/polygon label이 실제로 보인다고 판정하지 않는다. 수동 증거에는 QField/OS version,
+device, project fixture, zoom/basemap, 수행한 gesture와 관찰 결과를 함께 기록한다.
 
 ## 7. 현재 생성 경로와 후속 변경 위치
 
@@ -505,8 +798,39 @@ plugin snippet은 `Qt.openUrlExternally` 사용을 지원한다. Qt contract에�
   입력 뒤 명시적 위험 경고와 consent를 받고 generated project variable에 평문으로 넣어 QField가
   자동 사용한다. 폴더 접근자는 누구나 key를 읽고 사용할 수 있으며 암호화를 주장하지 않는다.
   consent를 거부하면 blank key로 생성하고 QField session에서 수동 입력할 수 있다.
+- **O-SRP-008 (2026-09-16 해결):** 이해관계자가 D-SRP-031~035, FR-SRP-029~033,
+  AC-SRP-031~035와 `docs/ui-design-guidelines.md`의 같은 UI convention을 승인했다. 이 slice는
+  approved baseline을 확장하며 acceptance 산출물과 구현은 아직 이 승인을 반영·검증하지 않았다.
+- **O-SRP-009 (실기 검증 대기):** 실제 QField line 조사지의 현재 실패는 재현됐지만 corrected
+  provider parsing은 검증되지 않았다. Point와 Polygon은 아직 수동 확인되지 않았고 MultiPoint/
+  MultiLineString/MultiPolygon도 별도 증거가 필요하다. 자동 fixture와 실제 QField 결과를 구분한다.
+- **O-SRP-010 (실기 검증 대기; 2026-09-17 명세 승인 비차단):** target QField Android host가 NAVER의
+  package-bound `intent://`를 `Qt.openUrlExternally`로 직접 처리하는지, iOS host가 `nmap` query scheme을
+  whitelist했는지, 공식 navigation web fallback이 target context에 제공되는지는 실제 기기와 당시 공식
+  문서로 확인한다. 지원하지 않는 branch에는 추정 URL을 추가하지 않고 actionable install/host 안내로 끝낸다.
+- **O-SRP-011 (2026-09-17 명세 승인·실기 검증 대기):** D-SRP-042~045, FR-SRP-040~043,
+  NFR-SRP-005 및 AC-SRP-042~045는 이해관계자 승인을 받았다. 요구 의미에 미결정 제품 질문은 없으며,
+  soft keyboard와 rendered map label은 NFR-SRP-005에 따라 target QField 기기 검증 전까지
+  PASS가 아니라 **NOT RUN (`미검증`)**이다.
 
-### 승인 뒤 acceptance 정합 범위
+### 승인된 slice의 acceptance 정합 범위
+
+새 test-designer는 승인된 이력을 보존하면서
+**D-SRP-031~035, FR-SRP-029~033, AC-SRP-031~035**를 acceptance test design과 traceability에
+추가한다. 특히 target option population-before-validation, selected/all/uncompleted exact candidate set,
+route-level `properties.way_points` leg slicing, provider/client error category와 여섯 geometry family의
+동일 response acceptance를 독립적으로 검사한다. 이 문서는 acceptance 파일을 수정하거나 승인하지 않는다.
+
+2026-09-17 명세 승인 뒤 새 test-designer는 **D-SRP-036~041, FR-SRP-034~039,
+NFR-SRP-004, AC-SRP-036~041**을 acceptance design/traceability에 별도로 추가한다. 특히 name-only
+save, key source와 snapshot exclusion, actual settings slot feedback, platform-specific NAVER dispatch,
+next-in-order completion, polygon accent와 name-field halo를 독립적으로 검사한다.
+
+2026-09-17 명세 승인 뒤 새 test-designer는 **D-SRP-042~045, FR-SRP-040~043,
+NFR-SRP-005, AC-SRP-042~045**를 acceptance design/traceability에 추가한다. keyboard/label render는
+자동 proxy와 실제 QField 수동 criterion을 별도 test item/evidence column으로 나누고, 정적 문자열 검사를
+수동 PASS에 연결하지 않는다. name-field missing/value-empty/ID-missing, 여섯 geometry type, multipart
+one-label-per-feature, Step 7의 네 key/consent 상태를 각각 fixture로 둔다.
 
 2026-09-16 명세 승인 뒤 새 test-designer는 기존 artifact를 보존하면서
 **FR-SRP-021~028, D-SRP-020~030, NFR-SRP-001~003, AC-SRP-021~030**을 정합한다.
@@ -528,6 +852,6 @@ user-entered key의 hosted/custom 인증 경계와 custom/self-hosted URL roundt
 Phase 1은 패널·선택 목록·GPS, Phase 2는 backend·최적 순서, Phase 3은 영구 저장·재시작,
 Phase 4는 제공된 도로선·네이버지도, Phase 5는 완료·남은 대상·다중 경로다.
 각 단계에서 기존 기능 회귀를 확인한다. 도형 확장은 생성·선택·좌표의 횡단 작업으로 함께 계획한다.
-현재 명세 승인 완료 → 새 test-designer 정합 → acceptance 산출물 승인 → 새 implementer
-정합 → 검사 → 새 reviewer. 이번 문서 정합에서 앱 테스트·실서비스·QField 기기 검사를 실행하지
+승인된 기준본 및 이번 slice의 2026-09-17 이해관계자 승인 유지 → 새 test-designer 정합 → acceptance 산출물 승인 →
+새 implementer 정합 → 검사 → 새 reviewer. 이번 문서 정합에서 앱 테스트·실서비스·QField 기기 검사를 실행하지
 않았고 implementation attempt 2의 기존 104 passed/2 failed/12 skipped를 최종 PASS로 승격하지 않는다.

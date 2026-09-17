@@ -379,12 +379,175 @@ best-effort visual convention. The corrected active convention is:
 
 ## Route and geometry controls (approved baseline; implementation unverified)
 
-The user requests initial point/line/polygon drawing selection and a collapsible QField bottom
-route panel with Korean labels, completion count and next-stop navigation. The baseline scope and
-acceptance artifacts are approved; the ETA/provider/default/storage clarification remains DRAFT in
-[survey-route-planner](../specs/survey-route-planner.md). An uncommitted implementation attempt exists,
-but native QField/iOS/Android layout and interaction have not been verified, so these controls are
-not yet established shipped visual conventions. Expanding the panel or loading a saved route must
-not trigger optimization.
-Existing toolbar icon requirements remain active; adding route UI must preserve existing
-report/identification actions and avoid duplicate registrations.
+The initial point/line/polygon drawing selection and collapsible QField bottom route panel baseline,
+including the 2026-09-15 provider clarification and the approved 2026-09-16 workflow/progress slice,
+are recorded in [survey-route-planner](../specs/survey-route-planner.md). Native QField/iOS/Android
+layout and interaction remain unverified, so these controls are not established shipped visual
+conventions. Expanding the panel or loading a saved route must not trigger optimization. Existing
+toolbar icon requirements remain active; adding route UI must preserve existing report/identification
+actions and avoid duplicate registrations.
+
+### In-control labels, scoped guidance and map-start marker (approved 2026-09-16)
+
+This approved Category D convention implements D-SRP-031~033 without changing stored layer IDs,
+actual field names, route data or source renderers.
+
+- The scope, start, target-layer, ID-field, name-field and optional completion-field selectors use
+  an in-control floating label matching the visual treatment of the ORS server URL field. The exact
+  labels are `조사 경로 계산 대상`, `출발지`, `조사지 레이어`, `조사지 ID 필드`,
+  `조사지 이름 필드` and `조사지 완료 필드(Boolean)`. They sit within the control chrome rather
+  than in separate rows, stay legible for empty/value/focus/error states, and reserve enough inset
+  that selected option text never collides with them. A placeholder is not the only accessible name.
+- User-facing copy says `조사지`; internal `site` roles/source names and actual field values remain
+  technical stored identifiers. Target options lead with the site name and show the stable ID as
+  `이름 · ID`. The choices refresh before an empty required target is validated, so a blank current
+  value cannot prevent the dropdown from showing the current scope's candidates.
+- The general scope explanation remains directly below the scope selector. Only for `선택 대상`, the
+  next line reads `조사지 레이어를 열고 피처 선택/체크 도구로 계산할 조사지를 선택한 뒤 이 패널로
+  돌아오세요. 현재 선택한 조사지: N개`. `전체 대상` and `미조사 대상` hide this line and its
+  layout space. Validation remains below the related control/help group.
+- After `지도 중심을 출발지로 지정`, the captured center shows exactly one high-contrast temporary
+  start marker with a non-color `출발지` cue. Panning does not move it; choosing the center again moves
+  the same marker. It survives panel collapse/reopen and calculation success/failure so the user can
+  verify the input, then disappears when the start mode changes, the value is cleared/invalidated or
+  the project closes. It is visually distinct from route lines, incomplete/completed site symbols and
+  the current-position indicator.
+
+#### Approved design-review criteria
+
+- At 320px and wider panel widths, all six floating labels remain visible without a separate label
+  row, clipping, collision, horizontal scrolling or loss of keyboard/touch focus indication.
+- Screenshots for all three scopes show the common explanation; only the `선택 대상` screenshot shows
+  the selection procedure/count immediately after it, with no blank row in the other two states.
+- A map interaction review shows one marker at the captured center, a fixed marker after pan/zoom, a
+  moved rather than duplicated marker after reselection, and removal at every specified lifecycle end.
+- A duplicate-name fixture shows `이름 · ID` target options; a blank/stale selection still shows the
+  newly populated choices before displaying the required-selection error.
+
+### Route-panel follow-up convention (approved 2026-09-17)
+
+**Status: APPROVED — 2026-09-17.** This Category B/D follow-up mirrors
+D-SRP-036~041 and FR-SRP-034~039 in
+[survey-route-planner](../specs/survey-route-planner.md). It preserves the approved 2026-09-16
+behavior above except where this approved slice explicitly replaces label wording/presentation and
+out-of-order checklist input. It does not change stable layer IDs, actual field names, route data,
+source attributes or the original layer geometry.
+
+#### Approved design decisions (2026-09-17)
+
+- **D-UI-SRP-001 (approved 2026-09-17):** Use one outlined floating-label component for both text fields and dropdowns.
+  The label rests in the control outline with a surface-colored notch behind it, remains visible in
+  empty, value, focus, disabled and error states, and reserves space for dropdown indicators and
+  selected text. Apply it to the exact labels `조사지`, `조사지 ID 필드`, `조사지 이름 필드`,
+  `조사 완료 필드`, `계산 대상`, `출발지` and `저장할 경로 이름`. This supersedes only the six
+  longer label strings and their in-control placement in the approved convention above. Help text,
+  validation, stored values and target options retain their existing meanings.
+- **D-UI-SRP-002 (approved 2026-09-17):** Put the road-provider controls inside an `API URL/키 설정` disclosure that is
+  collapsed when the route panel first opens. Its collapsed summary does not show a key value.
+  Expanding it shows `ORS 서버 URL`, `VROOM 서버 URL`, backend/profile, masked API key, timeout,
+  road offset, objective and `서버 설정 저장 (키 제외)`. The disclosure retains a clear expanded
+  state, a touch/keyboard target and an accessible expanded/collapsed state.
+- **D-UI-SRP-003 (approved 2026-09-17):** Place persistence copy beside the masked key and save action. A manually entered
+  key reads `이번 세션만 사용`; a key loaded from the consented plaintext project variable reads
+  `프로젝트 파일의 평문 키 사용 중` and keeps the plaintext warning visible without revealing the
+  value. Successful non-secret settings save feedback identifies the current project scope, the
+  actual project-relative `survey-routes.a.json` or `survey-routes.b.json` path, and `키 제외`.
+  Failure feedback uses the same status region and never resembles success.
+- **D-UI-SRP-004 (approved 2026-09-17):** In the visit checklist, the earliest incomplete stop is the only incomplete row
+  with an enabled completion checkbox. Later incomplete rows remain readable but disabled and expose
+  `다음 방문 지점부터 순서대로 완료하세요.` through visible or accessible reason text. Completed
+  rows remain enabled for uncheck. If uncheck or an external Boolean field creates a gap before a
+  later completed stop, show the later row as `순서 밖 완료`; keep the check and completion color,
+  and use text or an icon so color is not the only signal. Show the current next stop in feedback
+  when a user attempts an unavailable completion action.
+- **D-UI-SRP-005 (approved 2026-09-17):** Generated polygon `조사지` uses a visible non-gray accent outline and a related
+  translucent fill; the approved default is green `#2E7D32`. It remains distinct from the blue
+  completion overlay, blue route line and orange start marker on supported light and dark basemaps.
+  Point, line and polygon site features display the configured name-field value as a map label with
+  a white buffer/halo. Empty names produce no label, and data that resembles markup remains inert
+  text. Labels avoid unnecessary overlap where the map renderer supports collision handling.
+- **D-UI-SRP-006 (approved 2026-09-17):** Keep one user-facing action, `다음 지점 네이버지도 안내`, while adapting the
+  handoff to the runtime platform. Android uses the official package-bound navigation intent where
+  the host supports it and otherwise only an official documented native fallback; iOS uses the
+  official `nmap` navigation scheme and documented App Store fallback. Feedback distinguishes
+  `운영체제에 실행 요청`, `설치 페이지 열림` and actionable failure. It never claims that navigation
+  started. A web fallback is shown only when NAVER officially documents one for that platform and
+  context; the UI does not expose or construct an inferred web address.
+
+#### Approved design-review criteria (2026-09-17)
+
+- At 320px and wider panel widths, all seven exact labels use the same outline notch, typography,
+  inset and focus/error treatment across text fields and dropdowns, with no collision, clipping,
+  separate label row, horizontal scroll or placeholder-only accessible name.
+- On first panel expansion, `API URL/키 설정` is collapsed. Repeated expand/collapse preserves
+  entered values and makes no network request or write. Expanded screenshots show `VROOM 서버 URL`,
+  the masked key and the correct session/plaintext-project source message without exposing a key.
+- A successful server-settings save shows current-project scope, the exact written A/B snapshot
+  relative path and `키 제외`; a failed save shows no success treatment and retains the previous
+  valid snapshot. The path/status region wraps at narrow width and contains no secret.
+- In a three-stop fixture, only stop 1 is initially checkable; completing it enables stop 2, then
+  stop 3. Later rows explain why they are disabled. Unchecking an earlier completed stop leaves any
+  later true rows visibly marked `순서 밖 완료`, moves the next-stop cue to the earliest gap and
+  keeps every row keyboard-readable.
+- Light/dark-basemap screenshots show a clearly non-gray polygon outline/fill and configured-name
+  labels with a visible white halo. Base site, completed site, route and start-marker treatments are
+  distinguishable without relying only on color; empty names create no blank label artifacts.
+- Android and iOS device review confirms platform-appropriate handoff and documented store fallback.
+  Each visible status reports only what the host observed, and no undocumented navigation web URL
+  appears when the official guide provides none for that runtime context.
+
+### QField device defects and Step 7 copy (approved 2026-09-17)
+
+**Status: APPROVED — 2026-09-17. Device validation: NOT RUN.** This Category A/D follow-up mirrors
+D-SRP-042~045 and FR-SRP-040~043 in
+[survey-route-planner](../specs/survey-route-planner.md). The approved D-UI-SRP-001~006 baseline
+above remains unchanged except where this approved slice explicitly extends it.
+
+#### Approved design decisions (2026-09-17)
+
+- **D-UI-SRP-007 (approved 2026-09-17, Category A):** `저장할 경로 이름` is a real editable mobile text field.
+  Tapping its body in QField gives it focus, shows a caret and requests the OS soft keyboard. Korean
+  and Latin input, selection, deletion and correction remain available without recalculation. A
+  static `TextField`/label string or programmatic text assignment is not evidence that a device
+  keyboard opened.
+- **D-UI-SRP-008 (approved 2026-09-17, Category D):** Add `저장 경로 불러오기` to the shared outlined
+  floating-label component, for eight route controls in total. The vertical center of every label
+  box and its surface-colored notch aligns with the control's top outline, so the label visibly
+  crosses that border. No label may sit wholly below the line or float above it. The alignment is
+  identical for text fields and dropdowns in empty, value, focus, disabled and error states; the
+  dropdown arrow and selected text retain their own clear space.
+- **D-UI-SRP-009 (approved 2026-09-17, Category A/D):** Every generated point/multipoint, line/multiline and
+  polygon/multipolygon `조사지` feature uses one geometry-appropriate map label with a white
+  halo. Its text is the trimmed configured name, falling back to the trimmed configured stable ID
+  when the name field is missing/invalid or the feature's name is empty. If both are absent/empty,
+  no label is drawn; no unrelated field is guessed. Multipart features do not repeat the same label
+  per part, and markup-looking values remain inert text. This display fallback does not satisfy or
+  bypass required route-name mapping validation.
+- **D-UI-SRP-010 (approved 2026-09-17, Category D):** FieldBuild Kit wizard Step 7 presents the masked field title
+  `ORS API 키 (선택)` followed in reading order by these exact user-facing strings:
+  - Purpose: `조사 경로를 도로망에 맞춰 계산하고 조사지 방문 순서를 정할 때 사용합니다.`
+  - Empty-key behavior: `입력하지 않아도 프로젝트는 만들 수 있습니다. 다만 기본 ORS/HeiGIT 서비스로
+    경로를 계산하려면 QField를 열 때마다 키를 입력해야 합니다. 키가 필요 없는 자체 서버를 사용하는
+    경우에는 입력하지 않아도 됩니다.`
+  - Plaintext warning: `동의하면 QField가 자동으로 사용하도록 키가 프로젝트 파일에 암호화되지 않은
+    글자로 저장됩니다. 프로젝트 폴더를 열 수 있는 사람은 누구나 키를 확인하고 사용할 수 있습니다.
+    동의하지 않으면 프로젝트에 키를 넣지 않으며, QField를 열 때마다 직접 입력해야 합니다.`
+  - Consent checkbox: `프로젝트에 API 키를 평문으로 포함하는 데 동의합니다`
+  Desktop encrypted remembering remains a separate choice and is never described as QField delivery
+  or project-file encryption.
+
+#### Approved design-review and evidence criteria (2026-09-17)
+
+- On every claimed supported mobile OS, a target-QField review with no external keyboard connected
+  confirms tap → caret/focus → soft keyboard → Korean/Latin edit → save. Source inspection and an
+  automated text-injection test may be recorded only as proxies, never as the device PASS.
+- At 320px and wider widths, screenshots for every state show all eight label centers on the same
+  top-outline axis, with a visible notch and no sag, float, collision, clipping, separate label row
+  or horizontal scrolling. A geometry assertion can supplement but does not replace the QField view.
+- A spaced six-geometry fixture at an appropriate zoom shows one visible label and white halo for
+  every feature, including name, missing-name-field, empty-name and missing-name-and-ID cases.
+  Generated-project XML/style inspection proves configuration only; the QField map screenshot and
+  observation prove rendering.
+- Step 7 review covers blank key, entered key with consent declined, entered key with consent, and
+  desktop remember without project consent. The exact copy remains visible/wrapped and accessible;
+  only the consented state describes and produces plaintext project inclusion.
