@@ -1,4 +1,9 @@
-"""APPROVED TEST-DESIGN SUPERSESSION RECONCILIATION (approval 2026-09-17) — retained
+"""APPROVED TEST DESIGN — iOS/QField follow-up (approval 2026-09-18).
+
+The approved test-design history through AC-SRP-045 remains preserved. This approved slice adds
+AC-SRP-046–048 and the cross-spec AC-QPB-149–150 coverage without claiming device PASS.
+
+APPROVED TEST-DESIGN SUPERSESSION RECONCILIATION (approval 2026-09-17) — retained
 AC-SRP-019/022/024/031 under approved D-SRP-043/045 and FR-SRP-041/043.
 
 The 2026-09-17 approved acceptance baseline, AC-SRP-042–045 evidence correction and approval
@@ -17,9 +22,10 @@ import os
 import sqlite3
 import xml.etree.ElementTree as ET
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -298,7 +304,8 @@ STEP7_ROUTE_KEY_COPY = {
         "저장됩니다. 프로젝트 폴더를 열 수 있는 사람은 누구나 키를 확인하고 사용할 수 있습니다. "
         "동의하지 않으면 프로젝트에 키를 넣지 않으며, QField를 열 때마다 직접 입력해야 합니다."
     ),
-    "consent": "프로젝트에 API 키를 평문으로 포함하는 데 동의합니다",
+    "consent": "위 내용에 동의합니다",
+    "remember": "이 키 기억하기 (이 컴퓨터에 암호화하여 저장됨)",
 }
 NAVER_ANDROID_PACKAGE = "com.nhn.android.nmap"
 NAVER_ANDROID_STORE = "market://details?id=com.nhn.android.nmap"
@@ -1018,7 +1025,10 @@ def test_ac018_ac030_regression_portability(run, survey_type, reference):
                                   "M11_android_route_name_soft_keyboard",
                                   "M12_ios_route_name_soft_keyboard",
                                   "M13_qfield_eight_floating_labels",
-                                  "M14_qfield_six_geometry_labels"])
+                                  "M14_qfield_six_geometry_labels",
+                                  "M15_ios_light_dark_contrast_matrix",
+                                  "M16_ios_header_spacing_and_tap_regions",
+                                  "M17_ios_local_date_name_lifecycle"])
 def test_manual_qfield_device(case):
     pytest.skip(f"User-run QField iOS/Android case {case}; see test design. No device PASS implied.")
 
@@ -2295,14 +2305,16 @@ def test_ac044_normal_build_persists_six_family_label_contract_without_artifact_
 
 
 @pytest.mark.parametrize("state", [
-    "blank", "key_without_consent", "key_with_consent", "remember_only",
+    "blank", "key_without_consent", "consent_only", "remember_only", "both",
 ])
-def test_ac045_step7_exact_copy_states_and_secret_boundaries(run, state):
+def test_ac045_ac_qpb149_step7_exact_copy_states_and_secret_boundaries(run, state):
     key, consent, remember, embedded = {
-        "blank": ("", False, False, False),
+        # Checked boxes with a blank key prove that neither destination receives a secret.
+        "blank": ("", True, True, False),
         "key_without_consent": (KEY, False, False, False),
-        "key_with_consent": (KEY, True, False, True),
+        "consent_only": (KEY, True, False, True),
         "remember_only": (KEY, False, True, False),
+        "both": (KEY, True, True, True),
     }[state]
     r = run(operation="builder_step7_route_credentials", state=state, input_key=key,
             consent=consent, remember=remember, outcome="success")
@@ -2325,6 +2337,7 @@ def test_ac045_step7_exact_copy_states_and_secret_boundaries(run, state):
     assert observed["route_key_blank_behavior"]["text"] == STEP7_ROUTE_KEY_COPY["blank_behavior"]
     assert observed["route_key_plaintext_warning"]["text"] == STEP7_ROUTE_KEY_COPY["plaintext_warning"]
     assert observed["route_key_consent"]["text"] == STEP7_ROUTE_KEY_COPY["consent"]
+    assert observed["route_key_remember"]["text"] == STEP7_ROUTE_KEY_COPY["remember"]
     assert observed["route_key"]["echo_mode"] == "password"
     for semantic_id in ("route_key_purpose", "route_key_blank_behavior", "route_key_plaintext_warning"):
         assert observed[semantic_id]["word_wrap"] is True
@@ -2340,6 +2353,16 @@ def test_ac045_step7_exact_copy_states_and_secret_boundaries(run, state):
             assert accessibility["diagnostic"].strip()
             assert "name" not in accessibility and "role" not in accessibility
     assert observed["route_key_remember"]["described_as_project_delivery"] is False
+    retained = bool(key) and remember
+    credential_path = Path(r["desktop_credential_store"])
+    assert credential_path.is_file() is retained
+    if credential_path.is_file():
+        assert KEY.encode() not in credential_path.read_bytes()
+    assert r["desktop_retention_readback"] == {
+        "present": retained,
+        "source": "encrypted_credentials_store",
+        "plaintext_at_rest": False,
+    }
     assert r["generated_project_variable_count"] == (1 if embedded else 0)
     if embedded:
         value = r["project_variables"].get("fieldbuild_route_api_key")
@@ -2362,3 +2385,161 @@ def test_ac045_step7_exact_copy_states_and_secret_boundaries(run, state):
     else:
         assert secret_files == []
     assert r["test_output_secret_redacted"] is True
+
+
+def _contrast_ratio(foreground, background):
+    def luminance(rgb):
+        channels = []
+        for value in rgb:
+            normalized = value / 255
+            channels.append(normalized / 12.92 if normalized <= 0.04045
+                            else ((normalized + 0.055) / 1.055) ** 2.4)
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+
+    light, dark = sorted((luminance(foreground), luminance(background)), reverse=True)
+    return (light + 0.05) / (dark + 0.05)
+
+
+@pytest.mark.parametrize("appearance", ["light", "dark"])
+@pytest.mark.parametrize("control_state", [
+    "normal", "empty", "focus", "selected", "checked", "error", "disabled", "readonly",
+])
+def test_ac046_rendered_route_panel_contrast_proxy_uses_pixels_not_color_literals(
+        run, appearance, control_state):
+    r = run(operation="route_panel_theme_contrast_proxy", appearance=appearance,
+            control_state=control_state, viewport_width=320)
+    assert r["qml_runtime"]["loaded_generated_qml"] is True
+    assert Path(r["screenshot_path"]).is_file()
+    assert r["sample_source"] == "rendered_screenshot_pixels"
+    assert r["static_color_literal_claim"] is False
+    samples = r["contrast_samples"]
+    required = {"summary_text", "floating_label", "field_value", "help_text", "action_label",
+                "control_outline"}
+    state_roles = {
+        "empty": {"placeholder"}, "focus": {"focus_ring"},
+        "selected": {"dropdown_indicator", "selected_cue"},
+        "checked": {"checkbox_indicator", "checked_cue"},
+        "error": {"error_text", "error_outline", "error_cue"},
+        "disabled": {"disabled_label", "disabled_value", "disabled_reason", "disabled_cue"},
+        "readonly": {"readonly_reason", "readonly_cue"},
+    }
+    assert required | state_roles.get(control_state, set()) <= {
+        sample["semantic_role"] for sample in samples}
+    for sample in samples:
+        assert sample["source"] == "rendered_screenshot_pixels"
+        expected_threshold = 4.5 if sample["kind"] == "text" else 3.0
+        assert sample["threshold"] == expected_threshold
+        assert _contrast_ratio(sample["foreground_rgb"], sample["background_rgb"]) >= expected_threshold
+    if control_state in {"focus", "selected", "checked", "error", "disabled", "readonly"}:
+        assert r["non_color_cue_observed"] is True
+    assert r["claims"].get("ios_device_contrast_pass") is not True
+    assert r["evidence_scope"] == "loaded_qml_render_proxy_not_ios_device"
+
+
+def test_ac046_theme_switch_preserves_state_and_is_passive(run):
+    r = run(operation="route_panel_theme_switch_proxy", appearances=["light", "dark", "light"])
+    assert [state["appearance"] for state in r["states"]] == ["light", "dark", "light"]
+    for state in r["states"][1:]:
+        assert state["values"] == r["states"][0]["values"]
+        assert state["focused_object_id"] == r["states"][0]["focused_object_id"]
+        assert state["candidate"] == r["states"][0]["candidate"]
+        assert state["route"] == r["states"][0]["route"]
+        assert state["scroll_position"] == r["states"][0]["scroll_position"]
+    assert r["requests"] == [] and r["writes"] == []
+
+
+@pytest.mark.parametrize("viewport_width,text_scale", [(320, 1.0), (320, 1.3), (1024, 1.0), (1024, 1.3)])
+@pytest.mark.parametrize("control_state", ["empty", "value", "focus", "error", "disabled"])
+def test_ac047_header_to_first_label_clearance_and_hit_regions_proxy(
+        run, viewport_width, text_scale, control_state):
+    r = run(operation="route_panel_header_spacing_proxy", viewport_width=viewport_width,
+            text_scale=text_scale, control_state=control_state)
+    assert r["qml_runtime"]["loaded_generated_qml"] is True
+    assert Path(r["screenshot_path"]).is_file()
+    geometry = r["painted_geometry"]
+    assert geometry["source"] in {"rendered_image_edge_detection", "loaded_scenegraph_painted_bounds"}
+    assert geometry["header_bottom_includes_shadow_and_focus_ring"] is True
+    clear_gap_dp = (geometry["first_label_painted_top_px"] - geometry["header_painted_bottom_px"]) / r["device_pixel_ratio"]
+    assert clear_gap_dp >= 8
+    assert geometry["label_clipped"] is False and geometry["notch_clipped"] is False
+    assert geometry["top_outline_clipped"] is False and r["horizontal_overflow"] is False
+    assert not rects_overlap(r["header_hit_rect"], r["first_control_hit_rect"])
+    assert r["tap_results"] == {"label": "first_control", "control": "first_control", "header": "collapse"}
+    assert r["claims"].get("ios_device_spacing_pass") is not True
+    assert r["evidence_scope"] == "loaded_qml_geometry_proxy_not_ios_device"
+
+
+@pytest.mark.parametrize("instant_utc,device_timezone,locale", [
+    ("2026-09-16T15:30:00+00:00", "Asia/Seoul", "ko_KR"),
+    ("2026-09-17T01:00:00+00:00", "America/Los_Angeles", "en_US"),
+    ("2026-09-17T23:30:00+00:00", "Pacific/Kiritimati", "de_DE"),
+])
+def test_ac048_local_device_date_default_reset_and_preservation(
+        run, instant_utc, device_timezone, locale):
+    first_instant = datetime.fromisoformat(instant_utc)
+    second_iso = datetime.fromtimestamp(first_instant.timestamp() + 86400, tz=timezone.utc).isoformat()
+
+    def expected(instant):
+        local = datetime.fromisoformat(instant).astimezone(ZoneInfo(device_timezone))
+        return f"{local.year:04d}-{local.month:02d}-{local.day:02d} 조사"
+
+    r = run(operation="route_name_local_date_lifecycle", device_timezone=device_timezone,
+            locale=locale, clock_instants_utc=[instant_utc, second_iso],
+            edited_name="  현장 route 이름  ")
+    assert r["clock_source"] == "injected_device_clock_boundary"
+    assert r["initial_success"]["control_text"] == expected(instant_utc)
+    assert r["initial_success"]["editable"] is True
+    assert r["edited"]["control_text"] == "  현장 route 이름  "
+    assert r["edited"]["input_events"] == [
+        "tap_body", "caret_observed", "select_all", "delete", "commit_korean_latin",
+    ]
+    for action in ("collapse_reopen", "theme_change", "refresh", "save_retry", "failed_calculation"):
+        assert r[action]["control_text"] == "  현장 route 이름  "
+        assert r[action]["candidate"] == r["edited"]["candidate"]
+    assert r["failed_calculation"]["requests"]
+    assert r["saved"]["name"] == "현장 route 이름"
+    assert r["loaded_saved_route"]["name"] == "현장 route 이름"
+    assert r["next_explicit_success"]["control_text"] == expected(second_iso)
+    assert r["next_explicit_success"]["candidate"] != r["edited"]["candidate"]
+    assert r["non_calculation_actions_requests"] == []
+    assert r["claims"].get("ios_soft_keyboard_opened") is not True
+    assert r["evidence_scope"] == "automatic_clock_and_input_proxy_not_device_keyboard"
+
+
+@pytest.mark.parametrize("site_geometry", ["Point", "MultiPoint"])
+def test_ac_qpb150_canonical_site_excludes_tabler_icon_across_display_name_and_relocation(
+        run, site_geometry):
+    r = run(operation="generated_site_tabler_exclusion", site_geometry=site_geometry,
+            selected_icon="map-pin", display_names=["조사지", "Survey sites"], relocate=True)
+    assert r["identity_source"] == "canonical_table_and_role"
+    for snapshot in r["snapshots"]:
+        assert snapshot["site"]["canonical_table"] == "site"
+        assert snapshot["site"]["canonical_role"] == "site"
+        assert "SvgMarker" not in snapshot["site"]["symbol_layer_types"]
+        assert snapshot["site"]["svg_references"] == []
+        assert snapshot["site"]["base_renderer"] == r["expected_site_base_renderer"]
+        assert snapshot["eligible_non_site_point_layers"]
+        assert snapshot["eligible_non_site_point_layer_ids"] == r["expected_eligible_non_site_point_layer_ids"]
+        for layer in snapshot["eligible_non_site_point_layers"]:
+            assert "SvgMarker" in layer["symbol_layer_types"]
+            assert layer["selected_icon"] == "map-pin"
+            assert layer["svg_relative_path"]
+    assert r["after_relocation"]["broken_sources"] == []
+    for field in ("geometry", "attributes", "labels", "relations", "route_overlays"):
+        assert r["after_relocation"][field] == r["before_relocation"][field]
+    assert r["polygon_line_site_unchanged"] is True
+    assert r["type4_community_unchanged"] is True
+
+
+@pytest.mark.parametrize("icon_mode", ["none", "failed_fetch"])
+def test_ac_qpb150_site_and_other_points_keep_minimalist_fallback_without_selected_svg(
+        run, icon_mode):
+    r = run(operation="generated_site_tabler_exclusion", site_geometry="Point",
+            selected_icon=None if icon_mode == "none" else "map-pin", icon_mode=icon_mode,
+            relocate=False)
+    assert r["build_success"] is True
+    assert r["all_svg_references"] == []
+    assert r["site_renderer"] == r["expected_site_base_renderer"]
+    assert r["eligible_non_site_renderers"]
+    assert all(renderer == r["expected_minimalist_point_renderer"]
+               for renderer in r["eligible_non_site_renderers"])

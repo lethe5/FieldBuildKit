@@ -17,6 +17,11 @@
 > The evidence correction below is **APPROVED TEST DESIGN (approval 2026-09-17)**. It does not change the approved
 > AC-SRP-001–045 meaning or claim implementation/device PASS.
 
+> **APPROVED TEST DESIGN (approval 2026-09-18).**
+> This additive slice covers approved D-SRP-046–048, FR-SRP-044–046, NFR-SRP-006,
+> AC-SRP-046–048, D-101/102, FR-QPB-144/145, NFR-QPB-084 and AC-QPB-149/150.
+> It does not reopen prior approved test design or claim iOS/QField PASS.
+
 ## Current authority and scope
 
 FieldBuild Kit 0.2.9 uses the standalone QGIS-free generator, optional taxonomy, conditional
@@ -339,6 +344,36 @@ intercepted `Authorization` header.
   consented QGS project-variable occurrence. Assertions and harness diagnostics use redacted failure
   messages so test output cannot print the synthetic secret.
 
+### 2026-09-17 iOS/QField and integrated-builder follow-up fixtures — APPROVED TEST DESIGN (approval 2026-09-18)
+
+- AC-SRP-046 renders each light/dark × normal/value/empty/focus/selected/checked/error/disabled
+  state from loaded generated QML. The test independently computes WCAG ratios from raw screenshot
+  pixel pairs: text is at least 4.5:1 and boundaries/indicators/focus affordances at least 3:1.
+  State roles require a non-color cue. A separate light→dark→light run keeps values, live focus,
+  candidate, route and scroll identical while request/write captures remain empty. Source color
+  literals and headless pixels are bounded proxies; M15 is the final iOS evidence.
+- AC-SRP-047 uses 320/1024 px, 1.0/1.3 supported text-scale fixtures and all five required states.
+  It measures the complete painted header bottom and first label painted top in rendered pixels,
+  converts by observed device-pixel ratio and requires at least 8 dp. Actual window hit tests must
+  route label/control taps to the first control and header taps to collapse, with disjoint hit regions,
+  no clipping and no horizontal overflow. M16 remains final iOS screenshot/tap evidence.
+- AC-SRP-048 injects UTC instants only at the platform-clock boundary for Seoul, Los Angeles and
+  Kiritimati, independently derives the device-local Gregorian date with `zoneinfo`, and holds locale
+  variable. It observes the exact default after successful calculation, actual selection/delete/
+  Korean+Latin input events, preservation across passive/retry/failure actions, trimmed save/load and
+  reset only on the next explicit successful calculation. Automated input events do not prove an iOS
+  soft keyboard; M17 remains NOT RUN.
+- AC-QPB-149 extends the existing actual Step 7 widget/build fixture to blank-with-both-checked,
+  non-blank-neither, consent-only, remember-only and both. QGS parsing and isolated encrypted-store
+  reopen independently prove the two destinations. Raw key scans cover visible copy, diagnostics,
+  ordinary settings and artifacts, allowing exactly one consented QGS occurrence and no plaintext
+  desktop occurrence.
+- AC-QPB-150 normally builds Point/MultiPoint canonical `site` plus every eligible non-site semantic
+  point layer in the fixture. QGS parsing before/after alternate display names and folder relocation
+  keys exclusion to canonical table/role, proves the selected relative SVG on all eligible non-site
+  point layers, and compares geometry/attributes/labels/relations/route overlays. No-icon and failed-
+  fetch fixtures prove the existing minimalist fallback; polygon/line site and Type 4 remain unchanged.
+
 ## Resolved rules and coverage limits
 
 | Item | Treatment without weakening invariant requirements |
@@ -355,9 +390,11 @@ intercepted `Authorization` header.
 | D-SRP-020–030 workflow | Executable proxy gates cover actual project models, storage commits, launcher dispatch, schema documents, derived progression/render state and offline persistence. Native provider ordering, FileUtils/overlay rendering, touch/keyboard and mobile app handoff remain M01–M05. |
 | D-SRP-036–041 follow-up | Generated-asset/contract gates cover name-only save, rendered labels/disclosure, key provenance and snapshot exclusion, exact URL dispatch, ordered checklist state and generated styling. Native QField accessibility/rendering, atomic file behavior and mobile handoff remain M10. |
 | D-SRP-042–045 follow-up | Loaded-control and generated-artifact proxies cover editable/input-method wiring, exact eight-control geometry, six-family QGS/GPKG labeling configuration and Step 7 copy/secret boundaries. Android/iOS soft keyboards and actual QField layout/map rendering remain M11–M14. |
+| D-SRP-046–048 follow-up | Rendered-QML pixel/geometry/input-lifecycle proxies cover contrast thresholds, passive theme switching, header clearance/hit routing and device-local default naming. Actual iOS/QField appearance, taps and soft keyboard remain M15–M17. |
+| D-101/102 integrated builder follow-up | Actual Step 7 build/store readback and generated-QGS relocation fixtures cover independent key destinations and canonical-site icon exclusion. Desktop screen-reader behavior and target-QField rendering remain user-observed boundaries. |
 
 A complete per-criterion map means tests/design are present; it does not mean every criterion has
-fully automated proof. The fourteen manual/native cases prevent blanket PASS until user-run evidence exists.
+fully automated proof. The seventeen manual/native cases prevent blanket PASS until user-run evidence exists.
 
 ## User-run device and real-service cases — NOT RUN
 
@@ -382,6 +419,9 @@ operation per AGENTS.md; automated sidecar checks never substitute for this evid
 | M12 | Repeat M11 separately on supported iOS. Do not reuse the Android verdict. Record any OS-level keyboard suppression condition separately from an app failure. | 042; NFR-005 |
 | M13 | In target QField at 320px class and a wide viewport, capture empty/value/focus/disabled/error screenshots and interaction/accessibility review for all eight exact controls. Confirm every label/notch center crosses the visible top outline, `저장 경로 불러오기` has no separate label row, and there is no collision, clipping or horizontal scroll. | 043; NFR-005 |
 | M14 | Open a normal-build spaced six-geometry fixture in target QField at suitable zoom. Capture each feature's single readable label and white halo for name, stable-ID fallback and no-label cases; verify multipart features do not repeat per part and markup remains inert. Automated XML/QGIS/headless evidence does not substitute. | 044; NFR-005 |
+| M15 | On the same supported iPhone/iOS QField project and candidate, capture light and dark appearance for normal/value/empty/focus/selected/checked/error/disabled states. Measure every summary/label/value/help/action/status foreground against its actual background and boundaries/indicators/focus cues against adjacent colors; record the 4.5:1/3:1 results and non-color cues. Switch themes while focused/scrolled and confirm values, candidate, route and scroll persist with no request/write. | 046; NFR-006 |
+| M16 | On target iOS QField at 320 px-class and wide supported viewports/text scales, capture the expanded header and first `조사지` control in empty/value/focus/error/disabled states. Measure at least 8 dp between complete painted header bottom and label top; verify full label/notch/outline, no overlap/clipping/scroll, label/control taps focus only the control and only header taps collapse. | 047; NFR-006 |
+| M17 | Set a disposable iOS device fixture so local date is 2026-09-17, calculate a new route and observe exact `2026-09-17 조사`. Tap for caret/soft keyboard, select/delete and enter Korean/Latin text, then verify trim save with zero recalculation. Repeat collapse, theme change, refresh, retry, failed calculation, next-day successful calculation, locale change and saved-route load; record the local-date reset/preservation boundary. | 048; NFR-005–006 |
 
 ## Stage validation
 
@@ -477,3 +517,17 @@ outline-centered/per-control geometry. This approved reconciliation reports thos
 them in AC031; it does not accept them as evidence or modify runtime code. AC043 retains live
 per-control outline, truncation, validation identity/geometry and collision evidence for all eight
 controls. The green automated run does not convert M01–M14 into device PASS.
+
+## AC-SRP-046–048 / AC-QPB-149–150 approval record (approval 2026-09-18)
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-18).** This fresh test-designer changed only
+the five acceptance artifacts listed by `git diff --stat`; no application, unit-test, specification,
+UI-guidance or Git state was modified. The prior unapproved partial edit was inspected and corrected.
+
+- Collection: `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests/acceptance/survey_route_planner/test_survey_route_planner.py --collect-only -q -p no:cacheprovider` → **392 collected**, exit 0.
+- Focused collection: `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/acceptance/survey_route_planner/test_survey_route_planner.py --collect-only -q -p no:cacheprovider -k 'ac046 or ac047 or ac048 or qpb149 or qpb150'` → **49/392 collected, 343 deselected**, exit 0.
+- Design verifier: `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python tests/acceptance/survey_route_planner/verify_design.py` → exit 0; approved AC001–048/QPB149–150 operations/oracles, exact checkbox copy, canonical-site identity guards and M01–M17 NOT RUN markers passed. It executes no application behavior. A preceding system-Python attempt failed before the verifier with `ModuleNotFoundError: No module named 'fiona'`; the repository venv rerun is authoritative.
+- Focused required-mode attempt: `PYTHONDONTWRITEBYTECODE=1 QT_QPA_PLATFORM=offscreen FIELDBUILD_REQUIRE_SRP_HARNESS=1 .venv/bin/python -m pytest tests/acceptance/survey_route_planner/test_survey_route_planner.py -q -p no:cacheprovider --tb=line --basetemp /tmp/fieldbuild-srp-ios-followup -k 'ac046 or ac047 or ac048 or qpb149 or qpb150'` → **49 failed, 343 deselected** in 19.23 s, but every failure occurred before product observation because the sandbox denied the harness's localhost bind with `PermissionError: [Errno 1] Operation not permitted`. This run is environment evidence only, not an implementation verdict.
+- The allowed-local-socket retry and isolated verbose probes produced no usable pytest completion summary and were stopped rather than treated as evidence. Static implementation inspection still identifies the expected pre-implementation gaps: the four AC046–048 operations and `generated_site_tabler_exclusion` are absent from the acceptance adapter; the current ORS checkbox remains the superseded long consent string; and `desktop_retention_readback` is absent. No expectation was weakened around those gaps.
+- Manual selector: `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/acceptance/survey_route_planner/test_survey_route_planner.py -q -p no:cacheprovider -k 'manual_qfield_device'` → **17 skipped, 375 deselected**, exit 0. M15–M17 and all prior M01–M14 are explicitly NOT RUN; no iOS/QField/device PASS is claimed.
+- Acceptance-only `git diff --check` over the five changed files: exit 0, no output.
