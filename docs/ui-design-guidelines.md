@@ -551,3 +551,64 @@ above remains unchanged except where this approved slice explicitly extends it.
 - Step 7 review covers blank key, entered key with consent declined, entered key with consent, and
   desktop remember without project consent. The exact copy remains visible/wrapped and accessible;
   only the consented state describes and produces plaintext project inclusion.
+
+### iOS route-panel theme, header clearance and default route name (approved 2026-09-17)
+
+**Status: APPROVED — 2026-09-17.** This Category A/B/C/D slice mirrors
+D-SRP-046~048, FR-SRP-044~046, NFR-SRP-006 and AC-SRP-046~048. It is based on the supplied iPhone
+QField screenshots and does not change the approved route/provider/storage contract.
+
+#### Approved design decisions
+
+- **D-UI-SRP-011 (approved 2026-09-17, Category A/B/D):** The route panel follows the active QField/iOS
+  light/dark appearance with one internally consistent palette. It must never combine a light
+  surface with dark-theme white foregrounds, or the inverse. All user-readable text meets 4.5:1;
+  boundaries, indicators and focus cues meet 3:1. State meaning is not conveyed by color alone.
+- **D-UI-SRP-012 (approved 2026-09-17, Category A/D):** Measure the first control from the route-summary
+  header's complete painted bottom, including shadow/focus treatment. Keep at least 8 dp clear to
+  the painted top of the `조사지` floating label; equivalently the control's top outline sits at
+  least `label painted height / 2 + 8 dp` below it (17 dp for the current 18 dp label, 20 dp
+  recommended). Header and first-control hit regions are disjoint at every supported width.
+- **D-UI-SRP-013 (approved 2026-09-17, Category A/C):** `저장할 경로 이름` remains a real editable iOS input.
+  Each explicit successful new calculation initializes a new candidate to exact
+  `yyyy-MM-dd 조사`, using the QField device's local Gregorian calendar date at success time.
+  User edits persist through collapse, theme change, refresh, save retry and calculation failure;
+  the next successful new calculation resets the new candidate. Loading a saved route preserves
+  its stored name.
+- **D-UI-SRP-014 (approved 2026-09-17, Category D/B):** The ORS consent and desktop-retention checkbox labels
+  match the established VWorld wording exactly: `위 내용에 동의합니다` and
+  `이 키 기억하기 (이 컴퓨터에 암호화하여 저장됨)`. Reading order and adjacent explanatory
+  copy must preserve the distinct meanings: the first authorizes plaintext inclusion in the
+  generated project for QField, while the second authorizes encrypted retention on this desktop
+  only. Neither selection implies the other.
+
+#### Required state matrix
+
+| State | Light appearance | Dark appearance | Non-color cue |
+|---|---|---|---|
+| Panel/header/control surface | light surface with dark foreground | dark surface with light foreground | component boundary/elevation remains visible |
+| Normal value/help/label | at least 4.5:1 on its actual surface | at least 4.5:1 on its actual surface | persistent text/accessible name |
+| Empty/placeholder | at least 4.5:1 and distinct from a committed value | at least 4.5:1 and distinct from a committed value | placeholder semantics; floating label remains present |
+| Focus | readable text plus 3:1 focus outline | readable text plus 3:1 focus outline | visible outline and caret, not hue alone |
+| Error | readable error label/message and outline | readable error label/message and outline | explicit message/icon/state description |
+| Selected/checked | readable selected value/label | readable selected value/label | checkmark/selection indicator and accessible checked state |
+| Disabled/read-only | label/value and disabled reason remain readable | label/value and disabled reason remain readable | disabled property plus reason; not opacity alone |
+
+Reference tokens are light `{surface #F8FAFC, text #111827, muted #334155, outline #64748B}` and
+dark `{surface #111827, text #F9FAFB, muted #CBD5E1, outline #94A3B8}`, with focus `#2563EB` and
+a theme-specific error red that meets the same thresholds. Implementations may use higher-contrast
+equivalents; the matrix and semantics are normative, not the mechanism.
+
+#### Approved design-review criteria
+
+- Real iOS QField screenshots cover every matrix row in light and dark appearance, with measured
+  ratios. Static QML literals or desktop/headless rendering are proxy evidence only.
+- At 320 px and wider, including supported text scaling, the first label/notch/outline remains
+  fully visible below the header with the specified gap. Tapping it focuses the control and never
+  collapses the header.
+- With no external keyboard, the route-name field supports tap, caret, soft keyboard, Korean and
+  Latin editing, selection and deletion. A local/UTC date-boundary fixture proves the local date,
+  and locale changes do not alter `yyyy-MM-dd 조사`.
+- Step 7 shows both exact checkbox labels, masked key input and adjacent plaintext/encrypted-storage
+  explanations. Blank key, declined consent, project consent only, desktop remember only and both
+  selections preserve their specified independent behavior without secret disclosure.

@@ -1,4 +1,9 @@
-"""APPROVED TEST-DESIGN SUPERSESSION RECONCILIATION (approval 2026-09-17) — retained
+"""APPROVED TEST-DESIGN CORRECTION — iOS/QField follow-up (approval 2026-09-18).
+
+The approved history is preserved. This approved correction replaces over-scoped rendered/device proxies for
+AC-SRP-046–048 and AC-QPB-149–150; it does not claim device PASS or alter product requirements.
+
+APPROVED TEST-DESIGN SUPERSESSION RECONCILIATION (approval 2026-09-17) — retained
 AC-SRP-019/022/024/031 under approved D-SRP-043/045 and FR-SRP-041/043.
 
 The 2026-09-17 approved acceptance baseline, AC-SRP-042–045 evidence correction and approval
@@ -14,12 +19,16 @@ import importlib
 import hashlib
 import json
 import os
+import re
+import shutil
 import sqlite3
+import subprocess
 import xml.etree.ElementTree as ET
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -298,7 +307,8 @@ STEP7_ROUTE_KEY_COPY = {
         "저장됩니다. 프로젝트 폴더를 열 수 있는 사람은 누구나 키를 확인하고 사용할 수 있습니다. "
         "동의하지 않으면 프로젝트에 키를 넣지 않으며, QField를 열 때마다 직접 입력해야 합니다."
     ),
-    "consent": "프로젝트에 API 키를 평문으로 포함하는 데 동의합니다",
+    "consent": "위 내용에 동의합니다",
+    "remember": "이 키 기억하기 (이 컴퓨터에 암호화하여 저장됨)",
 }
 NAVER_ANDROID_PACKAGE = "com.nhn.android.nmap"
 NAVER_ANDROID_STORE = "market://details?id=com.nhn.android.nmap"
@@ -1018,7 +1028,10 @@ def test_ac018_ac030_regression_portability(run, survey_type, reference):
                                   "M11_android_route_name_soft_keyboard",
                                   "M12_ios_route_name_soft_keyboard",
                                   "M13_qfield_eight_floating_labels",
-                                  "M14_qfield_six_geometry_labels"])
+                                  "M14_qfield_six_geometry_labels",
+                                  "M15_ios_light_dark_contrast_matrix",
+                                  "M16_ios_header_spacing_and_tap_regions",
+                                  "M17_ios_local_date_name_lifecycle"])
 def test_manual_qfield_device(case):
     pytest.skip(f"User-run QField iOS/Android case {case}; see test design. No device PASS implied.")
 
@@ -2294,61 +2307,63 @@ def test_ac044_normal_build_persists_six_family_label_contract_without_artifact_
     assert r["evidence_scope"] == "generated_qgs_gpkg_proxy_not_qfield_canvas"
 
 
-@pytest.mark.parametrize("state", [
-    "blank", "key_without_consent", "key_with_consent", "remember_only",
-])
-def test_ac045_step7_exact_copy_states_and_secret_boundaries(run, state):
-    key, consent, remember, embedded = {
-        "blank": ("", False, False, False),
-        "key_without_consent": (KEY, False, False, False),
-        "key_with_consent": (KEY, True, False, True),
-        "remember_only": (KEY, False, True, False),
-    }[state]
-    r = run(operation="builder_step7_route_credentials", state=state, input_key=key,
-            consent=consent, remember=remember, outcome="success")
-    assert r["step"] == 7 and r["build_success"] is True
+def test_ac045_step7_copy_order_masking_and_accessibility(run):
+    r = run(operation="builder_step7_route_credentials", state="key_without_consent",
+            input_key=KEY, consent=False, remember=False, outcome="success")
+    expected_order = ["route_key", "route_key_purpose", "route_key_blank_behavior",
+                      "route_key_plaintext_warning", "route_key_consent", "route_key_remember"]
     widgets = r["widgets"]
-    expected_widget_order = [
-        "route_key", "route_key_purpose", "route_key_blank_behavior",
-        "route_key_plaintext_warning", "route_key_consent", "route_key_remember",
-    ]
-    assert r["widget_tree_observation"]["source"] == "actual_qt_widget_tree"
-    assert r["widget_tree_observation"]["semantic_ids"] == expected_widget_order
-    assert [widget["semantic_id"] for widget in widgets] == expected_widget_order
-    assert [widget["semantic_id"] for widget in sorted(widgets, key=lambda item: item["layout_path"])] == expected_widget_order
+    assert r["widget_tree_observation"] == {"source": "actual_qt_widget_tree",
+                                            "semantic_ids": expected_order}
+    assert [widget["semantic_id"] for widget in widgets] == expected_order
     assert r["focus_chain_observation"]["source"] == "QWidget.nextInFocusChain"
     assert r["focus_chain_observation"]["semantic_ids"] == [
         "route_key", "route_key_consent", "route_key_remember"]
     observed = {widget["semantic_id"]: widget for widget in widgets}
-    assert observed["route_key"]["title"] == STEP7_ROUTE_KEY_COPY["title"]
-    assert observed["route_key_purpose"]["text"] == STEP7_ROUTE_KEY_COPY["purpose"]
-    assert observed["route_key_blank_behavior"]["text"] == STEP7_ROUTE_KEY_COPY["blank_behavior"]
-    assert observed["route_key_plaintext_warning"]["text"] == STEP7_ROUTE_KEY_COPY["plaintext_warning"]
-    assert observed["route_key_consent"]["text"] == STEP7_ROUTE_KEY_COPY["consent"]
     assert observed["route_key"]["echo_mode"] == "password"
-    for semantic_id in ("route_key_purpose", "route_key_blank_behavior", "route_key_plaintext_warning"):
-        assert observed[semantic_id]["word_wrap"] is True
+    assert observed["route_key_consent"]["text"] == STEP7_ROUTE_KEY_COPY["consent"]
+    assert observed["route_key_remember"]["text"] == STEP7_ROUTE_KEY_COPY["remember"]
     for widget in widgets:
-        assert widget["visible"] is True
-        assert widget["layout_observation_source"] == "actual_parent_layout"
-        assert widget["layout_path"]
         accessibility = widget["accessibility_observation"]
         if accessibility["available"]:
             assert accessibility["source"] == "QAccessible.queryAccessibleInterface"
             assert accessibility["name"].strip() and accessibility["role"]
         else:
             assert accessibility["diagnostic"].strip()
-            assert "name" not in accessibility and "role" not in accessibility
-    assert observed["route_key_remember"]["described_as_project_delivery"] is False
+
+
+@pytest.mark.parametrize("state", ["blank", "key_without_consent", "consent_only", "remember_only", "both"])
+def test_ac_qpb149_direct_builder_credential_states_and_secret_boundaries(run, state):
+    key, consent, remember, embedded = {
+        # Checked boxes with a blank key prove that neither destination receives a secret.
+        "blank": ("", True, True, False),
+        "key_without_consent": (KEY, False, False, False),
+        "consent_only": (KEY, True, False, True),
+        "remember_only": (KEY, False, True, False),
+        "both": (KEY, True, True, True),
+    }[state]
+    r = run(operation="builder_route_credentials_boundary", state=state, input_key=key,
+            consent=consent, remember=remember, outcome="success")
+    assert r["build_success"] is True
+    assert r["copy"] == {"consent": STEP7_ROUTE_KEY_COPY["consent"],
+                          "remember": STEP7_ROUTE_KEY_COPY["remember"]}
+    retained = bool(key) and remember
+    credential_path = Path(r["desktop_credential_store"])
+    assert credential_path.is_file() is retained
+    if credential_path.is_file():
+        assert KEY.encode() not in credential_path.read_bytes()
+    assert r["desktop_retention_readback"] == {
+        "present": retained,
+        "source": "encrypted_credentials_store",
+        "plaintext_at_rest": False,
+    }
     assert r["generated_project_variable_count"] == (1 if embedded else 0)
     if embedded:
         value = r["project_variables"].get("fieldbuild_route_api_key")
         if value != KEY:
             pytest.fail("consented project variable did not preserve the submitted synthetic key", pytrace=False)
-        assert r["review_plaintext_warning_visible"] is True
     else:
         assert "fieldbuild_route_api_key" not in r["project_variables"]
-        assert r["qfield_session_key_guidance_visible"] is True
     for field in ("summary", "logs", "errors", "general_settings", "diagnostics"):
         assert_secret_absent(r.get(field), location=field)
     secret_files = []
@@ -2362,3 +2377,123 @@ def test_ac045_step7_exact_copy_states_and_secret_boundaries(run, state):
     else:
         assert secret_files == []
     assert r["test_output_secret_redacted"] is True
+
+
+def _route_panel_source():
+    return (Path(__file__).parents[3] / "qfield_builder/qfield_routes/RoutePanel.qml").read_text(encoding="utf-8")
+
+
+def test_ac046_theme_structure_uses_host_palette_and_semantic_roles_only():
+    source = _route_panel_source()
+    assert "SystemPalette" in source and "darkAppearance" in source
+    for role in ("surfaceColor", "foregroundColor", "mutedColor", "outlineColor", "focusColor", "errorColor"):
+        assert f"property color {role}" in source
+    assert "palette.text: foregroundColor" in source
+    assert "palette.placeholderText: mutedColor" in source
+
+
+def test_ac047_header_and_first_control_are_distinct_ordered_structures_only():
+    source = _route_panel_source()
+    positions = [source.index(token) for token in (
+        'objectName:"routeSummaryButton"', 'objectName:"routeScroll"',
+        'objectName:"routeContent"', 'objectName:"layerEdit"')]
+    assert positions == sorted(positions)
+    assert 'onClicked:panel.expanded=!panel.expanded' in source
+    assert 'objectName:"routeScroll";visible:panel.expanded' in source
+
+
+@pytest.mark.parametrize("instant_utc,device_timezone,locale", [
+    ("2026-09-16T15:30:00+00:00", "Asia/Seoul", "ko_KR"),
+    ("2026-09-17T01:00:00+00:00", "America/Los_Angeles", "en_US"),
+    ("2026-09-17T23:30:00+00:00", "Pacific/Kiritimati", "de_DE"),
+])
+def test_ac048_controller_local_date_save_roundtrip_and_next_success_reset(
+        instant_utc, device_timezone, locale):
+    first_instant = datetime.fromisoformat(instant_utc)
+    second_iso = datetime.fromtimestamp(first_instant.timestamp() + 86400, tz=timezone.utc).isoformat()
+
+    def expected(instant):
+        local = datetime.fromisoformat(instant).astimezone(ZoneInfo(device_timezone))
+        return f"{local.year:04d}-{local.month:02d}-{local.day:02d} 조사"
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node is required for the production controller boundary")
+    controller = Path(__file__).parents[3] / "qfield_builder/qfield_routes/controller.js"
+    script = r'''const fs=require('fs'),vm=require('vm');const context=vm.createContext({});
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);let now=process.argv[2],fail=false;
+let disk={revision:0,slot:'a',data:{schema:2,routes:[],active_id:'',settings:{}}};const clone=x=>JSON.parse(JSON.stringify(x));
+const make=()=>context.create({now:()=>new Date(now),uuid:()=>String(Date.now()),gps:()=>[127,37],
+repository:{load:()=>clone(disk),save:(io,base,data,revision)=>{disk={revision:revision+1,slot:disk.slot==='a'?'b':'a',data:clone(data)};return clone(disk);}},
+features:()=>[{id:'A',name:'A',coordinate:[127,37],completed:false}],geometry:{coordinate:x=>x},
+backend:{calculate:async(s,list)=>{if(fail)throw new Error('fixture failure');return {stops:list,distance_m:2,duration_s:2,road_geometry:{type:'LineString',coordinates:[[127,37],[127,37],[127,37]]},legs:[{distance_m:1,duration_s:1,geometry:{type:'LineString',coordinates:[[127,37],[127,37]]}},{distance_m:1,duration_s:1,geometry:{type:'LineString',coordinates:[[127,37],[127,37]]}}]};}}});
+(async()=>{let c=make();c.configure({optimizer_url:'https://fixture.invalid'});await c.calculate(false);const initial=c.state.candidate.name;
+c.save('  현장 route 이름  ');c=make();const loaded=c.active().name;now=process.argv[3];await c.calculate(false);const next=c.state.candidate.name;
+const before=JSON.stringify(c.state.candidate);fail=true;const failed=await c.calculate(false);process.stdout.write(JSON.stringify({initial,loaded,next,failed,preserved:before===JSON.stringify(c.state.candidate)}));})().catch(e=>{console.error(e);process.exit(1)});'''
+    env = os.environ.copy(); env.update({"TZ": device_timezone, "LANG": locale, "LC_ALL": locale})
+    result = subprocess.run([node, "-e", script, str(controller), instant_utc, second_iso],
+                            capture_output=True, text=True, env=env)
+    assert result.returncode == 0, result.stderr
+    observed = json.loads(result.stdout)
+    assert observed == {"initial": expected(instant_utc), "loaded": "현장 route 이름",
+                        "next": expected(second_iso), "failed": False, "preserved": True}
+
+
+def test_ac_qpb150_symbol_router_excludes_canonical_site_directly(monkeypatch):
+    from qfield_builder import qgis_worker, schemas
+    schema = schemas.get_schema("permanent_plots", site_geometry_type="POINT")
+    layers = {name: object() for name, definition in schema.items() if definition.geometry is not None}
+    svg, minimalist = [], []
+    monkeypatch.setattr(qgis_worker, "_apply_svg_point_symbology", lambda _q, layer, _p: svg.append(layer))
+    monkeypatch.setattr(qgis_worker, "_apply_minimalist_point_symbology", lambda _q, layer: minimalist.append(layer))
+    monkeypatch.setattr(qgis_worker, "_apply_minimalist_polygon_symbology", lambda _q, _layer: None)
+    qgis_worker._apply_symbol_styling({}, schema, layers, "symbols/map-pin.svg")
+    eligible = {name for name, definition in schema.items()
+                if definition.geometry is not None and definition.geometry.geom_type == "POINT"
+                and name not in {"site", "community"}}
+    assert minimalist == [layers["site"]]
+    assert set(svg) == {layers[name] for name in eligible}
+
+
+def _qgs_symbol_contract(qgs_path):
+    records = {}
+    for layer in ET.parse(qgs_path).getroot().findall("./projectlayers/maplayer"):
+        datasource = layer.findtext("datasource", "")
+        match = re.search(r"(?:^|\|)layername=([^|]+)", datasource)
+        if match:
+            records[match.group(1)] = {
+                "display_name": layer.findtext("layername"),
+                "classes": {node.get("class") for node in layer.findall(".//layer")},
+                "svg_values": {node.get("value") for node in layer.findall(".//*[@value]")
+                               if "symbols/" in node.get("value", "")},
+            }
+    return records
+
+
+@pytest.mark.parametrize("site_geometry", ["Point", "MultiPoint"])
+def test_ac_qpb150_generated_qgs_keeps_site_base_symbol_after_rename_and_relocation(
+        tmp_path, site_geometry):
+    from qfield_builder import schemas
+    from qfield_builder.survey_route_acceptance import _build
+    styling = {"mode": "tabler_icon", "tabler_icon_name": "map-pin", "tabler_svg_fetch":
+               {"fake": {"mode": "success", "svg_content": '<svg xmlns="http://www.w3.org/2000/svg"/>'}}}
+    wkt = "POINT(127 37)" if site_geometry == "Point" else "MULTIPOINT((127 37),(127.1 37.1))"
+    result = _build(tmp_path, survey_type="permanent_plots", site_geometry_type=site_geometry.upper(),
+                    sites=[{"site_id": "site-1", "site_name": "조사지", "geom_wkt": wkt}],
+                    symbol_styling=styling)
+    project_dir = Path(result["project_dir"]); moved = tmp_path / "moved"; shutil.copytree(project_dir, moved)
+    qgs_path = next(moved.glob("*.qgs")); tree = ET.parse(qgs_path)
+    site_node = next(node for node in tree.getroot().findall("./projectlayers/maplayer")
+                     if "layername=site" in node.findtext("datasource", ""))
+    site_node.find("layername").text = "Survey sites"; tree.write(qgs_path, encoding="utf-8", xml_declaration=True)
+    records = _qgs_symbol_contract(qgs_path)
+    schema = schemas.get_schema("permanent_plots", site_geometry_type=site_geometry.upper())
+    eligible = {name for name, definition in schema.items()
+                if definition.geometry is not None and definition.geometry.geom_type == "POINT"
+                and name not in {"site", "community"}}
+    assert "SvgMarker" not in records["site"]["classes"] and records["site"]["svg_values"] == set()
+    assert records["site"]["display_name"] == "Survey sites"
+    for table in eligible:
+        assert "SvgMarker" in records[table]["classes"]
+        assert records[table]["svg_values"] == {"symbols/map-pin.svg"}
+        assert (moved / "symbols/map-pin.svg").is_file()

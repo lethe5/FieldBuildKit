@@ -1,4 +1,4 @@
-"""APPROVED supersession-reconciliation verifier (approval 2026-09-17).
+"""Approved baseline plus approved iOS/QPB evidence-boundary correction verifier (approval 2026-09-18).
 
 The approved 2026-09-17 baseline and AC-SRP-042–045 correction remain preserved; no application
 code is executed.
@@ -21,7 +21,7 @@ spec = importlib.util.spec_from_file_location("srp_test_design", path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 coverage = set(re.findall(r"ac(\d{3})", path.read_text(encoding="utf-8-sig")))
-assert {f"{i:03d}" for i in range(1, 46)} <= coverage
+assert {f"{i:03d}" for i in range(1, 49)} <= coverage
 wire = module.vroom_response(include_arrivals=True)
 route = wire["routes"][0]
 arrivals = [step["arrival"] for step in route["steps"] if step["type"] == "job"]
@@ -59,7 +59,10 @@ assert all(case in source for case in ["M01_project_dropdowns_layout", "M02_sche
                                        "M11_android_route_name_soft_keyboard",
                                        "M12_ios_route_name_soft_keyboard",
                                        "M13_qfield_eight_floating_labels",
-                                       "M14_qfield_six_geometry_labels"])
+                                       "M14_qfield_six_geometry_labels",
+                                       "M15_ios_light_dark_contrast_matrix",
+                                       "M16_ios_header_spacing_and_tap_regions",
+                                       "M17_ios_local_date_name_lifecycle"])
 assert module.canonical_naver_url("조사지 A & B/#?") == (
     "nmap://navigation?dlat=37.456&dlng=127.123&dname="
     + quote("조사지 A & B/#?", safe="") + "&appname=ch.opengis.qfield")
@@ -153,7 +156,8 @@ assert module.STEP7_ROUTE_KEY_COPY == {
         "저장됩니다. 프로젝트 폴더를 열 수 있는 사람은 누구나 키를 확인하고 사용할 수 있습니다. "
         "동의하지 않으면 프로젝트에 키를 넣지 않으며, QField를 열 때마다 직접 입력해야 합니다."
     ),
-    "consent": "프로젝트에 API 키를 평문으로 포함하는 데 동의합니다",
+    "consent": "위 내용에 동의합니다",
+    "remember": "이 키 기억하기 (이 컴퓨터에 암호화하여 저장됨)",
 }
 assert module.false_xml_flag("0") and module.false_xml_flag("false")
 assert not module.false_xml_flag("1") and not module.false_xml_flag("true")
@@ -171,6 +175,7 @@ assert all(operation in source for operation in [
     'operation="ordered_completion_checklist"', 'operation="generated_site_style"',
     'operation="route_name_text_input_proxy"', 'operation="final_floating_label_geometry"',
     'operation="generated_site_label_contract"', 'operation="builder_step7_route_credentials"',
+    'operation="builder_route_credentials_boundary"',
 ])
 assert all(token in source for token in [
     '"evidence_source"] == "loaded_generated_qml_object_tree"',
@@ -217,14 +222,18 @@ assert all(token in source for token in [
     'false_xml_flag(config["rendering"].get("mergeLines"))', '"ID-LINK-A"', '"ID-LINK-B"',
     '"expression_evaluator"] == "QgsExpression"', '"runtime_claims"] == []',
     '"qfield_device_label_rendered") is not True',
-    '"actual_qt_widget_tree"', '"QWidget.nextInFocusChain"',
-    '"QAccessible.queryAccessibleInterface"',
     '"test_output_secret_redacted"] is True',
+    '"desktop_retention_readback"] ==',
 ])
 assert all(forbidden not in source for forbidden in [
     '"floating_label_visual"', '"marker_source_writes"', '"marker_route_writes"',
     '"scope_following_row_gaps"', '"preflight_candidate_ids"',
     '"painted_control_outline_geometry"',
+    'operation="route_panel_theme_contrast_proxy"',
+    'operation="route_panel_theme_switch_proxy"',
+    'operation="route_panel_header_spacing_proxy"',
+    'operation="route_name_local_date_lifecycle"',
+    'operation="generated_site_tabler_exclusion"',
 ])
 assert '"geom_to_geojson" not in expression' in source
 assert all(token in source for token in ['"centroid" in expression', '"transform" in expression',
@@ -258,4 +267,6 @@ for fmt in ["SHP", "ZIP", "GPKG"]:
             except FixtureChecked:
                 count += 1
 assert count == 18
-print("Design checks: APPROVED supersession guards pass; approved AC001-045 meaning/history preserved; old warning parser and saved-route label rejected; AC031 remains a strict six-control subset of AC043's eight-control final authority; approved AC042-045 evidence correction remains intact; M01-M14 remain NOT RUN. No application tests executed.")
+print("Design checks: approved AC001-045 history preserved; approved AC046-048/QPB149-150 correction "
+      "uses bounded structure/controller/builder/symbol boundaries; superseded operations are absent; "
+      "M01-M17 remain NOT RUN. No application tests executed.")

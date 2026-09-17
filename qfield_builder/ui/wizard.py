@@ -2530,6 +2530,10 @@ class SymbolStylingPage(QWizardPage):
     symbolStylingMode = Property(str, _get_symbol_styling_mode)
 
 
+ROUTE_KEY_CONSENT_TEXT = "위 내용에 동의합니다"
+ROUTE_KEY_REMEMBER_TEXT = "이 키 기억하기 (이 컴퓨터에 암호화하여 저장됨)"
+
+
 class ReviewAndBuildPage(QWizardPage):
     """Section 6.7: review summary, observable build job, progress, and final report."""
 
@@ -2585,15 +2589,11 @@ class ReviewAndBuildPage(QWizardPage):
         )
         self.route_key_warning_label.setWordWrap(True)
         self.route_key_warning_label.setAccessibleName(self.route_key_warning_label.text())
-        self.route_key_consent_checkbox = QCheckBox(
-            "프로젝트에 API 키를 평문으로 포함하는 데 동의합니다"
-        )
+        self.route_key_consent_checkbox = QCheckBox(ROUTE_KEY_CONSENT_TEXT)
         self.route_key_consent_checkbox.setAccessibleName(
             self.route_key_consent_checkbox.text()
         )
-        self.route_key_remember_checkbox = QCheckBox(
-            "이 데스크톱에서 암호화해 기억 (QField 자동 전달과 별도)"
-        )
+        self.route_key_remember_checkbox = QCheckBox(ROUTE_KEY_REMEMBER_TEXT)
         self.route_key_remember_checkbox.setAccessibleName(
             self.route_key_remember_checkbox.text()
         )

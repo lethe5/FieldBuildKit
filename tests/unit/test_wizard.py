@@ -2351,6 +2351,18 @@ def test_identification_page_wrong_password_at_unlock_prompt_leaves_field_empty_
 # ---------------------------------------------------------------------------------------------
 
 
+def test_review_page_uses_exact_independent_route_key_checkbox_copy():
+    page = ReviewAndBuildPage()
+
+    assert page.route_key_consent_checkbox.text() == "위 내용에 동의합니다"
+    assert (
+        page.route_key_remember_checkbox.text()
+        == "이 키 기억하기 (이 컴퓨터에 암호화하여 저장됨)"
+    )
+    assert not page.route_key_consent_checkbox.isChecked()
+    assert not page.route_key_remember_checkbox.isChecked()
+
+
 def test_review_page_reloads_remembered_route_key_on_next_session(tmp_path, monkeypatch):
     synthetic_key = "SYNTHETIC-ROUTE-KEY"
     synthetic_password = "synthetic-encryption-password"  # noqa: S105

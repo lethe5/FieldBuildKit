@@ -2312,3 +2312,67 @@ non-secret 프로젝트 설정 이동과 session-only key, 저장 형식과 독�
 폴리곤 입력/기존 관계/UUID와 보고서의 비포인트 좌표 미생성 계약은 유지한다.
 QField/iOS/Android와 live provider/Naver 실행은 미수행이다. 기술 제안과 미정 사항은 경로 명세
 §0/§8에 기록한다. 과거 결정 이력과 무관한 요구는 유지한다.
+
+## 2026-09-17: ORS checkbox copy and `조사지` Tabler exclusion (APPROVED)
+
+> Status: **APPROVED — explicit stakeholder approval recorded 2026-09-17.** This slice preserves every approved
+> secret boundary, survey schema and styling fallback except the two narrow supersessions below.
+> Subsequent application/test work remains subject to the repository's staged workflow.
+
+### Decision Log
+
+- **D-101 (2026-09-17 APPROVED, Category D/B):** The Step 7 ORS key checkboxes use the exact same
+  user-facing wording already established for VWorld: consent is `위 내용에 동의합니다`; desktop
+  retention is `이 키 기억하기 (이 컴퓨터에 암호화하여 저장됨)`. This supersedes only
+  D-SRP-045/D-UI-SRP-010's ORS consent-label text and the current ORS remember-label text, not their
+  semantics. The immediately preceding plaintext warning remains the referenced “위 내용”: consent
+  permits the non-blank ORS key to be written unencrypted into the generated project for QField.
+  Remember permits encrypted storage in FieldBuild Kit's desktop `credentials.enc` only. Both are
+  unchecked by default and independent. Blank key or declined consent still allows generation and
+  emits no project key; remember never implies project inclusion; consent never implies desktop
+  retention. The input remains masked and raw secret boundaries remain unchanged.
+- **D-102 (2026-09-17 APPROVED, Category C):** A generated layer whose canonical table/role is `site`
+  and display name is `조사지` never receives the user-selected Tabler point icon, even when its
+  geometry family is Point/MultiPoint. It retains the geometry-appropriate `조사지` base renderer
+  and route-label/completion-overlay contracts in `survey-route-planner.md`. This narrowly
+  supersedes FR-QPB-120/121's “every point layer uniformly” rule for `site` only. The selected
+  Tabler icon continues to apply uniformly to all other eligible generated semantic point layers
+  in that project—such as `inventory_observation`/`observation` (`식물관찰`) and `plot`
+  (`고정조사구`)—unless an existing requirement assigns that layer a more specific renderer.
+  Eligibility is determined by stable canonical role/table identity, never translated display text,
+  layer order or a substring heuristic. Non-point layers and Type 4 `community` remain governed by
+  their existing renderers.
+
+### Functional and non-functional requirements
+
+- **FR-QPB-144 (APPROVED 2026-09-17):** Step 7 renders the two exact D-101 checkbox strings in reading order after
+  the masked ORS field and plaintext/blank-behavior explanations. Toggling either checkbox does not
+  toggle the other. Build/review behavior implements the four combinations plus blank-key behavior
+  exactly as D-101 states.
+- **FR-QPB-145 (APPROVED 2026-09-17):** Symbol-style application excludes canonical `site`/`조사지` before any
+  Tabler SVG point renderer is applied. It continues applying the chosen Tabler point renderer to
+  every other eligible semantic point layer in the same generated project and preserves minimalist
+  fallback when no icon is selected or fetched.
+- **NFR-QPB-084 (APPROVED 2026-09-17):** Checkbox-copy reuse must not merge the two credential purposes or weaken
+  masking, encrypted-at-rest desktop retention, explicit plaintext-project consent, decline/blank
+  continuation, log/error/summary exclusion or generated-project secret boundaries. Icon exclusion
+  must not depend on locale-visible names and must survive project relocation/reopen without changing
+  source geometry, attributes, labels, relations or route overlays.
+
+### Acceptance criteria
+
+- **AC-QPB-149 (APPROVED 2026-09-17):** Step 7 shows exact `위 내용에 동의합니다` and
+  `이 키 기억하기 (이 컴퓨터에 암호화하여 저장됨)`. Fixtures cover blank key; non-blank with
+  neither checked; consent only; remember only; and both. Only non-blank+consent produces one
+  plaintext generated-project key; only non-blank+remember produces encrypted desktop retention;
+  remember-only produces no project key, consent-only produces no remembered key, and neither state
+  exposes the raw key in visible copy, summary, log, error or ordinary settings.
+- **AC-QPB-150 (APPROVED 2026-09-17):** A generated fixture containing a Point/MultiPoint canonical `site` plus at
+  least one other eligible point layer and a selected Tabler icon shows zero Tabler SVG renderer/path
+  references on `site` and the selected SVG on every eligible non-site semantic point layer. The same
+  result holds after Korean/alternate display-name changes and folder relocation/reopen. No-icon and
+  failed-fetch fixtures keep the existing minimalist fallback. Polygon/line `site`, Type 4 community,
+  labels, completion overlay, relations, geometry and attributes remain unchanged.
+
+No product ambiguity remains for this approved slice: canonical `site` identity is the exclusion boundary;
+the examples above are illustrative eligible layers, not a fragile allowlist.

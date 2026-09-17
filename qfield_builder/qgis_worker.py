@@ -836,11 +836,10 @@ def _apply_symbol_styling(
     rule-based renderer (applied separately, by `_apply_community_symbology`, before this
     function runs), completely unaffected by this feature.
 
-    `svg_relative_path`, when given (a successfully fetched and embedded Tabler icon, FR-QPB-121/
-    AC-QPB-101), replaces the minimalist default point-marker symbol for **every** point layer of
-    this project; when `None` (no Tabler icon selected, or a failed/offline fetch -- FR-QPB-121's
-    "generation is not blocked" fallback), every point layer receives the minimalist default
-    marker instead.
+    `svg_relative_path`, when given, replaces the minimalist marker for eligible non-`site` point
+    layers.  Canonical `site` keeps its geometry-appropriate base renderer; visible names never
+    participate in that decision.  With no usable SVG, every point layer uses the minimalist
+    fallback.
     """
     for table_name, table_def in schema.items():
         if table_name == "community":
@@ -850,7 +849,7 @@ def _apply_symbol_styling(
             continue  # A non-spatial table has no renderer/symbol to configure.
         layer = layers[table_name]
         if geometry.geom_type == "POINT":
-            if svg_relative_path:
+            if svg_relative_path and table_name != "site":
                 _apply_svg_point_symbology(pyqgis, layer, svg_relative_path)
             else:
                 _apply_minimalist_point_symbology(pyqgis, layer)
@@ -1568,7 +1567,8 @@ def _build_qgis_project_pyqgis(
     # fetched Tabler icon SVG in place of the default point marker, when one was successfully
     # embedded (`svg_relative_path`).
     _apply_symbol_styling(pyqgis, schema, layers, svg_relative_path)
-    _apply_site_outline_symbology(pyqgis, layers.get("site"), survey_type)
+    if schema["site"].geometry.geom_type != "POINT":
+        _apply_site_outline_symbology(pyqgis, layers.get("site"), survey_type)
     _apply_site_layer_opacity(layers.get("site"), survey_type)
     _configure_community_digitizing(project, pyqgis, layers, survey_type)
 

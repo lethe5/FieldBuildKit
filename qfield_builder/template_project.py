@@ -322,7 +322,13 @@ def build_qgis_project(
             })
             layer.set("labelsEnabled", "1")
             _set_text(layer, "labelsEnabled", "1")
-        if svg_relative_path and table and table.geometry and table.geometry.geom_type == "POINT":
+        if (
+            svg_relative_path
+            and table_name != "site"
+            and table
+            and table.geometry
+            and table.geometry.geom_type == "POINT"
+        ):
             renderer = ET.parse(TEMPLATES / "svg.xml").getroot()
             for option in renderer.iter("Option"):
                 if option.get("name") == "name" and option.get("value") == "symbols/template.svg":
