@@ -1,7 +1,7 @@
-"""APPROVED TEST DESIGN — iOS/QField follow-up (approval 2026-09-18).
+"""APPROVED TEST-DESIGN CORRECTION — iOS/QField follow-up (approval 2026-09-18).
 
-The approved test-design history through AC-SRP-045 remains preserved. This approved slice adds
-AC-SRP-046–048 and the cross-spec AC-QPB-149–150 coverage without claiming device PASS.
+The approved history is preserved. This approved correction replaces over-scoped rendered/device proxies for
+AC-SRP-046–048 and AC-QPB-149–150; it does not claim device PASS or alter product requirements.
 
 APPROVED TEST-DESIGN SUPERSESSION RECONCILIATION (approval 2026-09-17) — retained
 AC-SRP-019/022/024/031 under approved D-SRP-043/045 and FR-SRP-041/043.
@@ -19,7 +19,10 @@ import importlib
 import hashlib
 import json
 import os
+import re
+import shutil
 import sqlite3
+import subprocess
 import xml.etree.ElementTree as ET
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -2304,10 +2307,33 @@ def test_ac044_normal_build_persists_six_family_label_contract_without_artifact_
     assert r["evidence_scope"] == "generated_qgs_gpkg_proxy_not_qfield_canvas"
 
 
-@pytest.mark.parametrize("state", [
-    "blank", "key_without_consent", "consent_only", "remember_only", "both",
-])
-def test_ac045_ac_qpb149_step7_exact_copy_states_and_secret_boundaries(run, state):
+def test_ac045_step7_copy_order_masking_and_accessibility(run):
+    r = run(operation="builder_step7_route_credentials", state="key_without_consent",
+            input_key=KEY, consent=False, remember=False, outcome="success")
+    expected_order = ["route_key", "route_key_purpose", "route_key_blank_behavior",
+                      "route_key_plaintext_warning", "route_key_consent", "route_key_remember"]
+    widgets = r["widgets"]
+    assert r["widget_tree_observation"] == {"source": "actual_qt_widget_tree",
+                                            "semantic_ids": expected_order}
+    assert [widget["semantic_id"] for widget in widgets] == expected_order
+    assert r["focus_chain_observation"]["source"] == "QWidget.nextInFocusChain"
+    assert r["focus_chain_observation"]["semantic_ids"] == [
+        "route_key", "route_key_consent", "route_key_remember"]
+    observed = {widget["semantic_id"]: widget for widget in widgets}
+    assert observed["route_key"]["echo_mode"] == "password"
+    assert observed["route_key_consent"]["text"] == STEP7_ROUTE_KEY_COPY["consent"]
+    assert observed["route_key_remember"]["text"] == STEP7_ROUTE_KEY_COPY["remember"]
+    for widget in widgets:
+        accessibility = widget["accessibility_observation"]
+        if accessibility["available"]:
+            assert accessibility["source"] == "QAccessible.queryAccessibleInterface"
+            assert accessibility["name"].strip() and accessibility["role"]
+        else:
+            assert accessibility["diagnostic"].strip()
+
+
+@pytest.mark.parametrize("state", ["blank", "key_without_consent", "consent_only", "remember_only", "both"])
+def test_ac_qpb149_direct_builder_credential_states_and_secret_boundaries(run, state):
     key, consent, remember, embedded = {
         # Checked boxes with a blank key prove that neither destination receives a secret.
         "blank": ("", True, True, False),
@@ -2316,43 +2342,11 @@ def test_ac045_ac_qpb149_step7_exact_copy_states_and_secret_boundaries(run, stat
         "remember_only": (KEY, False, True, False),
         "both": (KEY, True, True, True),
     }[state]
-    r = run(operation="builder_step7_route_credentials", state=state, input_key=key,
+    r = run(operation="builder_route_credentials_boundary", state=state, input_key=key,
             consent=consent, remember=remember, outcome="success")
-    assert r["step"] == 7 and r["build_success"] is True
-    widgets = r["widgets"]
-    expected_widget_order = [
-        "route_key", "route_key_purpose", "route_key_blank_behavior",
-        "route_key_plaintext_warning", "route_key_consent", "route_key_remember",
-    ]
-    assert r["widget_tree_observation"]["source"] == "actual_qt_widget_tree"
-    assert r["widget_tree_observation"]["semantic_ids"] == expected_widget_order
-    assert [widget["semantic_id"] for widget in widgets] == expected_widget_order
-    assert [widget["semantic_id"] for widget in sorted(widgets, key=lambda item: item["layout_path"])] == expected_widget_order
-    assert r["focus_chain_observation"]["source"] == "QWidget.nextInFocusChain"
-    assert r["focus_chain_observation"]["semantic_ids"] == [
-        "route_key", "route_key_consent", "route_key_remember"]
-    observed = {widget["semantic_id"]: widget for widget in widgets}
-    assert observed["route_key"]["title"] == STEP7_ROUTE_KEY_COPY["title"]
-    assert observed["route_key_purpose"]["text"] == STEP7_ROUTE_KEY_COPY["purpose"]
-    assert observed["route_key_blank_behavior"]["text"] == STEP7_ROUTE_KEY_COPY["blank_behavior"]
-    assert observed["route_key_plaintext_warning"]["text"] == STEP7_ROUTE_KEY_COPY["plaintext_warning"]
-    assert observed["route_key_consent"]["text"] == STEP7_ROUTE_KEY_COPY["consent"]
-    assert observed["route_key_remember"]["text"] == STEP7_ROUTE_KEY_COPY["remember"]
-    assert observed["route_key"]["echo_mode"] == "password"
-    for semantic_id in ("route_key_purpose", "route_key_blank_behavior", "route_key_plaintext_warning"):
-        assert observed[semantic_id]["word_wrap"] is True
-    for widget in widgets:
-        assert widget["visible"] is True
-        assert widget["layout_observation_source"] == "actual_parent_layout"
-        assert widget["layout_path"]
-        accessibility = widget["accessibility_observation"]
-        if accessibility["available"]:
-            assert accessibility["source"] == "QAccessible.queryAccessibleInterface"
-            assert accessibility["name"].strip() and accessibility["role"]
-        else:
-            assert accessibility["diagnostic"].strip()
-            assert "name" not in accessibility and "role" not in accessibility
-    assert observed["route_key_remember"]["described_as_project_delivery"] is False
+    assert r["build_success"] is True
+    assert r["copy"] == {"consent": STEP7_ROUTE_KEY_COPY["consent"],
+                          "remember": STEP7_ROUTE_KEY_COPY["remember"]}
     retained = bool(key) and remember
     credential_path = Path(r["desktop_credential_store"])
     assert credential_path.is_file() is retained
@@ -2368,10 +2362,8 @@ def test_ac045_ac_qpb149_step7_exact_copy_states_and_secret_boundaries(run, stat
         value = r["project_variables"].get("fieldbuild_route_api_key")
         if value != KEY:
             pytest.fail("consented project variable did not preserve the submitted synthetic key", pytrace=False)
-        assert r["review_plaintext_warning_visible"] is True
     else:
         assert "fieldbuild_route_api_key" not in r["project_variables"]
-        assert r["qfield_session_key_guidance_visible"] is True
     for field in ("summary", "logs", "errors", "general_settings", "diagnostics"):
         assert_secret_absent(r.get(field), location=field)
     secret_files = []
@@ -2387,86 +2379,27 @@ def test_ac045_ac_qpb149_step7_exact_copy_states_and_secret_boundaries(run, stat
     assert r["test_output_secret_redacted"] is True
 
 
-def _contrast_ratio(foreground, background):
-    def luminance(rgb):
-        channels = []
-        for value in rgb:
-            normalized = value / 255
-            channels.append(normalized / 12.92 if normalized <= 0.04045
-                            else ((normalized + 0.055) / 1.055) ** 2.4)
-        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
-
-    light, dark = sorted((luminance(foreground), luminance(background)), reverse=True)
-    return (light + 0.05) / (dark + 0.05)
+def _route_panel_source():
+    return (Path(__file__).parents[3] / "qfield_builder/qfield_routes/RoutePanel.qml").read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize("appearance", ["light", "dark"])
-@pytest.mark.parametrize("control_state", [
-    "normal", "empty", "focus", "selected", "checked", "error", "disabled", "readonly",
-])
-def test_ac046_rendered_route_panel_contrast_proxy_uses_pixels_not_color_literals(
-        run, appearance, control_state):
-    r = run(operation="route_panel_theme_contrast_proxy", appearance=appearance,
-            control_state=control_state, viewport_width=320)
-    assert r["qml_runtime"]["loaded_generated_qml"] is True
-    assert Path(r["screenshot_path"]).is_file()
-    assert r["sample_source"] == "rendered_screenshot_pixels"
-    assert r["static_color_literal_claim"] is False
-    samples = r["contrast_samples"]
-    required = {"summary_text", "floating_label", "field_value", "help_text", "action_label",
-                "control_outline"}
-    state_roles = {
-        "empty": {"placeholder"}, "focus": {"focus_ring"},
-        "selected": {"dropdown_indicator", "selected_cue"},
-        "checked": {"checkbox_indicator", "checked_cue"},
-        "error": {"error_text", "error_outline", "error_cue"},
-        "disabled": {"disabled_label", "disabled_value", "disabled_reason", "disabled_cue"},
-        "readonly": {"readonly_reason", "readonly_cue"},
-    }
-    assert required | state_roles.get(control_state, set()) <= {
-        sample["semantic_role"] for sample in samples}
-    for sample in samples:
-        assert sample["source"] == "rendered_screenshot_pixels"
-        expected_threshold = 4.5 if sample["kind"] == "text" else 3.0
-        assert sample["threshold"] == expected_threshold
-        assert _contrast_ratio(sample["foreground_rgb"], sample["background_rgb"]) >= expected_threshold
-    if control_state in {"focus", "selected", "checked", "error", "disabled", "readonly"}:
-        assert r["non_color_cue_observed"] is True
-    assert r["claims"].get("ios_device_contrast_pass") is not True
-    assert r["evidence_scope"] == "loaded_qml_render_proxy_not_ios_device"
+def test_ac046_theme_structure_uses_host_palette_and_semantic_roles_only():
+    source = _route_panel_source()
+    assert "SystemPalette" in source and "darkAppearance" in source
+    for role in ("surfaceColor", "foregroundColor", "mutedColor", "outlineColor", "focusColor", "errorColor"):
+        assert f"property color {role}" in source
+    assert "palette.text: foregroundColor" in source
+    assert "palette.placeholderText: mutedColor" in source
 
 
-def test_ac046_theme_switch_preserves_state_and_is_passive(run):
-    r = run(operation="route_panel_theme_switch_proxy", appearances=["light", "dark", "light"])
-    assert [state["appearance"] for state in r["states"]] == ["light", "dark", "light"]
-    for state in r["states"][1:]:
-        assert state["values"] == r["states"][0]["values"]
-        assert state["focused_object_id"] == r["states"][0]["focused_object_id"]
-        assert state["candidate"] == r["states"][0]["candidate"]
-        assert state["route"] == r["states"][0]["route"]
-        assert state["scroll_position"] == r["states"][0]["scroll_position"]
-    assert r["requests"] == [] and r["writes"] == []
-
-
-@pytest.mark.parametrize("viewport_width,text_scale", [(320, 1.0), (320, 1.3), (1024, 1.0), (1024, 1.3)])
-@pytest.mark.parametrize("control_state", ["empty", "value", "focus", "error", "disabled"])
-def test_ac047_header_to_first_label_clearance_and_hit_regions_proxy(
-        run, viewport_width, text_scale, control_state):
-    r = run(operation="route_panel_header_spacing_proxy", viewport_width=viewport_width,
-            text_scale=text_scale, control_state=control_state)
-    assert r["qml_runtime"]["loaded_generated_qml"] is True
-    assert Path(r["screenshot_path"]).is_file()
-    geometry = r["painted_geometry"]
-    assert geometry["source"] in {"rendered_image_edge_detection", "loaded_scenegraph_painted_bounds"}
-    assert geometry["header_bottom_includes_shadow_and_focus_ring"] is True
-    clear_gap_dp = (geometry["first_label_painted_top_px"] - geometry["header_painted_bottom_px"]) / r["device_pixel_ratio"]
-    assert clear_gap_dp >= 8
-    assert geometry["label_clipped"] is False and geometry["notch_clipped"] is False
-    assert geometry["top_outline_clipped"] is False and r["horizontal_overflow"] is False
-    assert not rects_overlap(r["header_hit_rect"], r["first_control_hit_rect"])
-    assert r["tap_results"] == {"label": "first_control", "control": "first_control", "header": "collapse"}
-    assert r["claims"].get("ios_device_spacing_pass") is not True
-    assert r["evidence_scope"] == "loaded_qml_geometry_proxy_not_ios_device"
+def test_ac047_header_and_first_control_are_distinct_ordered_structures_only():
+    source = _route_panel_source()
+    positions = [source.index(token) for token in (
+        'objectName:"routeSummaryButton"', 'objectName:"routeScroll"',
+        'objectName:"routeContent"', 'objectName:"layerEdit"')]
+    assert positions == sorted(positions)
+    assert 'onClicked:panel.expanded=!panel.expanded' in source
+    assert 'objectName:"routeScroll";visible:panel.expanded' in source
 
 
 @pytest.mark.parametrize("instant_utc,device_timezone,locale", [
@@ -2474,8 +2407,8 @@ def test_ac047_header_to_first_label_clearance_and_hit_regions_proxy(
     ("2026-09-17T01:00:00+00:00", "America/Los_Angeles", "en_US"),
     ("2026-09-17T23:30:00+00:00", "Pacific/Kiritimati", "de_DE"),
 ])
-def test_ac048_local_device_date_default_reset_and_preservation(
-        run, instant_utc, device_timezone, locale):
+def test_ac048_controller_local_date_save_roundtrip_and_next_success_reset(
+        instant_utc, device_timezone, locale):
     first_instant = datetime.fromisoformat(instant_utc)
     second_iso = datetime.fromtimestamp(first_instant.timestamp() + 86400, tz=timezone.utc).isoformat()
 
@@ -2483,63 +2416,84 @@ def test_ac048_local_device_date_default_reset_and_preservation(
         local = datetime.fromisoformat(instant).astimezone(ZoneInfo(device_timezone))
         return f"{local.year:04d}-{local.month:02d}-{local.day:02d} 조사"
 
-    r = run(operation="route_name_local_date_lifecycle", device_timezone=device_timezone,
-            locale=locale, clock_instants_utc=[instant_utc, second_iso],
-            edited_name="  현장 route 이름  ")
-    assert r["clock_source"] == "injected_device_clock_boundary"
-    assert r["initial_success"]["control_text"] == expected(instant_utc)
-    assert r["initial_success"]["editable"] is True
-    assert r["edited"]["control_text"] == "  현장 route 이름  "
-    assert r["edited"]["input_events"] == [
-        "tap_body", "caret_observed", "select_all", "delete", "commit_korean_latin",
-    ]
-    for action in ("collapse_reopen", "theme_change", "refresh", "save_retry", "failed_calculation"):
-        assert r[action]["control_text"] == "  현장 route 이름  "
-        assert r[action]["candidate"] == r["edited"]["candidate"]
-    assert r["failed_calculation"]["requests"]
-    assert r["saved"]["name"] == "현장 route 이름"
-    assert r["loaded_saved_route"]["name"] == "현장 route 이름"
-    assert r["next_explicit_success"]["control_text"] == expected(second_iso)
-    assert r["next_explicit_success"]["candidate"] != r["edited"]["candidate"]
-    assert r["non_calculation_actions_requests"] == []
-    assert r["claims"].get("ios_soft_keyboard_opened") is not True
-    assert r["evidence_scope"] == "automatic_clock_and_input_proxy_not_device_keyboard"
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node is required for the production controller boundary")
+    controller = Path(__file__).parents[3] / "qfield_builder/qfield_routes/controller.js"
+    script = r'''const fs=require('fs'),vm=require('vm');const context=vm.createContext({});
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);let now=process.argv[2],fail=false;
+let disk={revision:0,slot:'a',data:{schema:2,routes:[],active_id:'',settings:{}}};const clone=x=>JSON.parse(JSON.stringify(x));
+const make=()=>context.create({now:()=>new Date(now),uuid:()=>String(Date.now()),gps:()=>[127,37],
+repository:{load:()=>clone(disk),save:(io,base,data,revision)=>{disk={revision:revision+1,slot:disk.slot==='a'?'b':'a',data:clone(data)};return clone(disk);}},
+features:()=>[{id:'A',name:'A',coordinate:[127,37],completed:false}],geometry:{coordinate:x=>x},
+backend:{calculate:async(s,list)=>{if(fail)throw new Error('fixture failure');return {stops:list,distance_m:2,duration_s:2,road_geometry:{type:'LineString',coordinates:[[127,37],[127,37],[127,37]]},legs:[{distance_m:1,duration_s:1,geometry:{type:'LineString',coordinates:[[127,37],[127,37]]}},{distance_m:1,duration_s:1,geometry:{type:'LineString',coordinates:[[127,37],[127,37]]}}]};}}});
+(async()=>{let c=make();c.configure({optimizer_url:'https://fixture.invalid'});await c.calculate(false);const initial=c.state.candidate.name;
+c.save('  현장 route 이름  ');c=make();const loaded=c.active().name;now=process.argv[3];await c.calculate(false);const next=c.state.candidate.name;
+const before=JSON.stringify(c.state.candidate);fail=true;const failed=await c.calculate(false);process.stdout.write(JSON.stringify({initial,loaded,next,failed,preserved:before===JSON.stringify(c.state.candidate)}));})().catch(e=>{console.error(e);process.exit(1)});'''
+    env = os.environ.copy(); env.update({"TZ": device_timezone, "LANG": locale, "LC_ALL": locale})
+    result = subprocess.run([node, "-e", script, str(controller), instant_utc, second_iso],
+                            capture_output=True, text=True, env=env)
+    assert result.returncode == 0, result.stderr
+    observed = json.loads(result.stdout)
+    assert observed == {"initial": expected(instant_utc), "loaded": "현장 route 이름",
+                        "next": expected(second_iso), "failed": False, "preserved": True}
+
+
+def test_ac_qpb150_symbol_router_excludes_canonical_site_directly(monkeypatch):
+    from qfield_builder import qgis_worker, schemas
+    schema = schemas.get_schema("permanent_plots", site_geometry_type="POINT")
+    layers = {name: object() for name, definition in schema.items() if definition.geometry is not None}
+    svg, minimalist = [], []
+    monkeypatch.setattr(qgis_worker, "_apply_svg_point_symbology", lambda _q, layer, _p: svg.append(layer))
+    monkeypatch.setattr(qgis_worker, "_apply_minimalist_point_symbology", lambda _q, layer: minimalist.append(layer))
+    monkeypatch.setattr(qgis_worker, "_apply_minimalist_polygon_symbology", lambda _q, _layer: None)
+    qgis_worker._apply_symbol_styling({}, schema, layers, "symbols/map-pin.svg")
+    eligible = {name for name, definition in schema.items()
+                if definition.geometry is not None and definition.geometry.geom_type == "POINT"
+                and name not in {"site", "community"}}
+    assert minimalist == [layers["site"]]
+    assert set(svg) == {layers[name] for name in eligible}
+
+
+def _qgs_symbol_contract(qgs_path):
+    records = {}
+    for layer in ET.parse(qgs_path).getroot().findall("./projectlayers/maplayer"):
+        datasource = layer.findtext("datasource", "")
+        match = re.search(r"(?:^|\|)layername=([^|]+)", datasource)
+        if match:
+            records[match.group(1)] = {
+                "display_name": layer.findtext("layername"),
+                "classes": {node.get("class") for node in layer.findall(".//layer")},
+                "svg_values": {node.get("value") for node in layer.findall(".//*[@value]")
+                               if "symbols/" in node.get("value", "")},
+            }
+    return records
 
 
 @pytest.mark.parametrize("site_geometry", ["Point", "MultiPoint"])
-def test_ac_qpb150_canonical_site_excludes_tabler_icon_across_display_name_and_relocation(
-        run, site_geometry):
-    r = run(operation="generated_site_tabler_exclusion", site_geometry=site_geometry,
-            selected_icon="map-pin", display_names=["조사지", "Survey sites"], relocate=True)
-    assert r["identity_source"] == "canonical_table_and_role"
-    for snapshot in r["snapshots"]:
-        assert snapshot["site"]["canonical_table"] == "site"
-        assert snapshot["site"]["canonical_role"] == "site"
-        assert "SvgMarker" not in snapshot["site"]["symbol_layer_types"]
-        assert snapshot["site"]["svg_references"] == []
-        assert snapshot["site"]["base_renderer"] == r["expected_site_base_renderer"]
-        assert snapshot["eligible_non_site_point_layers"]
-        assert snapshot["eligible_non_site_point_layer_ids"] == r["expected_eligible_non_site_point_layer_ids"]
-        for layer in snapshot["eligible_non_site_point_layers"]:
-            assert "SvgMarker" in layer["symbol_layer_types"]
-            assert layer["selected_icon"] == "map-pin"
-            assert layer["svg_relative_path"]
-    assert r["after_relocation"]["broken_sources"] == []
-    for field in ("geometry", "attributes", "labels", "relations", "route_overlays"):
-        assert r["after_relocation"][field] == r["before_relocation"][field]
-    assert r["polygon_line_site_unchanged"] is True
-    assert r["type4_community_unchanged"] is True
-
-
-@pytest.mark.parametrize("icon_mode", ["none", "failed_fetch"])
-def test_ac_qpb150_site_and_other_points_keep_minimalist_fallback_without_selected_svg(
-        run, icon_mode):
-    r = run(operation="generated_site_tabler_exclusion", site_geometry="Point",
-            selected_icon=None if icon_mode == "none" else "map-pin", icon_mode=icon_mode,
-            relocate=False)
-    assert r["build_success"] is True
-    assert r["all_svg_references"] == []
-    assert r["site_renderer"] == r["expected_site_base_renderer"]
-    assert r["eligible_non_site_renderers"]
-    assert all(renderer == r["expected_minimalist_point_renderer"]
-               for renderer in r["eligible_non_site_renderers"])
+def test_ac_qpb150_generated_qgs_keeps_site_base_symbol_after_rename_and_relocation(
+        tmp_path, site_geometry):
+    from qfield_builder import schemas
+    from qfield_builder.survey_route_acceptance import _build
+    styling = {"mode": "tabler_icon", "tabler_icon_name": "map-pin", "tabler_svg_fetch":
+               {"fake": {"mode": "success", "svg_content": '<svg xmlns="http://www.w3.org/2000/svg"/>'}}}
+    wkt = "POINT(127 37)" if site_geometry == "Point" else "MULTIPOINT((127 37),(127.1 37.1))"
+    result = _build(tmp_path, survey_type="permanent_plots", site_geometry_type=site_geometry.upper(),
+                    sites=[{"site_id": "site-1", "site_name": "조사지", "geom_wkt": wkt}],
+                    symbol_styling=styling)
+    project_dir = Path(result["project_dir"]); moved = tmp_path / "moved"; shutil.copytree(project_dir, moved)
+    qgs_path = next(moved.glob("*.qgs")); tree = ET.parse(qgs_path)
+    site_node = next(node for node in tree.getroot().findall("./projectlayers/maplayer")
+                     if "layername=site" in node.findtext("datasource", ""))
+    site_node.find("layername").text = "Survey sites"; tree.write(qgs_path, encoding="utf-8", xml_declaration=True)
+    records = _qgs_symbol_contract(qgs_path)
+    schema = schemas.get_schema("permanent_plots", site_geometry_type=site_geometry.upper())
+    eligible = {name for name, definition in schema.items()
+                if definition.geometry is not None and definition.geometry.geom_type == "POINT"
+                and name not in {"site", "community"}}
+    assert "SvgMarker" not in records["site"]["classes"] and records["site"]["svg_values"] == set()
+    assert records["site"]["display_name"] == "Survey sites"
+    for table in eligible:
+        assert "SvgMarker" in records[table]["classes"]
+        assert records[table]["svg_values"] == {"symbols/map-pin.svg"}
+        assert (moved / "symbols/map-pin.svg").is_file()

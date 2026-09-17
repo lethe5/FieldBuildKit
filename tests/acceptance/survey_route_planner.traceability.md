@@ -14,8 +14,8 @@
 > D-SRP-042–045, FR-SRP-040–043, NFR-SRP-005, AC-SRP-042–045 and D-UI-SRP-007–010 rows retain
 > their **APPROVED TEST DESIGN (approval 2026-09-17)** history. The evidence correction is
 > **APPROVED TEST DESIGN (approval 2026-09-17)** and preserves the approved AC-SRP-001–045 meaning.
-> AC-SRP-046–048 and cross-spec AC-QPB-149–150 below are **APPROVED TEST DESIGN
-> (approval 2026-09-18)** against their approved specifications.
+> The former AC-SRP-046–048 / AC-QPB-149–150 design remains historical. Its evidence-mechanics
+> correction below is **APPROVED TEST DESIGN (approval 2026-09-18)**; product requirements are unchanged.
 > Tests: [pytest module](survey_route_planner/test_survey_route_planner.py).
 > [Design/manual cases](survey_route_planner.test-design.md) · [Harness](survey_route_planner/HARNESS_CONTRACT.md)
 
@@ -75,12 +75,12 @@ test asks for the removed remaining-route calculation.
 | AC-SRP-042 | `ac042_touch_equivalent_text_input_uses_real_editable_qml_control_without_recalculation` (body + label/notch window taps, immediate focus/caret, zero recovery calls, post-focus IME edits, trim save, candidate/revision/request invariant) | M11 Android and M12 iOS separately; actual OS soft-keyboard opening remains NOT RUN |
 | AC-SRP-043 | `ac043_eight_real_controls_center_labels_on_actual_top_outline` (2 widths × 5 states; common component, live border/image top outline, real error object, independent repository/model rereads) | M13; target-QField screenshots, interaction and screen-reader review remain NOT RUN |
 | AC-SRP-044 | `ac044_normal_build_persists_six_family_label_contract_without_artifact_edit` (6 geometries × name-field present/missing; endpoint-connected same-name LineStrings; `mergeLines=false`; independent QGS/GPKG structure and conditional PyQGIS readback) | M14; actual target-QField one-label/halo rendering remains NOT RUN |
-| AC-SRP-045 | `ac045_ac_qpb149_step7_exact_copy_states_and_secret_boundaries` (blank/neither/consent-only/remember-only/both; actual widget/layout/focus-chain/QAccessible observations; artifact secret scan) | Desktop wizard keyboard/screen-reader review remains user-observed; consented QGS project variable is the sole approved plaintext occurrence |
-| AC-SRP-046 | `ac046_rendered_route_panel_contrast_proxy_uses_pixels_not_color_literals` (2 appearances × 8 states, independent WCAG math); `ac046_theme_switch_preserves_state_and_is_passive` | M15; actual target-iOS/QField pixels, interaction and state preservation remain NOT RUN |
-| AC-SRP-047 | `ac047_header_to_first_label_clearance_and_hit_regions_proxy` (2 widths × 2 supported text scales × 5 states; painted bounds, DPR conversion and window hit dispatch) | M16; actual target-iOS/QField screenshot and tap results remain NOT RUN |
-| AC-SRP-048 | `ac048_local_device_date_default_reset_and_preservation` (3 timezone/locale boundaries; successful/failed calculation, edits, passive actions, trim save/load and next-success reset) | M17; actual iOS caret/soft-keyboard and device clock behavior remain NOT RUN |
-| AC-QPB-149 | `ac045_ac_qpb149_step7_exact_copy_states_and_secret_boundaries` (blank-with-both-checked, non-blank-neither, consent-only, remember-only, both; QGS and encrypted-store readback) | Desktop keyboard/screen-reader review remains user-observed; raw key never appears in test output |
-| AC-QPB-150 | `ac_qpb150_canonical_site_excludes_tabler_icon_across_display_name_and_relocation` (Point/MultiPoint); `ac_qpb150_site_and_other_points_keep_minimalist_fallback_without_selected_svg` (none/failed fetch) | Target-QField renderer appearance is user-observed; generated-QGS and relocation checks are automated proxies |
+| AC-SRP-045 | `ac045_step7_copy_order_masking_and_accessibility` (actual widget/layout/focus-chain/QAccessible observations) | Desktop wizard keyboard/screen-reader review remains user-observed |
+| AC-SRP-046 | `ac046_theme_structure_uses_host_palette_and_semantic_roles_only` | M15 is authoritative for pixels, thresholds, non-color cues and passive theme-switch state; NOT RUN |
+| AC-SRP-047 | `ac047_header_and_first_control_are_distinct_ordered_structures_only` | M16 is authoritative for painted 8 dp clearance, clipping and tap regions; NOT RUN |
+| AC-SRP-048 | `ac048_controller_local_date_save_roundtrip_and_next_success_reset` (3 injected timezone/locale boundaries); retained `ac042_touch_equivalent_text_input_uses_real_editable_qml_control_without_recalculation` | M17 is authoritative for iOS caret/soft keyboard and device presentation; NOT RUN |
+| AC-QPB-149 | `ac_qpb149_direct_builder_credential_states_and_secret_boundaries` (five independent builder/credential-store states; parsed QGS and encrypted-store readback) | Exact copy is shared with retained AC045 UI seam; no QML/local-socket route-panel harness |
+| AC-QPB-150 | `ac_qpb150_symbol_router_excludes_canonical_site_directly`; `ac_qpb150_generated_qgs_keeps_site_base_symbol_after_rename_and_relocation` (Point/MultiPoint) | Existing AC-QPB-100/101 and AC-SRP-030/041/044 regressions retain fallback and unaffected polygon/line/Type4/data behavior; target rendering is user-observed |
 
 | Approved decision/requirement | Acceptance mapping |
 | --- | --- |
@@ -105,17 +105,17 @@ test asks for the removed remaining-route calculation.
 | D-SRP-043; FR-SRP-041; D-UI-SRP-008 | AC-SRP-043 common-component live outline/error/readback matrix; M13 target-QField review |
 | D-SRP-044; FR-SRP-042; D-UI-SRP-009 | AC-SRP-044 connected-line no-merge normal-build QGS/GPKG and conditional PyQGIS readback; M14 target-QField map render |
 | D-SRP-045; FR-SRP-043; D-UI-SRP-010 | AC-SRP-045 actual Step 7 layout/focus/QAccessible, four-state build and secret-boundary tests |
-| D-SRP-046; FR-SRP-044; D-UI-SRP-011 | AC-SRP-046 rendered-pixel contrast and passive light/dark switch proxies; M15 |
-| D-SRP-047; FR-SRP-045; D-UI-SRP-012 | AC-SRP-047 painted-clearance/clipping/hit-region proxy; M16 |
-| D-SRP-048; FR-SRP-046; D-UI-SRP-013 | AC-SRP-048 local-date/edit/preservation/reset lifecycle proxy; M17 |
-| D-101; FR-QPB-144; NFR-QPB-084 | AC-QPB-149 five-state Step 7/QGS/encrypted-store boundary test |
-| D-102; FR-QPB-145; NFR-QPB-084 | AC-QPB-150 canonical-identity icon exclusion, relocation and fallback tests |
+| D-SRP-046; FR-SRP-044; D-UI-SRP-011 | AC-SRP-046 static semantic-theme structure; authoritative M15 |
+| D-SRP-047; FR-SRP-045; D-UI-SRP-012 | AC-SRP-047 static header/control separation; authoritative M16 |
+| D-SRP-048; FR-SRP-046; D-UI-SRP-013 | AC-SRP-048 controller clock/save/load/reset boundary + retained AC042 wiring; authoritative M17 |
+| D-101; FR-QPB-144; NFR-QPB-084 | AC-QPB-149 five-state direct builder/QGS/encrypted-store boundary |
+| D-102; FR-QPB-145; NFR-QPB-084 | AC-QPB-150 direct symbol routing + generated-QGS rename/relocation; existing fallback/regression coverage reused |
 | NFR-SRP-001 | AC-SRP-022/024 320px proxy plus M01 touch/keyboard |
 | NFR-SRP-002 | AC-SRP-027 color+check+text proxy plus M04 |
 | NFR-SRP-003 | AC-SRP-026–029 zero-request offline/restart/load/move tests plus M02–M04 |
 | NFR-SRP-004 | AC-SRP-037–038/040–041 320px/render/accessibility proxies plus M10 native verification |
 | NFR-SRP-005 | AC-SRP-042–044 explicitly bounded automatic proxies plus M11–M14 NOT RUN device evidence |
-| NFR-SRP-006 | AC-SRP-046–048 contrast/spacing/theme/name proxies plus M15–M17 NOT RUN iOS evidence |
+| NFR-SRP-006 | AC-SRP-046/047 structural checks and AC-SRP-048 controller boundary plus M15–M17 NOT RUN authoritative iOS evidence |
 
 ## Approved supersession reconciliation (2026-09-17; preserved)
 

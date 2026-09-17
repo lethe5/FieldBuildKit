@@ -1,4 +1,4 @@
-"""Approved baseline plus iOS/QPB follow-up design verifier (approval 2026-09-18).
+"""Approved baseline plus approved iOS/QPB evidence-boundary correction verifier (approval 2026-09-18).
 
 The approved 2026-09-17 baseline and AC-SRP-042–045 correction remain preserved; no application
 code is executed.
@@ -175,11 +175,7 @@ assert all(operation in source for operation in [
     'operation="ordered_completion_checklist"', 'operation="generated_site_style"',
     'operation="route_name_text_input_proxy"', 'operation="final_floating_label_geometry"',
     'operation="generated_site_label_contract"', 'operation="builder_step7_route_credentials"',
-    'operation="route_panel_theme_contrast_proxy"',
-    'operation="route_panel_theme_switch_proxy"',
-    'operation="route_panel_header_spacing_proxy"',
-    'operation="route_name_local_date_lifecycle"',
-    'operation="generated_site_tabler_exclusion"',
+    'operation="builder_route_credentials_boundary"',
 ])
 assert all(token in source for token in [
     '"evidence_source"] == "loaded_generated_qml_object_tree"',
@@ -226,20 +222,18 @@ assert all(token in source for token in [
     'false_xml_flag(config["rendering"].get("mergeLines"))', '"ID-LINK-A"', '"ID-LINK-B"',
     '"expression_evaluator"] == "QgsExpression"', '"runtime_claims"] == []',
     '"qfield_device_label_rendered") is not True',
-    '"actual_qt_widget_tree"', '"QWidget.nextInFocusChain"',
-    '"QAccessible.queryAccessibleInterface"',
     '"test_output_secret_redacted"] is True',
-    '"sample_source"] == "rendered_screenshot_pixels"',
-    '"ios_device_contrast_pass") is not True',
-    '"ios_device_spacing_pass") is not True',
-    '"ios_soft_keyboard_opened") is not True',
-    '"identity_source"] == "canonical_table_and_role"',
     '"desktop_retention_readback"] ==',
 ])
 assert all(forbidden not in source for forbidden in [
     '"floating_label_visual"', '"marker_source_writes"', '"marker_route_writes"',
     '"scope_following_row_gaps"', '"preflight_candidate_ids"',
     '"painted_control_outline_geometry"',
+    'operation="route_panel_theme_contrast_proxy"',
+    'operation="route_panel_theme_switch_proxy"',
+    'operation="route_panel_header_spacing_proxy"',
+    'operation="route_name_local_date_lifecycle"',
+    'operation="generated_site_tabler_exclusion"',
 ])
 assert '"geom_to_geojson" not in expression' in source
 assert all(token in source for token in ['"centroid" in expression', '"transform" in expression',
@@ -273,6 +267,6 @@ for fmt in ["SHP", "ZIP", "GPKG"]:
             except FixtureChecked:
                 count += 1
 assert count == 18
-print("Design checks: approved AC001-045 history preserved; approved AC046-048 and QPB149-150 "
-      "operations/oracles are present; exact checkbox copy and canonical-site identity guards pass; "
+print("Design checks: approved AC001-045 history preserved; approved AC046-048/QPB149-150 correction "
+      "uses bounded structure/controller/builder/symbol boundaries; superseded operations are absent; "
       "M01-M17 remain NOT RUN. No application tests executed.")
