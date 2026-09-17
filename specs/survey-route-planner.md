@@ -1,7 +1,7 @@
 # Feature: 도로망 조사 경로 및 조사대상 도형 확장
 
-> Status: **APPROVED FOLLOW-UP — 2026-09-17 QField 실기 관찰 및 Step 7 설명 정합; 기존 승인 기준 유지**
-> Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; 2026-09-16 approved workflow/progress slice; D-SRP-031~035, FR-SRP-029~033 and AC-SRP-031~035 approved 2026-09-16; D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 and AC-SRP-036~041 approved 2026-09-17; D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 and AC-SRP-042~045 approved 2026-09-17. Target QField device verification remains **NOT RUN (미검증)**.
+> Status: **APPROVED FOLLOW-UP — iOS route-panel readability, spacing, input and default naming; approved 2026-09-17; prior approved baseline preserved**
+> Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; 2026-09-16 approved workflow/progress slice; D-SRP-031~035, FR-SRP-029~033 and AC-SRP-031~035 approved 2026-09-16; D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 and AC-SRP-036~041 approved 2026-09-17; D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 and AC-SRP-042~045 approved 2026-09-17; D-SRP-046~048, FR-SRP-044~046, NFR-SRP-006 and AC-SRP-046~048 approved 2026-09-17. Target QField device verification remains **NOT RUN (미검증)**.
 > Owner: spec-writer
 > Extends: [통합 명세](qfield-project-builder.md)
 > Test design: [승인된 기준본](../tests/acceptance/survey_route_planner.test-design.md) — FR-SRP-029~039, AC-SRP-031~041 및 NFR-SRP-004까지 2026-09-17 반영·승인됨; 이번 승인 ID는 아직 반영되지 않음
@@ -9,6 +9,17 @@
 
 
 ## 0. 문서 권한과 현재 상태 (2026-09-14)
+
+**2026-09-17 iOS 후속 관찰 승인:** 제공된 iPhone/QField screenshots에서 dark-mode host의
+route panel이 light surface와 white foreground를 혼합해 label/help/value/action text를 사실상 읽을
+수 없게 만드는 현상은 NFR-SRP-004의 Category A conformance defect이며, supported light/dark host
+theme 전반의 상태별 contrast를 명시하는 일은 Category B/D 정합이다. 첫 `조사지` floating label이
+상단 route-summary button 아래에 가려지는 현상은 D-SRP-043의 no-collision 계약에 대한 Category A
+defect이자 Category D spacing refinement다. `저장할 경로 이름`의 iOS keyboard 미개방은 이미 승인된
+D-SRP-042/FR-SRP-040의 Category A defect이며 계약을 변경하지 않고 재확인한다. 오늘 날짜 기반 기본
+이름은 Category C 사용자 지시다. 아래 D-SRP-046~048, FR-SRP-044~046, NFR-SRP-006 및
+AC-SRP-046~048은 **2026-09-17 승인된 명세 기준**이다. ORS checkbox 문구와 Tabler icon 범위는
+통합 명세의 승인된 D-101/D-102를 따른다.
 
 **2026-09-17 승인 실기 관찰 정합:** 실제 QField에서 `저장할 경로 이름`을 눌러도 모바일
 소프트 키보드가 열리지 않는 현상과 generated site/`조사지` feature의 이름 label이 보이지 않는
@@ -322,6 +333,29 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   별개이며 둘을 같은 저장으로 설명하지 않는다. blank key 또는 non-blank key+동의 거부는 project 생성을
   막지 않고 generated project에서 key를 제외한다; non-blank key+동의만 D-SRP-017의 평문 project
   variable을 만든다.
+- D-SRP-046 (2026-09-17 승인, Category A/B/D): route panel은 QField/iOS host가 light 또는 dark
+  appearance인 경우 모두 하나의 internally consistent theme palette를 사용한다. host theme를 따르되
+  surface와 foreground를 서로 다른 theme에서 섞지 않는다. normal/value/help/summary/action text,
+  placeholder, floating label, outline, dropdown indicator, focus, selected/checked, error 및 disabled/read-only
+  상태는 NFR-SRP-006의 contrast와 non-color cue를 충족한다. 이는 경로 데이터·provider·저장 형식이나
+  basemap theme을 바꾸지 않고 route-panel presentation만 정합한다.
+- D-SRP-047 (2026-09-17 승인, Category A/D): expanded panel의 고정 route-summary/header와 scroll
+  content 사이에는 첫 `조사지` floating label의 전체 glyph, surface-colored notch 및 control top outline이
+  보이는 안전 간격을 둔다. header의 painted bottom(그림자/focus ring 포함)과 label의 painted top 사이
+  clear gap은 최소 8 dp이고, 따라서 첫 control top outline은 `label painted height / 2 + 8 dp` 이상 아래에
+  놓인다. 현재 18 dp label box를 쓰면 최소 17 dp이며 구현은 20 dp를 권장한다. header와 label/control의
+  pointer/touch hit region은 겹치지 않는다. 이 규칙은 320 px 이상 supported width, text scale 및
+  empty/value/focus/error/disabled 상태에 적용하며 나머지 vertical rhythm은 변경하지 않는다.
+- D-SRP-048 (2026-09-17 승인, Category A/C): D-SRP-042/FR-SRP-040의 real editable native-input
+  계약을 iOS에서도 그대로 적용한다. 새 계산이 성공해 새 unsaved candidate가 생길 때
+  `저장할 경로 이름`은 QField device의 그 순간 local calendar date를 Gregorian `yyyy-MM-dd`로
+  formatting한 뒤 한 칸과 `조사`를 붙인 `yyyy-MM-dd 조사`로 초기화한다(예: `2026-09-17 조사`).
+  timezone은 server/UTC/project timezone이 아니라 OS가 QField에 제공하는 device local timezone이며
+  locale에 따라 숫자 순서나 구분자를 바꾸지 않는다. explicit `새 경로 계산`의 다음 성공은 새 candidate
+  기본값으로 reset한다. 실패한 계산은 기존 candidate/name을 보존한다. 사용자의 입력·수정·삭제는
+  현재 candidate에서 자동으로 덮어쓰지 않으며 collapse/reopen, theme change, refresh, save retry는
+  reset trigger가 아니다. 저장 성공 뒤 현재 route에는 final trimmed saved name을 유지하고, saved route
+  load는 저장된 name을 표시하며 오늘 날짜로 rename하지 않는다.
 
 ## 3. Functional Requirements
 - FR-SRP-001: 생성 프로젝트에 기존 보고서/식별 플러그인과 공존하는 하단 접이식 패널.
@@ -571,6 +605,19 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   구분하고, 사용자가 consent하지 않은 key를 generated `.qgs`, 일반 설정, 로그, 오류 또는 summary에
   포함하지 않는다.
 
+### 3.5 2026-09-17 iOS 후속 관찰 정합 (승인)
+
+- FR-SRP-044 (2026-09-17 승인): route panel은 D-SRP-046/NFR-SRP-006의 theme-aware palette를 summary/header,
+  scroll surface, text/help/labels, outlined text fields/dropdowns, checkbox, buttons, status/error 및 disabled
+  states에 일관되게 적용한다. system light↔dark 변경 뒤에도 현재 값, focus, candidate, route 및 scroll
+  position을 잃지 않고 routing request나 persistence write를 만들지 않는다.
+- FR-SRP-045 (2026-09-17 승인): expanded panel의 첫 `조사지` outlined control은 D-SRP-047의 top safe spacing과
+  disjoint hit regions을 지켜 floating label/notch/top outline이 header에 가려지거나 header tap으로
+  처리되지 않게 한다.
+- FR-SRP-046 (2026-09-17 승인): `저장할 경로 이름`은 승인된 FR-SRP-040의 iOS native edit contract를 유지하고,
+  새 successful candidate마다 D-SRP-048의 exact local-date default를 제공한다. default도 일반 editable
+  text이므로 사용자는 전부 선택, 한글/영문 수정, 삭제 및 교체할 수 있고 save에는 final trim 값만 쓴다.
+
 ## 4. Data / Compatibility
 새 프로젝트 생성만 도형 메타데이터를 변경한다. 사용자의 기존 GPKG를 자동 마이그레이션하지
 않는다. 기본 도형 유형을 지정하지 않은 과거 호출은 MULTIPOLYGON 기본값을 유지한다.
@@ -652,6 +699,16 @@ max road offset, default start, layer/id/name/optional completion mapping이다.
   source inspection 또는 desktop/headless render만으로 실제 QField의 OS soft keyboard 개방이나
   device map canvas의 feature label/halo 표시를 PASS로 판정하지 않는다. 해당 항목은 지원을 주장하는
   각 mobile OS의 실제 QField에서 사용자 수동 증거가 있어야 PASS이며, 미수행은 `미검증`으로 남긴다.
+- NFR-SRP-006 (2026-09-17 승인): supported iOS/QField light/dark appearance에서 route panel의 normal
+  text, floating labels, help/status/error text, field values/placeholders 및 enabled action labels은 각 실제
+  background에 대해 WCAG contrast ratio 4.5:1 이상을 유지한다. control outline, focus ring, checkbox/
+  dropdown indicator와 large/icon-only affordance는 인접 색에 대해 3:1 이상이며 focus/error/selected/
+  checked/disabled 상태는 색만으로 구분하지 않는다. disabled text도 삭제된 것처럼 보이지 않도록
+  label/value와 disabled reason에 대해 4.5:1 이상을 유지한다. 기준 palette는
+  light `{surface #F8FAFC, text #111827, muted #334155, outline #64748B}`와 dark
+  `{surface #111827, text #F9FAFB, muted #CBD5E1, outline #94A3B8}`이고 focus `#2563EB`, error는
+  각 theme에서 위 contrast threshold를 만족하는 red variant를 쓴다. exact implementation colors는
+  동일하거나 더 높은 contrast로 바꿀 수 있지만 state matrix와 semantic meaning은 바꾸지 않는다.
 
 ## 5. Acceptance Criteria
 | ID | 관찰 가능한 조건 및 결과 |
@@ -701,6 +758,9 @@ max road offset, default start, layer/id/name/optional completion mapping이다.
 | AC-SRP-043 (2026-09-17 승인) | 320 px 및 wide viewport의 empty/value/focus/disabled/error 상태에서 여덟 exact label이 같은 typography/inset/notch를 쓰고 각 label box의 수직 중심이 top outline과 일치해 border line을 가로지른다. `저장 경로 불러오기`도 같은 floating label을 사용하며 indicator/selected text와 겹치지 않는다. label 전체가 border 아래로 처지거나 위로 뜨는 상태, 별도 label row, clipping, horizontal scroll, placeholder-only accessible name은 0개다. 구조/geometry 자동 검사는 가능한 proxy이고 target QField screenshot/interaction review가 실제 배치의 최종 증거다. |
 | AC-SRP-044 (2026-09-17 승인) | spaced fixture의 Point/MultiPoint, LineString/MultiLineString, Polygon/MultiPolygon 각 feature가 target QField의 적절한 zoom에서 정확히 하나의 readable label과 흰색 halo를 보인다. non-empty name은 exact trimmed name, name field missing/invalid 또는 value empty는 exact trimmed stable ID, 둘 다 없거나 empty면 label 0개이며 multipart part별 중복과 arbitrary-field fallback은 없다. markup-looking text는 inert이고 source/overlay는 불변이다. generated `.qgs`의 labeling enablement/expression/placement/buffer 자동 검사는 proxy일 뿐 device screenshot/manual render PASS를 대신하지 않는다. |
 | AC-SRP-045 (2026-09-17 승인) | wizard Step 7에서 masked `ORS API 키 (선택)` field 다음 읽기 순서에 D-SRP-045의 exact purpose와 blank-key 설명, exact plaintext warning과 consent label이 보이고 keyboard/screen-reader로 접근 가능하다. blank 또는 consent 거부는 생성 성공+generated key 0개+QField 세션 입력 안내, non-blank+consent는 평문 project variable 1개+review warning, desktop remember만 선택한 상태는 generated key 0개다. 네 상태 모두 raw key가 summary/log/error/general settings에 없으며 copy가 ORS 경로·방문 순서 용도와 평문 위험을 기술 용어 없이 구분한다. |
+| AC-SRP-046 (2026-09-17 승인) | 같은 project/candidate를 target iOS QField의 light와 dark appearance에서 열고 normal/value/empty/focus/selected/checked/error/disabled 상태를 capture하면 summary, 모든 label/value/help/action/status가 읽히며 NFR-SRP-006의 4.5:1/3:1 threshold를 측정 통과한다. theme 전환은 값·focus·candidate·route·scroll을 보존하고 request/write는 0회다. screenshot/pixel measurement와 실제 기기 interaction이 최종 증거이며 source의 color literal 존재만으로 PASS하지 않는다. |
+| AC-SRP-047 (2026-09-17 승인) | 320 px 이상 narrow/wide iOS QField에서 expanded header의 painted bottom과 첫 `조사지` label painted top 사이가 최소 8 dp이고 label/notch/top outline이 전부 보인다. empty/value/focus/error/disabled 및 supported text scale에서 clipping/overlap/horizontal scroll은 0개이며 label/control tap은 header collapse를 trigger하지 않고 header tap만 collapse한다. geometry 자동 검사는 proxy이고 실제 screenshot/tap 결과를 함께 기록한다. |
+| AC-SRP-048 (2026-09-17 승인) | device local date가 2026-09-17인 fixture에서 새 successful candidate는 exact `2026-09-17 조사`를 editable input에 보인다. iOS tap→caret→soft keyboard 뒤 수정/삭제한 final trim name이 request 0회로 저장된다. collapse/theme/refresh/save retry와 실패 계산은 name을 보존하고, 다음 explicit successful calculation은 그때의 local date default로 reset한다. UTC와 local date가 다른 boundary fixture는 local date를 택하며 locale 변경에도 `yyyy-MM-dd 조사` 형식이 유지된다. saved-route load는 stored name을 보존한다. |
 
 ## 6. API 근거 / 검증 경계
 VROOM 근거는 초기 provider가 대상으로 삼은 **v1.14.0 tag**에 고정한다. 공식 문서는 timing을
