@@ -534,6 +534,97 @@ def _builder_reports(project_dir, build_result):
     return reports
 
 
+def _builder_route_credentials_boundary(case, work):
+    """Exercise route-key build and retention policy without UI, QML, or sockets."""
+    from . import credential_store
+    from .ui.wizard import ROUTE_KEY_CONSENT_TEXT, ROUTE_KEY_REMEMBER_TEXT
+
+    store_dir = work / ("credentials-" + uuid.uuid4().hex[:8])
+    previous_store = os.environ.get(credential_store._APP_DATA_DIR_ENV_OVERRIDE)
+    os.environ[credential_store._APP_DATA_DIR_ENV_OVERRIDE] = str(store_dir)
+    credential_store.lock_session()
+    credential_store.set_session_route_key(None)
+    key = str(case.get("input_key") or "").strip()
+    remember = bool(case.get("remember"))
+    try:
+        if key and remember:
+            credential_store.establish_password("acceptance-only-password")
+        display_name = "Synthetic route key " + uuid.uuid4().hex[:8]
+        project_dir = work / display_name.lower().replace(" ", "-")
+        built = build.build_project(
+            {
+                "project_display_name": display_name,
+                "survey_type": "temporary_plots",
+                "basemap": {"mode": "none"},
+                "survey_route": {
+                    "api_key": key,
+                    "consent_accepted": bool(case.get("consent")),
+                    "remember_key": remember,
+                },
+            },
+            str(project_dir),
+        )
+        published = bool(built.get("success"))
+        qgs_path = Path(built.get("qgs_path") or project_dir / "unpublished.qgs")
+        variables = _project_variables(qgs_path) if published else {}
+        credential_path = credential_store.credentials_file_path()
+        remembered = bool(
+            key
+            and remember
+            and credential_path.is_file()
+            and credential_store.get_remembered_route_key() == key
+        )
+        artifact_paths = sorted(
+            str(path) for path in project_dir.rglob("*") if path.is_file()
+        ) if published else []
+        reports = _builder_reports(project_dir, built)
+        safe_diagnostics = {
+            "reports": reports,
+            "error_code": built.get("error_code"),
+            "error_message": built.get("error_message"),
+        }
+        return {
+            "build_success": published,
+            "copy": {
+                "consent": ROUTE_KEY_CONSENT_TEXT,
+                "remember": ROUTE_KEY_REMEMBER_TEXT,
+            },
+            "desktop_credential_store": str(credential_path),
+            "desktop_retention_readback": {
+                "present": remembered,
+                "source": "encrypted_credentials_store",
+                "plaintext_at_rest": bool(
+                    key and credential_path.is_file() and key.encode() in credential_path.read_bytes()
+                ),
+            },
+            "qgs_path": str(qgs_path),
+            "project_variables": variables,
+            "generated_project_variable_count": int("fieldbuild_route_api_key" in variables),
+            "artifact_paths": artifact_paths,
+            "project_variable_occurrences": (
+                qgs_path.read_text(encoding="utf-8").count(key)
+                if key and qgs_path.is_file() else 0
+            ),
+            "summary": "",
+            "logs": {},
+            "errors": [] if published else [
+                value for value in (built.get("error_code"), built.get("error_message")) if value
+            ],
+            "general_settings": _project_general_settings(qgs_path) if published else {},
+            "diagnostics": safe_diagnostics,
+            "test_output_secret_redacted": not key or key not in json.dumps(
+                safe_diagnostics, ensure_ascii=False
+            ),
+        }
+    finally:
+        credential_store.lock_session()
+        credential_store.set_session_route_key(None)
+        if previous_store is None:
+            os.environ.pop(credential_store._APP_DATA_DIR_ENV_OVERRIDE, None)
+        else:
+            os.environ[credential_store._APP_DATA_DIR_ENV_OVERRIDE] = previous_store
+
+
 def _builder_route_key(case, work):
     global _APP
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -552,7 +643,7 @@ def _builder_route_key(case, work):
     try:
         key = str(case.get("input_key") or "")
         remember = bool(case.get("remember"))
-        if remember:
+        if remember and key:
             credential_store.establish_password("acceptance-only-password")
         wizard = ProjectBuilderWizard()
         display_name = "Synthetic route key " + uuid.uuid4().hex[:8]
@@ -639,9 +730,16 @@ def _builder_route_key(case, work):
             qfield_key_source = None
         credential_path = credential_store.credentials_file_path()
         remembered = bool(
-            remember and credential_path.is_file()
+            key and remember and credential_path.is_file()
             and credential_store.get_remembered_route_key() == key.strip()
         )
+        retention_readback = {
+            "present": remembered,
+            "source": "encrypted_credentials_store",
+            "plaintext_at_rest": bool(
+                key and credential_path.is_file() and key.encode() in credential_path.read_bytes()
+            ),
+        }
         qfield_credential_copies = list(project_dir.rglob("credentials.enc")) if published else []
         route_key_input = routed.get("route_key_input", {})
         result = {
@@ -670,6 +768,7 @@ def _builder_route_key(case, work):
             "manual_session_available": bool(route_key_input.get("available") and route_key_input.get("enabled") and route_key_input.get("password_echo")),
             "session_key_present_after_restart": bool(routed.get("session_key_present_after_restart")),
             "desktop_credential_store": str(credential_path),
+            "desktop_retention_readback": retention_readback,
             "remembered_key_available_to_qfield": bool(remembered and qfield_credential_copies),
         }
         widgets = [
@@ -814,6 +913,8 @@ def run(*, case: dict, work_dir: str):
     work = Path(work_dir)
     work.mkdir(parents=True, exist_ok=True)
     op = case["operation"]
+    if op == "builder_route_credentials_boundary":
+        return _builder_route_credentials_boundary(case, work)
     if op in {"builder_route_key", "builder_step7_route_credentials"}:
         return _builder_route_key(case, work)
     if op == "settings_key_provenance":

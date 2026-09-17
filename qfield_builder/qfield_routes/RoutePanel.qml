@@ -13,6 +13,7 @@ import "navigation.js" as Navigation
 Rectangle {
     id: panel
     objectName: "qpbSurveyRoutePanel"
+    SystemPalette { id: hostPalette; colorGroup: SystemPalette.Active }
     property var controller: null
     property var routingBackend: Backend
     property var routingBackends: ({"ors-vroom": routingBackend})
@@ -48,8 +49,27 @@ Rectangle {
     property string defaultId: surveyType === "simple_inventory" ? "" : "site_id"
     property string defaultName: surveyType === "simple_inventory" ? "" : "site_name"
     property bool settingsExpanded: false
-    color: "#f8fafc"
-    border.color: "#94a3b8"
+    readonly property color hostSurfaceColor: hostPalette.window
+    readonly property bool darkAppearance: hostSurfaceColor.r * 0.2126 + hostSurfaceColor.g * 0.7152 + hostSurfaceColor.b * 0.0722 < 0.5
+    readonly property color surfaceColor: darkAppearance ? "#111827" : "#f8fafc"
+    readonly property color foregroundColor: darkAppearance ? "#f9fafb" : "#111827"
+    readonly property color mutedColor: darkAppearance ? "#cbd5e1" : "#334155"
+    readonly property color outlineColor: darkAppearance ? "#94a3b8" : "#64748b"
+    readonly property color focusColor: darkAppearance ? "#60a5fa" : "#1769e0"
+    readonly property color errorColor: darkAppearance ? "#fca5a5" : "#b91c1c"
+    property int displayedCandidateGeneration: 0
+    property string displayedRouteIdentity: ""
+    color: surfaceColor
+    border.color: outlineColor
+    palette.window: surfaceColor
+    palette.base: surfaceColor
+    palette.button: darkAppearance ? "#1f2937" : "#e2e8f0"
+    palette.text: foregroundColor
+    palette.windowText: foregroundColor
+    palette.buttonText: foregroundColor
+    palette.placeholderText: mutedColor
+    palette.disabled.text: darkAppearance ? "#e2e8f0" : "#334155"
+    palette.disabled.buttonText: darkAppearance ? "#e2e8f0" : "#334155"
     height: expanded ? Math.min(parent.height * 0.72, 640) : 44
     anchors.left: parent.left
     anchors.right: parent.right
@@ -62,7 +82,7 @@ Rectangle {
         color: "transparent"
         radius: 4
         border.width: owner.activeFocus ? 2 : 1
-        border.color: owner.hasError ? "#b91c1c" : (owner.activeFocus ? "#1769e0" : "#64748b")
+        border.color: owner.hasError ? panel.errorColor : (owner.activeFocus ? panel.focusColor : panel.outlineColor)
     }
     component FloatingLabel: Label {
         required property var owner
@@ -72,9 +92,9 @@ Rectangle {
         height: 18
         y: -height / 2
         padding: owner.notchPadding
-        color: owner.hasError ? "#b91c1c" : (owner.activeFocus ? "#1769e0" : "#475569")
+        color: owner.hasError ? panel.errorColor : (owner.activeFocus ? panel.focusColor : panel.mutedColor)
         font.pixelSize: 10
-        background: Rectangle { color: panel.color }
+        background: Rectangle { color: panel.surfaceColor }
         enabled: false
         z: 2
     }
@@ -84,6 +104,9 @@ Rectangle {
         readonly property real outlineWidth: activeFocus ? 2 : 1
         readonly property real notchPadding: 3
         Accessible.name: floatingLabel
+        palette.text: panel.foregroundColor
+        palette.buttonText: panel.foregroundColor
+        opacity: 1
         topPadding: 20
         bottomPadding: 4
         implicitHeight: 48
@@ -98,7 +121,7 @@ Rectangle {
             text: "입력 확인 필요"
             visible: parent.hasError
             enabled: false
-            color: "#b91c1c"
+            color: panel.errorColor
             y: parent.height + 2
             width: parent.width
             font.pixelSize: 10
@@ -110,13 +133,19 @@ Rectangle {
         readonly property real outlineWidth: activeFocus ? 2 : 1
         readonly property real notchPadding: 3
         Accessible.name: floatingLabel
+        color: panel.foregroundColor
+        placeholderTextColor: panel.mutedColor
+        opacity: 1
         activeFocusOnPress: true
+        activeFocusOnTab: true
         focusPolicy: Qt.StrongFocus
+        readOnly: false
+        selectByMouse: true
         onPressed: forceActiveFocus(Qt.MouseFocusReason)
         topPadding: 20
         bottomPadding: 4
         implicitHeight: 48
-        Layout.bottomMargin: hasError ? 15 : 0
+        Layout.bottomMargin: hasError || readOnly || !enabled ? 15 : 0
         background: FloatingOutline { owner: parent }
         FloatingLabel {
             objectName: parent.objectName + "FloatingLabel"
@@ -127,7 +156,17 @@ Rectangle {
             text: "입력 확인 필요"
             visible: parent.hasError
             enabled: false
-            color: "#b91c1c"
+            color: panel.errorColor
+            y: parent.height + 2
+            width: parent.width
+            font.pixelSize: 10
+        }
+        Label {
+            objectName: parent.objectName + "StateReason"
+            text: parent.readOnly ? "읽기 전용" : "사용 불가"
+            visible: !parent.hasError && (parent.readOnly || !parent.enabled)
+            enabled: false
+            color: panel.mutedColor
             y: parent.height + 2
             width: parent.width
             font.pixelSize: 10
@@ -407,6 +446,16 @@ Rectangle {
         completedCount=route ? route.stops.filter(function(s){return s.completed;}).length : 0;
         routeProgress=route?controller.progress(route):({available:true,remaining_distance_m:candidate?candidate.distance_m:0,remaining_duration_s:candidate?candidate.duration_s:0,remaining_geometry:candidate?candidate.road_geometry:null});
         showRouteLine=state.showRouteLine;
+        if(candidate && state.candidateGeneration!==displayedCandidateGeneration) {
+            displayedCandidateGeneration=state.candidateGeneration;
+            routeName.text=candidate.name;
+        } else if(!candidate && route) {
+            var routeIdentity=route.route_id+":"+route.revision;
+            if(routeIdentity!==displayedRouteIdentity) {
+                displayedRouteIdentity=routeIdentity;
+                routeName.text=route.name;
+            }
+        }
         var road=candidate?candidate.road_geometry:(routeProgress.available?routeProgress.remaining_geometry:(route&&route.road_geometry));
         if(roadItem) {roadItem.destroy();roadItem=null;}
         if(road && canvas && showRouteLine) {
@@ -530,13 +579,14 @@ Rectangle {
         ScrollView {
             id:routeScroll;objectName:"routeScroll";visible:panel.expanded;Layout.fillWidth:true;Layout.fillHeight:true;clip:true
             contentWidth:availableWidth
+            topPadding:20
             ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
             ColumnLayout {
                 objectName:"routeContent";width:Math.max(0,routeScroll.availableWidth-24);x:12;spacing:6
                 FloatingComboBox {id:layerEdit;objectName:"layerEdit";floatingLabel:"조사지";property string text:panel.defaultLayer;property string placeholderText:"레이어 선택";hasError:panel.mappingValidation!==""&&!text;Layout.fillWidth:true;model:panel.layerOptions;textRole:"label";onActivated:function(index){text=panel.layerOptions[index].layer_id;panel.refreshFields(panel.layerOptions[index].layer);panel.refreshSelectedCount();panel.refreshTargets();}}
                 RowLayout {Layout.fillWidth:true;spacing:6;FloatingComboBox{id:idEdit;objectName:"idEdit";floatingLabel:"조사지 ID 필드";property string text:panel.defaultId;Layout.fillWidth:true;Layout.minimumWidth:0;model:panel.fieldOptions;onActivated:function(index){text=panel.fieldOptions[index];panel.refreshTargets();}} FloatingComboBox{id:nameEdit;objectName:"nameEdit";floatingLabel:"조사지 이름 필드";property string text:panel.defaultName;Layout.fillWidth:true;Layout.minimumWidth:0;model:panel.fieldOptions;onActivated:function(index){text=panel.fieldOptions[index];panel.refreshTargets();}}}
                 FloatingComboBox {id:completionEdit;objectName:"completionEdit";floatingLabel:"조사 완료 필드";property string text:"";Layout.fillWidth:true;model:[""].concat(panel.fieldOptions);onActivated:function(index){text=model[index];panel.refreshTargets();}}
-                Label {objectName:"mappingValidationLabel";visible:panel.mappingValidation!=="";text:panel.mappingValidation;color:"#b91c1c";wrapMode:Text.Wrap;Layout.fillWidth:true}
+                Label {objectName:"mappingValidationLabel";visible:panel.mappingValidation!=="";text:panel.mappingValidation;color:panel.errorColor;wrapMode:Text.Wrap;Layout.fillWidth:true}
                 Label {objectName:"completionHelpLabel";text:"완료 필드는 source layer의 Boolean 필드 이름입니다. 값이 true일 때만 완료이며 false/NULL/missing은 미완료입니다. 비우면 이 저장 경로 안에서만 완료 상태를 관리합니다.";wrapMode:Text.Wrap;Layout.fillWidth:true}
                 FloatingComboBox {id:scopeCombo;objectName:"scopeCombo";floatingLabel:"계산 대상";model:["선택 대상","전체 대상","미조사 대상"];Layout.fillWidth:true;onActivated:panel.refreshTargets()}
                 Label {objectName:"scopeHelpLabel";text:"선택 대상은 QField에서 체크한 피처만, 전체 대상은 선택과 무관한 모든 유효 피처, 미조사 대상은 전체 중 완료되지 않은 피처를 사용합니다.";wrapMode:Text.Wrap;Layout.fillWidth:true}
@@ -544,7 +594,7 @@ Rectangle {
                 FloatingComboBox {id:startCombo;objectName:"startCombo";floatingLabel:"출발지";model:["현재 GPS 출발","지도 위치 출발","조사지 출발","저장 기본 출발지"];Layout.fillWidth:true;onCurrentIndexChanged:{if(currentIndex!==1)panel.clearStartMarker();}onActivated:{panel.refreshTargets();panel.validateStart();}}
                 Button {objectName:"mapCenterButton";visible:startCombo.currentIndex===1;text:"지도 중심을 출발지로 지정";onClicked:{try{pickMapStart();}catch(e){controller.error(e);}}}
                 ComboBox {id:targetEdit;objectName:"targetEdit";property string text:"";visible:startCombo.currentIndex===2;Layout.fillWidth:true;model:targetOptionsModel;textRole:"label";onActivated:function(index){text=panel.targetOptions[index].value;panel.validateStart();}}
-                Label {objectName:"startValidationLabel";visible:panel.startValidation!=="";text:panel.startValidation;color:"#b91c1c";wrapMode:Text.Wrap;Layout.fillWidth:true}
+                Label {objectName:"startValidationLabel";visible:panel.startValidation!=="";text:panel.startValidation;color:panel.errorColor;wrapMode:Text.Wrap;Layout.fillWidth:true}
                 Button {visible:startCombo.currentIndex===1;text:"지정 위치를 기본 출발지로 저장";onClicked:controller.saveDefault(controller.state.mapStart)}
                 CheckBox {id:roundtripBox;objectName:"roundtripBox";text:"출발지로 복귀";checked:true}
                 Button {id:settingsDisclosure;objectName:"settingsDisclosure";text:(panel.settingsExpanded?"▾ ":"▸ ")+"API URL/키 설정";Layout.fillWidth:true;Accessible.name:"API URL/키 설정";Accessible.description:panel.settingsExpanded?"expanded":"collapsed";onClicked:panel.settingsExpanded=!panel.settingsExpanded}
@@ -556,7 +606,7 @@ Rectangle {
                     TextField {id:profileEdit;objectName:"profileEdit";Layout.fillWidth:true;placeholderText:"ORS profile";Accessible.name:"ORS profile"}
                     TextField {id:keyEdit;objectName:"keyEdit";Layout.fillWidth:true;placeholderText:"API 키 (저장하지 않음)";Accessible.name:"API 키";echoMode:TextInput.Password}
                     Label {objectName:"keySourceLabel";text:controller&&controller.state.keySource==="project"&&keyEdit.text===controller.state.settings.key?"프로젝트 파일의 평문 키 사용 중":"이번 세션만 사용";wrapMode:Text.Wrap;Layout.fillWidth:true}
-                    Label {objectName:"projectKeyWarningLabel";visible:controller&&controller.state.keySource==="project"&&keyEdit.text===controller.state.settings.key;text:"프로젝트 파일(.qgs)에 평문 키가 포함되어 있습니다.";wrapMode:Text.Wrap;Layout.fillWidth:true;color:"#92400e"}
+                    Label {objectName:"projectKeyWarningLabel";visible:controller&&controller.state.keySource==="project"&&keyEdit.text===controller.state.settings.key;text:"프로젝트 파일(.qgs)에 평문 키가 포함되어 있습니다.";wrapMode:Text.Wrap;Layout.fillWidth:true;color:panel.darkAppearance?"#fde68a":"#78350f"}
                     RowLayout {Layout.fillWidth:true;spacing:6;TextField{id:timeoutEdit;objectName:"timeoutEdit";Layout.fillWidth:true;Layout.minimumWidth:0;placeholderText:"제한시간(ms)"} TextField{id:offsetEdit;objectName:"offsetEdit";Layout.fillWidth:true;Layout.minimumWidth:0;placeholderText:"도로 이격거리(m)"}}
                     ComboBox {id:objectiveCombo;objectName:"objectiveCombo";model:["시간 최소화","거리 최소화"];Layout.fillWidth:true}
                     Button {objectName:"settingsSaveButton";text:"서버 설정 저장 (키 제외)";onClicked:{try{applyControls();controller.saveSettings();}catch(e){controller.error(e);}}}
@@ -566,7 +616,7 @@ Rectangle {
                 Label {objectName:"remainingLabel";text:(candidate||route)?"남은 "+panel.remainingDistanceText+" · "+panel.remainingDurationText:"결과 없음";Layout.fillWidth:true;wrapMode:Text.Wrap}
                 Label {objectName:"availabilityLabel";text:routeProgress.available?(((candidate||route)&&(candidate||route).road_geometry?"도로선 제공":"도로선 없음")+" · "+((candidate||route)&&(candidate||route).eta?"ETA 제공 (출발 기준 초)":"ETA 미제공")+" · "+((candidate||route)&&(candidate||route).legs?"전체 구간 제공":"구간 값 미제공")):routeProgress.message;Layout.fillWidth:true;wrapMode:Text.Wrap}
                 CheckBox {id:routeLineToggle;objectName:"routeLineToggle";text:"경로선 표시";checked:panel.showRouteLine;onClicked:controller.toggleRouteLine(checked)}
-                FloatingTextField {id:routeName;objectName:"routeName";floatingLabel:"저장할 경로 이름";Layout.fillWidth:true}
+                FloatingTextField {id:routeName;objectName:"routeName";floatingLabel:"저장할 경로 이름";placeholderText:"경로 이름";Layout.fillWidth:true}
                 Button {objectName:"saveRouteButton";text:"계산 결과 저장";enabled:candidate!==null&&panel.mappingValidation==="";onClicked:{try{applyControls(true);controller.save(routeName.text);}catch(e){controller.error(e);}}}
                 FloatingComboBox {id:savedCombo;objectName:"savedCombo";floatingLabel:"저장 경로 불러오기";Layout.fillWidth:true;model:panel.savedRoutes;textRole:"name"}
                 Button {objectName:"loadRouteButton";text:"저장 경로 불러오기";enabled:savedCombo.currentIndex>=0;onClicked:selectRoute(panel.savedRoutes[savedCombo.currentIndex].route_id)}

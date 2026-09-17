@@ -1,7 +1,7 @@
 // Production controller; external QField objects, transport and files are injected at the boundary.
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function create(deps) {
-    var state = {message: "", busy: false, expanded: false, listed: [], candidate: null, snapshot: null, lastError: null,
+    var state = {message: "", busy: false, expanded: false, listed: [], candidate: null, candidateGeneration: 0, snapshot: null, lastError: null,
         mapping: {layer: "site", id: "site_id", name: "site_name", completed: ""}, scope: "selected", startMode: "gps", mapStart: null, targetStart: "", roundtrip: true, showRouteLine: true,
         settings: {server_url: "https://api.heigit.org/openrouteservice", optimizer_url: "https://api.heigit.org/vroom/v0", backend: "ors-vroom", profile: "driving-car", key: "", timeout_ms: 30000, max_road_offset_m: 1000, objective: "time"}};
     function calculationInputs() {
@@ -11,6 +11,12 @@ function create(deps) {
     function targetInputs(list) {
         return JSON.stringify(list.map(function(target){return {site_id:target.site_id,source_layer:target.source_layer,
             name:target.name,coordinate:target.coordinate,completed:target.completed};}));
+    }
+    function localSurveyName(value) {
+        var now = value === undefined ? (deps.now ? deps.now() : new Date()) : value;
+        if (!(now instanceof Date)) now = new Date(now);
+        function two(value) { return value < 10 ? "0" + value : String(value); }
+        return now.getFullYear() + "-" + two(now.getMonth() + 1) + "-" + two(now.getDate()) + " 조사";
     }
     function notify() { if (deps.changed) deps.changed(); }
     function error(e) {
@@ -86,8 +92,8 @@ function create(deps) {
     }
     function calculate(replaceActive) {
         if (state.busy) return Promise.resolve(false);
-        state.candidate = null; state.message = ""; state.lastError = null;
-        var list, origin, previous, baseRevision;
+        var list, origin, previous, baseRevision, previousCandidate = state.candidate;
+        state.message = ""; state.lastError = null;
         try {
             previous = replaceActive ? clone(active()) : null;
             list = preflight();
@@ -114,10 +120,13 @@ function create(deps) {
             state.candidateBaseRevision = baseRevision;
             state.candidateInputSignature = calculationInputs();
             state.candidateTargetSignature = targetInputs(list);
-            state.candidate = {route_id: previous ? previous.route_id : deps.uuid(), name: previous ? previous.name : "새 조사 경로", created_at: previous ? previous.created_at : new Date().toISOString(), backend: state.settings.backend, status: "ready", mapping: clone(state.mapping), revision: previous ? previous.revision + 1 : 1, start: origin, end: state.roundtrip ? origin : result.stops[result.stops.length-1].coordinate, roundtrip: state.roundtrip, distance_m: result.distance_m, duration_s: result.duration_s, stops: stops, road_geometry: result.road_geometry, legs: result.legs, eta: result.eta, eta_basis: result.eta ? result.eta_basis : null, optimality_guaranteed: false};
+            var now = deps.now ? deps.now() : new Date();
+            if (!(now instanceof Date)) now = new Date(now);
+            state.candidate = {route_id: previous ? previous.route_id : deps.uuid(), name: localSurveyName(now), created_at: previous ? previous.created_at : now.toISOString(), backend: state.settings.backend, status: "ready", mapping: clone(state.mapping), revision: previous ? previous.revision + 1 : 1, start: origin, end: state.roundtrip ? origin : result.stops[result.stops.length-1].coordinate, roundtrip: state.roundtrip, distance_m: result.distance_m, duration_s: result.duration_s, stops: stops, road_geometry: result.road_geometry, legs: result.legs, eta: result.eta, eta_basis: result.eta ? result.eta_basis : null, optimality_guaranteed: false};
+            state.candidateGeneration++;
             state.lastError = null; state.message = "계산되었습니다. 저장 전에는 기존 경로가 유지됩니다. 최적해를 보장하지 않습니다.";
             return true;
-        }).catch(function(e) {state.candidate = null; error(e); return false;}).then(function(ok) {state.busy = false; notify(); return ok;});
+        }).catch(function(e) {state.candidate = previousCandidate; error(e); return false;}).then(function(ok) {state.busy = false; notify(); return ok;});
     }
     function save(name) {
         try {
@@ -127,6 +136,8 @@ function create(deps) {
             if (state.candidateTargetSignature !== targetInputs(targets())) throw new Error("calculation_input 대상이 변경되어 계산 결과가 오래되었습니다. 새 경로를 계산하세요.");
             if (state.candidateBaseRevision !== state.snapshot.revision) throw new Error("snapshot_revision 변경으로 계산 결과가 오래되었습니다. 새 경로를 계산하세요.");
             var data = clone(state.snapshot.data), candidate = clone(state.candidate);
+            var persistedSettings = clone(state.settings); delete persistedSettings.key; delete persistedSettings.objective;
+            data.settings = Object.assign(data.settings, persistedSettings);
             candidate.name = String(name === undefined ? candidate.name : (name === null ? "" : name)).trim();
             if (!candidate.name) throw new Error("저장 경로 이름을 입력하세요.");
             var index = data.routes.findIndex(function(r) {return r.route_id === candidate.route_id;});
@@ -136,7 +147,7 @@ function create(deps) {
             state.message="‘"+candidate.name+"’ 경로를 저장했습니다: "+path; notify(); return true;
         } catch(e) {error(e); return false;}
     }
-    function select(id) { try { var data=clone(state.snapshot.data); if (!data.routes.some(function(r){return r.route_id===id;})) throw new Error("저장 경로를 찾지 못했습니다."); data.active_id=id;commit(data);if(active().mapping)state.mapping=clone(active().mapping); refresh(); notify(); return true;} catch(e){error(e);return false;} }
+    function select(id) { try { var data=clone(state.snapshot.data); if (!data.routes.some(function(r){return r.route_id===id;})) throw new Error("저장 경로를 찾지 못했습니다."); data.active_id=id;commit(data);state.candidate=null;if(active().mapping)state.mapping=clone(active().mapping); refresh(); notify(); return true;} catch(e){error(e);return false;} }
     function complete(id, value) {
         try {
             refresh();

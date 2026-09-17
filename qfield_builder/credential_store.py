@@ -449,7 +449,7 @@ def get_session_route_key() -> str | None:
 def apply_route_retention_policy(api_key: str, remember: bool) -> bool:
     api_key = api_key.strip()
     set_session_route_key(api_key)
-    if not remember:
+    if not remember or not api_key:
         return True
     try:
         remember_route_key(api_key)
