@@ -1,4 +1,9 @@
-"""Approved 2026-09-16 acceptance reconciliation for specification checkpoint 1868b7a.
+"""APPROVED TEST-DESIGN SUPERSESSION RECONCILIATION (approval 2026-09-17) — retained
+AC-SRP-019/022/024/031 under approved D-SRP-043/045 and FR-SRP-041/043.
+
+The 2026-09-17 approved acceptance baseline, AC-SRP-042–045 evidence correction and approval
+history remain authority. This approved reconciliation changes only contradictory legacy executable expectations;
+it does not change approved product meaning. M01–M14 remain NOT RUN.
 
 The adapter executes production behavior; only transport/device/file faults are fakes.
 See HARNESS_CONTRACT.md. Missing new seam skips; broken existing seam fails.
@@ -6,8 +11,12 @@ See HARNESS_CONTRACT.md. Missing new seam skips; broken existing seam fails.
 from __future__ import annotations
 
 import importlib
+import hashlib
+import json
 import os
 import sqlite3
+import xml.etree.ElementTree as ET
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
@@ -34,6 +43,7 @@ def run(tmp_path):
 
 
 KEY = "SRP_SYNTHETIC_SECRET_94_&/"
+FOLLOWUP_ROUTE_NAME = "  오후 조사 경로  "
 HOSTED_ROUTING_BASE = "https://api.heigit.org/openrouteservice"
 HOSTED_OPTIMIZER_URL = "https://api.heigit.org/vroom/v0"
 LEGACY_ROUTING_BASE = "https://api.openrouteservice.org"
@@ -53,6 +63,9 @@ POINTS = [{"id": str(i), "name": f"조사지 {i}", "xy": [127 + i / 1000, 37]} f
 TIME = [[0, 1, 20, 20], [20, 0, 1, 20], [20, 20, 0, 1], [1, 20, 20, 0]]
 DISTANCE = [[0, 30, 30, 2], [2, 0, 30, 30], [30, 2, 0, 30], [30, 30, 2, 0]]
 ROAD = {"type": "LineString", "coordinates": [[127, 37], [127.001, 37.003], [127.002, 37]]}
+RESULT_ROAD = {"type": "LineString", "coordinates": [
+    [127, 37], POINTS[2]["xy"], POINTS[0]["xy"], POINTS[1]["xy"], [127, 37],
+]}
 LEGS = [
     {"distance_m": 100, "duration_s": 20},
     {"distance_m": 200, "duration_s": 100},
@@ -111,24 +124,32 @@ DIRECTIONS_RESPONSE = {
     "type": "FeatureCollection",
     "features": [{
         "type": "Feature",
-        "properties": {"summary": {"distance": 1234, "duration": 456}, "segments": DIRECTIONS_LEGS},
-        "geometry": ROAD,
+        "properties": {"summary": {"distance": 1234, "duration": 456},
+                       "segments": DIRECTIONS_LEGS, "way_points": [0, 1, 2, 3, 4]},
+        "geometry": RESULT_ROAD,
     }],
 }
 
 SITE_LAYER_ID = "site-layer-stable-01"
-SCHEMA2_COORDINATES = [[127, 37], [127.001, 37.001], [127.002, 37.002], [127.003, 37.003], [127, 37]]
+SCHEMA2_COORDINATES = [
+    [127, 37], [127.0004, 37.0002], [127.001, 37.001],
+    [127.0014, 37.0013], [127.002, 37.002],
+    [127.0026, 37.0025], [127.003, 37.003],
+    [127.0015, 37.0012], [127, 37],
+]
+SCHEMA2_WAY_POINTS = [0, 2, 4, 6, 8]
 SCHEMA2_DISTANCES = [100, 200, 300, 400]
 SCHEMA2_DURATIONS = [20, 100, 120, 216]
 
 
 def schema2_directions_response(*, roundtrip, distance_adjustment=0, duration_adjustment=0):
-    """Raw directions fixture whose way-point indexes make every required leg observable."""
+    """Documented ORS GeoJSON: route-level indexes and segments without way_points."""
     count = 4 if roundtrip else 3
     segments = [
-        {"distance": SCHEMA2_DISTANCES[i], "duration": SCHEMA2_DURATIONS[i], "way_points": [i, i + 1]}
+        {"distance": SCHEMA2_DISTANCES[i], "duration": SCHEMA2_DURATIONS[i], "steps": []}
         for i in range(count)
     ]
+    end = SCHEMA2_WAY_POINTS[count]
     return {
         "type": "FeatureCollection",
         "features": [{
@@ -136,10 +157,214 @@ def schema2_directions_response(*, roundtrip, distance_adjustment=0, duration_ad
             "properties": {"summary": {
                 "distance": sum(SCHEMA2_DISTANCES[:count]) + distance_adjustment,
                 "duration": sum(SCHEMA2_DURATIONS[:count]) + duration_adjustment,
-            }, "segments": segments},
-            "geometry": {"type": "LineString", "coordinates": SCHEMA2_COORDINATES[:count + 1]},
+            }, "segments": segments, "way_points": SCHEMA2_WAY_POINTS[:count + 1]},
+            "geometry": {"type": "LineString", "coordinates": SCHEMA2_COORDINATES[:end + 1]},
         }],
     }
+
+
+def malformed_schema2_directions(fault):
+    """Mutate only documented route-level geometry/way_points or segment metrics."""
+    response = schema2_directions_response(roundtrip=True)
+    feature = response["features"][0]
+    properties = feature["properties"]
+    if fault == "missing_leg":
+        del properties["segments"][1]
+        path = "features[0].properties.segments[1]"
+    elif fault == "out_of_order_leg":
+        properties["way_points"][2] = 1
+        path = "features[0].properties.way_points[2]"
+    elif fault == "negative_leg":
+        properties["segments"][1]["distance"] = -1
+        path = "features[0].properties.segments[1].distance"
+    elif fault == "nonfinite_leg":
+        properties["segments"][1]["duration"] = float("inf")
+        path = "features[0].properties.segments[1].duration"
+    elif fault == "invalid_leg_geometry":
+        feature["geometry"]["type"] = "Polygon"
+        path = "features[0].geometry.type"
+    elif fault == "non_wgs84_leg":
+        feature["geometry"]["coordinates"][3] = [181, 37]
+        path = "features[0].geometry.coordinates[3]"
+    elif fault == "mismatched_leg_count":
+        properties["way_points"].pop()
+        path = "features[0].properties.way_points"
+    else:
+        raise AssertionError(f"unknown schema-2 fault: {fault}")
+    assert all("way_points" not in segment for segment in properties["segments"])
+    return response, path
+
+
+def payload_sha256(value):
+    encoded = json.dumps(value, ensure_ascii=False, allow_nan=True,
+                         sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def malformed_provider_payload(fault):
+    """Return raw malformed provider payloads; the harness must not invent or repair them."""
+    optimizer = vroom_response(include_arrivals=True)
+    directions = schema2_directions_response(roundtrip=True)
+    jobs = [step for step in optimizer["routes"][0]["steps"] if step["type"] == "job"]
+    properties = directions["features"][0]["properties"]
+    if fault == "missing_order":
+        optimizer["routes"][0]["steps"].remove(jobs[1])
+    elif fault == "duplicate_order":
+        jobs[1]["id"] = jobs[0]["id"]
+    elif fault == "unknown_order":
+        jobs[1]["id"] = 99
+    elif fault == "unassigned_order":
+        optimizer["unassigned"] = [{"id": jobs[1]["id"]}]
+        optimizer["summary"]["unassigned"] = 1
+    elif fault == "missing_way_points":
+        del properties["way_points"]
+    elif fault == "duplicate_waypoint_index":
+        properties["way_points"][2] = properties["way_points"][1]
+    elif fault == "invalid_waypoint_index":
+        properties["way_points"][-1] = len(SCHEMA2_COORDINATES) + 10
+    elif fault == "missing_segment":
+        properties["segments"].pop()
+    elif fault == "invalid_geometry":
+        directions["features"][0]["geometry"] = {"type": "Polygon", "coordinates": []}
+    elif fault == "invalid_metric":
+        properties["segments"][1]["duration"] = -1
+    elif fault == "total_tolerance":
+        properties["summary"]["distance"] += 6
+    else:
+        raise AssertionError(f"unknown provider fixture fault: {fault}")
+    return optimizer, directions
+
+
+def one_stop_vroom_response(target):
+    return {
+        "code": 0,
+        "summary": {"cost": 30, "routes": 1, "unassigned": 0, "duration": 30, "distance": 50},
+        "unassigned": [],
+        "routes": [{"vehicle": 0, "cost": 30, "duration": 30, "distance": 50, "steps": [
+            {"type": "start", "location": [-1, -1], "arrival": 0},
+            {"type": "job", "id": 0, "location": target, "arrival": 30},
+        ]}],
+    }
+
+
+def one_stop_directions_response(target):
+    midpoint = [(-1 + target[0]) / 2, (-1 + target[1]) / 2]
+    return {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "properties": {
+                "summary": {"distance": 50, "duration": 30},
+                "segments": [{"distance": 50, "duration": 30, "steps": []}],
+                "way_points": [0, 2],
+            },
+            "geometry": {"type": "LineString", "coordinates": [[-1, -1], midpoint, target]},
+        }],
+    }
+
+
+FOLLOWUP_FLOATING_LABELS = {
+    "layer": "조사지",
+    "id_field": "조사지 ID 필드",
+    "name_field": "조사지 이름 필드",
+    "completion_field": "조사 완료 필드",
+    "scope": "계산 대상",
+    "start": "출발지",
+    "route_name": "저장할 경로 이름",
+}
+FINAL_FLOATING_LABELS = {
+    **FOLLOWUP_FLOATING_LABELS,
+    "saved_route": "저장 경로 불러오기",
+}
+AC031_FLOATING_LABEL_SUBSET = {
+    semantic_id: FINAL_FLOATING_LABELS[semantic_id]
+    for semantic_id in ("scope", "start", "layer", "id_field", "name_field", "completion_field")
+}
+WORKFLOW_LABELS = {
+    "scope": "계산 대상",
+    "start": "출발지",
+    "saved_route": "저장 경로 불러오기",
+}
+STEP7_ROUTE_KEY_COPY = {
+    "title": "ORS API 키 (선택)",
+    "purpose": "조사 경로를 도로망에 맞춰 계산하고 조사지 방문 순서를 정할 때 사용합니다.",
+    "blank_behavior": (
+        "입력하지 않아도 프로젝트는 만들 수 있습니다. 다만 기본 ORS/HeiGIT 서비스로 경로를 "
+        "계산하려면 QField를 열 때마다 키를 입력해야 합니다. 키가 필요 없는 자체 서버를 사용하는 "
+        "경우에는 입력하지 않아도 됩니다."
+    ),
+    "plaintext_warning": (
+        "동의하면 QField가 자동으로 사용하도록 키가 프로젝트 파일에 암호화되지 않은 글자로 "
+        "저장됩니다. 프로젝트 폴더를 열 수 있는 사람은 누구나 키를 확인하고 사용할 수 있습니다. "
+        "동의하지 않으면 프로젝트에 키를 넣지 않으며, QField를 열 때마다 직접 입력해야 합니다."
+    ),
+    "consent": "프로젝트에 API 키를 평문으로 포함하는 데 동의합니다",
+}
+NAVER_ANDROID_PACKAGE = "com.nhn.android.nmap"
+NAVER_ANDROID_STORE = "market://details?id=com.nhn.android.nmap"
+NAVER_IOS_STORE = "http://itunes.apple.com/app/id311867728?mt=8"
+SELECTION_GUIDANCE = (
+    "조사지 레이어를 열고 피처 선택/체크 도구로 계산할 조사지를 선택한 뒤 이 패널로 돌아오세요. "
+    "현재 선택한 조사지: {count}개"
+)
+TARGET_FEATURES = [
+    {"id": "site-03", "name": "같은 이름", "alt_id": "A-03", "alt_name": "대체 이름", "selected": True,
+     "completed": False, "xy": [127.003, 37]},
+    {"id": "site-01", "name": "같은 이름", "alt_id": "A-01", "alt_name": "대체 이름", "selected": False,
+     "completed": True, "xy": [127.001, 37]},
+    {"id": "site-02", "name": "셋째 조사지", "alt_id": "A-02", "alt_name": "대체 셋째", "selected": True,
+     "completed": False, "xy": [127.002, 37]},
+]
+
+
+def candidate_fixture(scope, count):
+    features = deepcopy(TARGET_FEATURES)
+    if scope == "all":
+        features = features[:count]
+    elif scope == "selected":
+        for index, feature in enumerate(features):
+            feature["selected"] = index < count
+    elif scope == "uncompleted":
+        for index, feature in enumerate(features):
+            feature["completed"] = index >= count
+    else:
+        raise AssertionError(f"unknown scope: {scope}")
+    expected = [feature["id"] for feature in features if (
+        scope == "all" or scope == "selected" and feature["selected"]
+        or scope == "uncompleted" and not feature["completed"]
+    )]
+    return features, expected
+
+
+def assert_independent_preflight_capture(result, expected_ids):
+    model = result["candidate_model_capture"]
+    preflight = result["preflight_capture"]
+    assert model["source"] == "rendered_target_model"
+    assert model["evidence_source"] == "loaded_generated_qml_object_tree"
+    assert model["control_object_id"] and model["model_object_id"]
+    assert model["visible"] is True and model["enabled"] is True
+    assert model["control_rect"]["width"] > 0 and model["control_rect"]["height"] > 0
+    assert model["accessibility"]["role"] == "ComboBox"
+    assert model["accessibility"]["visible"] is True and model["accessibility"]["enabled"] is True
+    assert preflight["source"] == "production_calculation_preflight"
+    assert model["capture_id"] != preflight["capture_id"]
+    assert model["ordered_ids"] == expected_ids
+    assert preflight["submitted_ids"] == expected_ids
+    assert preflight["ordered_candidate_ids"] == expected_ids
+    assert preflight["transport_requests"] == []
+    assert result["target_refresh_validation_order"] == [
+        "render_target_model", "capture_calculation_preflight", "validate_required_target",
+    ]
+
+
+def assert_zero_marker_writes(result):
+    capture = result["write_capture"]
+    assert capture["installed_before_first_action"] is True
+    assert capture["source_provider_commit_attempts"] == []
+    assert capture["route_storage_commit_attempts"] == []
+    assert capture["closed_after_last_action"] is True
+    assert capture["source_snapshot_after"] == capture["source_snapshot_before"]
+    assert capture["route_storage_snapshot_after"] == capture["route_storage_snapshot_before"]
 
 
 def schema2_legacy_document(schema=1):
@@ -148,7 +373,8 @@ def schema2_legacy_document(schema=1):
         "routes": [{
             "route_id": "legacy-route-1", "name": "기존 경로", "revision": 7,
             "distance_m": 600, "duration_s": 240,
-            "road_geometry": {"type": "LineString", "coordinates": SCHEMA2_COORDINATES[:4]},
+            "road_geometry": {"type": "LineString",
+                              "coordinates": SCHEMA2_COORDINATES[:SCHEMA2_WAY_POINTS[3] + 1]},
             "stops": [
                 {"site_id": str(i), "source_layer": SITE_LAYER_ID, "sequence": i + 1, "completed": False}
                 for i in range(3)
@@ -175,12 +401,40 @@ PORTABLE_SETTINGS = {
     "timeout_ms": 1250,
     "max_road_offset_m": 50,
     "default_start": [127.123, 37.456],
-    "mapping": {"layer": "custom_targets", "id": "custom_id", "name": "title", "completed": "done"},
+    "mapping": {"layer": "site", "id": "custom_id", "name": "title", "completed": "done"},
+    "show_route_line": True,
 }
 
 
 def ids(route):
     return [stop["site_id"] for stop in route["stops"]]
+
+
+def generated_layer_id(result, layer_name):
+    project = ET.parse(next(Path(result["project_dir"]).glob("*.qgs")))
+    matches = [layer.findtext("id") for layer in project.findall("./projectlayers/maplayer")
+               if layer.findtext("layername") == layer_name]
+    assert len(matches) == 1
+    return matches[0]
+
+
+def read_qgs_labeling(qgs_path, layer_id):
+    """Read the generated QGIS labeling nodes, independently of harness observations."""
+    project = ET.parse(qgs_path)
+    layers = [layer for layer in project.findall("./projectlayers/maplayer")
+              if layer.findtext("id") == layer_id]
+    assert len(layers) == 1
+    layer = layers[0]
+    labeling = layer.find("labeling")
+    assert labeling is not None
+    return {
+        "enabled": layer.findtext("labelsEnabled"),
+        "type": labeling.get("type"),
+        "text_style": dict(labeling.find(".//text-style").attrib),
+        "buffer": dict(labeling.find(".//text-buffer").attrib),
+        "placement": dict(labeling.find(".//placement").attrib),
+        "rendering": dict(labeling.find(".//rendering").attrib),
+    }
 
 
 def no_calls(result):
@@ -192,6 +446,40 @@ def rejected(result):
     assert result["ok"] is False
     assert result["message"].strip()
     assert result["saved_after"] == result["saved_before"]
+
+
+def rects_overlap(first, second):
+    return not (first["right"] <= second["left"] or second["right"] <= first["left"]
+                or first["bottom"] <= second["top"] or second["bottom"] <= first["top"])
+
+
+def rect_center_y(rect):
+    return (rect["top"] + rect["bottom"]) / 2
+
+
+def false_xml_flag(value):
+    return str(value).strip().lower() in {"0", "false"}
+
+
+def expected_site_label_expression(*, name_field_present):
+    fields = ["display_name", "site_id"] if name_field_present else ["site_id"]
+    branches = [
+        f'''WHEN trim(coalesce(to_string("{field}"), '')) <> '' THEN trim(to_string("{field}"))'''
+        for field in fields
+    ]
+    return "CASE " + " ".join(branches) + " ELSE NULL END"
+
+
+def assert_secret_absent(value, *, location):
+    encoded = value if isinstance(value, bytes) else str(value).encode()
+    if KEY.encode() in encoded:
+        pytest.fail(f"synthetic route key leaked into {location}", pytrace=False)
+
+
+def assert_secret_free_failure(result):
+    for field in ("message", "logs", "errors", "qml_errors"):
+        assert KEY not in str(result.get(field))
+    assert_authorization_only(result, KEY)
 
 
 def requests_by_kind(result):
@@ -244,7 +532,15 @@ def test_ac001_generated_plugin(run):
         assert path.is_relative_to(root) and path.is_file()
     assert r["panel"]["edge"] == "bottom"
     assert r["panel"]["collapsed_rows"] == 1
-    assert {"targets", "settings", "results", "save", "load"} <= set(r["panel"]["controls"])
+    controls = {control["semantic_id"]: control for control in r["panel"]["control_objects"]}
+    assert {"targets", "settings", "results", "save", "load"} <= set(controls)
+    assert len({control["object_id"] for control in controls.values()}) == len(controls)
+    for semantic_id in {"targets", "settings", "results", "save", "load"}:
+        control = controls[semantic_id]
+        assert control["object_id"] and control["qml_type"]
+        assert control["enabled"] is True
+        assert control["visible"] is (semantic_id != "settings")
+        assert control["object_identity_source"] == "loaded_generated_qml"
 
 
 @pytest.mark.parametrize("count", [0, 1, 3])
@@ -285,7 +581,8 @@ def test_ac003_site_default_mapping(run):
     features = [{"site_id": p["id"], "site_name": p["name"], "xy": p["xy"]} for p in POINTS[:3]]
     r = run(operation="calculate", scope="all", survey_type="temporary_plots", features=features)
     assert r["submitted_ids"] == ["0", "1", "2"]
-    assert {s["source_layer"] for s in r["candidate"]["stops"]} == {"site"}
+    assert {s["source_layer"] for s in r["candidate"]["stops"]} == {
+        generated_layer_id(r, "조사지")}
 
 
 def test_ac003_type1_requires_explicit_mapping(run):
@@ -356,11 +653,21 @@ def test_ac007_result_roundtrip(run, timing):
     assert [s["sequence"] for s in route["stops"]] == [1, 2, 3]
     assert route["eta"] == (ETA if timing else None)
     assert route["eta_basis"] == ("relative_seconds" if timing else None)
-    assert route["road_geometry"] == ROAD
-    assert route["legs"] == LEGS
+    layer_id = generated_layer_id(r, "조사지")
+    references = [{"layer_id": layer_id, "site_id": value} for value in ["2", "0", "1"]]
+    coordinates = RESULT_ROAD["coordinates"]
+    expected_legs = [{
+        "sequence": index + 1,
+        "from": "start" if index == 0 else references[index - 1],
+        "to": references[index] if index < len(references) else "start",
+        **metrics,
+        "geometry": {"type": "LineString", "coordinates": coordinates[index:index + 2]},
+    } for index, metrics in enumerate(LEGS)]
+    assert {stop["source_layer"] for stop in route["stops"]} == {layer_id}
+    assert route["road_geometry"] == RESULT_ROAD
+    assert route["legs"] == expected_legs
     assert r["saved"] == route
     assert r["availability"]["road_geometry"] is True
-    assert r["availability"]["legs"] is True
     assert r["availability"]["eta"] is timing
     if timing:
         assert all(type(value) in {int, float} for value in route["eta"])
@@ -387,8 +694,10 @@ def test_ac008_offline_restart_relocation(run):
     assert Path(r["old_dir"]).resolve() != Path(r["project_dir"]).resolve()
     assert not Path(r["old_dir"]).exists()
     assert r["selected_route_ids"] == [v["route_id"] for v in r["saved_before"]]
-    assert r["settings_before"] == PORTABLE_SETTINGS
-    assert r["settings_after"] == PORTABLE_SETTINGS
+    expected_settings = {**PORTABLE_SETTINGS, "mapping": {
+        **PORTABLE_SETTINGS["mapping"], "layer": generated_layer_id(r, "조사지")}}
+    assert r["settings_before"] == expected_settings
+    assert r["settings_after"] == expected_settings
     assert r["session_key_present_after"] is False
     assert KEY not in str(r["settings_before"]) and KEY not in str(r["settings_after"])
     assert KEY not in str(r["saved_before"]) and KEY not in str(r["saved_after"])
@@ -418,16 +727,16 @@ def test_ac010_completion(run, completion_source):
     if completion_source == "field":
         mapping["completed"] = "done"
     features = [dict(point, done=False) if completion_source == "field" else point for point in POINTS[:8]]
-    r = run(operation="complete", features=features, completed_ids=["0", "2"],
+    r = run(operation="complete", features=features, completed_ids=["0", "1"],
             source=completion_source, mapping=mapping)
     assert r["completed_count"] == 2 and r["total_count"] == 8
-    assert r["next_id"] == "1"
-    assert {s["site_id"] for s in r["active"]["stops"] if s["completed"]} == {"0", "2"}
-    assert {s["site_id"] for s in r["reloaded"]["stops"] if s["completed"]} == {"0", "2"}
+    assert r["next_id"] == "2"
+    assert {s["site_id"] for s in r["active"]["stops"] if s["completed"]} == {"0", "1"}
+    assert {s["site_id"] for s in r["reloaded"]["stops"] if s["completed"]} == {"0", "1"}
     assert r["summary_counts"] == [2, 8]
     assert r["completion_help"]["mapped_boolean_only"] is True
     assert r["completion_help"]["blank_mapping_uses_route_local"] is True
-    assert r["source_completion_after"] == ({"0": True, "2": True} if completion_source == "field" else {})
+    assert r["source_completion_after"] == ({"0": True, "1": True} if completion_source == "field" else {})
     no_calls(r)
 
 
@@ -457,12 +766,17 @@ def test_ac012_road_and_naver(run, launch):
     r = run(operation="reopen_navigate", road_geometry=ROAD, destination=[127.123, 37.456], name=name,
             platform="android", caller_id=None, launch_results=[launch, True])
     assert r["rendered_geometry"] == ROAD
+    assert r["launcher_calls"][0]["url"] == canonical_naver_android_intent(name)
     url = urlsplit(r["launcher_calls"][0]["url"])
-    assert url.scheme == "nmap" and url.netloc == "navigation"
+    assert url.scheme == "intent" and url.netloc == "navigation"
     query = parse_qs(url.query)
     assert float(query["dlng"][0]) == 127.123 and float(query["dlat"][0]) == 37.456
-    assert query["dname"] == [name] and query["appname"] == ["ch.opengis.qfield"] and not url.fragment
+    assert query["dname"] == [name] and query["appname"] == ["ch.opengis.qfield"]
+    assert url.fragment == ("Intent;scheme=nmap;action=android.intent.action.VIEW;"
+                            "category=android.intent.category.BROWSABLE;"
+                            "package=com.nhn.android.nmap;end")
     if not launch:
+        assert r["launcher_calls"][1]["url"] == NAVER_ANDROID_STORE
         assert r["message"].strip()
     assert r["destination_app_success_claimed"] is False
     no_calls(r)
@@ -613,6 +927,12 @@ def test_ac017_invalid_source_crs_preserves_saved(run, fault):
             evaluator_contract=QFIELD_EXPRESSION_EVALUATOR)
     rejected(r)
     assert r["failure_reason"] == fault
+    baseline = r["seed_saved_provenance"]
+    assert baseline["created_via"] == "production_save_action"
+    assert baseline["route_count"] >= 1 and baseline["active_route_id"]
+    assert baseline["independently_reopened_route_id"] == baseline["active_route_id"]
+    assert r["active_before"]["route_id"] == baseline["active_route_id"]
+    assert_project_relative_file(r, baseline["storage_project_relative_path"])
     assert r["active_after"] == r["active_before"]
     no_calls(r)
 
@@ -692,7 +1012,13 @@ def test_ac018_ac030_regression_portability(run, survey_type, reference):
 
 @pytest.mark.parametrize("case", ["M01_project_dropdowns_layout", "M02_schema2_live_route",
                                   "M03_offline_storage_toggle", "M04_completion_progression_overlays",
-                                  "M05_naver_android_ios", "M06_geometry_regression"])
+                                  "M05_naver_android_ios", "M06_geometry_regression",
+                                  "M07_qfield_ors_point", "M08_qfield_ors_line",
+                                  "M09_qfield_ors_polygon", "M10_followup_panel_device",
+                                  "M11_android_route_name_soft_keyboard",
+                                  "M12_ios_route_name_soft_keyboard",
+                                  "M13_qfield_eight_floating_labels",
+                                  "M14_qfield_six_geometry_labels"])
 def test_manual_qfield_device(case):
     pytest.skip(f"User-run QField iOS/Android case {case}; see test design. No device PASS implied.")
 
@@ -829,10 +1155,15 @@ def test_ac019_builder_key_consent_embeds_only_project_variable(run):
             calculate_after_build=True)
     assert r["key_input_echo_mode"] == "password"
     assert r["consent_required"] is True
-    assert r["warning_disclosures"] == {
-        "plaintext_project": True, "folder_access_can_read_and_use": True,
-        "not_encrypted": True, "qfield_automatic_use": True,
-    }
+    observed = {widget["semantic_id"]: widget for widget in r["widgets"]}
+    warning = observed["route_key_plaintext_warning"]["text"]
+    consent = observed["route_key_consent"]["text"]
+    assert warning == STEP7_ROUTE_KEY_COPY["plaintext_warning"]
+    assert consent == STEP7_ROUTE_KEY_COPY["consent"]
+    assert "QField가 자동으로 사용하도록" in warning
+    assert "암호화되지 않은 글자" in warning
+    assert "프로젝트 폴더를 열 수 있는 사람은 누구나 키를 확인하고 사용할 수 있습니다." in warning
+    assert "평문" in consent
     assert r["qfield_key_source"] == "project_variable"
     assert r["transport_key_present"] is True
     assert_no_key_outside_project_variable(r, embedded=True)
@@ -888,6 +1219,55 @@ def test_ac020_route_panel_fields_fill_available_width(run, viewport_width):
     assert r["horizontal_overflow"] is False
     screenshot = Path(r["screenshot_path"])
     assert screenshot.is_file() and screenshot.stat().st_size > 0
+
+
+@pytest.mark.parametrize("viewport_width", [320, 1024])
+@pytest.mark.parametrize("selector_state", ["empty", "value", "focus", "error"])
+def test_ac031_six_selectors_use_ors_floating_labels_without_collision(run, viewport_width, selector_state):
+    mapping = {"layer_id": SITE_LAYER_ID, "id_field": "site_id", "name_field": "site_name",
+               "completion_field": "completed"}
+    r = run(operation="panel_layout", viewport_width=viewport_width, selector_state=selector_state,
+            observe_floating_labels=True, stored_mapping=mapping)
+    assert set(AC031_FLOATING_LABEL_SUBSET) < set(FINAL_FLOATING_LABELS)
+    assert set(r["floating_selectors"]) == set(AC031_FLOATING_LABEL_SUBSET)
+    assert not [row for row in r["separate_label_rows"]
+                if row["text"] in AC031_FLOATING_LABEL_SUBSET.values()]
+    assert r["placeholder_only_accessible_names"] == []
+    assert r["horizontal_overflow"] is False
+    assert r["qml_runtime"]["loaded_generated_qml"] is True
+    assert Path(r["qml_runtime"]["generated_qml_path"]).is_file()
+    selector_object_ids = set()
+    label_object_ids = set()
+    for selector_id, expected_label in AC031_FLOATING_LABEL_SUBSET.items():
+        selector = r["floating_selectors"][selector_id]
+        selector_object_ids.add(selector["control_object_id"])
+        label_object_ids.add(selector["label_object_id"])
+        assert selector["evidence_source"] == "loaded_generated_qml_object_tree"
+        assert selector["control_object_id"] and selector["label_object_id"]
+        assert selector["control_object_id"] != selector["label_object_id"]
+        assert selector["visible"] is True and selector["enabled"] is True
+        assert selector["label"] == expected_label
+        assert selector["label_visible"] is True
+        assert selector["accessibility"] == {
+            "role": "ComboBox", "name": expected_label, "visible": True, "enabled": True,
+        }
+        reference_style = r["ors_server_url_reference"]["style_metrics"]
+        assert {key: selector["style_metrics"][key] for key in
+                ("font_pixel_size", "top_inset", "top_padding", "bottom_padding")} == {
+                    key: reference_style[key] for key in
+                    ("font_pixel_size", "top_inset", "top_padding", "bottom_padding")}
+        if selector["style_metrics"]["normal_color"] != reference_style["normal_color"]:
+            assert selector["style_metrics"]["normal_color"] == selector["style_metrics"]["focus_color"]
+        assert selector["control_rect"]["width"] > 0 and selector["control_rect"]["height"] > 0
+        assert selector["label_rect"]["width"] > 0 and selector["label_rect"]["height"] > 0
+        if selector["option_text_rect"] is not None:
+            assert not rects_overlap(selector["label_rect"], selector["option_text_rect"])
+        if selector_state == "focus":
+            assert selector["focus_indicator_visible"] is True
+    assert len(selector_object_ids) == len(AC031_FLOATING_LABEL_SUBSET)
+    assert len(label_object_ids) == len(AC031_FLOATING_LABEL_SUBSET)
+    assert r["stored_mapping_after"] == r["stored_mapping_before"] == mapping
+    no_calls(r)
 
 
 def test_ac006_ac013_unknown_backend_rejected_before_request(run):
@@ -962,8 +1342,9 @@ def test_ac021_no_field_match_and_stale_layer_clear_and_block(run):
 ])
 def test_ac022_ac024_labels_guidance_and_conditional_controls(run, viewport_width, start_mode, visible):
     r = run(operation="route_workflow_ui", viewport_width=viewport_width, start_mode=start_mode,
-            targets=[{"id": "site-01", "name": "첫 조사지"}], selected_target_id="site-01")
-    assert r["labels"] == {"scope": "조사 경로 계산 대상", "start": "출발지", "saved_route": "저장 경로 이름"}
+            scope="all", targets=[{"id": "site-01", "name": "첫 조사지", "selected": False}],
+            selected_target_id="site-01")
+    assert r["labels"] == WORKFLOW_LABELS
     assert r["guidance"] == "방문 순서대로 이동하고, 조사를 마친 지점을 체크하세요."
     assert r["controls_visible"]["map_center"] is visible["map_center"]
     assert r["controls_visible"]["target"] is visible["target"]
@@ -982,12 +1363,145 @@ def test_ac022_stale_target_is_cleared_and_blocks_target_start(run):
     no_calls(r)
 
 
+@pytest.mark.parametrize("viewport_width", [320, 1024])
+@pytest.mark.parametrize("scope", ["selected", "all", "uncompleted"])
+@pytest.mark.parametrize("count", [0, 1, 3])
+def test_ac034_selection_guidance_is_selected_only_and_leaves_no_gap(run, viewport_width, scope, count):
+    features, expected_ids = candidate_fixture(scope, count)
+    r = run(operation="route_workflow_ui", viewport_width=viewport_width, start_mode="target",
+            scope=scope, targets=features, selected_target_id=None, observe_candidate_preflight=True)
+    assert r["common_scope_guidance"].strip()
+    expected_rows = ["common_scope_guidance"]
+    if scope == "selected":
+        expected_rows.append("selection_guidance")
+        assert r["selection_guidance"] == SELECTION_GUIDANCE.format(count=count)
+        assert r["selection_count"] == count == len(expected_ids)
+    else:
+        assert r["selection_guidance"] is None and r["selection_count"] is None
+    expected_rows.append("next_control")
+    rows = r["rendered_scope_rows"]
+    assert [row["semantic_id"] for row in rows] == expected_rows
+    assert len({row["object_id"] for row in rows}) == len(rows)
+    assert all(row["visible"] is True and row["rect"]["height"] > 0 for row in rows)
+    rendered = {row["semantic_id"]: row["rendered_text"] for row in rows}
+    assert rendered["common_scope_guidance"] == r["common_scope_guidance"]
+    if scope == "selected":
+        assert rendered["selection_guidance"] == SELECTION_GUIDANCE.format(count=count)
+    actual_gaps = [second["rect"]["top"] - first["rect"]["bottom"]
+                   for first, second in zip(rows, rows[1:])]
+    assert actual_gaps == pytest.approx([r["standard_vertical_spacing"]] * len(actual_gaps), abs=1)
+    if scope != "selected":
+        hidden = r["qml_scope_items"]["selection_guidance"]
+        assert hidden["visible"] is False and hidden["layout_rect"] is None
+        assert "selection_guidance" not in r["visible_layout_semantic_ids"]
+    assert r["unattributed_visible_scope_rows"] == []
+    no_calls(r)
+
+
+@pytest.mark.parametrize("scope", ["selected", "all", "uncompleted"])
+@pytest.mark.parametrize("count", [0, 1, 3])
+def test_ac033_target_candidates_match_preflight_before_required_validation(run, scope, count):
+    features, expected_ids = candidate_fixture(scope, count)
+    r = run(operation="route_workflow_ui", viewport_width=320, start_mode="target", scope=scope,
+            targets=features, selected_target_id=None, observe_candidate_preflight=True)
+    expected_options = [{"label": f"{feature['name']} · {feature['id']}", "value": feature["id"]}
+                        for feature in features if feature["id"] in expected_ids]
+    assert r["target_options"] == expected_options
+    assert_independent_preflight_capture(r, expected_ids)
+    assert r["selected_target_id"] is None
+    assert r["validation_message"].strip()
+    no_calls(r)
+
+
+def test_ac033_candidate_refresh_preserves_valid_id_and_clears_stale_after_changes(run):
+    transitions = [
+        {"action": "qfield_selection", "selected_ids": ["site-03", "site-01"]},
+        {"action": "qfield_selection", "selected_ids": ["site-02"]},
+        {"action": "scope", "scope": "uncompleted"},
+        {"action": "completion", "completed_ids": ["site-01", "site-02"]},
+        {"action": "mapping", "id_field": "alt_id", "name_field": "alt_name"},
+    ]
+    r = run(operation="route_workflow_ui", viewport_width=320, start_mode="target", scope="selected",
+            targets=deepcopy(TARGET_FEATURES), selected_target_id="site-03",
+            candidate_transitions=transitions, observe_candidate_preflight=True)
+    states = r["candidate_states"]
+    expected_states = [["site-03", "site-02"], ["site-03", "site-01"], ["site-02"],
+                       ["site-03", "site-02"], ["site-03"], ["A-03"]]
+    for state, expected_ids in zip(states, expected_states):
+        assert_independent_preflight_capture(state, expected_ids)
+    assert states[0]["selected_target_id"] == states[1]["selected_target_id"] == "site-03"
+    assert states[2]["selected_target_id"] is None and states[2]["validation_message"].strip()
+    assert states[-1]["target_options"] == [{"label": "대체 이름 · A-03", "value": "A-03"}]
+    assert all(state["refresh_before_validation"] is True for state in states)
+    no_calls(r)
+
+
+def test_ac032_map_start_marker_is_exact_fixed_and_replaced_not_duplicated(run):
+    first = [127.1234567, 37.4567891]
+    second = [127.2234567, 37.5567891]
+    r = run(operation="map_start_marker", project_crs="EPSG:4326", actions=[
+        {"action": "capture_center", "center": first},
+        {"action": "pan_zoom", "center": [128, 38], "zoom": 17},
+        {"action": "capture_center", "center": second},
+    ])
+    captured, panned, replaced = r["states"]
+    assert captured["start_wgs84"] == pytest.approx(first, abs=1e-9)
+    assert captured["canvas_marker_count"] == len(captured["canvas_markers"]) == 1
+    marker = captured["canvas_markers"][0]
+    assert marker["semantic_role"] == "start_marker" and marker["object_id"]
+    assert marker["coordinate"] == pytest.approx(first, abs=1e-9)
+    assert marker["visible_text"] == "출발지" and marker["accessible_name"] == "출발지"
+    assert marker["visible"] is True and marker["contrast_ratio"] >= 3
+    assert panned["canvas_markers"] == captured["canvas_markers"]
+    assert replaced["start_wgs84"] == pytest.approx(second, abs=1e-9)
+    assert replaced["canvas_marker_count"] == len(replaced["canvas_markers"]) == 1
+    assert replaced["canvas_markers"][0]["coordinate"] == pytest.approx(second, abs=1e-9)
+    assert_zero_marker_writes(r)
+    assert r["source_renderer_after"] == r["source_renderer_before"]
+
+
+@pytest.mark.parametrize("event", ["panel_collapse_reopen", "calculation_failure", "calculation_success"])
+def test_ac032_map_start_marker_survives_panel_and_calculation_events(run, event):
+    r = run(operation="map_start_marker", project_crs="EPSG:4326", seed_center=[127.1, 37.1],
+            actions=[{"action": event}])
+    assert r["states"][0]["canvas_markers"] == r["states"][-1]["canvas_markers"]
+    assert r["states"][-1]["canvas_marker_count"] == len(r["states"][-1]["canvas_markers"]) == 1
+    assert_zero_marker_writes(r)
+    assert r["saved_route_geometry_after"] == r["saved_route_geometry_before"]
+
+
+@pytest.mark.parametrize("event", ["mode_change", "clear", "invalidate", "project_close"])
+def test_ac032_map_start_marker_removed_at_lifecycle_end(run, event):
+    r = run(operation="map_start_marker", project_crs="EPSG:4326", seed_center=[127.1, 37.1],
+            actions=[{"action": event}])
+    assert r["states"][0]["canvas_marker_count"] == len(r["states"][0]["canvas_markers"]) == 1
+    assert r["states"][-1]["canvas_marker_count"] == 0 and r["states"][-1]["canvas_markers"] == []
+    assert_zero_marker_writes(r)
+
+
+def test_ac032_map_start_transform_failure_preserves_previous_marker_and_start(run):
+    r = run(operation="map_start_marker", project_crs="EPSG:4326", seed_center=[127.1, 37.1],
+            actions=[{"action": "capture_center", "center": [200000, 600000],
+                      "transform_fault": "untransformable"}])
+    assert r["states"][-1]["start_wgs84"] == r["states"][0]["start_wgs84"]
+    assert r["states"][-1]["canvas_markers"] == r["states"][0]["canvas_markers"]
+    assert r["states"][-1]["canvas_marker_count"] == len(r["states"][-1]["canvas_markers"]) == 1
+    assert r["states"][-1]["message"].strip()
+    assert_zero_marker_writes(r)
+
+
 def assert_project_relative_file(result, relative):
     path = Path(relative)
     root = Path(result["project_dir"]).resolve()
     resolved = (root / path).resolve()
     assert not path.is_absolute() and resolved.is_relative_to(root) and resolved.is_file()
     return resolved
+
+
+def route_calculation_payload(route):
+    """Compare calculation output independently of persistence-owned identity/name fields."""
+    return {key: deepcopy(value) for key, value in route.items()
+            if key not in {"route_id", "name", "created_at", "revision"}}
 
 
 @pytest.mark.parametrize("action", ["save_default_start", "save_route"])
@@ -1027,24 +1541,33 @@ def canonical_naver_url(name, caller_id="ch.opengis.qfield"):
             f"{quote(name, safe='')}&appname={quote(caller_id, safe='')}")
 
 
+def canonical_naver_android_intent(name, caller_id="ch.opengis.qfield"):
+    query = canonical_naver_url(name, caller_id).removeprefix("nmap://")
+    return (f"intent://{query}#Intent;scheme=nmap;action=android.intent.action.VIEW;"
+            "category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end")
+
+
 @pytest.mark.parametrize("caller_id", [None, "org.example.fieldbuild"])
-def test_ac025_exact_encoded_naver_url_and_honest_qt_true(run, caller_id):
+def test_ac025_exact_encoded_android_intent_and_honest_qt_true(run, caller_id):
     name = "조사지 A & B/#?"
     effective = caller_id or "ch.opengis.qfield"
     r = run(operation="reopen_navigate", road_geometry=ROAD, destination=[127.123, 37.456], name=name,
             platform="android", caller_id=caller_id, launch_results=[True])
-    assert r["launcher_calls"] == [{"url": canonical_naver_url(name, effective),
+    assert r["launcher_calls"] == [{"url": canonical_naver_android_intent(name, effective),
                                      "via": "Qt.openUrlExternally", "result": True}]
     assert r["os_request_accepted"] is True and r["fallback_count"] == 0
     assert r["claims"] == {"app_started": False, "destination_accepted": False, "navigation_started": False}
     no_calls(r)
 
 
-@pytest.mark.parametrize("platform,identifier", [("android", "com.nhn.android.nmap"), ("ios", "311867728")])
-def test_ac025_mobile_fallback_and_all_refused(run, platform, identifier):
+@pytest.mark.parametrize("platform,expected_primary,expected_store,identifier", [
+    ("android", canonical_naver_android_intent("목적지"), NAVER_ANDROID_STORE, "com.nhn.android.nmap"),
+    ("ios", canonical_naver_url("목적지"), NAVER_IOS_STORE, "311867728"),
+])
+def test_ac025_mobile_fallback_and_all_refused(run, platform, expected_primary, expected_store, identifier):
     r = run(operation="reopen_navigate", road_geometry=ROAD, destination=[127.123, 37.456], name="목적지",
             platform=platform, caller_id=None, launch_results=[False, False])
-    assert r["launcher_calls"][0]["url"] == canonical_naver_url("목적지")
+    assert [call["url"] for call in r["launcher_calls"]] == [expected_primary, expected_store]
     assert len(r["launcher_calls"]) == 2 and r["fallback_count"] == 1
     assert r["fallback"]["platform"] == platform and r["fallback"]["identifier"] == identifier
     assert identifier in r["launcher_calls"][1]["url"]
@@ -1061,7 +1584,7 @@ def test_ac025_non_mobile_has_actionable_error_without_install_dispatch(run):
 
 
 @pytest.mark.parametrize("roundtrip,expected_count", [(False, 3), (True, 4)])
-def test_ac026_schema2_complete_immutable_legs_roundtrip(run, roundtrip, expected_count):
+def test_ac026_ac035_schema2_complete_immutable_legs_roundtrip(run, roundtrip, expected_count):
     r = run(operation="schema2_roundtrip", return_to_start=roundtrip, layer_id=SITE_LAYER_ID,
             directions_response=schema2_directions_response(roundtrip=roundtrip),
             post_save_actions=["complete", "uncheck", "toggle", "load"])
@@ -1072,13 +1595,15 @@ def test_ac026_schema2_complete_immutable_legs_roundtrip(run, roundtrip, expecte
     assert route["legs"][0]["from"] == "start"
     for index in range(3):
         assert route["legs"][index]["to"] == {"layer_id": SITE_LAYER_ID, "site_id": str(index)}
-    for leg in route["legs"]:
+    for index, leg in enumerate(route["legs"]):
         assert leg["distance_m"] >= 0 and leg["duration_s"] >= 0
         assert leg["geometry"]["type"] == "LineString"
         assert all(-180 <= xy[0] <= 180 and -90 <= xy[1] <= 90 for xy in leg["geometry"]["coordinates"])
+        start, end = SCHEMA2_WAY_POINTS[index:index + 2]
+        assert leg["geometry"]["coordinates"] == SCHEMA2_COORDINATES[start:end + 1]
     if roundtrip:
         assert route["legs"][-1]["to"] == "start"
-    assert route["road_geometry"]["coordinates"] == SCHEMA2_COORDINATES[:expected_count + 1]
+    assert route["road_geometry"]["coordinates"] == SCHEMA2_COORDINATES[:SCHEMA2_WAY_POINTS[expected_count] + 1]
     assert route["distance_m"] == sum(leg["distance_m"] for leg in route["legs"])
     assert route["duration_s"] == sum(leg["duration_s"] for leg in route["legs"])
     assert r["immutable_snapshots"] and all(snapshot == r["immutable_snapshots"][0]
@@ -1087,13 +1612,106 @@ def test_ac026_schema2_complete_immutable_legs_roundtrip(run, roundtrip, expecte
     assert r["post_save_requests"] == []
 
 
+@pytest.mark.parametrize("fault,reference", [
+    ("missing_order", "0"),
+    ("duplicate_order", "2"),
+    ("unknown_order", "99"),
+    ("unassigned_order", "0"),
+    ("missing_way_points", "way_points"),
+    ("duplicate_waypoint_index", "2"),
+    ("invalid_waypoint_index", str(len(SCHEMA2_COORDINATES) + 10)),
+    ("missing_segment", "4"),
+    ("invalid_geometry", "geometry"),
+    ("invalid_metric", "2"),
+    ("total_tolerance", "distance"),
+])
+def test_ac035_provider_contract_defects_are_actionable_and_preserve_last_good(run, fault, reference):
+    optimizer_response, directions_response = malformed_provider_payload(fault)
+    r = run(operation="schema2_roundtrip", return_to_start=True, layer_id=SITE_LAYER_ID,
+            optimizer_response=optimizer_response, directions_response=directions_response,
+            seed_saved=True, key=KEY)
+    rejected(r)
+    assert r["candidate"] is None and r["active_after"] == r["active_before"]
+    assert r["error_category"] == "provider_response"
+    assert r["error_reference"] == reference and reference in r["message"]
+    assert r["provider_contract_valid"] is False
+    assert_secret_free_failure(r)
+
+
+def test_ac035_valid_provider_response_forced_client_failure_is_distinct_and_preserves_last_good(run):
+    r = run(operation="schema2_roundtrip", return_to_start=True, layer_id=SITE_LAYER_ID,
+            optimizer_response=vroom_response(include_arrivals=True),
+            directions_response=schema2_directions_response(roundtrip=True), seed_saved=True, key=KEY,
+            client_processing_fault="after_provider_validation:leg_mapping")
+    rejected(r)
+    assert r["candidate"] is None and r["active_after"] == r["active_before"]
+    assert r["provider_contract_valid"] is True
+    assert r["error_category"] == "client_processing"
+    assert r["error_stage"] == "leg_mapping"
+    assert "처리" in r["message"] and r["retry_guidance_visible"] is True
+    assert_secret_free_failure(r)
+
+
+@pytest.mark.parametrize("kind", GEOMETRIES)
+def test_ac035_six_geometry_families_accept_real_ors_contract_from_approved_representative(run, kind):
+    import fiona
+
+    expected = expected_wgs84(kind, "EPSG:4326")
+    supplied_wkt = fixture_wkt(GEOJSON[kind])
+    directions_response = one_stop_directions_response(expected)
+    r = run(operation="generated_geometry_calculate", geometry_type=kind,
+            wkt=supplied_wkt, crs="EPSG:4326",
+            evaluator_contract=QFIELD_EXPRESSION_EVALUATOR,
+            target_id="geometry-site", return_to_start=False, save_and_reopen=True,
+            optimizer_response=one_stop_vroom_response(expected),
+            directions_response=directions_response)
+    assert r["ok"] is True and r["generic_crs_error_shown"] is False
+    assert r["request_coordinate"] == pytest.approx(expected, abs=1e-7)
+    assert r["submitted_ids"] == r["optimizer_order_ids"] == ["geometry-site"]
+    assert r["original_after"] == r["original_before"]
+    assert r["provider_contract_valid"] is True
+    provenance = r["generated_geometry_provenance"]
+    source_path = Path(provenance["materialized_source_path"]).resolve()
+    gpkg_path = Path(provenance["generated_gpkg_path"]).resolve()
+    qgs_path = Path(provenance["generated_project_path"]).resolve()
+    assert source_path.is_file() and gpkg_path.is_file() and qgs_path.is_file()
+    assert len({source_path, gpkg_path, qgs_path}) == 3
+    with fiona.open(source_path) as source:
+        source_rows = list(source)
+        assert source.crs.to_epsg() == 4326 and len(source_rows) == 1
+        assert geometry_signature(source_rows[0]["geometry"]) == geometry_signature(GEOJSON[kind])
+    with fiona.open(gpkg_path, layer=provenance["generated_layer_name"]) as generated:
+        generated_rows = list(generated)
+        assert generated.crs.to_epsg() == 4326 and len(generated_rows) == 1
+        assert geometry_signature(generated_rows[0]["geometry"]) == geometry_signature(GEOJSON[kind])
+        assert str(generated_rows[0]["properties"]["site_id"]) == "geometry-site"
+    project_sources = [node.text or "" for node in ET.parse(qgs_path).findall(".//datasource")]
+    assert any(gpkg_path.name in value and provenance["generated_layer_name"] in value
+               for value in project_sources)
+    assert provenance["supplied_wkt_sha256"] == hashlib.sha256(supplied_wkt.encode()).hexdigest()
+    assert provenance["supplied_crs"] == "EPSG:4326"
+    assert provenance["calculation_feature_origin"] == "generated_project_layer"
+    assert provenance["fixture_feature_injected"] is False
+    route = r["reloaded_route"]
+    assert len(route["legs"]) == 1
+    assert route["legs"][0]["geometry"] == directions_response["features"][0]["geometry"]
+    assert r["qml_errors"] == []
+
+
 @pytest.mark.parametrize("fault", ["missing_leg", "out_of_order_leg", "negative_leg", "nonfinite_leg",
                                     "invalid_leg_geometry", "non_wgs84_leg", "mismatched_leg_count"])
 def test_ac026_invalid_schema2_leg_preserves_existing_route(run, fault):
+    directions_response, fault_path = malformed_schema2_directions(fault)
     r = run(operation="schema2_roundtrip", return_to_start=True, layer_id=SITE_LAYER_ID,
-            directions_response=schema2_directions_response(roundtrip=True), fault=fault, seed_saved=True)
+            directions_response=directions_response, seed_saved=True)
     rejected(r)
     assert r["candidate"] is None and r["active_after"] == r["active_before"]
+    assert r["fault_provenance"] == {
+        "source": "captured_directions_transport_response",
+        "input_path": fault_path,
+        "payload_sha256": payload_sha256(directions_response),
+        "segment_way_points_present": False,
+    }
 
 
 @pytest.mark.parametrize("distance_adjustment,duration_adjustment,accepted", [
@@ -1112,26 +1730,41 @@ def test_ac026_provider_total_tolerance(run, distance_adjustment, duration_adjus
 
 
 @pytest.mark.parametrize("completion_source", ["field", "route_stop"])
-def test_ac027_prefix_out_of_order_uncheck_and_roundtrip_return(run, completion_source):
+def test_ac027_ordered_completion_then_uncheck_creates_out_of_order_gap_and_roundtrip_return(run, completion_source):
+    raw_directions = schema2_directions_response(roundtrip=True)
     r = run(operation="route_progression", mode="roundtrip", completion_source=completion_source,
-            actions=[{"complete": "2"}, {"complete": "0"}, {"complete": "1"}, {"uncheck": "0"}],
-            relocate=False)
-    initial, out_of_order, first, gap_closed, restored = r["states"]
+            actions=[{"complete": "2"}, {"complete": "0"}, {"complete": "1"},
+                     {"complete": "2"}, {"uncheck": "0"}],
+            relocate=False, directions_response=raw_directions)
+    provenance = r["route_seed_provenance"]
+    assert provenance["source"] == "captured_directions_transport_response"
+    assert provenance["payload_sha256"] == payload_sha256(raw_directions)
+    assert provenance["committed_route_id"] == r["full_route_before"]["route_id"]
+    assert provenance["committed_revision"] == r["full_route_before"]["revision"]
+    assert_project_relative_file(r, provenance["storage_project_relative_path"])
+    assert r["full_route_before"]["road_geometry"]["coordinates"] == SCHEMA2_COORDINATES
+    assert [leg["geometry"]["coordinates"] for leg in r["full_route_before"]["legs"]] == [
+        SCHEMA2_COORDINATES[start:end + 1]
+        for start, end in zip(SCHEMA2_WAY_POINTS, SCHEMA2_WAY_POINTS[1:])
+    ]
+    initial, blocked_later, first, second, all_targets, out_of_order = r["states"]
     assert (initial["prefix_length"], initial["remaining_leg_sequences"]) == (0, [1, 2, 3, 4])
     assert (initial["remaining_distance_m"], initial["remaining_duration_s"]) == (1000, 456)
     assert initial["remaining_geometry"]["coordinates"] == SCHEMA2_COORDINATES
-    assert (out_of_order["prefix_length"], out_of_order["remaining_leg_sequences"]) == (0, [1, 2, 3, 4])
-    assert out_of_order["remaining_geometry"] == initial["remaining_geometry"]
-    assert "2" in out_of_order["visit_context_ids"] and out_of_order["completed_ids"] == ["2"]
+    assert blocked_later == initial
     assert (first["prefix_length"], first["remaining_leg_sequences"]) == (1, [2, 3, 4])
     assert (first["remaining_distance_m"], first["remaining_duration_s"]) == (900, 436)
-    assert first["remaining_geometry"]["coordinates"] == SCHEMA2_COORDINATES[1:]
-    assert (gap_closed["prefix_length"], gap_closed["remaining_leg_sequences"]) == (3, [4])
-    assert (gap_closed["remaining_distance_m"], gap_closed["remaining_duration_s"]) == (400, 216)
-    assert gap_closed["remaining_geometry"]["coordinates"] == SCHEMA2_COORDINATES[3:]
-    assert gap_closed["remaining_note"] == "복귀 포함"
-    assert (restored["prefix_length"], restored["remaining_leg_sequences"]) == (0, [1, 2, 3, 4])
-    assert restored["remaining_geometry"] == initial["remaining_geometry"]
+    assert first["remaining_geometry"]["coordinates"] == SCHEMA2_COORDINATES[SCHEMA2_WAY_POINTS[1]:]
+    assert (second["prefix_length"], second["remaining_leg_sequences"]) == (2, [3, 4])
+    assert (second["remaining_distance_m"], second["remaining_duration_s"]) == (700, 336)
+    assert second["remaining_geometry"]["coordinates"] == SCHEMA2_COORDINATES[SCHEMA2_WAY_POINTS[2]:]
+    assert (all_targets["prefix_length"], all_targets["remaining_leg_sequences"]) == (3, [4])
+    assert (all_targets["remaining_distance_m"], all_targets["remaining_duration_s"]) == (400, 216)
+    assert all_targets["remaining_geometry"]["coordinates"] == SCHEMA2_COORDINATES[SCHEMA2_WAY_POINTS[3]:]
+    assert all_targets["remaining_note"] == "복귀 포함"
+    assert (out_of_order["prefix_length"], out_of_order["remaining_leg_sequences"]) == (0, [1, 2, 3, 4])
+    assert out_of_order["remaining_geometry"] == initial["remaining_geometry"]
+    assert out_of_order["completed_ids"] == ["1", "2"] and out_of_order["next_id"] == "0"
     assert r["full_route_after"] == r["full_route_before"]
     no_calls(r)
 
@@ -1230,3 +1863,502 @@ def test_ac029_future_schema_is_preserved_and_rejected(run):
     assert r["storage_bytes_after"] == r["storage_bytes_before"]
     assert r["writes"] == []
     no_calls(r)
+
+
+def test_ac036_name_entry_and_changes_save_existing_candidate_without_recalculation(run):
+    r = run(operation="candidate_name_save", seed_saved=True,
+            optimizer_response=vroom_response(include_arrivals=True),
+            directions_response=schema2_directions_response(roundtrip=True),
+            actions=[{"focus_name": True}, {"set_name": "초안"},
+                     {"set_name": FOLLOWUP_ROUTE_NAME}, {"save": True}])
+    assert r["calculation_requests"], "setup must create the candidate through production calculation"
+    candidate = r["candidate_after_calculation"]
+    assert candidate and r["base_revision_after_calculation"] == r["saved_before"]["revision"]
+    for state in r["name_action_states"]:
+        assert state["candidate"] == candidate
+        assert state["base_revision"] == r["base_revision_after_calculation"]
+        assert state["calculation_inputs"] == r["calculation_inputs_after_calculation"]
+        assert state["requests"] == []
+    assert r["saved_route"]["name"] == FOLLOWUP_ROUTE_NAME.strip()
+    assert r["reloaded_route"] == r["saved_route"]
+    assert route_calculation_payload(r["saved_route"]) == route_calculation_payload(candidate)
+    assert_project_relative_file(r, r["committed_project_relative_path"])
+
+
+@pytest.mark.parametrize("first_attempt", ["blank_name", "io_failure", "recoverable_validation"])
+def test_ac036_recoverable_save_failure_preserves_candidate_for_corrected_retry(run, first_attempt):
+    r = run(operation="candidate_name_save", seed_saved=True,
+            optimizer_response=vroom_response(include_arrivals=True),
+            directions_response=schema2_directions_response(roundtrip=True),
+            actions=[{"set_name": "   " if first_attempt == "blank_name" else "재시도 경로"},
+                     {"save": True, "fault": first_attempt},
+                     {"set_name": "복구된 경로"}, {"save": True}])
+    failed, corrected, saved = r["attempt_states"]
+    assert failed["ok"] is False and failed["message"].strip()
+    assert failed["candidate"] == r["candidate_after_calculation"]
+    assert failed["saved_routes"] == r["saved_routes_before"]
+    assert corrected["candidate"] == failed["candidate"]
+    assert saved["ok"] is True and saved["saved_route"]["name"] == "복구된 경로"
+    assert route_calculation_payload(saved["saved_route"]) == route_calculation_payload(failed["candidate"])
+    assert all(state["requests"] == [] for state in r["attempt_states"])
+
+
+@pytest.mark.parametrize("stale_change", ["calculation_input", "snapshot_revision"])
+def test_ac036_only_real_input_or_revision_change_blocks_stale_candidate(run, stale_change):
+    r = run(operation="candidate_name_save", seed_saved=True,
+            optimizer_response=vroom_response(include_arrivals=True),
+            directions_response=schema2_directions_response(roundtrip=True),
+            actions=[{"set_name": "저장 시도"}, {"make_stale": stale_change}, {"save": True}])
+    assert r["save_ok"] is False and stale_change in r["stale_reason"]
+    assert r["message"].strip() and r["candidate_after"] == r["candidate_before"]
+    assert r["saved_routes_after"] == r["saved_routes_before"]
+    assert r["requests_after_calculation"] == []
+
+
+@pytest.mark.parametrize("viewport_width", [320, 1024])
+@pytest.mark.parametrize("control_state", ["empty", "value", "focus", "error", "disabled"])
+def test_ac037_seven_controls_share_rendered_outlined_floating_label_contract(run, viewport_width, control_state):
+    r = run(operation="followup_panel_ui", viewport_width=viewport_width,
+            control_state=control_state, labels=FOLLOWUP_FLOATING_LABELS)
+    assert r["qml_runtime"]["loaded_generated_qml"] is True
+    assert Path(r["qml_runtime"]["generated_qml_path"]).is_file()
+    assert r["horizontal_overflow"] is False and Path(r["screenshot_path"]).is_file()
+    controls = r["floating_controls"]
+    assert set(controls) == set(FOLLOWUP_FLOATING_LABELS)
+    reference = None
+    for semantic_id, exact_label in FOLLOWUP_FLOATING_LABELS.items():
+        control = controls[semantic_id]
+        assert control["evidence_source"] == "loaded_generated_qml_object_tree"
+        assert control["label"] == exact_label and control["accessible_name"] == exact_label
+        assert control["placeholder_is_accessible_name"] is False
+        assert control["control_kind"] in {"text", "dropdown"}
+        assert control["label_visible"] is True and control["separate_label_row"] is False
+        assert control["state"] == control_state
+        assert not rects_overlap(control["label_rect"], control["value_rect"])
+        if control["indicator_rect"] is not None:
+            assert not rects_overlap(control["label_rect"], control["indicator_rect"])
+        if control["error_rect"] is not None:
+            assert not rects_overlap(control["control_rect"], control["error_rect"])
+        signature = (control["label_rect"]["top"] - control["control_rect"]["top"],
+                     control["label_rect"]["left"] - control["control_rect"]["left"],
+                     control["label_rect"]["height"], control["font_pixel_size"],
+                     control["outline_width"], control["top_padding"], control["notch_padding"])
+        reference = signature if reference is None else reference
+        assert signature == reference
+        assert control["accessibility"]["role"] in {"ComboBox", "EditableText"}
+        assert control["accessibility"]["enabled"] is (control_state != "disabled")
+    assert r["stored_values_after"] == r["stored_values_before"]
+
+
+def test_ac038_api_settings_initially_collapsed_and_toggle_is_passive(run):
+    r = run(operation="settings_disclosure", viewport_width=320,
+            actions=["open_panel", "expand", "collapse", "expand"], manual_session_key=KEY)
+    initial, expanded, collapsed, reexpanded = r["states"]
+    assert initial["title"] == "API URL/키 설정" and initial["expanded"] is False
+    assert initial["key_value_visible"] is False
+    assert expanded["expanded"] is True and collapsed["expanded"] is False and reexpanded["expanded"] is True
+    assert expanded["values"] == reexpanded["values"]
+    assert expanded["labels"]["optimizer_url"] == "VROOM 서버 URL"
+    assert expanded["key_masked"] is True and KEY not in str(r["states"])
+    assert expanded["accessible_state"] == "expanded" and collapsed["accessible_state"] == "collapsed"
+    assert r["requests"] == [] and r["writes"] == [] and r["horizontal_overflow"] is False
+
+
+@pytest.mark.parametrize("key_source,source_text", [
+    ("manual", "이번 세션만 사용"),
+    ("consented_project_variable", "프로젝트 파일의 평문 키 사용 중"),
+])
+def test_ac038_key_provenance_and_session_lifetime_are_observed_from_generated_project(run, key_source, source_text):
+    r = run(operation="settings_key_provenance", key_source=key_source, key=KEY,
+            builder_consent=key_source == "consented_project_variable")
+    assert Path(r["generated_project_path"]).is_file()
+    assert r["source_message"] == source_text and r["key_masked"] is True
+    assert KEY not in str(r["rendered_panel"]) and KEY not in str(r["diagnostics"])
+    if key_source == "manual":
+        assert r["key_after_session_restart"] is None
+        assert KEY.encode() not in Path(r["generated_project_path"]).read_bytes()
+    else:
+        assert r["project_variable_plaintext_warning_visible"] is True
+        assert r["project_variable_read_from_qgs"] == KEY
+        assert r["key_after_session_restart"] == KEY
+
+
+def test_ac038_settings_save_reports_actual_slot_and_excludes_key_and_objective(run):
+    r = run(operation="settings_snapshot_save", key=KEY, objective="distance", save_count=2,
+            settings={"server_url": "https://routing.invalid/ors",
+                      "optimizer_url": "https://optimizer.invalid/vroom", "timeout_ms": 4321})
+    assert len(r["commits"]) == 2
+    assert {commit["project_relative_path"] for commit in r["commits"]} == {
+        "survey-routes.a.json", "survey-routes.b.json"}
+    for commit in r["commits"]:
+        assert_project_relative_file(r, commit["project_relative_path"])
+        assert commit["project_scope"] == r["project_scope"]
+        assert commit["project_relative_path"] in commit["feedback"]
+        assert "키 제외" in commit["feedback"] and commit["success"] is True
+        assert KEY not in str(commit) and "objective" not in commit["readback_settings"]
+    assert r["reloaded_routes"] == r["routes_before_save"]
+    assert r["reloaded_settings"] == r["commits"][-1]["readback_settings"]
+
+
+def test_ac038_failed_settings_save_preserves_last_good_and_session_key(run):
+    r = run(operation="settings_snapshot_save", key=KEY, objective="duration", save_count=1,
+            seed_last_good=True, fault="commit_failure")
+    assert r["success_feedback_count"] == 0 and r["feedback"]["success"] is False
+    assert r["snapshot_after"] == r["snapshot_before"]
+    assert r["session_key_after"] == KEY and KEY not in str(r["feedback"])
+    assert r["requests"] == []
+
+
+@pytest.mark.parametrize("platform,expected_primary", [
+    ("android", canonical_naver_android_intent("조사지 A & B/#?", "org.example.fieldbuild")),
+    ("ios", canonical_naver_url("조사지 A & B/#?", "org.example.fieldbuild")),
+])
+def test_ac039_platform_specific_official_primary_dispatch(run, platform, expected_primary):
+    r = run(operation="platform_naver_dispatch", platform=platform, host_context="supported_native",
+            destination=[127.123, 37.456], name="조사지 A & B/#?", caller_id="org.example.fieldbuild",
+            launch_results=[True])
+    assert r["launcher_calls"] == [{"url": expected_primary, "via": "Qt.openUrlExternally", "result": True}]
+    assert r["status"] == "운영체제에 실행 요청" and r["fallback_count"] == 0
+    assert r["claims"] == {"app_started": False, "destination_accepted": False, "navigation_started": False}
+    assert not any("map.naver.com" in call["url"] for call in r["launcher_calls"])
+    no_calls(r)
+
+
+@pytest.mark.parametrize("platform,expected_primary,expected_store", [
+    ("android", canonical_naver_android_intent("목적지"), NAVER_ANDROID_STORE),
+    ("ios", canonical_naver_url("목적지"), NAVER_IOS_STORE),
+])
+def test_ac039_official_install_fallback_once_and_no_inferred_web_url(run, platform, expected_primary, expected_store):
+    r = run(operation="platform_naver_dispatch", platform=platform, host_context="supported_native",
+            destination=[127.123, 37.456], name="목적지", caller_id=None, launch_results=[False, True],
+            documented_navigation_web_fallback=None)
+    assert [call["url"] for call in r["launcher_calls"]] == [expected_primary, expected_store]
+    assert r["fallback_count"] == 1 and r["status"] == "설치 페이지 열림"
+    assert r["web_fallback_count"] == 0
+    assert not any("map.naver.com" in call["url"] for call in r["launcher_calls"])
+    assert r["claims"]["navigation_started"] is False
+    no_calls(r)
+
+
+@pytest.mark.parametrize("completion_source", ["field", "route_stop"])
+def test_ac040_only_next_in_order_is_checkable_and_blocked_attempt_is_nonmutating(run, completion_source):
+    r = run(operation="ordered_completion_checklist", completion_source=completion_source,
+            directions_response=schema2_directions_response(roundtrip=False),
+            actions=[{"attempt_complete": "1"}, {"complete": "0"},
+                     {"attempt_complete": "2"}, {"complete": "1"}, {"complete": "2"}])
+    initial = r["states"][0]
+    assert [row["completion_enabled"] for row in initial["rows"]] == [True, False, False]
+    assert all(row["disabled_reason"] == "다음 방문 지점부터 순서대로 완료하세요."
+               for row in initial["rows"][1:])
+    for blocked in r["blocked_attempts"]:
+        assert blocked["feedback_next_id"] == blocked["expected_next_id"]
+        assert blocked["after"] == blocked["before"]
+        assert blocked["requests"] == [] and blocked["writes"] == []
+    assert [state["next_id"] for state in r["successful_states"]] == ["1", "2", None]
+    assert [state["enabled_incomplete_ids"] for state in r["successful_states"]] == [["1"], ["2"], []]
+    assert all(state["requests"] == [] for state in r["states"])
+
+
+@pytest.mark.parametrize("completion_source", ["field", "route_stop"])
+def test_ac040_uncheck_gap_and_external_out_of_order_true_keep_full_remaining_contract(run, completion_source):
+    r = run(operation="ordered_completion_checklist", completion_source=completion_source,
+            directions_response=schema2_directions_response(roundtrip=False),
+            initial_completed_ids=["0", "1", "2"],
+            actions=[{"uncheck": "0"}, {"external_completed_ids": ["1"]}, {"complete": "0"}])
+    unchecked, external_gap, closed = r["states"][1:]
+    for state in (unchecked, external_gap):
+        assert state["prefix_length"] == 0 and state["next_id"] == "0"
+        assert state["remaining_leg_sequences"] == [1, 2, 3]
+        assert state["remaining_geometry"]["coordinates"] == SCHEMA2_COORDINATES[:SCHEMA2_WAY_POINTS[3] + 1]
+        out_of_order = [row for row in state["rows"] if row["site_id"] in state["completed_ids"]]
+        assert out_of_order and all(row["state_text"] == "순서 밖 완료" and row["checked"] for row in out_of_order)
+        assert all(row["non_color_state_indicator"] for row in out_of_order)
+    assert closed["prefix_length"] == 2 and closed["next_id"] == "2"
+    assert closed["remaining_leg_sequences"] == [3]
+    assert closed["remaining_geometry"]["coordinates"] == SCHEMA2_COORDINATES[
+        SCHEMA2_WAY_POINTS[2]:SCHEMA2_WAY_POINTS[3] + 1]
+    assert all(state["requests"] == [] for state in r["states"])
+
+
+@pytest.mark.parametrize("geometry_type", ["Point", "LineString", "Polygon"])
+def test_ac041_generated_site_labels_use_configured_name_and_white_halo(run, geometry_type):
+    names = ["일반 이름", "", None, "<b onclick='run()'>표시만</b>"]
+    r = run(operation="generated_site_style", geometry_type=geometry_type,
+            name_field="display_name", names=names, basemaps=["light", "dark"])
+    provenance = r["generated_artifact_provenance"]
+    assert provenance["source"] == "fieldbuild_generation_path"
+    assert Path(provenance["generated_project_path"]).is_file()
+    assert Path(provenance["generated_gpkg_path"]).is_file()
+    assert r["labeling"]["field"] == "display_name" and r["labeling"]["buffer_color"].upper() == "#FFFFFF"
+    assert r["labeling"]["buffer_enabled"] is True and r["labeling"]["buffer_width"] > 0
+    assert [label["text"] for label in r["rendered_labels"]] == [names[0], names[3]]
+    assert all(label["inert_text"] is True and label["executed_actions"] == [] for label in r["rendered_labels"])
+    assert r["blank_label_artifacts"] == []
+    assert r["source_features_after"] == r["source_features_before"]
+    assert r["source_renderer_contract_after"] == r["source_renderer_contract_before"]
+    assert set(r["basemap_renderings"]) == {"light", "dark"}
+
+
+def test_ac041_generated_polygon_uses_non_gray_accent_distinct_from_route_states(run):
+    r = run(operation="generated_site_style", geometry_type="Polygon", name_field="display_name",
+            names=["면 조사지"], basemaps=["light", "dark"], include_route_states=True)
+    style = r["base_style"]
+    assert style["outline_color"].upper() == "#2E7D32"
+    assert style["fill_color"].upper() == "#2E7D32" and 0 < style["fill_opacity"] < 1
+    assert style["outline_color"].upper() not in {"#808080", "#888888", "#A0A0A0"}
+    for rendering in r["basemap_renderings"].values():
+        assert rendering["outline_visible"] is True and rendering["fill_visible"] is True
+        assert rendering["label_halo_visible"] is True
+    assert len({r["base_style"]["outline_color"], r["completion_overlay_style"]["color"],
+                r["route_line_style"]["color"], r["start_marker_style"]["color"]}) == 4
+    assert r["source_features_after"] == r["source_features_before"]
+
+
+@pytest.mark.parametrize("touch_target", ["field_body", "label_notch_overlap"])
+def test_ac042_touch_equivalent_text_input_uses_real_editable_qml_control_without_recalculation(
+        run, touch_target):
+    r = run(operation="route_name_text_input_proxy", seed_saved=True,
+            optimizer_response=vroom_response(include_arrivals=True),
+            directions_response=schema2_directions_response(roundtrip=True),
+            input_events=[
+                {"touch_body": True, "touch_target": touch_target}, {"text": "오후 route"},
+                {"select": [3, 8]}, {"delete_selection": True}, {"text": " 조사 경로  "},
+            ], save=True)
+    assert r["qml_runtime"]["loaded_generated_qml"] is True
+    control = r["route_name_control"]
+    assert control["evidence_source"] == "loaded_generated_qml_object"
+    assert control["object_id"] and control["qml_type"] in {"TextField", "TextInput"}
+    assert control["enabled"] is True and control["editable"] is True and control["read_only"] is False
+    assert control["accepts_input_method"] is True and control["input_method_enabled"] is True
+    touch = r["input_states"][1]
+    assert touch["event_source"] == "touch_equivalent_event"
+    assert touch["target_region"] == touch_target
+    assert touch["target_rect_source"] == "loaded_generated_qml_object_geometry"
+    assert touch["delivered_via"] == "window_pointer_event"
+    assert touch["focus_checked_before_any_recovery"] is True
+    assert touch["focused_object_id"] == control["object_id"]
+    assert touch["active_focus"] is True and touch["cursor_visible"] is True
+    assert touch["cursor_position"] >= 0
+    assert r["focus_recovery_api_invocations"] == []
+    assert r["input_states"][2]["event_source"] == "input_method_commit_event"
+    assert r["input_states"][2]["active_focus"] is True
+    assert all(state["focus_recovery_api_invocations"] == [] for state in r["input_states"])
+    assert r["selection_event_observed"] is True and r["deletion_event_observed"] is True
+    assert r["final_control_text"] == "오후  조사 경로  "
+    assert r["saved_route"]["name"] == "오후  조사 경로"
+    for state in r["input_states"]:
+        assert state["candidate"] == r["candidate_after_calculation"]
+        assert state["base_revision"] == r["base_revision_after_calculation"]
+        assert state["requests"] == []
+    assert r["claims"].get("os_soft_keyboard_opened") is not True
+    assert r["evidence_scope"] == "automatic_input_wiring_proxy_not_device_keyboard"
+
+
+@pytest.mark.parametrize("viewport_width", [320, 1024])
+@pytest.mark.parametrize("control_state", ["empty", "value", "focus", "disabled", "error"])
+def test_ac043_eight_real_controls_center_labels_on_actual_top_outline(run, viewport_width, control_state):
+    r = run(operation="final_floating_label_geometry", viewport_width=viewport_width,
+            control_state=control_state)
+    assert r["qml_runtime"]["loaded_generated_qml"] is True
+    assert Path(r["screenshot_path"]).is_file()
+    assert r["horizontal_overflow"] is False
+    controls = r["floating_controls"]
+    assert set(controls) == set(FINAL_FLOATING_LABELS) and len(controls) == 8
+    assert len({control["object_id"] for control in controls.values()}) == 8
+    assert len({control["label_object_id"] for control in controls.values()}) == 8
+    reference_style = None
+    for semantic_id, exact_label in FINAL_FLOATING_LABELS.items():
+        control = controls[semantic_id]
+        assert control["evidence_source"] == "loaded_generated_qml_object_geometry"
+        assert control["label"] == exact_label and control["accessible_name"] == exact_label
+        assert control["placeholder_is_accessible_name"] is False
+        assert control["state"] == control_state and control["label_visible"] is True
+        assert control["separate_label_row"] is False and control["clipped"] is False
+        assert control["shared_component_source"] == r["shared_floating_component_source"]
+        assert control["shared_component_type"] == r["shared_floating_component_type"]
+        outline = control["top_outline_observation"]
+        assert outline["source"] in {"live_background_border_geometry", "rendered_image_edge_detection"}
+        assert outline["observation_id"] and outline["object_id"]
+        assert outline["source"] != "constant"
+        assert outline["border_width"] == control["outline_width"]
+        tolerance = max(1.0, control["outline_width"] / 2)
+        assert abs(rect_center_y(control["label_rect"]) - outline["y"]) <= tolerance
+        assert abs(rect_center_y(control["notch_rect"]) - outline["y"]) <= tolerance
+        assert not rects_overlap(control["label_rect"], control["value_rect"])
+        if control["indicator_rect"] is not None:
+            assert not rects_overlap(control["label_rect"], control["indicator_rect"])
+        if control_state == "error":
+            assert control["error_rect"] is not None
+            assert control["error_observation_source"] == "live_validation_object_geometry"
+            assert control["error_object_id"]
+            assert not rects_overlap(control["control_rect"], control["error_rect"])
+        else:
+            assert control["error_rect"] is None
+        style = (control["font_pixel_size"], control["font_weight"], control["outline_width"],
+                 control["left_inset"], control["notch_padding"], control["top_padding"])
+        reference_style = style if reference_style is None else reference_style
+        assert style == reference_style
+    saved = controls["saved_route"]
+    assert saved["control_kind"] == "dropdown" and saved["selected_route_id"] == r["selected_route_id_after"]
+    assert r["selected_route_id_after"] == r["selected_route_id_before"]
+    assert r["selected_route_observation_before"]["source"] == "live_saved_route_model"
+    assert r["selected_route_observation_after"]["source"] == "live_saved_route_model"
+    assert (r["selected_route_observation_before"]["observation_id"]
+            != r["selected_route_observation_after"]["observation_id"])
+    assert r["stored_values_observation_before"]["source"] == "independent_repository_readback"
+    assert r["stored_values_observation_after"]["source"] == "independent_repository_readback"
+    assert (r["stored_values_observation_before"]["observation_id"]
+            != r["stored_values_observation_after"]["observation_id"])
+    assert r["stored_values_after"] == r["stored_values_before"]
+
+
+@pytest.mark.parametrize("geometry_type", list(GEOMETRIES))
+@pytest.mark.parametrize("name_field_present", [True, False])
+def test_ac044_normal_build_persists_six_family_label_contract_without_artifact_edit(
+        run, geometry_type, name_field_present):
+    import fiona
+
+    features = [
+        {"stable_id": stable_id, "name": name, "xy": [127 + index / 1000, 37],
+         "geometry": deepcopy(GEOJSON[geometry_type])}
+        for index, (stable_id, name) in enumerate([
+            ("ID-01", "  이름  "), ("  ID-02  ", "   "), ("", ""),
+            ("ID-04", "<b onclick='run()'>표시만</b>"),
+        ])
+    ]
+    if geometry_type == "LineString":
+        features.extend([
+            {"stable_id": "ID-LINK-A", "name": "연결선", "xy": [127.01, 37.01],
+             "geometry": {"type": "LineString", "coordinates": [[10, 10], [11, 10]]}},
+            {"stable_id": "ID-LINK-B", "name": "연결선", "xy": [127.02, 37.01],
+             "geometry": {"type": "LineString", "coordinates": [[11, 10], [12, 10]]}},
+        ])
+    r = run(operation="generated_site_label_contract", geometry_type=geometry_type,
+            wkt=fixture_wkt(GEOJSON[geometry_type]), crs="EPSG:4326",
+            name_field="display_name" if name_field_present else None,
+            stable_id_field="site_id", features=features, build_via="normal_project_build")
+    provenance = r["generated_artifact_provenance"]
+    assert provenance["source"] == "normal_fieldbuild_generation_path"
+    assert provenance["artifact_post_edits"] == [] and provenance["fixture_injected_after_build"] is False
+    qgs_path = Path(provenance["generated_project_path"])
+    gpkg_path = Path(provenance["generated_gpkg_path"])
+    assert qgs_path.is_file() and gpkg_path.is_file()
+    assert hashlib.sha256(qgs_path.read_bytes()).hexdigest() == provenance["final_qgs_sha256"]
+    assert hashlib.sha256(gpkg_path.read_bytes()).hexdigest() == provenance["final_gpkg_sha256"]
+    with fiona.open(gpkg_path, layer=provenance["generated_layer_name"]) as layer:
+        rows = list(layer)
+        assert len(rows) == len(features)
+        assert layer.schema["geometry"] == geometry_type
+        assert [str(row["properties"].get("site_id") or "") for row in rows] == [
+            feature["stable_id"] for feature in features]
+        assert ("display_name" in layer.schema["properties"]) is name_field_present
+    config = read_qgs_labeling(qgs_path, provenance["generated_layer_id"])
+    assert config["enabled"] == "1" and config["type"] == "simple"
+    assert config["text_style"].get("isExpression") == "1"
+    expression = config["text_style"].get("fieldName", "")
+    assert expression == expected_site_label_expression(name_field_present=name_field_present)
+    assert config["buffer"].get("bufferDraw") == "1"
+    assert config["buffer"].get("bufferColor", "").replace(" ", "") in {
+        "255,255,255,255", "255,255,255", "#ffffff", "#ffffffff"}
+    expected_placement = {"Point": {"0", "1", "6"}, "MultiPoint": {"0", "1", "6"},
+                          "LineString": {"2", "3"}, "MultiLineString": {"2", "3"},
+                          "Polygon": {"4", "5", "7", "8"},
+                          "MultiPolygon": {"4", "5", "7", "8"}}[geometry_type]
+    assert config["placement"].get("placement") in expected_placement
+    assert false_xml_flag(config["rendering"].get("labelPerPart"))
+    assert false_xml_flag(config["rendering"].get("mergeLines"))
+    expected_labels = (["이름", "ID-02", "<b onclick='run()'>표시만</b>"]
+                       if name_field_present else ["ID-01", "ID-02", "ID-04"])
+    assert not ({"evaluated_texts", "blank_feature_label_count", "arbitrary_field_fallbacks",
+                 "markup_executed_actions"} & set(r.get("expression_proxy", {})))
+    runtime = r["qgis_runtime"]
+    assert runtime["probe_attempted"] is True
+    if runtime["available"]:
+        assert runtime["api_source"] == "QgsProject/QgsPalLayerSettings/QgsExpression"
+        assert runtime["project_loaded"] is True
+        assert runtime["labeling_enabled"] is True
+        assert runtime["expression"] == expression
+        assert runtime["placement"] == config["placement"].get("placement")
+        assert runtime["buffer_enabled"] is True
+        assert runtime["buffer_color"].upper() == "#FFFFFF"
+        assert runtime["label_per_part"] is False and runtime["merge_lines"] is False
+        assert runtime["expression_evaluator"] == "QgsExpression"
+        assert runtime["expression_errors"] == []
+        assert runtime["evaluated_texts"] == expected_labels + (
+            ["연결선", "연결선"] if geometry_type == "LineString" and name_field_present else
+            ["ID-LINK-A", "ID-LINK-B"] if geometry_type == "LineString" else [])
+    else:
+        assert runtime["diagnostic"].strip()
+        assert runtime["runtime_claims"] == []
+    assert r["claims"].get("qfield_device_label_rendered") is not True
+    assert r["evidence_scope"] == "generated_qgs_gpkg_proxy_not_qfield_canvas"
+
+
+@pytest.mark.parametrize("state", [
+    "blank", "key_without_consent", "key_with_consent", "remember_only",
+])
+def test_ac045_step7_exact_copy_states_and_secret_boundaries(run, state):
+    key, consent, remember, embedded = {
+        "blank": ("", False, False, False),
+        "key_without_consent": (KEY, False, False, False),
+        "key_with_consent": (KEY, True, False, True),
+        "remember_only": (KEY, False, True, False),
+    }[state]
+    r = run(operation="builder_step7_route_credentials", state=state, input_key=key,
+            consent=consent, remember=remember, outcome="success")
+    assert r["step"] == 7 and r["build_success"] is True
+    widgets = r["widgets"]
+    expected_widget_order = [
+        "route_key", "route_key_purpose", "route_key_blank_behavior",
+        "route_key_plaintext_warning", "route_key_consent", "route_key_remember",
+    ]
+    assert r["widget_tree_observation"]["source"] == "actual_qt_widget_tree"
+    assert r["widget_tree_observation"]["semantic_ids"] == expected_widget_order
+    assert [widget["semantic_id"] for widget in widgets] == expected_widget_order
+    assert [widget["semantic_id"] for widget in sorted(widgets, key=lambda item: item["layout_path"])] == expected_widget_order
+    assert r["focus_chain_observation"]["source"] == "QWidget.nextInFocusChain"
+    assert r["focus_chain_observation"]["semantic_ids"] == [
+        "route_key", "route_key_consent", "route_key_remember"]
+    observed = {widget["semantic_id"]: widget for widget in widgets}
+    assert observed["route_key"]["title"] == STEP7_ROUTE_KEY_COPY["title"]
+    assert observed["route_key_purpose"]["text"] == STEP7_ROUTE_KEY_COPY["purpose"]
+    assert observed["route_key_blank_behavior"]["text"] == STEP7_ROUTE_KEY_COPY["blank_behavior"]
+    assert observed["route_key_plaintext_warning"]["text"] == STEP7_ROUTE_KEY_COPY["plaintext_warning"]
+    assert observed["route_key_consent"]["text"] == STEP7_ROUTE_KEY_COPY["consent"]
+    assert observed["route_key"]["echo_mode"] == "password"
+    for semantic_id in ("route_key_purpose", "route_key_blank_behavior", "route_key_plaintext_warning"):
+        assert observed[semantic_id]["word_wrap"] is True
+    for widget in widgets:
+        assert widget["visible"] is True
+        assert widget["layout_observation_source"] == "actual_parent_layout"
+        assert widget["layout_path"]
+        accessibility = widget["accessibility_observation"]
+        if accessibility["available"]:
+            assert accessibility["source"] == "QAccessible.queryAccessibleInterface"
+            assert accessibility["name"].strip() and accessibility["role"]
+        else:
+            assert accessibility["diagnostic"].strip()
+            assert "name" not in accessibility and "role" not in accessibility
+    assert observed["route_key_remember"]["described_as_project_delivery"] is False
+    assert r["generated_project_variable_count"] == (1 if embedded else 0)
+    if embedded:
+        value = r["project_variables"].get("fieldbuild_route_api_key")
+        if value != KEY:
+            pytest.fail("consented project variable did not preserve the submitted synthetic key", pytrace=False)
+        assert r["review_plaintext_warning_visible"] is True
+    else:
+        assert "fieldbuild_route_api_key" not in r["project_variables"]
+        assert r["qfield_session_key_guidance_visible"] is True
+    for field in ("summary", "logs", "errors", "general_settings", "diagnostics"):
+        assert_secret_absent(r.get(field), location=field)
+    secret_files = []
+    for artifact in map(Path, r["artifact_paths"]):
+        assert artifact.is_file()
+        if KEY.encode() in artifact.read_bytes():
+            secret_files.append(artifact.resolve())
+    if embedded:
+        assert secret_files == [Path(r["qgs_path"]).resolve()]
+        assert r["project_variable_occurrences"] == 1
+    else:
+        assert secret_files == []
+    assert r["test_output_secret_redacted"] is True

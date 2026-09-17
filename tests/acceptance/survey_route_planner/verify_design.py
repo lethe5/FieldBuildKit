@@ -1,6 +1,11 @@
-"""Approved 2026-09-16 design-only fixture/oracle check; never executes application code."""
+"""APPROVED supersession-reconciliation verifier (approval 2026-09-17).
+
+The approved 2026-09-17 baseline and AC-SRP-042–045 correction remain preserved; no application
+code is executed.
+"""
 import ast
 import importlib.util
+import inspect
 import math
 import re
 import tempfile
@@ -16,7 +21,7 @@ spec = importlib.util.spec_from_file_location("srp_test_design", path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 coverage = set(re.findall(r"ac(\d{3})", path.read_text(encoding="utf-8-sig")))
-assert {f"{i:03d}" for i in range(1, 31)} <= coverage
+assert {f"{i:03d}" for i in range(1, 46)} <= coverage
 wire = module.vroom_response(include_arrivals=True)
 route = wire["routes"][0]
 arrivals = [step["arrival"] for step in route["steps"] if step["type"] == "job"]
@@ -48,26 +53,179 @@ assert 'operation="remaining"' not in source
 assert "remaining_recalculation_is_superseded" in source
 assert all(case in source for case in ["M01_project_dropdowns_layout", "M02_schema2_live_route",
                                        "M03_offline_storage_toggle", "M04_completion_progression_overlays",
-                                       "M05_naver_android_ios", "M06_geometry_regression"])
+                                       "M05_naver_android_ios", "M06_geometry_regression",
+                                       "M07_qfield_ors_point", "M08_qfield_ors_line",
+                                       "M09_qfield_ors_polygon", "M10_followup_panel_device",
+                                       "M11_android_route_name_soft_keyboard",
+                                       "M12_ios_route_name_soft_keyboard",
+                                       "M13_qfield_eight_floating_labels",
+                                       "M14_qfield_six_geometry_labels"])
 assert module.canonical_naver_url("조사지 A & B/#?") == (
     "nmap://navigation?dlat=37.456&dlng=127.123&dname="
     + quote("조사지 A & B/#?", safe="") + "&appname=ch.opengis.qfield")
+assert module.canonical_naver_android_intent("조사지 A & B/#?") == (
+    "intent://navigation?dlat=37.456&dlng=127.123&dname="
+    + quote("조사지 A & B/#?", safe="")
+    + "&appname=ch.opengis.qfield#Intent;scheme=nmap;action=android.intent.action.VIEW;"
+      "category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end")
+assert module.NAVER_ANDROID_STORE == "market://details?id=com.nhn.android.nmap"
+assert module.NAVER_IOS_STORE == "http://itunes.apple.com/app/id311867728?mt=8"
 for roundtrip, count in [(False, 3), (True, 4)]:
     response = module.schema2_directions_response(roundtrip=roundtrip)
     feature = response["features"][0]
     assert len(feature["properties"]["segments"]) == count
-    assert len(feature["geometry"]["coordinates"]) == count + 1
+    assert feature["properties"]["way_points"] == module.SCHEMA2_WAY_POINTS[:count + 1]
+    assert all("way_points" not in segment for segment in feature["properties"]["segments"])
+    assert len(feature["geometry"]["coordinates"]) == module.SCHEMA2_WAY_POINTS[count] + 1
     assert feature["properties"]["summary"]["distance"] == sum(module.SCHEMA2_DISTANCES[:count])
     assert feature["properties"]["summary"]["duration"] == sum(module.SCHEMA2_DURATIONS[:count])
+schema2_fault_paths = {
+    "missing_leg": "features[0].properties.segments[1]",
+    "out_of_order_leg": "features[0].properties.way_points[2]",
+    "negative_leg": "features[0].properties.segments[1].distance",
+    "nonfinite_leg": "features[0].properties.segments[1].duration",
+    "invalid_leg_geometry": "features[0].geometry.type",
+    "non_wgs84_leg": "features[0].geometry.coordinates[3]",
+    "mismatched_leg_count": "features[0].properties.way_points",
+}
+for fault, expected_path in schema2_fault_paths.items():
+    response, actual_path = module.malformed_schema2_directions(fault)
+    assert actual_path == expected_path
+    assert all("way_points" not in segment
+               for segment in response["features"][0]["properties"]["segments"])
+    assert module.payload_sha256(response)
+assert "fault=fault" not in inspect.getsource(module.test_ac026_invalid_schema2_leg_preserves_existing_route)
+assert module.DIRECTIONS_RESPONSE["features"][0]["properties"]["way_points"] == [0, 1, 2, 3, 4]
+assert all("way_points" not in segment
+           for segment in module.DIRECTIONS_RESPONSE["features"][0]["properties"]["segments"])
+for fault, _ in [
+    ("missing_order", "0"), ("duplicate_order", "2"), ("unknown_order", "99"),
+    ("unassigned_order", "0"), ("missing_way_points", "way_points"),
+    ("duplicate_waypoint_index", "2"), ("invalid_waypoint_index", "19"),
+    ("missing_segment", "4"), ("invalid_geometry", "geometry"),
+    ("invalid_metric", "2"), ("total_tolerance", "distance"),
+]:
+    optimizer, directions = module.malformed_provider_payload(fault)
+    assert optimizer != module.vroom_response(include_arrivals=True) or directions != module.schema2_directions_response(roundtrip=True)
 legacy = module.schema2_legacy_document()
 assert legacy["schema"] == 1 and legacy["routes"][0]["revision"] == 7
 assert "legs" not in legacy["routes"][0]
 assert [layer["layer_id"] for layer in module.PROJECT_LAYERS] == [
     "duplicate-a", module.SITE_LAYER_ID, "duplicate-b"]
 assert module.PROJECT_LAYERS[2]["fields"][-2:] == ["SECOND_ID", "SECOND_NAME"]
-assert all(text in source for text in ["조사 경로 계산 대상", "출발지", "저장 경로 이름",
+assert all(text in source for text in ["계산 대상", "출발지", "저장할 경로 이름",
+                                       "저장 경로 불러오기",
                                        "방문 순서대로 이동하고, 조사를 마친 지점을 체크하세요.",
+                                       "조사지", "조사지 ID 필드", "조사지 이름 필드",
+                                       "조사 완료 필드", "현재 선택한 조사지: {count}개",
                                        "#1565C0", "사용 불가", "복귀 포함"])
+assert module.AC031_FLOATING_LABEL_SUBSET == {
+    "scope": "계산 대상", "start": "출발지", "layer": "조사지",
+    "id_field": "조사지 ID 필드", "name_field": "조사지 이름 필드",
+    "completion_field": "조사 완료 필드",
+}
+assert module.FOLLOWUP_FLOATING_LABELS == {
+    "layer": "조사지", "id_field": "조사지 ID 필드", "name_field": "조사지 이름 필드",
+    "completion_field": "조사 완료 필드", "scope": "계산 대상", "start": "출발지",
+    "route_name": "저장할 경로 이름",
+}
+assert module.FINAL_FLOATING_LABELS == {
+    **module.FOLLOWUP_FLOATING_LABELS,
+    "saved_route": "저장 경로 불러오기",
+}
+assert set(module.AC031_FLOATING_LABEL_SUBSET) < set(module.FINAL_FLOATING_LABELS)
+assert len(module.AC031_FLOATING_LABEL_SUBSET) == 6 and len(module.FINAL_FLOATING_LABELS) == 8
+assert module.WORKFLOW_LABELS == {
+    "scope": "계산 대상", "start": "출발지", "saved_route": "저장 경로 불러오기",
+}
+assert module.WORKFLOW_LABELS["saved_route"] != "저장 경로 이름"
+assert module.FINAL_FLOATING_LABELS["route_name"] == "저장할 경로 이름"
+assert module.STEP7_ROUTE_KEY_COPY == {
+    "title": "ORS API 키 (선택)",
+    "purpose": "조사 경로를 도로망에 맞춰 계산하고 조사지 방문 순서를 정할 때 사용합니다.",
+    "blank_behavior": (
+        "입력하지 않아도 프로젝트는 만들 수 있습니다. 다만 기본 ORS/HeiGIT 서비스로 경로를 "
+        "계산하려면 QField를 열 때마다 키를 입력해야 합니다. 키가 필요 없는 자체 서버를 사용하는 "
+        "경우에는 입력하지 않아도 됩니다."
+    ),
+    "plaintext_warning": (
+        "동의하면 QField가 자동으로 사용하도록 키가 프로젝트 파일에 암호화되지 않은 글자로 "
+        "저장됩니다. 프로젝트 폴더를 열 수 있는 사람은 누구나 키를 확인하고 사용할 수 있습니다. "
+        "동의하지 않으면 프로젝트에 키를 넣지 않으며, QField를 열 때마다 직접 입력해야 합니다."
+    ),
+    "consent": "프로젝트에 API 키를 평문으로 포함하는 데 동의합니다",
+}
+assert module.false_xml_flag("0") and module.false_xml_flag("false")
+assert not module.false_xml_flag("1") and not module.false_xml_flag("true")
+assert module.expected_site_label_expression(name_field_present=True) == (
+    '''CASE WHEN trim(coalesce(to_string("display_name"), '')) <> '' THEN trim(to_string("display_name")) '''
+    '''WHEN trim(coalesce(to_string("site_id"), '')) <> '' THEN trim(to_string("site_id")) ELSE NULL END'''
+)
+assert module.expected_site_label_expression(name_field_present=False) == (
+    '''CASE WHEN trim(coalesce(to_string("site_id"), '')) <> '' THEN trim(to_string("site_id")) ELSE NULL END'''
+)
+assert all(operation in source for operation in [
+    'operation="candidate_name_save"', 'operation="followup_panel_ui"',
+    'operation="settings_disclosure"', 'operation="settings_key_provenance"',
+    'operation="settings_snapshot_save"', 'operation="platform_naver_dispatch"',
+    'operation="ordered_completion_checklist"', 'operation="generated_site_style"',
+    'operation="route_name_text_input_proxy"', 'operation="final_floating_label_geometry"',
+    'operation="generated_site_label_contract"', 'operation="builder_step7_route_credentials"',
+])
+assert all(token in source for token in [
+    '"evidence_source"] == "loaded_generated_qml_object_tree"',
+    '"generated_artifact_provenance"', '"project_variable_read_from_qgs"',
+    '"candidate_after_calculation"', '"snapshot_after"] == r["snapshot_before"',
+    '"state_text"] == "순서 밖 완료"', '"inert_text"] is True',
+])
+assert 'scope="all", targets=' in inspect.getsource(module.test_ac022_ac024_labels_guidance_and_conditional_controls)
+ac019_source = inspect.getsource(module.test_ac019_builder_key_consent_embeds_only_project_variable)
+assert '"warning_disclosures"' not in ac019_source
+assert 'observed["route_key_plaintext_warning"]["text"]' in ac019_source
+assert 'STEP7_ROUTE_KEY_COPY["plaintext_warning"]' in ac019_source
+assert all(fragment in ac019_source for fragment in [
+    "암호화되지 않은 글자", "확인하고 사용할", "QField가 자동으로 사용하도록",
+])
+assert all(old_fragment not in ac019_source for old_fragment in [
+    '"평문" in warning', "읽고 사용할", "암호화되지 않습니다", '"QField", "자동 사용"',
+])
+ac031_source = inspect.getsource(module.test_ac031_six_selectors_use_ors_floating_labels_without_collision)
+assert "AC031_FLOATING_LABEL_SUBSET" in ac031_source and "FINAL_FLOATING_LABELS" in ac031_source
+assert 'row["text"] in AC031_FLOATING_LABEL_SUBSET.values()' in ac031_source
+assert 'selector["label_in_control"] is True' not in ac031_source
+assert 'selector["label_clipped"]' not in ac031_source
+assert 'selector["validation_text_rect"]' not in ac031_source
+assert 'control["visible"] is (semantic_id != "settings")' in inspect.getsource(module.test_ac001_generated_plugin)
+assert 'completed_ids=["0", "1"]' in inspect.getsource(module.test_ac010_completion)
+assert "canonical_naver_android_intent" in inspect.getsource(module.test_ac012_road_and_naver)
+assert "canonical_naver_android_intent" in inspect.getsource(module.test_ac025_exact_encoded_android_intent_and_honest_qt_true)
+assert "blocked_later == initial" in inspect.getsource(
+    module.test_ac027_ordered_completion_then_uncheck_creates_out_of_order_gap_and_roundtrip_return)
+assert all(token in source for token in [
+    '"control_objects"', '"object_identity_source"', '"seed_saved_provenance"',
+    '"loaded_generated_qml_object_tree"', '"style_metrics"', '"accessibility"',
+    '"candidate_model_capture"', '"preflight_capture"', '"rendered_scope_rows"',
+    '"visible_layout_semantic_ids"', '"canvas_marker_count"', '"canvas_markers"',
+    '"write_capture"', '"route_seed_provenance"', '"fault_provenance"',
+    '"generated_geometry_provenance"', '"materialized_source_path"',
+    '"generated_gpkg_path"', '"generated_project_path"',
+    '"accepts_input_method"] is True', '"os_soft_keyboard_opened") is not True',
+    '"focus_recovery_api_invocations"] == []', '"label_notch_overlap"',
+    '"top_outline_observation"', '"live_background_border_geometry"',
+    '"stored_values_observation_after"', '"live_validation_object_geometry"',
+    'read_qgs_labeling(qgs_path', '"artifact_post_edits"] == []',
+    'false_xml_flag(config["rendering"].get("mergeLines"))', '"ID-LINK-A"', '"ID-LINK-B"',
+    '"expression_evaluator"] == "QgsExpression"', '"runtime_claims"] == []',
+    '"qfield_device_label_rendered") is not True',
+    '"actual_qt_widget_tree"', '"QWidget.nextInFocusChain"',
+    '"QAccessible.queryAccessibleInterface"',
+    '"test_output_secret_redacted"] is True',
+])
+assert all(forbidden not in source for forbidden in [
+    '"floating_label_visual"', '"marker_source_writes"', '"marker_route_writes"',
+    '"scope_following_row_gaps"', '"preflight_candidate_ids"',
+    '"painted_control_outline_geometry"',
+])
 assert '"geom_to_geojson" not in expression' in source
 assert all(token in source for token in ['"centroid" in expression', '"transform" in expression',
                                          '"x(" in expression', '"y(" in expression'])
@@ -100,4 +258,4 @@ for fmt in ["SHP", "ZIP", "GPKG"]:
             except FixtureChecked:
                 count += 1
 assert count == 18
-print("Design checks: syntax; 30 AC IDs; no remaining-operation oracle; M01-M06 placeholders; exact encoded Naver URL; schema-2 open/roundtrip segment fixtures and schema-1 legacy fixture; dropdown order/case suffix fixtures; exact workflow/overlay/legacy text; raw VROOM relative arrivals/no route.eta; 4 invalid timing fixtures; current/legacy endpoint constants; strict QfExpressionEvaluator surface and supported centroid/transform/x/y expression assertions; portable non-secret settings; 6 documented centroid fixtures; 6 Mercator controls; 1 EPSG:5186 control; 18 real upload fixtures verified. No application tests executed.")
+print("Design checks: APPROVED supersession guards pass; approved AC001-045 meaning/history preserved; old warning parser and saved-route label rejected; AC031 remains a strict six-control subset of AC043's eight-control final authority; approved AC042-045 evidence correction remains intact; M01-M14 remain NOT RUN. No application tests executed.")
