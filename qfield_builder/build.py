@@ -137,24 +137,34 @@ def _resolve_seed_sites(config: dict, work_dir: Path | None = None) -> list[dict
                 # test this implementer must not modify) asserts this exact substring appears in
                 # the reported error_message.
                 raise InvalidGeometryBuildError(
-                    f"사이트 '{site.get('site_name')}'의 geometry가 유효하지 않습니다 "
+                    f"조사지 '{site.get('site_name')}'의 geometry가 유효하지 않습니다 "
                     f"(invalid geometry): {exc}"
                 ) from exc
         return sites
     upload = config.get("sites_upload")
     if upload:
         return _resolve_sites_from_upload(
-            upload, storage_crs=config.get("storage_crs", "EPSG:4326"), work_dir=work_dir
+            upload,
+            storage_crs=config.get("storage_crs", "EPSG:4326"),
+            work_dir=work_dir,
+            route_name_field=str((config.get("survey_route") or {}).get("name_field") or "").strip()
+            or None,
         )
     return []
 
 
 def _resolve_sites_from_upload(
-    upload: dict, *, storage_crs: str = "EPSG:4326", work_dir: Path | None = None
+    upload: dict,
+    *,
+    storage_crs: str = "EPSG:4326",
+    work_dir: Path | None = None,
+    route_name_field: str | None = None,
 ) -> list[dict]:
     fmt = upload.get("format")
     encoding = upload.get("encoding", "cp949")
-    site_name_field = (upload.get("attribute_mapping") or {}).get("site_name")
+    attribute_mapping = upload.get("attribute_mapping") or {}
+    site_name_field = attribute_mapping.get("site_name")
+    site_id_field = attribute_mapping.get("site_id")
     if fmt not in ("zipped_shapefile", "shapefile", "gpkg"):
         raise BuildError("unsupported_upload_format", f"지원되지 않는 업로드 형식입니다: {fmt!r}")
     features_are_raw = fmt == "gpkg"
@@ -227,14 +237,25 @@ def _resolve_sites_from_upload(
             name = feature["attributes"].get(site_name_field) if site_name_field else None
             sites.append(
                 {
-                    "site_name": name or "가져온 사이트",
+                    "site_name": name if name is not None and str(name).strip() else "가져온 조사지",
                     "geom_wkb": feature["geom_wkb"],
                     "geom_envelope": feature.get("envelope"),
                 }
             )
         else:
             name = feature.attributes.get(site_name_field) if site_name_field else None
-            sites.append({"site_name": name or "가져온 사이트", "geom_wkt": feature.geom_wkt})
+            sites.append({
+                "site_name": name if name is not None and str(name).strip() else "가져온 조사지",
+                "geom_wkt": feature.geom_wkt,
+            })
+        attributes = feature["attributes"] if features_are_raw else feature.attributes
+        if route_name_field and route_name_field in attributes:
+            sites[-1][route_name_field] = attributes.get(route_name_field)
+        if site_id_field:
+            sites[-1]["site_id"] = attributes.get(site_id_field)
+        representative = [attributes.get("_fb_route_lon"), attributes.get("_fb_route_lat")]
+        if all(value is not None for value in representative):
+            sites[-1]["route_representative"] = representative
     return sites
 
 
@@ -325,12 +346,23 @@ def _resolve_plantnet_config(plantnet_config: dict) -> dict:
 
 
 def _resolve_route_config(route_config: dict) -> dict:
-    """Keep a route key only when plaintext project inclusion was explicitly accepted."""
+    """Resolve non-secret route defaults while consent-gating the optional plaintext key."""
+    resolved = {}
+    id_field = str(
+        route_config.get("id_field") if "id_field" in route_config else "site_id"
+    ).strip()
+    if id_field:
+        resolved["id_field"] = id_field
+    name_field = str(
+        (route_config.get("name_field") if "name_field" in route_config else "site_name") or ""
+    ).strip()
+    if name_field:
+        resolved["name_field"] = name_field
     key = str(route_config.get("api_key") or "").strip()
     apply_route_retention_policy(key, bool(route_config.get("remember_key")))
     if not key or not route_config.get("consent_accepted"):
-        return {"consent_accepted": False}
-    return {"api_key": key, "consent_accepted": True}
+        return {**resolved, "consent_accepted": False}
+    return {**resolved, "api_key": key, "consent_accepted": True}
 
 
 def _resolve_reference_data_dir(config: dict) -> str:
@@ -476,15 +508,15 @@ def build_project(
             raise BuildCancelledError(
                 "빌드가 취소되었습니다. 다시 생성하려면 '생성'을 눌러 주세요."
             )
-        report_stage("사이트 경계 읽기 및 좌표 변환")
+        report_stage("조사지 경계 읽기 및 좌표 변환")
         seed_sites = _resolve_seed_sites(config, work_dir=temp_root)
         from .wkt import wkb_to_wkt, geometry_data
         site_types = {wkb_to_wkt(site["geom_wkb"])[1] if "geom_wkb" in site else geometry_data(site["geom_wkt"])[0] for site in seed_sites}
         if len({kind.removeprefix("MULTI") for kind in site_types}) > 1:
-            raise InvalidGeometryBuildError("서로 다른 계열의 조사대상 도형을 섞을 수 없습니다.")
+            raise InvalidGeometryBuildError("서로 다른 계열의 조사지 도형을 섞을 수 없습니다.")
         site_geometry_type = config.get("site_geometry_type", SITE_GEOMETRY_TYPE)
         if config.get("sites_upload"):
-            if not site_types: raise InvalidGeometryBuildError("업로드한 조사대상 도형이 비어 있습니다.")
+            if not site_types: raise InvalidGeometryBuildError("업로드한 조사지 도형이 비어 있습니다.")
             site_geometry_type = next(iter(site_types)) if len(site_types) == 1 else "MULTI" + next(iter(site_types)).removeprefix("MULTI")
         seed_plots = _resolve_seed_plots(config) if survey_type == "permanent_plots" else []
         seed_temp_points = (
@@ -609,6 +641,8 @@ def build_project(
             project_id,
             seed_sites=seed_sites,
             site_geometry_type=site_geometry_type,
+            site_name_field=route_config.get("name_field") or "site_name",
+            site_id_field=route_config.get("id_field") or "site_id",
             seed_plots=seed_plots,
             seed_temporary_plot_points=seed_temp_points,
             taxonomy_reference_available=requires_accepted_name_lookup,
@@ -827,6 +861,7 @@ def build_project(
                 project_id=project_id,
                 survey_type=survey_type,
                 generated_at=datetime.now(timezone.utc).isoformat(),
+                route_name_field=route_config.get("name_field"),
                 canonical_reference_enabled=canonical_ingest is not None,
                 taxonomy_reference_available=requires_accepted_name_lookup,
             ),
@@ -862,7 +897,7 @@ def build_project(
                 svg_relative_path=svg_relative_path,
                 ktsn_lookup_table_name=ktsn_lookup_table_name,
             )
-            if route_config.get("consent_accepted"):
+            if "survey_route" in config and route_config:
                 qgis_kwargs["route_config"] = route_config
             if ktsn_taxonomy_table_name:
                 qgis_kwargs["ktsn_taxonomy_table_name"] = ktsn_taxonomy_table_name

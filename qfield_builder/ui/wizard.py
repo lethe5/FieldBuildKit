@@ -2563,33 +2563,57 @@ class ReviewAndBuildPage(QWizardPage):
 
         self.route_api_key_edit = QLineEdit()
         self.route_api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.route_api_key_edit.setAccessibleName("ORS API 키 (선택)")
+        self.route_key_purpose_label = QLabel(
+            "조사 경로를 도로망에 맞춰 계산하고 조사지 방문 순서를 정할 때 사용합니다."
+        )
+        self.route_key_purpose_label.setWordWrap(True)
+        self.route_key_purpose_label.setAccessibleName(self.route_key_purpose_label.text())
+        self.route_key_blank_behavior_label = QLabel(
+            "입력하지 않아도 프로젝트는 만들 수 있습니다. 다만 기본 ORS/HeiGIT 서비스로 경로를 "
+            "계산하려면 QField를 열 때마다 키를 입력해야 합니다. 키가 필요 없는 자체 서버를 사용하는 "
+            "경우에는 입력하지 않아도 됩니다."
+        )
+        self.route_key_blank_behavior_label.setWordWrap(True)
+        self.route_key_blank_behavior_label.setAccessibleName(
+            self.route_key_blank_behavior_label.text()
+        )
         self.route_key_warning_label = QLabel(
-            "이 키를 자동 사용하도록 동의하면 생성 프로젝트에 평문으로 포함됩니다. "
-            "프로젝트 폴더에 접근할 수 있는 사람은 누구나 키를 읽고 사용할 수 있으며, "
-            "암호화되지 않습니다. 동의하지 않거나 비워 두면 QField에서 세션마다 직접 입력합니다."
+            "동의하면 QField가 자동으로 사용하도록 키가 프로젝트 파일에 암호화되지 않은 글자로 "
+            "저장됩니다. 프로젝트 폴더를 열 수 있는 사람은 누구나 키를 확인하고 사용할 수 있습니다. "
+            "동의하지 않으면 프로젝트에 키를 넣지 않으며, QField를 열 때마다 직접 입력해야 합니다."
         )
         self.route_key_warning_label.setWordWrap(True)
+        self.route_key_warning_label.setAccessibleName(self.route_key_warning_label.text())
         self.route_key_consent_checkbox = QCheckBox(
-            "평문 프로젝트 포함 및 QField 자동 사용에 동의합니다"
+            "프로젝트에 API 키를 평문으로 포함하는 데 동의합니다"
+        )
+        self.route_key_consent_checkbox.setAccessibleName(
+            self.route_key_consent_checkbox.text()
         )
         self.route_key_remember_checkbox = QCheckBox(
             "이 데스크톱에서 암호화해 기억 (QField 자동 전달과 별도)"
         )
+        self.route_key_remember_checkbox.setAccessibleName(
+            self.route_key_remember_checkbox.text()
+        )
         self.registerField("route_api_key", self.route_api_key_edit)
         self.registerField("route_key_consent", self.route_key_consent_checkbox)
         self.registerField("route_key_remember", self.route_key_remember_checkbox)
-        route_key_group = QGroupBox("ORS / HeiGIT 경로 API 키")
+        self.route_key_group = QGroupBox("ORS API 키 (선택)")
         route_key_layout = QFormLayout()
-        route_key_layout.addRow("API 키:", self.route_api_key_edit)
+        route_key_layout.addRow("ORS API 키 (선택):", self.route_api_key_edit)
+        route_key_layout.addRow("", self.route_key_purpose_label)
+        route_key_layout.addRow("", self.route_key_blank_behavior_label)
         route_key_layout.addRow("", self.route_key_warning_label)
         route_key_layout.addRow(self.route_key_consent_checkbox)
         route_key_layout.addRow(self.route_key_remember_checkbox)
-        route_key_group.setLayout(route_key_layout)
+        self.route_key_group.setLayout(route_key_layout)
 
         layout = QVBoxLayout()
         _polish_layout(layout)
         layout.addWidget(_build_logo_banner_label())
-        layout.addWidget(route_key_group)
+        layout.addWidget(self.route_key_group)
         layout.addWidget(self.summary_view)
         layout.addWidget(self.build_button)
         layout.addWidget(self.cancel_build_button)

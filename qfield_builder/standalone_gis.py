@@ -19,6 +19,44 @@ from .errors import BuildError
 NODATA = -9999.0
 
 
+def _source_centroid(geometry):
+    """Compute the representative before reprojection changes lengths and areas."""
+    kind, coordinates = geometry.type, geometry.coordinates
+    weighted = []
+
+    def line(points):
+        for a, b in zip(points, points[1:]):
+            weight = math.hypot(b[0] - a[0], b[1] - a[1])
+            if weight:
+                weighted.append(((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, weight))
+
+    def polygon(rings):
+        for index, ring in enumerate(rings):
+            area = x = y = 0
+            for a, b in zip(ring, ring[1:]):
+                cross = a[0] * b[1] - b[0] * a[1]
+                area += cross
+                x += (a[0] + b[0]) * cross
+                y += (a[1] + b[1]) * cross
+            if not area:
+                raise BuildError("invalid_geometry", "면적이 없는 조사지 도형입니다.")
+            weighted.append((x / (3 * area), y / (3 * area), abs(area) * (1 if index == 0 else -1)))
+
+    if kind == "Point":
+        return coordinates[:2]
+    if kind == "MultiPoint":
+        weighted.extend((point[0], point[1], 1) for point in coordinates)
+    elif kind in ("LineString", "Polygon"):
+        (line if kind == "LineString" else polygon)(coordinates)
+    else:
+        for part in coordinates:
+            (line if kind == "MultiLineString" else polygon)(part)
+    total = sum(point[2] for point in weighted)
+    if total <= 0:
+        raise BuildError("invalid_geometry", "조사지 대표점을 계산할 수 없습니다.")
+    return [sum(point[axis] * point[2] for point in weighted) / total for axis in (0, 1)]
+
+
 def reproject_uploaded_gpkg_layer(source_path, source_layer_name, destination_path, target_crs):
     return _reproject(source_path, destination_path, target_crs, layer=source_layer_name)
 
@@ -42,16 +80,20 @@ def _reproject(source_path, destination_path, target_crs, *, layer=None, source_
         if not records or not kinds <= supported or len(families) != 1 or any(f.geometry is None for f in records):
             raise BuildError("invalid_geometry", "빈 도형 또는 서로 다른 계열의 도형은 가져올 수 없습니다.")
         kind = next(iter(kinds)) if len(kinds) == 1 else "Multi" + next(iter(families))
-        schema = dict(source.schema, geometry=kind)
+        schema = dict(source.schema, geometry=kind,
+                      properties={**source.schema["properties"], "_fb_route_lon": "float", "_fb_route_lat": "float"})
         with fiona.open(
             destination_path, "w", driver="GPKG", layer="reprojected", schema=schema, crs=target_crs
         ) as output:
             for feature in records:
                 geometry = feature.geometry
+                x, y = _source_centroid(geometry)
+                longitude, latitude = transform(crs, "EPSG:4326", [x], [y])
                 geometry = transform_geom(crs, target_crs, geometry)
                 if kind.startswith("Multi") and not geometry.type.startswith("Multi"):
                     geometry = {"type": kind, "coordinates": [geometry.coordinates]}
-                output.write({"geometry": geometry, "properties": dict(feature.properties)})
+                output.write({"geometry": geometry, "properties": {**dict(feature.properties),
+                    "_fb_route_lon": longitude[0], "_fb_route_lat": latitude[0]}})
     return {"success": True, "output_path": destination_path}
 
 

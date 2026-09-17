@@ -85,6 +85,20 @@ def test_foreign_key_check_clean_on_fresh_geopackage(tmp_path, survey_type):
         conn.close()
 
 
+def test_configured_route_id_field_materializes_canonical_site_id(tmp_path):
+    path = _build(
+        tmp_path,
+        "temporary_plots",
+        seed_sites=[{"site_id": "ID-01", "site_name": "Site A", "geom_wkt": SITE_WKT}],
+        site_id_field="custom_id",
+    )
+    with _open(path) as conn:
+        fields = [row[1] for row in conn.execute('PRAGMA table_info("site")')]
+        row = conn.execute('SELECT site_id, custom_id FROM "site"').fetchone()
+    assert "custom_id" in fields
+    assert row == ("ID-01", "ID-01")
+
+
 @pytest.mark.parametrize("survey_type", SURVEY_TYPES)
 def test_spatial_index_exists_for_every_geometry_column(tmp_path, survey_type):
     path = _build(tmp_path, survey_type)

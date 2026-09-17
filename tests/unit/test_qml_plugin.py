@@ -62,23 +62,19 @@ def test_d3_bundle_uses_pyinstaller_resource_root(monkeypatch, tmp_path):
 
 
 def test_project_plugin_qml_uses_the_qfield_project_plugin_import_and_iface():
-    """The project-plugin sidecar uses the modules and type names registered by QField 4.3.1."""
+    """The project-plugin sidecar uses the modules and type names registered by QField 4.2.4."""
     content = qml_plugin.render_project_plugin_qml("demo")
     assert "import QtQuick 2.15" in content
     assert "import QtQuick\n" not in content
     assert "import org.qfield\n" in content
-    assert "import org.qfield.core\n" in content
-    assert "import org.qfield.gui\n" in content
+    assert "import org.qfield.core\n" not in content
+    assert "import org.qfield.gui\n" not in content
     assert "import org.qfield 1.0" not in content
-    assert "QfExpressionEvaluator {" in content
-    assert "QfLayerUtils.createFeatureIterator(" in content
-    assert "QfFeatureUtils.createBlankFeature(" in content
-    assert "QfFileUtils.writeFileContent(" in content
-    executable = "\n".join(
-        line for line in content.splitlines() if not line.lstrip().startswith("//")
-    )
-    assert not re.search(r"(?<!Qf)ExpressionEvaluator\s*\{", executable)
-    assert not re.search(r"(?<!Qf)(?:LayerUtils|FeatureUtils|FileUtils)\.", executable)
+    assert "ExpressionEvaluator {" in content
+    assert "LayerUtils.createFeatureIterator(" in content
+    assert "FeatureUtils.createBlankFeature(" in content
+    assert "FileUtils.writeFileContent(" in content
+    assert not re.search(r"\bQf(?:ExpressionEvaluator|LayerUtils|FeatureUtils|FileUtils)\b", content)
     assert "import Theme\n" in content
     assert "iface.addItemToPluginsToolbar" in content
 
@@ -169,8 +165,8 @@ def test_project_plugin_qml_report_is_unconditional_and_identification_members_a
         assert "Theme" not in report_body
         assert "onClicked: qpbExportHtmlReport()" in report_body
         assert "iface.addItemToPluginsToolbar(qpbReportToolbarButton)" in content
-        assert "QfFileUtils.writeFileContent(reportPath, reportContent)" in content
-        assert "QfFileUtils.writeFileContent(csvPath, csvContent)" in content
+        assert "FileUtils.writeFileContent(reportPath, reportContent)" in content
+        assert "FileUtils.writeFileContent(csvPath, csvContent)" in content
         assert 'displayToast("Export failed: unable to write HTML report' in content
         assert (
             'displayToast("Export incomplete: HTML report was written to " + reportPath' in content
@@ -328,13 +324,13 @@ def test_project_plugin_report_only_shows_success_toast_after_confirmed_write():
         content, "function qpbCompleteHtmlExport() {", "Component {"
     )
 
-    write_call = "var reportWritten = QfFileUtils.writeFileContent(reportPath, reportContent);"
+    write_call = "var reportWritten = FileUtils.writeFileContent(reportPath, reportContent);"
     failure_guard = 'displayToast("내보내기 실패: 현재 프로젝트 폴더에 HTML 보고서를 쓸 수 없습니다: "'
     success_toast = (
         '"HTML 보고서와 통합 CSV를 현재 프로젝트 폴더에 저장했습니다. HTML: " + reportPath'
     )
     assert write_call in export_body
-    assert "var csvWritten = QfFileUtils.writeFileContent(csvPath, csvContent);" in export_body
+    assert "var csvWritten = FileUtils.writeFileContent(csvPath, csvContent);" in export_body
     assert "if (!reportWritten)" in export_body
     assert failure_guard in export_body
     assert "return;" in export_body
@@ -396,7 +392,7 @@ def test_project_plugin_report_enumerates_every_current_feature_and_attribute_vi
     )
 
     assert "qgisProject.mapLayersByName(table.display_name)" in content
-    assert "QfLayerUtils.createFeatureIterator(layer)" in collect_body
+    assert "LayerUtils.createFeatureIterator(layer)" in collect_body
     assert "while (iterator.hasNext())" in collect_body
     assert "var feature = iterator.next();" in collect_body
     assert "feature.attribute(field.name)" in collect_body
@@ -935,16 +931,13 @@ def test_qml_widget_element_name_is_non_empty():
 # --- Conformance-defect fix: blank "Identify attached photos" content area in real QGIS Desktop -
 
 
-def test_identification_widget_qml_imports_qfield_431_file_utils_module():
-    """The Qt 5-compatible widget also imports QField 4.3.1's core singleton module."""
+def test_identification_widget_qml_imports_qfield_424_file_utils_singleton():
+    """The Qt 5-compatible widget imports QField 4.2.4's public singleton module."""
     content = qml_plugin.render_identification_widget_qml("''")
     assert "import org.qfield 1.0" in content
-    assert "import org.qfield.core\n" in content
-    assert "QfFileUtils.readFileContent(" in content
-    executable = "\n".join(
-        line for line in content.splitlines() if not line.lstrip().startswith("//")
-    )
-    assert not re.search(r"(?<!Qf)FileUtils\.", executable)
+    assert "import org.qfield.core\n" not in content
+    assert "FileUtils.readFileContent(" in content
+    assert "QfFileUtils." not in content
 
 
 def test_identification_widget_qml_uses_versioned_qtquick_imports():
@@ -1956,7 +1949,7 @@ def test_read_file_bytes_uses_fileutils_not_xmlhttprequest():
     assert "import QtQuick 2.15" in import_section
     assert "import QtQuick.Controls 2.15" in import_section
     assert "import org.qfield 1.0" in import_section
-    assert "import org.qfield.core\n" in import_section
+    assert "import org.qfield.core\n" not in import_section
 
     func_start = content.index("function qpbReadFileBytes(relPath) {")
     body_end = content.index("var qpbImagesRead = 0;")
@@ -1964,7 +1957,7 @@ def test_read_file_bytes_uses_fileutils_not_xmlhttprequest():
 
     # The read itself now goes through `FileUtils.readFileContent(...)`, called with the
     # resolved absolute path (a plain string), not a `file://`-prefixed URL.
-    assert "QfFileUtils.readFileContent(String(absPath))" in func_body
+    assert "FileUtils.readFileContent(String(absPath))" in func_body
 
     # The old XHR-based local-file read is fully gone -- not kept as a fallback path.
     assert "xhrFile" not in func_body
@@ -2166,7 +2159,7 @@ def test_resize_photo_for_upload_reads_resized_bytes_back_from_the_temporary_fil
         "function qpbResizePhotoForUpload(originalRelPath, originalBytes) {",
         "// Conformance-defect fix: the \"organs\" field",
     )
-    assert "QfFileUtils.readFileContent(String(qpbResizeTempAbsPath));" in func_body
+    assert "FileUtils.readFileContent(String(qpbResizeTempAbsPath));" in func_body
     assert "qpbResizedBytes = new Uint8Array(qpbResizedContent);" in func_body
     assert "return qpbResizedBytes;" in func_body
 
@@ -2281,7 +2274,7 @@ def test_load_csv_resolves_relative_path_via_project_folder_and_uses_fileutils()
 
     # The read itself now goes through `FileUtils.readFileContent(...)`, called with the
     # resolved absolute path (a plain string), not a `file://`-prefixed URL passed to XHR.
-    assert "QfFileUtils.readFileContent(String(absPath))" in func_body
+    assert "FileUtils.readFileContent(String(absPath))" in func_body
 
     # The old XHR-based local-file read is fully gone from this function -- not kept as a
     # fallback path.
@@ -2312,7 +2305,7 @@ def test_load_national_ktsn_set_resolves_relative_path_via_project_folder_and_us
     assert "@project_folder + '/' +" in func_body
     assert "expression.evaluate(" in func_body
     assert "qpbEscapeForExpressionLiteral(relPath)" in func_body
-    assert "QfFileUtils.readFileContent(String(absPath))" in func_body
+    assert "FileUtils.readFileContent(String(absPath))" in func_body
 
     assert "new XMLHttpRequest()" not in func_body
     assert 'xhr.open("GET", fileUrl, false);' not in func_body

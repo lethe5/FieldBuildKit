@@ -288,6 +288,8 @@ def build_geopackage(
     seed_temporary_plot_points: list[dict] | None = None,
     taxonomy_reference_available: bool = True,
     site_geometry_type: str = "MULTIPOLYGON",
+    site_name_field: str = "site_name",
+    site_id_field: str = "site_id",
 ) -> None:
     """Create a fresh GeoPackage for `survey_type` at `gpkg_path`, with any provided seed data.
 
@@ -331,8 +333,33 @@ def build_geopackage(
 
         site_id_by_name: dict[str, str] = {}
         if seed_sites and "site" in schema:
+            actual_site_name_field = site_name_field or "site_name"
+            actual_site_id_field = site_id_field or "site_id"
+            existing_site_fields = {
+                row[1] for row in conn.execute('PRAGMA table_info("site")').fetchall()
+            }
+            quoted_name = actual_site_name_field.replace('"', '""')
+            quoted_id = actual_site_id_field.replace('"', '""')
+            materializes_site_name_field = any(
+                actual_site_name_field in site for site in seed_sites
+            )
+            if (
+                actual_site_name_field not in existing_site_fields
+                and materializes_site_name_field
+            ):
+                conn.execute(f'ALTER TABLE "site" ADD COLUMN "{quoted_name}" TEXT')
+                existing_site_fields.add(actual_site_name_field)
+            if actual_site_id_field not in existing_site_fields:
+                conn.execute(f'ALTER TABLE "site" ADD COLUMN "{quoted_id}" TEXT')
+            has_representatives = any(all(value is not None for value in site.get("route_representative", [None, None])) for site in seed_sites)
+            if has_representatives:
+                conn.execute('ALTER TABLE "site" ADD COLUMN "_fb_route_lon" REAL')
+                conn.execute('ALTER TABLE "site" ADD COLUMN "_fb_route_lat" REAL')
             for site in seed_sites:
-                site_id = new_uuid()
+                site_id = site.get("site_id")
+                if site_id is None:
+                    site_id = new_uuid()
+                site_id = str(site_id)
                 if site.get("geom_wkb") is not None:
                     from .wkt import wkb_to_wkt, wkt_to_wkb
                     source_wkb = wkt_to_wkb(wkb_to_wkt(site["geom_wkb"])[0], site_geometry_type)
@@ -352,7 +379,20 @@ def build_geopackage(
                     'INSERT INTO "site" (site_id, site_name, site_geom) VALUES (?, ?, ?);',
                     (site_id, site["site_name"], blob),
                 )
+                if actual_site_name_field != "site_name" and materializes_site_name_field:
+                    conn.execute(
+                        f'UPDATE "site" SET "{quoted_name}"=? WHERE fid=?',
+                        (site.get(actual_site_name_field), cur.lastrowid),
+                    )
+                if actual_site_id_field != "site_id":
+                    conn.execute(
+                        f'UPDATE "site" SET "{quoted_id}"=? WHERE fid=?',
+                        (site_id, cur.lastrowid),
+                    )
                 _insert_rtree_row(conn, "site", "site_geom", cur.lastrowid, envelope)
+                if has_representatives:
+                    longitude, latitude = site.get("route_representative", [None, None])
+                    conn.execute('UPDATE "site" SET "_fb_route_lon"=?, "_fb_route_lat"=? WHERE fid=?', (longitude, latitude, cur.lastrowid))
                 site_id_by_name[site["site_name"]] = site_id
 
         if seed_plots and "plot" in schema:

@@ -14,11 +14,14 @@ def test_route_candidate_conflict_and_mapping_roundtrip():
     script = r'''
 const fs=require('fs'), vm=require('vm'), assert=require('assert');
 const context=vm.createContext({}); vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
-let disk={revision:0,data:{routes:[],active_id:null,settings:{}}};
+let disk={revision:0,slot:'',data:{schema:2,routes:[],active_id:'',settings:{}}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const deps={repository:{load:()=>clone(disk),save:(io,base,data,revision)=>{assert.equal(revision,disk.revision);disk={revision:revision+1,data:clone(data)};return clone(disk);}},
  features:()=>[{id:'A',name:'A',coordinate:[127,37],completed:false}],geometry:{coordinate:x=>x},gps:()=>[127,37],uuid:()=> 'route',
- backend:{calculate:async(s,list)=>({stops:list,distance_m:1,duration_s:1,legs:[]})}};
+ backend:{calculate:async(s,list)=>({stops:list,distance_m:2,duration_s:2,
+  road_geometry:{type:'LineString',coordinates:[[127,37],[127,37],[127,37]]},
+  legs:[{sequence:1,from:'start',to:{layer_id:'site',site_id:'A'},distance_m:1,duration_s:1,geometry:{type:'LineString',coordinates:[[127,37],[127,37]]}},
+        {sequence:2,from:{layer_id:'site',site_id:'A'},to:'start',distance_m:1,duration_s:1,geometry:{type:'LineString',coordinates:[[127,37],[127,37]]}}]})}};
 (async()=>{let c=context.create(deps);c.configure({optimizer_url:'https://fixture.invalid'});assert(await c.calculate(false));assert(c.save());
  await c.calculate(true);assert(c.complete('A',true));assert.equal(c.save(),false);assert.equal(c.active().stops[0].completed,true);
  c.state.mapping.completed='done';c.saveSettings();c=context.create(deps);assert.equal(c.state.mapping.completed,'done');

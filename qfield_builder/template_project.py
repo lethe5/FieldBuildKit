@@ -168,6 +168,12 @@ def build_qgis_project(
                 value = value.replace(old, new)
             element.set(key, value)
     layers = list(root.findall("./projectlayers/maplayer"))
+    requested_site_name_field = str(
+        (route_config.get("name_field") if route_config is not None else "site_name") or ""
+    ).strip()
+    requested_site_id_field = str(
+        (route_config.get("id_field") if route_config is not None else "site_id") or ""
+    ).strip()
     taxonomy_layer = next(
         e
         for e in layers
@@ -176,6 +182,19 @@ def build_qgis_project(
     taxonomy_id = taxonomy_layer.findtext("id") if ktsn_taxonomy_table_name else None
     for layer in layers:
         table_name = layer.findtext("datasource", "").split("|layername=")[-1]
+        if table_name == "site":
+            with closing(sqlite3.connect(gpkg_path)) as connection:
+                actual_fields = {row[1] for row in connection.execute('PRAGMA table_info("site")')}
+            configured_fields = {field.get("name") for field in layer.findall("./fieldConfiguration/field")}
+            for name in (
+                requested_site_id_field,
+                requested_site_name_field,
+                "_fb_route_lon",
+                "_fb_route_lat",
+            ):
+                if name and name in actual_fields and name not in configured_fields:
+                    field = ET.SubElement(layer.find("fieldConfiguration"), "field", {"name": name})
+                    ET.SubElement(field, "editWidget", {"type": "Hidden" if name.startswith("_fb_") else "TextEdit"})
         if not ktsn_lookup_table_name:
             for parent in layer.iter():
                 for child in list(parent):
@@ -249,6 +268,60 @@ def build_qgis_project(
                 options = ET.SubElement(symbol_layer, "Option", {"type": "Map"})
                 for key, value in ({"name": "circle", "color": "44,117,183,255", "size": "3"} if family == "POINT" else {"line_color": "44,117,183,255", "line_width": "0.6"}).items():
                     ET.SubElement(options, "Option", {"name": key, "value": value, "type": "QString"})
+            else:
+                renderer = layer.find("renderer-v2")
+                fill = renderer.find(".//layer[@class='SimpleFill']/Option[@type='Map']")
+                for option in fill.findall("Option"):
+                    if option.get("name") == "color":
+                        option.set("value", "46,125,50,76,rgb:0.1803922,0.4901961,0.1960784,0.2980392")
+                    elif option.get("name") == "outline_color":
+                        option.set("value", "46,125,50,255,rgb:0.1803922,0.4901961,0.1960784,1")
+                    elif option.get("name") == "style":
+                        option.set("value", "solid")
+                _set_text(layer, "layerOpacity", "1")
+            old_labeling = layer.find("labeling")
+            if old_labeling is not None:
+                layer.remove(old_labeling)
+            def field_ref(name):
+                return '"' + name.replace('"', '""') + '"'
+
+            label_fields = [
+                name for name in (requested_site_name_field, requested_site_id_field)
+                if name and name in actual_fields
+            ]
+            branches = [
+                "WHEN trim(coalesce(to_string({field}), '')) <> '' "
+                "THEN trim(to_string({field}))".format(field=field_ref(name))
+                for name in label_fields
+            ]
+            expression = "CASE " + " ".join(branches) + " ELSE NULL END" if branches else "NULL"
+            placement = {"POINT": "0", "LINESTRING": "2", "POLYGON": "4"}[family]
+            labeling = ET.SubElement(layer, "labeling", {"type": "simple"})
+            settings = ET.SubElement(labeling, "settings")
+            text_style = ET.SubElement(settings, "text-style", {
+                "fieldName": expression,
+                "isExpression": "1",
+                "fontFamily": "Sans Serif",
+                "fontSize": "10",
+                "fontSizeUnit": "Point",
+                "fontWeight": "50",
+                "opacity": "1",
+                "textColor": "0,0,0,255",
+            })
+            ET.SubElement(text_style, "text-buffer", {
+                "bufferDraw": "1", "bufferColor": "255,255,255,255", "bufferOpacity": "1",
+                "bufferSize": "1", "bufferSizeUnits": "MM"
+            })
+            ET.SubElement(settings, "text-format", {"multilineAlign": "0", "wrapChar": ""})
+            ET.SubElement(settings, "placement", {
+                "placement": placement, "centroidInside": "1", "fitInPolygonOnly": "0"
+            })
+            ET.SubElement(settings, "rendering", {
+                "drawLabels": "1", "displayAll": "0", "limitNumLabels": "0",
+                "labelPerPart": "0", "mergeLines": "0",
+            })
+            layer.set("labelsEnabled", "1")
+            _set_text(layer, "labelsEnabled", "1")
         if svg_relative_path and table and table.geometry and table.geometry.geom_type == "POINT":
             renderer = ET.parse(TEMPLATES / "svg.xml").getroot()
             for option in renderer.iter("Option"):

@@ -5,6 +5,7 @@ Device inputs and routing replies are injected; application algorithms remain in
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import shutil
@@ -158,6 +159,360 @@ def _route_project_settings(project_dir):
     return max(records, key=lambda record: record["revision"]).get("data", {}).get("settings", {})
 
 
+def _generated_site_style(case, work):
+    import xml.etree.ElementTree as ET
+    import fiona
+
+    kind = case["geometry_type"]
+    name_field = case["name_field"]
+    source = work / ("site-style-source-" + uuid.uuid4().hex[:8] + ".gpkg")
+
+    def geometry(index):
+        x, y = 127 + index * .012, 37 + index * .008
+        if kind == "Point":
+            return {"type": kind, "coordinates": [x, y]}
+        if kind == "LineString":
+            return {"type": kind, "coordinates": [[x, y], [x + .007, y + .005]]}
+        return {"type": kind, "coordinates": [[
+            [x, y], [x + .007, y], [x + .007, y + .005], [x, y + .005], [x, y]
+        ]]}
+
+    with fiona.open(
+        source,
+        "w",
+        driver="GPKG",
+        layer="source_site",
+        crs="EPSG:4326",
+        schema={"geometry": kind, "properties": {name_field: "str"}},
+    ) as target:
+        for index, name in enumerate(case["names"]):
+            target.write({"geometry": geometry(index), "properties": {name_field: name}})
+
+    def read_source():
+        with fiona.open(source, layer="source_site") as provider:
+            return [{
+                "attributes": dict(row.properties),
+                "geometry": {"type": row.geometry.type, "coordinates": row.geometry.coordinates},
+            } for row in provider]
+
+    source_before = read_source()
+    result = _build(
+        work,
+        sites_upload={
+            "format": "gpkg",
+            "path": str(source),
+            "attribute_mapping": {"site_name": name_field},
+        },
+        survey_route={"name_field": name_field},
+        storage_crs="EPSG:4326",
+    )
+    root = ET.parse(result["qgs_path"])
+    layer = next(item for item in root.findall("./projectlayers/maplayer")
+                 if item.findtext("datasource", "").endswith("|layername=site"))
+    labeling = layer.find("labeling/settings/text-style")
+    buffer = labeling.find("text-buffer")
+    options = {item.get("name"): item.get("value") for item in layer.findall("./renderer-v2//Option[@name]")}
+
+    def color(value):
+        red, green, blue = (int(part) for part in value.split(",")[:3])
+        return f"#{red:02X}{green:02X}{blue:02X}"
+
+    base = {}
+    if kind == "Polygon":
+        base = {"outline_color": color(options["outline_color"]), "fill_color": color(options["color"]),
+                "fill_opacity": int(options["color"].split(",")[3]) / 255}
+
+    with fiona.open(result["gpkg_path"], layer="site") as provider:
+        generated = [{
+            "attributes": dict(row.properties),
+            "geometry": {"type": row.geometry.type, "coordinates": row.geometry.coordinates},
+        } for row in provider]
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QColor, QBrush, QFont, QImage, QPainter, QPainterPath, QPen, QPolygonF
+    from PySide6.QtWidgets import QApplication
+
+    global _APP
+    _APP = QApplication.instance() or QApplication([])
+
+    def qcolor(value):
+        channels = [int(part) for part in value.split(",")[:4]]
+        return QColor(*channels)
+
+    if kind == "Polygon":
+        outline_color, fill_color = qcolor(options["outline_color"]), qcolor(options["color"])
+    elif kind == "LineString":
+        outline_color = fill_color = qcolor(options["line_color"])
+    else:
+        outline_color = fill_color = qcolor(options["color"])
+    text_color = qcolor(labeling.get("textColor"))
+    halo_color = qcolor(buffer.get("bufferColor"))
+
+    def coordinate_points(value):
+        if isinstance(value, (list, tuple)) and len(value) >= 2 and all(
+            isinstance(item, (int, float)) for item in value[:2]
+        ):
+            return [(float(value[0]), float(value[1]))]
+        points = []
+        for child in value or []:
+            points.extend(coordinate_points(child))
+        return points
+
+    all_points = [point for feature in generated for point in coordinate_points(feature["geometry"]["coordinates"])]
+    west, east = min(point[0] for point in all_points), max(point[0] for point in all_points)
+    south, north = min(point[1] for point in all_points), max(point[1] for point in all_points)
+    dx, dy = max(east - west, .01), max(north - south, .01)
+
+    def screen(point):
+        return QPointF(36 + (point[0] - west + dx * .08) / (dx * 1.16) * 440,
+                       244 - (point[1] - south + dy * .08) / (dy * 1.16) * 184)
+
+    def count_color(image, target):
+        expected = target.rgba()
+        return sum(image.pixel(x, y) == expected for y in range(image.height()) for x in range(image.width()))
+
+    rendered_labels = []
+    renderings = {}
+    for basemap_index, basemap in enumerate(case["basemaps"]):
+        background = QColor("#F8FAFC" if basemap == "light" else "#111827")
+        image = QImage(512, 280, QImage.Format_ARGB32_Premultiplied)
+        image.fill(background)
+        painter = QPainter(image)
+        painter.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing)
+        painter.setPen(QPen(outline_color, 4))
+        painter.setBrush(QBrush(fill_color))
+        anchors = []
+        for feature in generated:
+            points = coordinate_points(feature["geometry"]["coordinates"])
+            pixels = [screen(point) for point in points]
+            if kind == "Point":
+                painter.drawEllipse(pixels[0], 8, 8)
+            elif kind == "LineString":
+                path = QPainterPath(pixels[0])
+                for point in pixels[1:]:
+                    path.lineTo(point)
+                painter.drawPath(path)
+            else:
+                painter.drawPolygon(QPolygonF(pixels))
+            anchors.append(QPointF(sum(point.x() for point in pixels) / len(pixels),
+                                   sum(point.y() for point in pixels) / len(pixels)))
+        painter.end()
+        outline_pixels = count_color(image, outline_color)
+        geometry_pixels = sum(
+            image.pixelColor(x, y) != background
+            for y in range(image.height()) for x in range(image.width())
+        )
+        white_before = count_color(image, halo_color)
+
+        painter = QPainter(image)
+        painter.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing)
+        font = QFont("Sans Serif", int(float(labeling.get("fontSize") or 10)))
+        for feature, anchor in zip(generated, anchors):
+            value = feature["attributes"].get(name_field)
+            if value is None or str(value) == "":
+                continue
+            text_path = QPainterPath()
+            text_path.addText(anchor + QPointF(10, -8), font, str(value))
+            # The generated style stores the buffer in millimetres. Render at the standard
+            # 96-DPI conversion so a 1 mm QGIS halo remains a visible band around the glyphs.
+            painter.strokePath(
+                text_path,
+                QPen(halo_color, max(2.0, float(buffer.get("bufferSize")) * 96 / 25.4 * 2)),
+            )
+            painter.fillPath(text_path, text_color)
+            if basemap_index == 0:
+                rendered_labels.append({
+                    "text": str(value),
+                    "inert_text": True,
+                    "executed_actions": [],
+                    "render_surface": "QPainterPath.addText",
+                })
+        painter.end()
+        image_path = work / f"site-style-{kind.lower()}-{basemap}.png"
+        if not image.save(str(image_path)):
+            raise RuntimeError("site style render image could not be saved")
+        renderings[basemap] = {
+            "outline_visible": outline_pixels > 0,
+            "fill_visible": geometry_pixels > outline_pixels,
+            "label_halo_visible": count_color(image, halo_color) > white_before,
+            "image_path": str(image_path),
+            "observed_outline_pixels": outline_pixels,
+            "observed_geometry_pixels": geometry_pixels,
+        }
+
+    route_source = (Path(result["project_dir"]) / "qfield_routes" / "RoutePanel.qml").read_text(encoding="utf-8")
+
+    def runtime_color(pattern):
+        match = re.search(pattern, route_source, re.S)
+        if not match:
+            raise RuntimeError("generated route style could not be observed")
+        return match.group(1).upper()
+
+    renderer_before = ET.tostring(layer.find("renderer-v2"), encoding="unicode")
+    renderer_after = ET.tostring(next(
+        item for item in ET.parse(result["qgs_path"]).findall("./projectlayers/maplayer")
+        if item.findtext("datasource", "").endswith("|layername=site")
+    ).find("renderer-v2"), encoding="unicode")
+    return {
+        "generated_artifact_provenance": {"source": "fieldbuild_generation_path",
+            "materialized_source_path": str(source), "generated_project_path": result["qgs_path"],
+            "generated_gpkg_path": result["gpkg_path"]},
+        "labeling": {"field": name_field, "buffer_color": color(buffer.get("bufferColor")),
+            "buffer_enabled": buffer.get("bufferDraw") == "1", "buffer_width": float(buffer.get("bufferSize"))},
+        "rendered_labels": rendered_labels,
+        "blank_label_artifacts": [label for label in rendered_labels if label["text"] == ""],
+        "source_features_before": source_before, "source_features_after": read_source(),
+        "source_renderer_contract_before": renderer_before,
+        "source_renderer_contract_after": renderer_after,
+        "basemap_renderings": renderings,
+        "base_style": base,
+        "completion_overlay_style": {"color": runtime_color(r'overlayColor:\s*"(#[0-9A-Fa-f]{6})"')},
+        "route_line_style": {"color": runtime_color(r'id:\s*roadFactory.*?color:\s*"(#[0-9A-Fa-f]{6})"')},
+        "start_marker_style": {"color": runtime_color(r'id:\s*startMarkerFactory.*?color:\s*"(#[0-9A-Fa-f]{6})"')},
+    }
+
+
+def _generated_site_label_contract(case, work):
+    """Observe labeling written by the normal builder without modifying its artifacts."""
+    import xml.etree.ElementTree as ET
+
+    import fiona
+
+    source = work / ("site-label-source-" + uuid.uuid4().hex[:8] + ".gpkg")
+    name_field = case.get("name_field")
+    stable_source_field = "stable_id"
+    properties = {stable_source_field: "str"}
+    if name_field:
+        properties[name_field] = "str"
+    with fiona.open(
+        source,
+        "w",
+        driver="GPKG",
+        layer="source_site",
+        crs=case.get("crs", "EPSG:4326"),
+        schema={"geometry": case["geometry_type"], "properties": properties},
+    ) as target:
+        for feature in case["features"]:
+            values = {stable_source_field: feature["stable_id"]}
+            if name_field:
+                values[name_field] = feature["name"]
+            target.write({"geometry": feature["geometry"], "properties": values})
+
+    mapping = {"site_id": stable_source_field}
+    if name_field:
+        mapping["site_name"] = name_field
+    route = {"id_field": case["stable_id_field"], "name_field": name_field}
+    result = _build(
+        work,
+        sites_upload={
+            "format": "gpkg",
+            "path": str(source),
+            "attribute_mapping": mapping,
+        },
+        survey_route=route,
+        storage_crs=case.get("crs", "EPSG:4326"),
+    )
+    qgs_path = Path(result["qgs_path"])
+    gpkg_path = Path(result["gpkg_path"])
+    root = ET.parse(qgs_path).getroot()
+    layer = next(
+        item for item in root.findall("./projectlayers/maplayer")
+        if item.findtext("datasource", "").endswith("|layername=site")
+    )
+    qgis_runtime = {
+        "available": False,
+        "probe_attempted": True,
+        "runtime_claims": [],
+    }
+    qgis_app = None
+    owns_qgis_app = False
+    try:
+        from qgis.core import (
+            QgsApplication,
+            QgsExpression,
+            QgsExpressionContext,
+            QgsExpressionContextUtils,
+            QgsProject,
+        )
+
+        qgis_app = QgsApplication.instance()
+        if qgis_app is None:
+            qgis_app = QgsApplication([], False)
+            qgis_app.initQgis()
+            owns_qgis_app = True
+        project = QgsProject()
+        if not project.read(str(qgs_path)):
+            raise RuntimeError("QgsProject could not load the generated project")
+        qgis_layer = project.mapLayer(layer.findtext("id"))
+        if qgis_layer is None:
+            raise RuntimeError("generated site layer was not found by its QGIS layer ID")
+        labeling = qgis_layer.labeling()
+        if labeling is None:
+            raise RuntimeError("generated site layer has no QGIS labeling configuration")
+        settings = labeling.settings()
+        expression = QgsExpression(settings.fieldName)
+        context = QgsExpressionContext()
+        context.appendScopes([
+            QgsExpressionContextUtils.globalScope(),
+            QgsExpressionContextUtils.projectScope(project),
+            QgsExpressionContextUtils.layerScope(qgis_layer),
+        ])
+        evaluated_texts = []
+        expression_errors = []
+        for feature in qgis_layer.getFeatures():
+            context.setFeature(feature)
+            value = expression.evaluate(context)
+            if expression.hasEvalError():
+                expression_errors.append(expression.evalErrorString())
+            elif value is not None and str(value) != "":
+                evaluated_texts.append(str(value))
+        placement = getattr(settings.placement, "value", settings.placement)
+        text_format = settings.format()
+        qgis_runtime.update({
+            "available": True,
+            "api_source": "QgsProject/QgsPalLayerSettings/QgsExpression",
+            "project_loaded": True,
+            "labeling_enabled": bool(qgis_layer.labelsEnabled()),
+            "expression": settings.fieldName,
+            "placement": str(int(placement)),
+            "buffer_enabled": bool(text_format.buffer().enabled()),
+            "buffer_color": text_format.buffer().color().name().upper(),
+            "label_per_part": bool(settings.labelPerPart),
+            "merge_lines": bool(settings.mergeLines),
+            "expression_evaluator": "QgsExpression",
+            "expression_errors": expression_errors,
+            "evaluated_texts": evaluated_texts,
+            "runtime_claims": ["generated_project_label_configuration_and_expression_evaluation"],
+            "diagnostic": "",
+        })
+        project.clear()
+    except Exception as exc:
+        qgis_runtime["diagnostic"] = f"{type(exc).__name__}: {exc}"
+    finally:
+        if owns_qgis_app and qgis_app is not None:
+            qgis_app.exitQgis()
+
+    return {
+        "generated_artifact_provenance": {
+            "source": "normal_fieldbuild_generation_path",
+            "materialized_source_path": str(source),
+            "generated_project_path": str(qgs_path),
+            "generated_gpkg_path": str(gpkg_path),
+            "generated_layer_id": layer.findtext("id"),
+            "generated_layer_name": "site",
+            "artifact_post_edits": [],
+            "fixture_injected_after_build": False,
+            "final_qgs_sha256": hashlib.sha256(qgs_path.read_bytes()).hexdigest(),
+            "final_gpkg_sha256": hashlib.sha256(gpkg_path.read_bytes()).hexdigest(),
+        },
+        "expression_proxy": {},
+        "qgis_runtime": qgis_runtime,
+        "claims": {},
+        "evidence_scope": "generated_qgs_gpkg_proxy_not_qfield_canvas",
+    }
+
+
 def _builder_reports(project_dir, build_result):
     reports = []
     seen = set()
@@ -182,7 +537,8 @@ def _builder_reports(project_dir, build_result):
 def _builder_route_key(case, work):
     global _APP
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from PySide6.QtWidgets import QApplication, QLineEdit
+    from PySide6.QtGui import QAccessible
+    from PySide6.QtWidgets import QApplication, QLineEdit, QWidget
     from . import credential_store
     from .ui.wizard import ProjectBuilderWizard, compute_final_output_dir
 
@@ -316,6 +672,126 @@ def _builder_route_key(case, work):
             "desktop_credential_store": str(credential_path),
             "remembered_key_available_to_qfield": bool(remembered and qfield_credential_copies),
         }
+        widgets = [
+            ("route_key", page.route_api_key_edit),
+            ("route_key_purpose", page.route_key_purpose_label),
+            ("route_key_blank_behavior", page.route_key_blank_behavior_label),
+            ("route_key_plaintext_warning", page.route_key_warning_label),
+            ("route_key_consent", page.route_key_consent_checkbox),
+            ("route_key_remember", page.route_key_remember_checkbox),
+        ]
+        widget_ids = {id(widget): semantic_id for semantic_id, widget in widgets}
+
+        def layout_path(widget):
+            parts = []
+            current = widget
+            while current is not None and current is not page:
+                parent = current.parentWidget()
+                if parent is None:
+                    break
+                layout = parent.layout()
+                index = layout.indexOf(current) if layout is not None else -1
+                parts.append(f"{parent.metaObject().className()}[{index:04d}]")
+                current = parent
+            return "/".join(reversed(parts))
+
+        widget_tree_ids = [
+            widget_ids[id(widget)]
+            for widget in page.findChildren(QWidget)
+            if id(widget) in widget_ids
+        ]
+        focus_chain_ids = []
+        current = page.route_api_key_edit
+        for _ in range(256):
+            semantic_id = widget_ids.get(id(current))
+            if semantic_id and semantic_id not in focus_chain_ids:
+                focus_chain_ids.append(semantic_id)
+            current = current.nextInFocusChain()
+            if current is page.route_api_key_edit:
+                break
+        observed_widgets = []
+        for semantic_id, widget in widgets:
+            text = widget.text() if hasattr(widget, "text") else ""
+            interface = QAccessible.queryAccessibleInterface(widget)
+            if interface is None:
+                accessibility = {
+                    "available": False,
+                    "diagnostic": (
+                        "QAccessible.queryAccessibleInterface returned no interface for "
+                        + widget.metaObject().className()
+                    ),
+                }
+            else:
+                accessibility = {
+                    "available": True,
+                    "source": "QAccessible.queryAccessibleInterface",
+                    "name": interface.text(QAccessible.Name),
+                    "role": interface.role().name,
+                }
+            observed_widgets.append({
+                "semantic_id": semantic_id,
+                "title": page.route_key_group.title() if semantic_id == "route_key" else "",
+                "text": text,
+                "echo_mode": (
+                    "password"
+                    if semantic_id == "route_key"
+                    and widget.echoMode() == QLineEdit.EchoMode.Password
+                    else None
+                ),
+                "word_wrap": bool(widget.wordWrap()) if hasattr(widget, "wordWrap") else False,
+                "visible": not widget.isHidden(),
+                "layout_observation_source": "actual_parent_layout",
+                "layout_path": layout_path(widget),
+                "accessibility_observation": accessibility,
+                "described_as_project_delivery": (
+                    "프로젝트에" in text and "평문" in text
+                    if semantic_id == "route_key_remember" else None
+                ),
+            })
+        artifact_paths = sorted(
+            str(path) for path in project_dir.rglob("*") if path.is_file()
+        ) if published else []
+        project_key_occurrences = (
+            qgs_path.read_text(encoding="utf-8").count(key) if key and qgs_path.is_file() else 0
+        )
+        safe_fields = {
+            "summary": page.summary_view.toPlainText(),
+            "logs": result["logs"],
+            "errors": result["errors"],
+            "general_settings": general_settings,
+            "diagnostics": {"reports": result["reports"], "message": result["message"]},
+        }
+        result.update({
+            "step": 7,
+            "build_success": published,
+            "widgets": observed_widgets,
+            "widget_tree_observation": {
+                "source": "actual_qt_widget_tree",
+                "semantic_ids": widget_tree_ids,
+            },
+            "focus_chain_observation": {
+                "source": "QWidget.nextInFocusChain",
+                "semantic_ids": [
+                    semantic_id for semantic_id in focus_chain_ids
+                    if semantic_id in {"route_key", "route_key_consent", "route_key_remember"}
+                ],
+            },
+            "generated_project_variable_count": int("fieldbuild_route_api_key" in variables),
+            "review_plaintext_warning_visible": bool(
+                key and case.get("consent") and not page.route_key_warning_label.isHidden()
+            ),
+            "qfield_session_key_guidance_visible": bool(
+                "fieldbuild_route_api_key" not in variables
+                and not page.route_key_blank_behavior_label.isHidden()
+            ),
+            "summary": safe_fields["summary"],
+            "diagnostics": safe_fields["diagnostics"],
+            "artifact_paths": artifact_paths,
+            "project_variable_occurrences": project_key_occurrences,
+            "test_output_secret_redacted": not key or key not in json.dumps(
+                safe_fields, ensure_ascii=False
+            ),
+        })
         return result
     finally:
         if wizard is not None:
@@ -338,8 +814,16 @@ def run(*, case: dict, work_dir: str):
     work = Path(work_dir)
     work.mkdir(parents=True, exist_ok=True)
     op = case["operation"]
-    if op == "builder_route_key":
+    if op in {"builder_route_key", "builder_step7_route_credentials"}:
         return _builder_route_key(case, work)
+    if op == "settings_key_provenance":
+        result = _build(work, **({"survey_route": {"api_key": case["key"], "consent_accepted": True}}
+                                if case["key_source"] == "consented_project_variable" else {}))
+        return _node(case, result["project_dir"])
+    if op == "generated_site_style":
+        return _generated_site_style(case, work)
+    if op == "generated_site_label_contract":
+        return _generated_site_label_contract(case, work)
     if op in {"draw", "direct_build"}:
         actual = dict(case)
         if op == "direct_build":
@@ -383,13 +867,9 @@ def run(*, case: dict, work_dir: str):
         result = build.build_project({"project_display_name":"Invalid","survey_type":"temporary_plots","sites_upload":{"format":"gpkg","path":str(source)},"basemap":{"mode":"none"}},str(work/"invalid-output"))
         return {"ok":result["success"],"message":result["error_message"] or "", "requests":[],"published_features":[] if not result["success"] else _output_geometry(result)["stored_geometries"]}
     if op == "representative":
-        result = _build(work)
-        original=work/"representative-source.wkt"
-        original.write_text(case["wkt"],encoding="utf-8")
-        before=original.read_bytes()
-        route_result=_node({"operation":"generated_geometry_calculate","wkt":case["wkt"],"crs":case["crs"]},result["project_dir"])
+        route_result=run(case={**case,"operation":"generated_geometry_calculate"},work_dir=work_dir)
         coordinate=route_result["request_coordinate"]
-        return {"coordinate":coordinate,"request_coordinate":coordinate,"original_before":before,"original_after":original.read_bytes()}
+        return {**route_result,"coordinate":coordinate}
     if op == "generate_plugin":
         result = _build(work, identification_enabled=True)
         observed = _qml_probe(result, work)
@@ -398,19 +878,46 @@ def run(*, case: dict, work_dir: str):
         observed["asset_paths"] = [str(p.relative_to(result["project_dir"])) for p in Path(result["project_dir"]).rglob("*") if p.is_file() and p.suffix in (".qml", ".js", ".svg")]
         return observed
     if op == "generated_geometry_calculate":
-        # The generated project supplies the production QML/JS.  The QField-shaped
-        # driver supplies the source feature and layer CRS so projected fixtures do
-        # not get written into the builder's fixed WGS84 site store.
-        result = _build(work)
+        if not case.get("wkt"):
+            result = _build(work, sites=[{"site_id":"geometry-site", "site_name":"생성 조사지", "geom_wkt":"POINT(127.001 37.001)"}], site_geometry_type="POINT")
+            gpkg = Path(result["gpkg_path"])
+            before = gpkg.read_bytes()
+            observed = _node(case, result["project_dir"])
+            observed["original_before"] = before.hex()
+            observed["original_after"] = gpkg.read_bytes().hex()
+            return observed
+        import fiona
+        source = work / ("generated-geometry-source-" + uuid.uuid4().hex[:8] + ".gpkg")
+        shape = _geojson(case["wkt"])
+        target_id = str(case.get("target_id", "geometry-site"))
+        with fiona.open(source, "w", driver="GPKG", crs=case["crs"],
+                        schema={"geometry": shape["type"], "properties": {"site_id": "str", "site_name": "str"}}) as dst:
+            dst.write({"geometry": shape, "properties": {"site_id": target_id, "site_name": "생성 경로 대상"}})
+        result = _build(work, sites_upload={"format": "gpkg", "path": str(source),
+            "attribute_mapping": {"site_id": "site_id", "site_name": "site_name"}}, storage_crs="EPSG:4326")
         gpkg = Path(result["gpkg_path"])
         before = gpkg.read_bytes()
         observed = _node(case, result["project_dir"])
         observed["original_before"] = before.hex()
         observed["original_after"] = gpkg.read_bytes().hex()
+        observed["generated_geometry_provenance"].update({
+            "materialized_source_path": str(source), "generated_gpkg_path": str(gpkg),
+            "generated_project_path": str(result["qgs_path"]), "generated_layer_name": "site",
+            "supplied_wkt_sha256": hashlib.sha256(case["wkt"].encode()).hexdigest(),
+            "supplied_crs": case["crs"],
+        })
         return observed
     if op == "regression":
         return _regression(case, work)
     result = _build(work, survey_type=case.get("survey_type", "temporary_plots"))
+    if op == "panel_layout" and case.get("stored_mapping") and "layers" not in case:
+        # Materialize the persisted fixture identity in the project, including tree/relation refs.
+        import xml.etree.ElementTree as ET
+        project = Path(result["qgs_path"])
+        site = next(layer for layer in ET.parse(project).findall("./projectlayers/maplayer")
+                    if layer.findtext("datasource", "").endswith("|layername=site"))
+        project.write_text(project.read_text(encoding="utf8").replace(
+            site.findtext("id"), case["stored_mapping"]["layer_id"]), encoding="utf8")
     return _node(case,result["project_dir"])
 
 
