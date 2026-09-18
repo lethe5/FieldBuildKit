@@ -25,6 +25,14 @@
   meaning in the warning copy, not in the intentionally short consent label. Fresh/blank AC013
   fixtures pass `seed_fixture_settings=False`; the driver may not seed `vroom.invalid` or any other
   synthetic endpoint before opening the generated project.
+- Attempt 2 corrects three executable defects without changing requirements: AC050 excludes only
+  nonzero snapped source coordinates from vehicle payloads and permits its exact-zero source/access
+  equality; AC053 checks all three observed patterns/legends/casings/non-color cues without an
+  internally contradictory exact dictionary; AC054 converts the observed payload-field list to a
+  test-owned set before subset comparison. It also adds the previously missing approved cases for
+  statusless connection failures, valid JSON under missing/misleading content type, cancel/project
+  close immediately after origin validation, every-route schema-3 required fields and malformed
+  omission rejection.
 
 The correction is intentionally RED before implementation. M01–M21 remain NOT RUN and no automated
 provenance check is native-QField, live-provider or device evidence.
@@ -137,7 +145,9 @@ UI presentation must come from production. No new dependency or test-only provid
   bounded and normalized. Empty, HTML/markup, malformed JSON, Authorization/credential-like text,
   key-bearing URLs/bodies and huge bodies must produce zero detail. Explicit provider content alone
   may distinguish no-result from endpoint unavailable. Every failure proves zero retry/write/state
-  change; a 2xx marker proves success bodies never enter error UI.
+  change; a 2xx marker proves success bodies never enter error UI. Syntactically valid JSON is parsed
+  before fallback even with missing or misleading content type. Status-0/network failures retain no
+  HTTP status, never display HTTP 0 and provide an actionable connection check.
 - AC-SRP-050 captures exactly one ordered `/v2/snap/driving-car/json` request at 350/2000/5000 m,
   its 1:1 point/null mapping, access-only vehicle payloads and byte-stable source data. Null,
   documented batch overflow, radius rejection/cap and non-routable origin are fail-fast cases with
@@ -146,14 +156,20 @@ UI presentation must come from production. No new dependency or test-only provid
   zero with no foot request, explicit no-path geodesic lower-bound/null duration/save acknowledgement,
   and HTTP/timeout/malformed/metric-mismatch failures that must never become fallback.
 - AC-SRP-052 independently reopens schema 3 with exact vehicle legs, visits, provenance and separate
-  totals across restart/recovery/offline/folder move and complete→uncheck. Schema 1/2 loads are
-  byte-preserving and request/write-free; future schema rejection preserves bytes.
+  totals across restart/recovery/offline/folder move and complete→uncheck. Every route, including an
+  inactive second route, requires vehicle legs, visits and all three total groups; omitting any one
+  rejects the complete schema-3 document without repair or write. Schema 1/2 loads are byte-preserving
+  and request/write-free; future schema rejection preserves bytes.
 - AC-SRP-053 inspects distinct solid/dashed/dotted+casing patterns, text legend, warning marker and
   separate vehicle/walking accessible values at 320/wide and light/dark. This is only an automatic
-  structure/state proxy; M19 is authoritative for pixels, grayscale and screen reader behavior.
+  structure/state proxy; the harness must expose actual loaded object IDs, effective theme,
+  window-delivered preview/toggle/complete/uncheck observations and source-layer renderer captures.
+  M19 is authoritative for pixels, grayscale and screen reader behavior.
 - AC-SRP-054 captures the exact stage sequence and fail-fast boundary. It proves notice-before-explicit
   calculate, no names/attributes/business IDs in ORS/VROOM, request-local indices only, no generated
   coordinates/radius changes/raw-body retention and no writes from preview/legend/toggle/cancel.
+  Cancel and project close delivered immediately after origin validation start no access-snap or
+  later request and perform no source/completion/settings/route write.
 - AC-SRP-055 supersedes only retained iOS NAVER/App Store expectations. iOS launches the exact Apple
   Maps HTTPS directions URL once with no name or fallback, including false/exception outcomes.
   Android keeps its exact package-bound NAVER intent, one-time UTF-8 encoding and Google Play fallback.
@@ -193,6 +209,27 @@ network, device operation, application edit, unit-test edit or requirement edit 
   exit 0; approved AC001–048/QPB149–150 history, AC049–055 coverage and M01–M21 NOT RUN
   boundaries are preserved. No application tests were executed.
 - `git diff --check -- <five changed acceptance files>`: exit 0, no output.
+
+### Attempt-2 draft verification record (2026-09-18)
+
+Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Only the five allowed acceptance
+artifacts changed. No application/unit-driver/specification file or Git state was modified.
+
+- Design verifier: exit 0; all AC001–055/QPB149–150 history, M01–M21 NOT RUN boundaries, the three
+  corrected assertions and four new approved-contract groups are internally consistent.
+- Focused required-mode selector `ac049 or ac050 or ac051 or ac052 or ac053 or ac054`: **50 passed,
+  16 failed, 372 deselected**, exit 1, in 55.19 s after allowing the existing local QML test server
+  to bind loopback. The 16 intentional RED cases are valid JSON with missing/misleading content type
+  (3), status-0/network without synthesized HTTP status (2), inactive-route schema-3 required-field
+  omission (5), real presentation non-color/provenance observations (4), and post-origin
+  cancel/project-close quiescence observations (2).
+- Retained schema selector `ac007 or ac026 or ac029`: **21 passed, 2 failed, 415 deselected**, exit 1,
+  in 17.91 s. Both RED cases are AC007's missing independently reopened schema-3 document evidence;
+  the retained AC026/029 schema-3 and compatibility cases pass the strengthened required-field check.
+- The first sandboxed focused run produced **66 failed, 372 deselected** solely because loopback bind
+  was denied (`PermissionError: [Errno 1]`); it is an environment result, not the authoritative
+  conformance run above.
+- Acceptance-only `git diff --check` over the five changed files: exit 0, no output.
 
 ## Fixtures and independent oracles
 
@@ -325,6 +362,14 @@ network, device operation, application edit, unit-test edit or requirement edit 
   provider deltas at exactly `max(1 unit, 0.5%)` pass and deltas beyond it fail. Missing, reordered,
   negative/non-finite, non-WGS84 or count-mismatched legs preserve the old route. Completion,
   uncheck, toggle and load leave schema/revision/full legs/totals/geometry byte-equivalent.
+- The two-site mixed fixture deliberately combines one nonzero snapped access point with one
+  exact-zero visit whose source and access coordinates are identical. Downstream vehicle captures
+  must use the returned access sequence; the nonzero source is absent, while the exact-zero shared
+  coordinate is allowed because it is itself the selected access coordinate.
+- Schema-3 validation is document-wide. A production-seeded two-route document is faulted only at
+  the storage boundary by removing each required mixed-route field from the inactive second route.
+  Production load must reject it without repair, request or write. This is separate from unchanged
+  schema-1/2 compatibility and unknown-future preservation.
 - Provider negatives are raw optimizer missing/duplicate/unknown/unassigned order and raw directions
   missing/duplicate/out-of-range top-level waypoint index, missing segment, invalid top-level
   geometry, invalid metric and total-tolerance breach. Each returns a provider-response category and

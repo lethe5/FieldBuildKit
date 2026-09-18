@@ -463,6 +463,27 @@ def schema2_legacy_document(schema=1):
     }
 
 
+SCHEMA3_ROUTE_REQUIRED_FIELDS = {
+    "vehicle_legs", "visits", "vehicle_totals", "walking_totals", "combined_totals",
+}
+
+
+def assert_schema3_document_contract(document):
+    """Every route in a schema-3 document carries the approved mixed-route payload."""
+    assert document["schema"] == 3 and document["routes"]
+    for route in document["routes"]:
+        assert SCHEMA3_ROUTE_REQUIRED_FIELDS <= set(route)
+        assert isinstance(route["vehicle_legs"], list) and route["vehicle_legs"]
+        assert isinstance(route["visits"], list) and route["visits"]
+        assert set(route["vehicle_totals"]) == {"distance_m", "duration_s"}
+        assert set(route["walking_totals"]) == {
+            "mapped_distance_m", "lower_bound_distance_m", "duration_s",
+            "unavailable_duration_count",
+        }
+        if route["combined_totals"] is not None:
+            assert set(route["combined_totals"]) == {"distance_m", "duration_s"}
+
+
 PROJECT_LAYERS = [
     {"layer_id": "duplicate-a", "source_name": "plots_a", "alias": "표본구", "tree_path": "A/표본구",
      "fields": ["uuid", "plot_id", "display_name", "done"]},
@@ -725,6 +746,10 @@ def test_ac007_result_roundtrip(run, timing):
             optimizer_response=vroom_response(include_arrivals=timing),
             directions_response=DIRECTIONS_RESPONSE)
     route = r["reloaded"]
+    assert r["reloaded_document"] == r["saved_document"]
+    assert_schema3_document_contract(r["reloaded_document"])
+    assert route == next(saved for saved in r["reloaded_document"]["routes"]
+                         if saved["route_id"] == route["route_id"])
     for field in ("route_id", "name", "backend", "status"):
         assert route[field]
     datetime.fromisoformat(route["created_at"].replace("Z", "+00:00"))
@@ -745,7 +770,7 @@ def test_ac007_result_roundtrip(run, timing):
     } for index, metrics in enumerate(LEGS)]
     assert {stop["source_layer"] for stop in route["stops"]} == {layer_id}
     assert route["road_geometry"] == RESULT_ROAD
-    assert route["legs"] == expected_legs
+    assert route["vehicle_legs"] == expected_legs
     assert r["saved"] == route
     assert r["availability"]["road_geometry"] is True
     assert r["availability"]["eta"] is timing
@@ -1689,25 +1714,26 @@ def test_ac026_ac035_new_calculation_schema3_complete_immutable_legs_roundtrip(r
             post_save_actions=["complete", "uncheck", "toggle", "load"])
     document, route = r["reloaded_document"], r["reloaded_route"]
     assert document["schema"] == 3 and document == r["saved_document"]
-    assert route["vehicle_legs"] == route["legs"]
+    assert_schema3_document_contract(document)
+    vehicle_legs = route["vehicle_legs"]
     assert len(route["visits"]) == 3
     assert all(visit["walking_mode"] == "exact_zero" for visit in route["visits"])
-    assert len(route["legs"]) == expected_count
-    assert [leg["sequence"] for leg in route["legs"]] == list(range(1, expected_count + 1))
-    assert route["legs"][0]["from"] == "start"
+    assert len(vehicle_legs) == expected_count
+    assert [leg["sequence"] for leg in vehicle_legs] == list(range(1, expected_count + 1))
+    assert vehicle_legs[0]["from"] == "start"
     for index in range(3):
-        assert route["legs"][index]["to"] == {"layer_id": SITE_LAYER_ID, "site_id": str(index)}
-    for index, leg in enumerate(route["legs"]):
+        assert vehicle_legs[index]["to"] == {"layer_id": SITE_LAYER_ID, "site_id": str(index)}
+    for index, leg in enumerate(vehicle_legs):
         assert leg["distance_m"] >= 0 and leg["duration_s"] >= 0
         assert leg["geometry"]["type"] == "LineString"
         assert all(-180 <= xy[0] <= 180 and -90 <= xy[1] <= 90 for xy in leg["geometry"]["coordinates"])
         start, end = SCHEMA2_WAY_POINTS[index:index + 2]
         assert leg["geometry"]["coordinates"] == SCHEMA2_COORDINATES[start:end + 1]
     if roundtrip:
-        assert route["legs"][-1]["to"] == "start"
+        assert vehicle_legs[-1]["to"] == "start"
     assert route["road_geometry"]["coordinates"] == SCHEMA2_COORDINATES[:SCHEMA2_WAY_POINTS[expected_count] + 1]
-    assert route["distance_m"] == sum(leg["distance_m"] for leg in route["legs"])
-    assert route["duration_s"] == sum(leg["duration_s"] for leg in route["legs"])
+    assert route["distance_m"] == sum(leg["distance_m"] for leg in vehicle_legs)
+    assert route["duration_s"] == sum(leg["duration_s"] for leg in vehicle_legs)
     assert r["immutable_snapshots"] and all(snapshot == r["immutable_snapshots"][0]
                                               for snapshot in r["immutable_snapshots"])
     assert "remaining_recalculate" not in r["controls"]
@@ -1955,8 +1981,9 @@ def test_ac029_explicit_full_recalculation_is_only_schema3_upgrade(run):
     r = run(operation="legacy_route", document=legacy, action="explicit_calculate_and_save", offline=False,
             directions_response=schema2_directions_response(roundtrip=False))
     assert r["saved_document"]["schema"] == 3
+    assert_schema3_document_contract(r["saved_document"])
     assert r["saved_route"]["route_id"] == "legacy-route-1"
-    assert r["saved_route"]["revision"] > 7 and len(r["saved_route"]["legs"]) == 3
+    assert r["saved_route"]["revision"] > 7 and len(r["saved_route"]["vehicle_legs"]) == 3
     assert r["requests"], "the only permitted migration request is the explicit full calculation"
 
 
@@ -2674,6 +2701,35 @@ def test_ac049_plain_text_is_bounded_and_success_body_never_enters_error_ui(run)
     assert "success-body-marker" not in str(success["error_ui"])
 
 
+@pytest.mark.parametrize("content_type", [None, "text/plain", "application/octet-stream"],
+                         ids=["missing", "misleading-text", "misleading-binary"])
+def test_ac049_valid_json_body_is_parsed_even_without_truthful_content_type(run, content_type):
+    body = json.dumps({"error": {"code": "NO_ROUTE", "message": "경로 검색 결과 없음"}},
+                      ensure_ascii=False)
+    r = run(operation="provider_http_failure", stage="walking-directions", status=404,
+            body=body, content_type=content_type, seed_saved=True, seed_candidate=True)
+    assert_mixed_failure_preserves_state(r)
+    assert r["error_record"] == {
+        "stage": "walking-directions", "http_status": 404,
+        "provider_code": "NO_ROUTE", "provider_message": "경로 검색 결과 없음",
+        "safe_text": None,
+    }
+    assert r["classification"] == "no-result-explicit"
+
+
+@pytest.mark.parametrize("fault", ["status_0", "network"])
+def test_ac049_statusless_transport_failure_has_connection_action_without_http_status(run, fault):
+    r = run(operation="provider_http_failure", stage="access-snap", transport_fault=fault,
+            seed_saved=True, seed_candidate=True)
+    assert_mixed_failure_preserves_state(r)
+    assert r["error_record"] == {
+        "stage": "access-snap", "http_status": None,
+        "provider_code": None, "provider_message": None, "safe_text": None,
+    }
+    assert "HTTP 0" not in r["message"] and "connection" in r["suggested_actions"]
+    assert "연결" in r["message"] or "네트워크" in r["message"]
+
+
 @pytest.mark.parametrize("provider_message,expected", [
     ("configured endpoint unavailable", "endpoint-unavailable-explicit"),
     ("no route found for locations", "no-result-explicit"),
@@ -2702,9 +2758,12 @@ def test_ac050_single_ordered_access_snap_uses_originals_and_exact_radius(run, r
     assert r["source_features_after"] == r["source_features_before"]
     assert r["original_source_snapshots"] and all(
         snapshot == r["original_source_snapshots"][0] for snapshot in r["original_source_snapshots"])
+    assert MIXED_SITES[1]["xy"] == MIXED_ACCESS[1], "second visit is the approved exact-zero case"
+    nonzero_snapped_sources = [site["xy"] for site, access in zip(MIXED_SITES, MIXED_ACCESS)
+                               if site["xy"] != access]
     for request in requests:
         if request["kind"] in {"matrix", "optimizer", "directions"}:
-            assert all(str(site["xy"]) not in str(request["body"]) for site in MIXED_SITES)
+            assert all(str(source) not in str(request["body"]) for source in nonzero_snapped_sources)
     assert r["vehicle_coordinates"] == MIXED_ACCESS
 
 
@@ -2775,7 +2834,7 @@ def test_ac052_schema3_exact_roundtrip_recovery_move_and_completion_are_offline(
             lifecycle=["save", "restart", "recover-last-good", "offline", "move", "complete", "uncheck"])
     route = r["reloaded_route"]
     assert r["reloaded_document"]["schema"] == 3 and route == r["saved_route"]
-    assert {"vehicle_legs", "visits", "vehicle_totals", "walking_totals", "combined_totals"} <= set(route)
+    assert_schema3_document_contract(r["reloaded_document"])
     assert all({"source_coordinate", "access_coordinate", "access_offset_m", "walking_mode",
                 "walking_legs", "metric_source"} <= set(visit) for visit in route["visits"])
     assert all(len(visit["walking_legs"]) == 2 for visit in route["visits"])
@@ -2804,17 +2863,55 @@ def test_ac052_legacy_load_and_future_rejection_preserve_bytes(run, schema):
     assert future["requests"] == future["writes"] == []
 
 
+@pytest.mark.parametrize("missing_field", sorted(SCHEMA3_ROUTE_REQUIRED_FIELDS))
+def test_ac052_every_schema3_route_rejects_required_field_omission(run, missing_field):
+    r = run(operation="mixed_route_compatibility", seed_schema3_routes_with_production=2,
+            corrupt_route_index=1, omit_route_field=missing_field, action="load")
+    seed = r["seed_schema3_provenance"]
+    assert seed["route_count"] == 2 and len(seed["production_save_events"]) == 2
+    assert all(event["committed"] is True and event["project_relative_path"]
+               for event in seed["production_save_events"])
+    assert {"controller.calculate", "controller.save", "repository.save"} <= set(
+        r["production_provenance"]["production_calls"])
+    assert r["ok"] is False and missing_field in r["message"]
+    assert r["corrupted_route_index"] == 1 and r["active_route_index"] == 0
+    assert r["bytes_after"] == r["bytes_before"]
+    assert r["requests"] == r["writes"] == [] and r["repaired_document"] is None
+
+
 @pytest.mark.parametrize("viewport,theme", [(320, "light"), (320, "dark"), (1024, "light"), (1024, "dark")])
 def test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive(run, viewport, theme):
     r = run(operation="mixed_route_presentation", viewport_width=viewport, theme=theme,
             include_fallback=True, actions=["preview", "toggle", "complete", "uncheck"])
-    assert r["line_classes"] == {
-        "vehicle": {"pattern": "solid", "legend": "차량 경로"},
-        "mapped_walking": {"pattern": "dashed", "legend": "도보 경로"},
-        "unmapped_walking": {"pattern": "dotted", "legend": "지도 경로 없음"},
+    expected = {
+        "vehicle": ("solid", "차량 경로"),
+        "mapped_walking": ("dashed", "도보 경로"),
+        "unmapped_walking": ("dotted", "지도 경로 없음"),
     }
-    assert all(value["contrasting_casing"] for value in r["line_classes"].values())
-    assert r["warning_marker"]["visible"] is True and r["warning_marker"]["non_color_cue"]
+    assert set(r["line_classes"]) == set(expected)
+    object_ids = set()
+    for semantic_id, (pattern, legend) in expected.items():
+        observed = r["line_classes"][semantic_id]
+        assert (observed["pattern"], observed["legend"]) == (pattern, legend)
+        assert observed["contrasting_casing"] is True and observed["non_color_cue"]
+        assert observed["object_ids"]
+        object_ids.update(observed["object_ids"])
+    assert len(object_ids) >= 3
+    assert (r["warning_marker"]["visible"] is True and r["warning_marker"]["non_color_cue"]
+            and r["warning_marker"]["object_id"])
+    provenance = r["presentation_provenance"]
+    assert provenance["evidence_source"] == "loaded_generated_qml_object_tree_and_map"
+    assert provenance["theme_observation"]["effective_theme"] == theme
+    assert provenance["theme_observation"]["object_id"]
+    assert [event["action"] for event in provenance["action_observations"]] == [
+        "preview", "toggle", "complete", "uncheck",
+    ]
+    assert all(event["control_object_id"] and event["event_delivered"] is True
+               and event["before_capture_id"] != event["after_capture_id"]
+               for event in provenance["action_observations"])
+    source = provenance["source_layer_observation"]
+    assert source["layer_object_id"] and source["before_capture_id"] != source["after_capture_id"]
+    assert source["renderer_hash_before"] == source["renderer_hash_after"]
     for surface in ("preview", "detail", "bottom_summary", "screen_reader"):
         assert {"vehicle_distance", "vehicle_duration", "walking_distance", "walking_duration",
                 "roundtrip", "metric_source", "unavailable_reason"} <= set(r[surface])
@@ -2833,13 +2930,32 @@ def test_ac054_exact_stage_sequence_privacy_and_no_incidental_writes(run):
                                           "walking-directions", "matrix", "optimizer", "directions", "validation"]
     assert r["coordinate_sharing_notice_shown_before_request"] is True
     assert r["explicit_calculate_count"] == 1 and r["generated_coordinates"] == []
-    assert r["vroom_payload_fields"] <= {"access_coordinates", "cost_matrix", "request_local_indices"}
+    assert set(r["vroom_payload_fields"]) <= {
+        "access_coordinates", "cost_matrix", "request_local_indices",
+    }
     for request in r["requests"]:
         wire = str(request)
         assert "SECRET-BIZ" not in wire and "비공개 사업지" not in wire
     for field in ("logs", "errors", "settings_storage"):
         assert "SECRET-BIZ" not in str(r[field]) and "비공개 사업지" not in str(r[field])
     assert r["writes"] == [] and r["raw_bodies_retained"] is False
+
+
+@pytest.mark.parametrize("event", ["cancel", "project-close"])
+def test_ac054_lifecycle_after_origin_validation_starts_no_later_request_or_write(run, event):
+    r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=2000,
+            lifecycle_event=event, lifecycle_after_stage="origin-validation",
+            seed_saved=True, seed_candidate=True)
+    lifecycle = r["lifecycle_observation"]
+    assert lifecycle["event"] == event and lifecycle["delivered_through_production"] is True
+    assert lifecycle["after_stage"] == "origin-validation"
+    assert r["stage_sequence"] == ["preflight", "origin-validation"]
+    assert r["requests"] == r["post_lifecycle_requests"] == []
+    assert r["writes"] == []
+    assert r["source_features_after"] == r["source_features_before"]
+    assert r["completion_after"] == r["completion_before"]
+    assert r["settings_after"] == r["settings_before"]
+    assert r["saved_after"] == r["saved_before"]
 
 
 @pytest.mark.parametrize("stage", ["origin-validation", "access-snap", "walking-directions",

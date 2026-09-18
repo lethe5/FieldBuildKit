@@ -246,6 +246,10 @@ assert module.canonical_apple_maps_url() == (
 )
 assert module.MIXED_SITES[0]["xy"] == [127.1, 37.1]
 assert module.MIXED_ACCESS[0] == [127.1035, 37.1]
+assert module.MIXED_SITES[1]["xy"] == module.MIXED_ACCESS[1]
+assert module.SCHEMA3_ROUTE_REQUIRED_FIELDS == {
+    "vehicle_legs", "visits", "vehicle_totals", "walking_totals", "combined_totals",
+}
 assert all(operation in source for operation in [
     'operation="provider_http_failure"', 'operation="mixed_route_calculate"',
     'operation="mixed_route_roundtrip"', 'operation="mixed_route_compatibility"',
@@ -260,6 +264,32 @@ assert all(token in source for token in [
     '"controller.calculate"', '"backend.calculate"', '"repository.save"',
     '"repository.load"', '"navigation.open"', '"qml.render_route"',
     '"passive_toggle_observation"', 'document["schema"] == 3',
+    'assert_schema3_document_contract', 'seed_schema3_routes_with_production=2',
+    '"repaired_document"] is None',
+])
+ac050_source = inspect.getsource(module.test_ac050_single_ordered_access_snap_uses_originals_and_exact_radius)
+assert "nonzero_snapped_sources" in ac050_source
+assert 'if site["xy"] != access' in ac050_source
+assert 'for site in MIXED_SITES)' not in ac050_source
+ac053_source = inspect.getsource(module.test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive)
+assert all(token in ac053_source for token in [
+    '"contrasting_casing"', '"non_color_cue"', '"object_ids"',
+    '"presentation_provenance"', '"theme_observation"', '"action_observations"',
+    '"source_layer_observation"',
+])
+assert 'r["line_classes"] == {' not in ac053_source
+assert 'set(r["vroom_payload_fields"]) <=' in inspect.getsource(
+    module.test_ac054_exact_stage_sequence_privacy_and_no_incidental_writes)
+assert all(name in source for name in [
+    "test_ac049_valid_json_body_is_parsed_even_without_truthful_content_type",
+    "test_ac049_statusless_transport_failure_has_connection_action_without_http_status",
+    "test_ac052_every_schema3_route_rejects_required_field_omission",
+    "test_ac054_lifecycle_after_origin_validation_starts_no_later_request_or_write",
+])
+assert all(token in contract for token in [
+    "content type is missing or misleading", "http_status=null",
+    "source_coordinate == access_coordinate", "immediately after origin validation",
+    "including inactive routes", "presentation_provenance",
 ])
 assert 'assert "평문" in consent' not in source
 assert 'fresh_project=True, seed_saved=True' not in source
@@ -299,6 +329,6 @@ for fmt in ["SHP", "ZIP", "GPKG"]:
             except FixtureChecked:
                 count += 1
 assert count == 18
-print("Design checks: DRAFT production-path/supersession correction is internally consistent; "
+print("Design checks: DRAFT attempt-2 production-path/supersession correction is internally consistent; "
       "approved AC001-055/QPB149-150 history and M01-M21 NOT RUN boundaries are preserved. "
       "No application tests executed.")
