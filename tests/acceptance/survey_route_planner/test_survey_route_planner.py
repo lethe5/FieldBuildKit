@@ -1,4 +1,7 @@
-"""APPROVED TEST DESIGN — mixed-access/Apple Maps slice and iOS/QField correction (approval 2026-09-18).
+"""DRAFT TEST-DESIGN CORRECTION — production-path and supersession reconciliation.
+
+The previously approved mixed-access/Apple Maps expectations remain authority. This draft corrects
+their executable evidence boundary and retained expectations; it is not approved implementation evidence.
 
 AC-SRP-049–055 are approved acceptance expectations; M18–M21 remain NOT RUN. The approved history
 is preserved. The approved correction replaces over-scoped rendered/device proxies for
@@ -19,6 +22,7 @@ from __future__ import annotations
 import importlib
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -49,7 +53,66 @@ def run(tmp_path):
             pytest.fail(reason)
         pytest.skip(reason)
     assert callable(fn)
-    return lambda **case: fn(case=case, work_dir=str(tmp_path))
+    def invoke(**case):
+        result = fn(case=case, work_dir=str(tmp_path))
+        if case["operation"] in MIXED_PRODUCTION_OPERATIONS:
+            assert_mixed_production_path(result, case["operation"])
+        return result
+    return invoke
+
+
+MIXED_PRODUCTION_OPERATIONS = {
+    "provider_http_failure",
+    "mixed_route_calculate",
+    "mixed_route_roundtrip",
+    "mixed_route_compatibility",
+    "mixed_route_presentation",
+    "platform_map_dispatch",
+}
+MIXED_PRODUCTION_CALLS = {
+    "provider_http_failure": {"controller.calculate", "backend.calculate", "repository.load", "qml.calculate"},
+    "mixed_route_calculate": {"controller.calculate", "backend.calculate", "repository.load", "qml.calculate"},
+    "mixed_route_roundtrip": {"controller.calculate", "backend.calculate", "controller.save",
+                              "repository.save", "repository.load", "qml.calculate", "qml.save"},
+    "mixed_route_compatibility": {"repository.load"},
+    "mixed_route_presentation": {"repository.load", "qml.load_route", "qml.render_route"},
+    "platform_map_dispatch": {"controller.navigate", "navigation.open", "repository.load", "qml.navigate"},
+}
+MIXED_PRODUCTION_SOURCES = {
+    "controller": "qfield_builder/qfield_routes/controller.js",
+    "backend": "qfield_builder/qfield_routes/backend.js",
+    "repository": "qfield_builder/qfield_routes/repository.js",
+    "navigation": "qfield_builder/qfield_routes/navigation.js",
+    "qml": "qfield_builder/qfield_routes/RoutePanel.qml",
+}
+
+
+def assert_mixed_production_path(result, operation):
+    """Reject canned/circular mixed-route evidence before criterion assertions consume it."""
+    provenance = result["production_provenance"]
+    assert provenance["operation"] == operation
+    assert provenance["result_origin"] == "production_observation"
+    assert provenance["adapter_postprocessed_fields"] == []
+    assert provenance["case_copied_result_fields"] == []
+    assert provenance["fixture_expected_values_used_as_results"] == []
+    assert Path(provenance["driver_path"]).name != "survey_route_mixed_driver.js"
+    calls = provenance["production_calls"]
+    assert MIXED_PRODUCTION_CALLS[operation] <= set(calls)
+    for call in calls:
+        assert calls[call] >= 1
+    root = Path(__file__).parents[3]
+    for component in {call.split(".", 1)[0] for call in MIXED_PRODUCTION_CALLS[operation]}:
+        relative = MIXED_PRODUCTION_SOURCES[component]
+        source = root / relative
+        observed = provenance["production_sources"][component]
+        assert observed["path"] == relative
+        assert observed["sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
+    if any(call.startswith("qml.") for call in MIXED_PRODUCTION_CALLS[operation]):
+        qml = provenance["generated_qml"]
+        qml_path = Path(qml["path"]).resolve()
+        project_dir = Path(result["project_dir"]).resolve()
+        assert qml["loaded"] is True and qml_path.is_file() and qml_path.is_relative_to(project_dir)
+        assert qml["sha256"] == hashlib.sha256(qml_path.read_bytes()).hexdigest()
 
 
 KEY = "SRP_SYNTHETIC_SECRET_94_&/"
@@ -377,6 +440,12 @@ def assert_zero_marker_writes(result):
     assert capture["route_storage_snapshot_after"] == capture["route_storage_snapshot_before"]
 
 
+def start_markers(state):
+    """AC032 owns only the start marker; mixed-route access markers are a distinct overlay."""
+    return [marker for marker in state["canvas_markers"]
+            if marker["semantic_role"] == "start_marker"]
+
+
 def schema2_legacy_document(schema=1):
     return {
         "schema": schema,
@@ -410,6 +479,7 @@ PORTABLE_SETTINGS = {
     "profile": "driving-car",
     "timeout_ms": 1250,
     "max_road_offset_m": 50,
+    "max_access_distance_m": 2000,
     "default_start": [127.123, 37.456],
     "mapping": {"layer": "site", "id": "custom_id", "name": "title", "completed": "done"},
     "show_route_line": True,
@@ -1098,8 +1168,9 @@ def test_ac013_backend_settings(run, configured_offset, expected_offset):
 
 def assert_provider_urls(result, routing_base, optimizer_url):
     requests = requests_by_kind(result)
-    assert set(requests) == {"matrix", "optimizer", "directions"}
-    expected = {"matrix": f"{routing_base}/v2/matrix/driving-car",
+    assert set(requests) == {"access-snap", "matrix", "optimizer", "directions"}
+    expected = {"access-snap": f"{routing_base}/v2/snap/driving-car/json",
+                "matrix": f"{routing_base}/v2/matrix/driving-car",
                 "directions": f"{routing_base}/v2/directions/driving-car/geojson",
                 "optimizer": optimizer_url}
     assert all({request["url"] for request in requests[kind]} == {url} for kind, url in expected.items())
@@ -1109,7 +1180,8 @@ def assert_provider_urls(result, routing_base, optimizer_url):
 
 def test_ac013_fresh_hosted_defaults_and_authorization(run):
     r = run(operation="configured_calculate", settings={"backend": "ors-vroom", "profile": "driving-car",
-                                                         "key": KEY}, fresh_project=True, seed_saved=True)
+                                                         "key": KEY}, fresh_project=True,
+            seed_fixture_settings=False)
     assert r["transport_settings"]["server_url"] == HOSTED_ROUTING_BASE
     assert r["transport_settings"]["optimizer_url"] == HOSTED_OPTIMIZER_URL
     assert_provider_urls(r, HOSTED_ROUTING_BASE, HOSTED_OPTIMIZER_URL)
@@ -1161,9 +1233,9 @@ def test_ac013_custom_self_hosted_urls_allow_no_key(run):
 
 def test_ac013_hosted_default_rejects_blank_key_before_request(run):
     r = run(operation="configured_calculate", settings={"backend": "ors-vroom", "profile": "driving-car"},
-            fresh_project=True, seed_saved=True)
-    rejected(r)
-    assert r["active_after"] == r["active_before"]
+            fresh_project=True, seed_fixture_settings=False)
+    assert r["ok"] is False and r["message"].strip()
+    assert r["candidate"] is None
     no_calls(r)
 
 
@@ -1180,7 +1252,6 @@ def test_ac019_builder_key_consent_embeds_only_project_variable(run):
     assert "QField가 자동으로 사용하도록" in warning
     assert "암호화되지 않은 글자" in warning
     assert "프로젝트 폴더를 열 수 있는 사람은 누구나 키를 확인하고 사용할 수 있습니다." in warning
-    assert "평문" in consent
     assert r["qfield_key_source"] == "project_variable"
     assert r["transport_key_present"] is True
     assert_no_key_outside_project_variable(r, embedded=True)
@@ -1463,16 +1534,18 @@ def test_ac032_map_start_marker_is_exact_fixed_and_replaced_not_duplicated(run):
     ])
     captured, panned, replaced = r["states"]
     assert captured["start_wgs84"] == pytest.approx(first, abs=1e-9)
-    assert captured["canvas_marker_count"] == len(captured["canvas_markers"]) == 1
-    marker = captured["canvas_markers"][0]
+    assert captured["canvas_marker_count"] == len(captured["canvas_markers"])
+    assert len(start_markers(captured)) == 1
+    marker = start_markers(captured)[0]
     assert marker["semantic_role"] == "start_marker" and marker["object_id"]
     assert marker["coordinate"] == pytest.approx(first, abs=1e-9)
     assert marker["visible_text"] == "출발지" and marker["accessible_name"] == "출발지"
     assert marker["visible"] is True and marker["contrast_ratio"] >= 3
-    assert panned["canvas_markers"] == captured["canvas_markers"]
+    assert start_markers(panned) == start_markers(captured)
     assert replaced["start_wgs84"] == pytest.approx(second, abs=1e-9)
-    assert replaced["canvas_marker_count"] == len(replaced["canvas_markers"]) == 1
-    assert replaced["canvas_markers"][0]["coordinate"] == pytest.approx(second, abs=1e-9)
+    assert replaced["canvas_marker_count"] == len(replaced["canvas_markers"])
+    assert len(start_markers(replaced)) == 1
+    assert start_markers(replaced)[0]["coordinate"] == pytest.approx(second, abs=1e-9)
     assert_zero_marker_writes(r)
     assert r["source_renderer_after"] == r["source_renderer_before"]
 
@@ -1481,8 +1554,12 @@ def test_ac032_map_start_marker_is_exact_fixed_and_replaced_not_duplicated(run):
 def test_ac032_map_start_marker_survives_panel_and_calculation_events(run, event):
     r = run(operation="map_start_marker", project_crs="EPSG:4326", seed_center=[127.1, 37.1],
             actions=[{"action": event}])
-    assert r["states"][0]["canvas_markers"] == r["states"][-1]["canvas_markers"]
-    assert r["states"][-1]["canvas_marker_count"] == len(r["states"][-1]["canvas_markers"]) == 1
+    assert start_markers(r["states"][0]) == start_markers(r["states"][-1])
+    assert len(start_markers(r["states"][-1])) == 1
+    assert r["states"][-1]["canvas_marker_count"] == len(r["states"][-1]["canvas_markers"])
+    if event == "calculation_success":
+        assert any(marker["semantic_role"] != "start_marker"
+                   for marker in r["states"][-1]["canvas_markers"])
     assert_zero_marker_writes(r)
     assert r["saved_route_geometry_after"] == r["saved_route_geometry_before"]
 
@@ -1491,8 +1568,8 @@ def test_ac032_map_start_marker_survives_panel_and_calculation_events(run, event
 def test_ac032_map_start_marker_removed_at_lifecycle_end(run, event):
     r = run(operation="map_start_marker", project_crs="EPSG:4326", seed_center=[127.1, 37.1],
             actions=[{"action": event}])
-    assert r["states"][0]["canvas_marker_count"] == len(r["states"][0]["canvas_markers"]) == 1
-    assert r["states"][-1]["canvas_marker_count"] == 0 and r["states"][-1]["canvas_markers"] == []
+    assert len(start_markers(r["states"][0])) == 1
+    assert start_markers(r["states"][-1]) == []
     assert_zero_marker_writes(r)
 
 
@@ -1501,8 +1578,8 @@ def test_ac032_map_start_transform_failure_preserves_previous_marker_and_start(r
             actions=[{"action": "capture_center", "center": [200000, 600000],
                       "transform_fault": "untransformable"}])
     assert r["states"][-1]["start_wgs84"] == r["states"][0]["start_wgs84"]
-    assert r["states"][-1]["canvas_markers"] == r["states"][0]["canvas_markers"]
-    assert r["states"][-1]["canvas_marker_count"] == len(r["states"][-1]["canvas_markers"]) == 1
+    assert start_markers(r["states"][-1]) == start_markers(r["states"][0])
+    assert len(start_markers(r["states"][-1])) == 1
     assert r["states"][-1]["message"].strip()
     assert_zero_marker_writes(r)
 
@@ -1553,13 +1630,19 @@ def test_ac023_storage_failure_has_no_success_or_secret_feedback(run, action):
     assert KEY not in exposed and quote(KEY, safe="") not in exposed
 
 
-def canonical_naver_url(name, caller_id="ch.opengis.qfield"):
-    return ("nmap://navigation?dlat=37.456&dlng=127.123&dname="
+def canonical_coordinate(value):
+    text = f"{value:.7f}".rstrip("0").rstrip(".")
+    return "0" if text in {"-0", ""} else text
+
+
+def canonical_naver_url(name, caller_id="ch.opengis.qfield", coordinate=(127.123, 37.456)):
+    return (f"nmap://navigation?dlat={canonical_coordinate(coordinate[1])}"
+            f"&dlng={canonical_coordinate(coordinate[0])}&dname="
             f"{quote(name, safe='')}&appname={quote(caller_id, safe='')}")
 
 
-def canonical_naver_android_intent(name, caller_id="ch.opengis.qfield"):
-    query = canonical_naver_url(name, caller_id).removeprefix("nmap://")
+def canonical_naver_android_intent(name, caller_id="ch.opengis.qfield", coordinate=(127.123, 37.456)):
+    query = canonical_naver_url(name, caller_id, coordinate).removeprefix("nmap://")
     return (f"intent://{query}#Intent;scheme=nmap;action=android.intent.action.VIEW;"
             "category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end")
 
@@ -1600,12 +1683,15 @@ def test_ac025_non_mobile_has_actionable_error_without_install_dispatch(run):
 
 
 @pytest.mark.parametrize("roundtrip,expected_count", [(False, 3), (True, 4)])
-def test_ac026_ac035_schema2_complete_immutable_legs_roundtrip(run, roundtrip, expected_count):
+def test_ac026_ac035_new_calculation_schema3_complete_immutable_legs_roundtrip(run, roundtrip, expected_count):
     r = run(operation="schema2_roundtrip", return_to_start=roundtrip, layer_id=SITE_LAYER_ID,
             directions_response=schema2_directions_response(roundtrip=roundtrip),
             post_save_actions=["complete", "uncheck", "toggle", "load"])
     document, route = r["reloaded_document"], r["reloaded_route"]
-    assert document["schema"] == 2 and document == r["saved_document"]
+    assert document["schema"] == 3 and document == r["saved_document"]
+    assert route["vehicle_legs"] == route["legs"]
+    assert len(route["visits"]) == 3
+    assert all(visit["walking_mode"] == "exact_zero" for visit in route["visits"])
     assert len(route["legs"]) == expected_count
     assert [leg["sequence"] for leg in route["legs"]] == list(range(1, expected_count + 1))
     assert route["legs"][0]["from"] == "start"
@@ -1827,13 +1913,15 @@ def test_ac028_route_line_toggle_scope_persistence_move_and_zero_api(run):
     r = run(operation="route_line_toggle", offline=True, move_folder=True,
             transitions=["off", "route_switch", "panel_reopen", "app_restart", "folder_move"])
     assert r["initial_show_route_line"] is True
-    assert all(state["show_route_line"] is False for state in r["states"])
+    assert [state["show_route_line"] for state in r["states"]] == [False, False, True, True, True]
     assert r["other_project_initial_show_route_line"] is True
     assert r["saved_geometry_after"] == r["saved_geometry_before"]
     assert r["completed_overlay_after"] == r["completed_overlay_before"]
     assert r["source_renderer_after"] == r["source_renderer_before"]
-    assert_project_relative_file(r, r["preference_project_relative_path"])
     assert Path(r["old_dir"]).resolve() != Path(r["project_dir"]).resolve() and not Path(r["old_dir"]).exists()
+    assert r["write_capture"]["route_storage_commit_attempts"] == []
+    assert r["write_capture"]["settings_storage_commit_attempts"] == []
+    assert r["route_revision_after"] == r["route_revision_before"]
     no_calls(r)
 
 
@@ -1862,18 +1950,18 @@ def test_ac029_legacy_schema1_load_is_offline_nonmutating_and_unavailable(run):
     no_calls(r)
 
 
-def test_ac029_explicit_full_recalculation_is_only_schema2_upgrade(run):
+def test_ac029_explicit_full_recalculation_is_only_schema3_upgrade(run):
     legacy = schema2_legacy_document()
     r = run(operation="legacy_route", document=legacy, action="explicit_calculate_and_save", offline=False,
             directions_response=schema2_directions_response(roundtrip=False))
-    assert r["saved_document"]["schema"] == 2
+    assert r["saved_document"]["schema"] == 3
     assert r["saved_route"]["route_id"] == "legacy-route-1"
     assert r["saved_route"]["revision"] > 7 and len(r["saved_route"]["legs"]) == 3
     assert r["requests"], "the only permitted migration request is the explicit full calculation"
 
 
 def test_ac029_future_schema_is_preserved_and_rejected(run):
-    future = schema2_legacy_document(schema=3)
+    future = schema2_legacy_document(schema=99)
     r = run(operation="legacy_route", document=future, action="load", offline=True)
     assert r["ok"] is False and r["message"].strip()
     assert r["storage_bytes_after"] == r["storage_bytes_before"]
@@ -1919,7 +2007,7 @@ def test_ac036_recoverable_save_failure_preserves_candidate_for_corrected_retry(
     assert all(state["requests"] == [] for state in r["attempt_states"])
 
 
-@pytest.mark.parametrize("stale_change", ["calculation_input", "snapshot_revision"])
+@pytest.mark.parametrize("stale_change", ["calculation_input"])
 def test_ac036_only_real_input_or_revision_change_blocks_stale_candidate(run, stale_change):
     r = run(operation="candidate_name_save", seed_saved=True,
             optimizer_response=vroom_response(include_arrivals=True),
@@ -1929,6 +2017,19 @@ def test_ac036_only_real_input_or_revision_change_blocks_stale_candidate(run, st
     assert r["message"].strip() and r["candidate_after"] == r["candidate_before"]
     assert r["saved_routes_after"] == r["saved_routes_before"]
     assert r["requests_after_calculation"] == []
+
+
+def test_ac036_passive_route_line_toggle_does_not_stale_candidate_or_write(run):
+    r = run(operation="candidate_name_save", seed_saved=True,
+            optimizer_response=vroom_response(include_arrivals=True),
+            directions_response=schema2_directions_response(roundtrip=True),
+            actions=[{"set_name": "토글 후 저장"}, {"make_stale": "snapshot_revision"}, {"save": True}])
+    assert r["save_ok"] is True and r["saved_route"]["name"] == "토글 후 저장"
+    passive = r["passive_toggle_observation"]
+    assert passive["route_revision_after"] == passive["route_revision_before"]
+    assert passive["route_storage_commit_attempts"] == []
+    assert passive["settings_storage_commit_attempts"] == []
+    assert passive["routing_requests"] == []
 
 
 @pytest.mark.parametrize("viewport_width", [320, 1024])
@@ -2029,9 +2130,10 @@ def test_ac038_failed_settings_save_preserves_last_good_and_session_key(run):
     ("android", canonical_naver_android_intent("조사지 A & B/#?", "org.example.fieldbuild")),
 ])
 def test_ac039_platform_specific_official_primary_dispatch(run, platform, expected_primary):
-    r = run(operation="platform_naver_dispatch", platform=platform, host_context="supported_native",
+    r = run(operation="platform_map_dispatch", platform=platform, host_context="supported_native",
             destination=[127.123, 37.456], name="조사지 A & B/#?", caller_id="org.example.fieldbuild",
             launch_results=[True])
+    assert r["button_label"] == "다음 지점 지도 안내"
     assert r["launcher_calls"] == [{"url": expected_primary, "via": "Qt.openUrlExternally", "result": True}]
     assert r["status"] == "운영체제에 실행 요청" and r["fallback_count"] == 0
     assert r["claims"] == {"app_started": False, "destination_accepted": False, "navigation_started": False}
@@ -2043,9 +2145,10 @@ def test_ac039_platform_specific_official_primary_dispatch(run, platform, expect
     ("android", canonical_naver_android_intent("목적지"), NAVER_ANDROID_STORE),
 ])
 def test_ac039_official_install_fallback_once_and_no_inferred_web_url(run, platform, expected_primary, expected_store):
-    r = run(operation="platform_naver_dispatch", platform=platform, host_context="supported_native",
+    r = run(operation="platform_map_dispatch", platform=platform, host_context="supported_native",
             destination=[127.123, 37.456], name="목적지", caller_id=None, launch_results=[False, True],
             documented_navigation_web_fallback=None)
+    assert r["button_label"] == "다음 지점 지도 안내"
     assert [call["url"] for call in r["launcher_calls"]] == [expected_primary, expected_store]
     assert r["fallback_count"] == 1 and r["status"] == "설치 페이지 열림"
     assert r["web_fallback_count"] == 0
@@ -2135,7 +2238,8 @@ def test_ac042_touch_equivalent_text_input_uses_real_editable_qml_control_withou
             optimizer_response=vroom_response(include_arrivals=True),
             directions_response=schema2_directions_response(roundtrip=True),
             input_events=[
-                {"touch_body": True, "touch_target": touch_target}, {"text": "오후 route"},
+                {"touch_body": True, "touch_target": touch_target},
+                {"select": [0, 13]}, {"delete_selection": True}, {"text": "오후 route"},
                 {"select": [3, 8]}, {"delete_selection": True}, {"text": " 조사 경로  "},
             ], save=True)
     assert r["qml_runtime"]["loaded_generated_qml"] is True
@@ -2153,9 +2257,10 @@ def test_ac042_touch_equivalent_text_input_uses_real_editable_qml_control_withou
     assert touch["focused_object_id"] == control["object_id"]
     assert touch["active_focus"] is True and touch["cursor_visible"] is True
     assert touch["cursor_position"] >= 0
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2} 조사", r["input_states"][0]["text"])
     assert r["focus_recovery_api_invocations"] == []
-    assert r["input_states"][2]["event_source"] == "input_method_commit_event"
-    assert r["input_states"][2]["active_focus"] is True
+    assert next(state for state in r["input_states"]
+                if state["event_source"] == "input_method_commit_event")["active_focus"] is True
     assert all(state["focus_recovery_api_invocations"] == [] for state in r["input_states"])
     assert r["selection_event_observed"] is True and r["deletion_event_observed"] is True
     assert r["final_control_text"] == "오후  조사 경로  "
@@ -2761,7 +2866,8 @@ def test_ac054_status_actions_remain_redacted_and_nonretrying(run, fault, action
 
 
 def canonical_apple_maps_url(coordinate=(127.123, 37.456)):
-    return f"https://maps.apple.com/directions?destination={coordinate[1]},{coordinate[0]}&mode=driving"
+    return ("https://maps.apple.com/directions?destination="
+            f"{canonical_coordinate(coordinate[1])},{canonical_coordinate(coordinate[0])}&mode=driving")
 
 
 @pytest.mark.parametrize("launch_result", [True, False, "exception"])
@@ -2785,14 +2891,14 @@ def test_ac055_ios_uses_exact_apple_maps_once_without_any_fallback(run, launch_r
 def test_ac055_navigation_coordinates_are_canonical_and_android_contract_is_unchanged(run, destination):
     ios = run(operation="platform_map_dispatch", platform="ios", destination=destination,
               name="ignored", launch_result=True)
-    assert ios["launcher_calls"][0]["url"] == ios["canonical_expected_url"]
+    assert ios["launcher_calls"][0]["url"] == canonical_apple_maps_url(destination)
     canonical_destination = parse_qs(urlsplit(ios["launcher_calls"][0]["url"]).query)["destination"][0]
     assert "e" not in canonical_destination.lower()
     android = run(operation="platform_map_dispatch", platform="android", destination=destination,
                   name="  한글 & #%  ", caller_id="org.example.fieldbuild", launch_results=[False, True])
     assert android["button_label"] == "다음 지점 지도 안내"
-    assert android["launcher_calls"][0]["url"].startswith("intent://navigation?")
-    assert android["launcher_calls"][0]["url"].endswith("package=com.nhn.android.nmap;end")
+    assert android["launcher_calls"][0]["url"] == canonical_naver_android_intent(
+        "  한글 & #%  ", "org.example.fieldbuild", destination)
     assert android["launcher_calls"][1]["url"] == NAVER_ANDROID_STORE
     assert android["encoded_name_occurrences"] == 1 and android["encoded_caller_occurrences"] == 1
 

@@ -1,7 +1,7 @@
-"""Approved baseline, mixed-access slice and iOS/QPB correction verifier (approval 2026-09-18).
+"""Draft production-path/supersession correction verifier.
 
-AC-SRP-049–055 are approved acceptance expectations and M18–M21 remain NOT RUN. The approved
-2026-09-17 baseline and AC-SRP-042–045 correction remain preserved; no application code is executed.
+AC-SRP-049–055 remain approved requirements and M18–M21 remain NOT RUN. This draft verifies the
+corrected acceptance artifacts only; no application code is executed.
 """
 import ast
 import importlib.util
@@ -38,6 +38,7 @@ assert invalid_arrivals["negative"][0] < 0
 assert not math.isfinite(invalid_arrivals["nonfinite"][0])
 assert module.PORTABLE_SETTINGS["backend"] == "ors-vroom"
 assert module.PORTABLE_SETTINGS["max_road_offset_m"] == 50
+assert module.PORTABLE_SETTINGS["max_access_distance_m"] == 2000
 assert "key" not in module.PORTABLE_SETTINGS
 assert module.HOSTED_ROUTING_BASE == "https://api.heigit.org/openrouteservice"
 assert module.HOSTED_OPTIMIZER_URL == "https://api.heigit.org/vroom/v0"
@@ -49,6 +50,7 @@ assert {"expressionText", "feature", "layer", "project"} <= set(evaluator["writa
 assert evaluator["evaluate_arities"] == [0, 1]
 assert evaluator["allow_dynamic_properties"] is False
 source = path.read_text(encoding="utf-8-sig")
+contract = path.with_name("HARNESS_CONTRACT.md").read_text(encoding="utf-8")
 assert 'operation="remaining"' not in source
 assert "remaining_recalculation_is_superseded" in source
 assert all(case in source for case in ["M01_project_dropdowns_layout", "M02_schema2_live_route",
@@ -174,7 +176,7 @@ assert module.expected_site_label_expression(name_field_present=False) == (
 assert all(operation in source for operation in [
     'operation="candidate_name_save"', 'operation="followup_panel_ui"',
     'operation="settings_disclosure"', 'operation="settings_key_provenance"',
-    'operation="settings_snapshot_save"', 'operation="platform_naver_dispatch"',
+    'operation="settings_snapshot_save"', 'operation="platform_map_dispatch"',
     'operation="ordered_completion_checklist"', 'operation="generated_site_style"',
     'operation="route_name_text_input_proxy"', 'operation="final_floating_label_geometry"',
     'operation="generated_site_label_contract"', 'operation="builder_step7_route_credentials"',
@@ -249,6 +251,21 @@ assert all(operation in source for operation in [
     'operation="mixed_route_roundtrip"', 'operation="mixed_route_compatibility"',
     'operation="mixed_route_presentation"', 'operation="platform_map_dispatch"',
 ])
+assert 'import math' in source
+assert 'canonical_expected_url' not in source
+assert 'survey_route_mixed_driver.js' in source
+assert all(token in source for token in [
+    '"production_provenance"', '"adapter_postprocessed_fields"] == []',
+    '"case_copied_result_fields"] == []', '"fixture_expected_values_used_as_results"] == []',
+    '"controller.calculate"', '"backend.calculate"', '"repository.save"',
+    '"repository.load"', '"navigation.open"', '"qml.render_route"',
+    '"passive_toggle_observation"', 'document["schema"] == 3',
+])
+assert 'assert "평문" in consent' not in source
+assert 'fresh_project=True, seed_saved=True' not in source
+assert source.count('seed_fixture_settings=False') == 2
+assert 'must not install any synthetic endpoint setting (including `vroom.invalid`)' in contract
+assert '{"select": [0, 13]}' in source
 assert "\"ios\", canonical_naver_url" not in source
 assert "NAVER_IOS_STORE" not in source
 assert all(token in source for token in ['"centroid" in expression', '"transform" in expression',
@@ -282,6 +299,6 @@ for fmt in ["SHP", "ZIP", "GPKG"]:
             except FixtureChecked:
                 count += 1
 assert count == 18
-print("Design checks: approved AC001-055/QPB149-150 history preserved; approved AC049-055 fixtures, "
-      "operations, iOS supersession and M18-M21 manual boundaries are present; M01-M21 remain "
-      "NOT RUN. No application tests executed.")
+print("Design checks: DRAFT production-path/supersession correction is internally consistent; "
+      "approved AC001-055/QPB149-150 history and M01-M21 NOT RUN boundaries are preserved. "
+      "No application tests executed.")

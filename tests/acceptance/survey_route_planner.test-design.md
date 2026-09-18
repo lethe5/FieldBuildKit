@@ -1,4 +1,33 @@
-# Survey Route Planner — APPROVED legacy-expectation supersession reconciliation
+# Survey Route Planner — DRAFT production-path/supersession correction
+
+> **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Approved product requirements and prior
+> acceptance approvals are preserved. This draft corrects attempt-1 evidence that passed from a
+> canned mixed-route driver, and reconciles retained tests with already-approved 2026-09-18 rules.
+
+## Draft correction scope (2026-09-18)
+
+- AC-SRP-049–055 operations must execute the generated QML control and applicable production
+  `controller.js`, `backend.js`, `repository.js` and `navigation.js` paths. Runtime call/source-hash
+  provenance is required. `tests/unit/survey_route_mixed_driver.js`, canned result dictionaries,
+  copied expected payloads, adapter-added field sets/comparison wrappers and production-computed
+  expected URLs are rejected.
+- The acceptance module imports `math` for its independent geodesic oracle; production may not
+  mutate `builtins` to repair a test artifact.
+- Retained expectations now include project-local `max_access_distance_m=2000`, the mandatory
+  access-snap request, schema-3 output for every explicit new calculation/save, schema 1/2 read-only
+  compatibility, and unknown-future schema 99. Access markers are distinct from AC032's sole start
+  marker and therefore do not violate its exactly-one-start-marker rule.
+- D-SRP-055 makes route-line toggle passive: it changes the in-session overlay only, issues no
+  provider request or route/settings write, does not increment revision or stale a candidate, and
+  returns to default-on after session re-creation. D-SRP-056 makes the visible action label
+  `다음 지점 지도 안내`; retained Android dispatch uses the current operation.
+- AC042 clears the exact 13-character approved local-date default before its text-edit sequence. AC019 checks plaintext
+  meaning in the warning copy, not in the intentionally short consent label. Fresh/blank AC013
+  fixtures pass `seed_fixture_settings=False`; the driver may not seed `vroom.invalid` or any other
+  synthetic endpoint before opening the generated project.
+
+The correction is intentionally RED before implementation. M01–M21 remain NOT RUN and no automated
+provenance check is native-QField, live-provider or device evidence.
 
 > **APPROVED TEST DESIGN (approval 2026-09-18).** This additive slice covers approved D-SRP-049–056,
 > FR-SRP-047–053, NFR-SRP-007–009 and AC-SRP-049–055. It preserves all approved acceptance
@@ -99,7 +128,7 @@ intercepted `Authorization` header.
 
 ## 2026-09-18 mixed-access and Apple Maps design — APPROVED TEST DESIGN
 
-The smallest coherent extension reuses `run_survey_route_acceptance` and adds five operations defined
+The smallest coherent extension reuses `run_survey_route_acceptance` and adds six operations defined
 in the harness contract. External HTTP, launcher and storage faults remain injectable boundaries;
 ordering, sanitization, fallback classification, schema-3 construction, totals, remaining state and
 UI presentation must come from production. No new dependency or test-only provider is introduced.
@@ -284,12 +313,12 @@ network, device operation, application edit, unit-test edit or requirement edit 
   capture IDs prevent reuse of the rendered model as preflight evidence. Population precedes
   required validation. A transition sequence covers QField selection, completion, scope and
   ID/name mapping refresh, valid-ID preservation, stale-ID clear and `이름 · ID` disambiguation.
-- Naver uses independently percent-encoded platform-specific `/navigation` oracles with required
-  `appname`: the official package-bound Android intent and iOS `nmap` scheme. Android and iOS false
-  dispatches each make exactly one package/App Store fallback call;
-  true reports only OS request acceptance. Desktop/all-refused paths are actionable errors. Native
-  destination acceptance and guidance remain M05 device evidence.
-- Schema 2 uses three stops: open stores three legs and roundtrip four. The raw ORS feature has one
+- Android NAVER uses an independently percent-encoded package-bound `/navigation` intent with
+  required `appname`; false dispatch makes one Google Play fallback call and true reports only OS
+  request acceptance. D-SRP-056 supersedes the former iOS `nmap`/App Store oracle: iOS uses the
+  independent Apple Maps URL/no-fallback oracle in AC055. Native handoff remains M20/M21.
+- The retained three-stop ORS fixture has open three legs and roundtrip four. A new calculation saves
+  schema 3 with vehicle legs and exact-zero walking visits; schema 2 is read-only compatibility. The raw ORS feature has one
   route-level `properties.way_points` array with intermediate road vertices; segments deliberately
   lack `way_points` and contain only per-leg metrics/steps. Consecutive top-level index pairs slice
   exact inclusive leg LineStrings. Canonical totals are leg sums;
@@ -332,12 +361,12 @@ network, device operation, application edit, unit-test edit or requirement edit 
   opaque outline. Check and `완료` text accompany color, source renderer/data remain unchanged, and
   restart/load rederive the non-persistent overlay.
 - Metric controls cover 0, 1, 3599 and 3601 seconds, ceil-minute formatting, 1.23 km and exact active/
-  no-route bottom bars. A default-on route-line preference applies to all routes in one project,
-  leaves completion overlays/full geometry/source renderer unchanged, persists across switch/reopen/
-  restart/settings-bearing move, and does not affect a separate project's default.
+  no-route bottom bars. Route-line toggle leaves completion overlays/full geometry/source renderer
+  unchanged and is passive: no provider request, route/settings write or revision change. It applies
+  during the loaded session and returns to default-on after panel/session reconstruction or move.
 - A schema-1 route keeps line, totals, stops and bytes unchanged offline, shows enhanced remaining
   values as `사용 불가`, infers no legs and explains the one explicit full calculate/save upgrade.
-  That explicit action alone may write schema 2 with a higher revision. Future schema is preserved
+  That explicit action alone may write schema 3 with a higher revision. Unknown future schema is preserved
   and rejected without request or write.
 - Regression: four survey types × no reference/fictional reference; retain UUID/relations and
   non-site geometries, execute report and identification paths after relocation, enforce no
@@ -360,11 +389,9 @@ network, device operation, application edit, unit-test edit or requirement edit 
   Manual and consented-project keys are separate build/session fixtures with independent `.qgs`
   readback. Two actual saves must expose both A/B relative paths and independently decoded settings;
   synthetic key and objective are excluded. A commit fault preserves last-good bytes and the in-memory key.
-- AC-SRP-039 constructs exact official URL oracles in the test: Android package-bound intent, iOS
-  `nmap://navigation`, Google Play `market://details?id=com.nhn.android.nmap`, and App Store
-  `http://itunes.apple.com/app/id311867728?mt=8`. Korean/special-character destination and appname
-  are encoded independently. Current official guidance supplies no navigation web URL for this
-  native fixture, so inferred `map.naver.com` dispatch is forbidden. Actual handoff remains M10.
+- Retained AC-SRP-039 now covers Android only and invokes the platform-neutral action label through
+  `platform_map_dispatch`. Its independent oracle is the package-bound intent plus Google Play
+  fallback. The former iOS `nmap`/App Store expectation is superseded by AC055/M20.
 - AC-SRP-040 uses a three-stop schema-2 fixture. It compares complete state snapshots around blocked
   later-row attempts, then observes one-at-a-time enabling. Fully completed→uncheck and external
   `[false,true,false]` create a visible `순서 밖 완료` gap with the original full remaining line;
@@ -464,15 +491,15 @@ operation per AGENTS.md; automated sidecar checks never substitute for this evid
 | Case | Steps and expected result | AC |
 | --- | --- | --- |
 | M01 | On iOS and Android, move/open the generated folder and inspect the actual project layer dropdown order, duplicate-label disambiguation, `조사지` default and provider-order field lists. Rename/remove a disposable field/layer, reopen and verify refresh, fallback or blank blocking. At 320px-class and wide devices verify all six in-control floating labels in empty/value/focus/error states, selected-only guidance/count, no hidden gap, exact target `이름 · ID`, wrapping, touch and keyboard access. | 001–003,013,020–024,031,033–034; NFR-001 |
-| M02 | Build one consented and one declined project using only a synthetic key and redact evidence. Verify device key sourcing, GPS/map/target/saved start and a small real `ors-vroom` open and roundtrip route. Capture the map center marker, pan/zoom, recapture, collapse/reopen, calculate success/failure and every removal lifecycle. Reopen schema 2 and compare every route-level-waypoint slice/total/full line. Finish/unfinish stops and verify zero provider traffic; no `남은 지점 계산` control exists. | 004–007,013,017,019,022–023,026,032,035; NFR-003 |
+| M02 | Build one consented and one declined project using only a synthetic key and redact evidence. Verify device key sourcing, GPS/map/target/saved start and a small real `ors-vroom` open and roundtrip route. Capture the map center marker separately from access markers and verify its lifecycle. Reopen the new schema-3 route and compare route-level-waypoint vehicle legs plus visits/totals. Finish/unfinish stops and verify zero provider traffic; no `남은 지점 계산` control exists. | 004–007,013,017,019,022–023,026,032,035; NFR-003 |
 | M03 | Save two routes and default start, confirm feedback points to actual accessible project-relative settings/route files, turn route line off, switch routes, reopen panel, terminate/restart offline, then move the whole folder with settings and repeat. Preference, full route, completion overlay and progression remain identical; use only a disposable copy for corruption/recovery. | 008–009,013,023,026–029; NFR-003 |
 | M04 | For mapped Boolean and route-local completion, attempt a later target and verify it is blocked, complete point/line/polygon targets in order, then create a gap by unchecking or externally changing the source Boolean. Verify Blue 800 opacity/fill, check and `완료`/`순서 밖 완료` text, visit context, trimmed line, km/time/bottom bar and roundtrip return. Force a disposable write failure and verify every visual/metric/source value stays unchanged. | 010–011,024,027–028,040; NFR-002–004 |
-| M05 | Separately on Android and iOS with Naver installed, invoke a Korean/special-character target, verify exact destination and begin guidance manually. Repeat without/disabled app handler to verify package/App Store fallback and all-refused error. Record that Qt true proves only OS request acceptance; it is not handoff/destination/guidance proof. | 012–013,025 |
+| M05 | Retained Android NAVER baseline only: invoke a Korean/special-character target, verify exact destination, then repeat unavailable/all-refused Google Play fallback. Record that Qt true proves only OS request acceptance. iOS NAVER/App Store steps are superseded; current iOS/Android handoff gates are M20/M21. | 012–013,025 |
 | M06 | Desktop direct point/line/polygon drawing, invalid finish and two named sites; upload all six types. Open moved outputs on both device platforms, inspect each geometry/style/form. Existing polygons, UUID relations, observation/plot/community and report/identification remain functional; report non-point rows have no centroid-derived coordinates. Run the schema-1 unavailable/read-only case on a disposable legacy copy. | 014–018,029–030 |
 | M07 | In actual QField, create/select a disposable Point 조사지, calculate a small real ORS open route and inspect the target ID/order, one route-level-waypoint leg, road line and saved/reopened values. Record redacted request/response evidence and mark PASS only after performing it. | 017,030,035 |
 | M08 | Repeat M07 with an asymmetric LineString whose approved centroid differs from its first vertex and bounding-box center. Verify the representative sent, ORS acceptance and reopened leg; automated QML evidence does not substitute for this result. | 017,030,035 |
 | M09 | Repeat M07 with an asymmetric Polygon whose approved centroid differs from its first vertex and bounding-box center. Verify the source renderer/geometry remains unchanged. | 017,030,035 |
-| M10 | On actual QField Android and iOS, verify the seven labels and initially collapsed settings disclosure at 320px class width with keyboard/touch/screen reader; confirm manual/project key provenance and A/B feedback without exposing a key. Save a calculated candidate after name-only edits and recoverable failure. Exercise ordered completion/gap display, light/dark polygon and name-halo rendering, then separately verify Android package intent and iOS nmap handoff/store fallback. Record each platform result; automated URL/QML checks do not substitute. | 036–041; NFR-004 |
+| M10 | On actual QField Android and iOS, verify the seven labels and initially collapsed settings disclosure at 320px class width with keyboard/touch/screen reader; confirm manual/project key provenance and A/B feedback without exposing a key. Save a calculated candidate after name-only edits and recoverable failure. Exercise ordered completion/gap display, light/dark polygon and name-halo rendering. Navigation handoff is now owned by M20/M21. | 036–041; NFR-004 |
 | M11 | On supported Android with no external keyboard and OS soft keyboard enabled, tap the actual `저장할 경로 이름` body. Record QField/app/OS versions and redacted evidence for caret/focus, soft keyboard, Korean/Latin input, selection, deletion, correction, trim save, zero recalculation and unchanged candidate/revision. Automated QML input events do not substitute. | 042; NFR-005 |
 | M12 | Repeat M11 separately on supported iOS. Do not reuse the Android verdict. Record any OS-level keyboard suppression condition separately from an app failure. | 042; NFR-005 |
 | M13 | In target QField at 320px class and a wide viewport, capture empty/value/focus/disabled/error screenshots and interaction/accessibility review for all eight exact controls. Confirm every label/notch center crosses the visible top outline, `저장 경로 불러오기` has no separate label row, and there is no collision, clipping or horizontal scroll. | 043; NFR-005 |
