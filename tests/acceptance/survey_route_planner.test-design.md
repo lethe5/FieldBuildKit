@@ -1,5 +1,9 @@
 # Survey Route Planner — APPROVED legacy-expectation supersession reconciliation
 
+> **APPROVED TEST DESIGN (approval 2026-09-18).** This additive slice covers approved D-SRP-049–056,
+> FR-SRP-047–053, NFR-SRP-007–009 and AC-SRP-049–055. It preserves all approved acceptance
+> history below. M18–M21 are explicitly NOT RUN.
+
 > **APPROVED TEST DESIGN — supersession reconciliation (approval 2026-09-17).**
 > This approved reconciliation aligns retained AC-SRP-019/022/024/031 executable expectations with the already
 > approved D-SRP-043/045, FR-SRP-041/043 and AC-SRP-043/045 authority. It changes no criterion.
@@ -92,6 +96,74 @@ and review. Do not report skips as covered runtime behavior. Fourteen manual pla
 No real network requests or purchased keys are needed for this stage. All secret fixtures are
 synthetic and may appear only in the already-approved generated-project-variable exception or
 intercepted `Authorization` header.
+
+## 2026-09-18 mixed-access and Apple Maps design — APPROVED TEST DESIGN
+
+The smallest coherent extension reuses `run_survey_route_acceptance` and adds five operations defined
+in the harness contract. External HTTP, launcher and storage faults remain injectable boundaries;
+ordering, sanitization, fallback classification, schema-3 construction, totals, remaining state and
+UI presentation must come from production. No new dependency or test-only provider is introduced.
+
+- AC-SRP-049 injects non-2xx at all five stages. Safe JSON scalar code/message and plain text are
+  bounded and normalized. Empty, HTML/markup, malformed JSON, Authorization/credential-like text,
+  key-bearing URLs/bodies and huge bodies must produce zero detail. Explicit provider content alone
+  may distinguish no-result from endpoint unavailable. Every failure proves zero retry/write/state
+  change; a 2xx marker proves success bodies never enter error UI.
+- AC-SRP-050 captures exactly one ordered `/v2/snap/driving-car/json` request at 350/2000/5000 m,
+  its 1:1 point/null mapping, access-only vehicle payloads and byte-stable source data. Null,
+  documented batch overflow, radius rejection/cap and non-routable origin are fail-fast cases with
+  no generated probes, radius shrink, origin snap/walk or downstream work.
+- AC-SRP-051 covers mapped `foot-hiking` out-and-back (including the open-route last stop), exact
+  zero with no foot request, explicit no-path geodesic lower-bound/null duration/save acknowledgement,
+  and HTTP/timeout/malformed/metric-mismatch failures that must never become fallback.
+- AC-SRP-052 independently reopens schema 3 with exact vehicle legs, visits, provenance and separate
+  totals across restart/recovery/offline/folder move and complete→uncheck. Schema 1/2 loads are
+  byte-preserving and request/write-free; future schema rejection preserves bytes.
+- AC-SRP-053 inspects distinct solid/dashed/dotted+casing patterns, text legend, warning marker and
+  separate vehicle/walking accessible values at 320/wide and light/dark. This is only an automatic
+  structure/state proxy; M19 is authoritative for pixels, grayscale and screen reader behavior.
+- AC-SRP-054 captures the exact stage sequence and fail-fast boundary. It proves notice-before-explicit
+  calculate, no names/attributes/business IDs in ORS/VROOM, request-local indices only, no generated
+  coordinates/radius changes/raw-body retention and no writes from preview/legend/toggle/cancel.
+- AC-SRP-055 supersedes only retained iOS NAVER/App Store expectations. iOS launches the exact Apple
+  Maps HTTPS directions URL once with no name or fallback, including false/exception outcomes.
+  Android keeps its exact package-bound NAVER intent, one-time UTF-8 encoding and Google Play fallback.
+  Boundary/rounding/negative-zero inputs canonicalize; invalid type/nonfinite/range/exponent-inducing
+  inputs dispatch zero launchers. Both platforms retain OS-request-only success claims and zero writes.
+
+## User-run additions — NOT RUN
+
+| ID | Procedure | Criteria |
+| --- | --- | --- |
+| M18 | In a disposable project, acknowledge coordinate sharing and calculate against live configured ORS with one routable site and one rural site more than 350 m but within 2 km of `driving-car`. Record redacted request-stage evidence, returned access points, mapped/no-path outcome and compare source geometry before/after. Do not expose a key or raw body. | 049–052,054; NFR-007–008 |
+| M19 | On target QField at 320 px and wide widths over light/dark and grayscale basemaps, inspect vehicle solid, mapped-walk dashed and unmapped dotted+casing lines, legend, warning, separate totals, toggle/completion and screen-reader output. Record OS/QField/device versions and screenshots/interactions. | 053; NFR-009 |
+| M20 | On target iOS QField, tap `다음 지점 지도 안내` for the stored next stop. Verify Apple Maps shows that exact destination in driving-directions mode; repeat a launcher refusal/unavailable condition and verify no NAVER/App Store/web fallback. | 055 |
+| M21 | On target Android QField, re-run the existing NAVER installed/unavailable cases and verify exact destination, package-bound dispatch and Google Play fallback are unchanged. | 055; retained 039 |
+
+Automated collection/design checks cannot convert M18–M21, live ORS availability, native drawing,
+accessibility, launcher handoff, destination acceptance or guidance start into PASS.
+
+### Pre-approval verification record (2026-09-18; preserved)
+
+Working directory `/Users/tory/vibe_coding/fieldbuild_standalone`; no Git-mutating command, live
+network, device operation, application edit, unit-test edit or requirement edit was performed.
+
+- `.venv/bin/python -c 'import fiona; print(fiona.__version__)'`: **1.10.1**, exit 0.
+- Focused collection with `.venv/bin/pytest --collect-only -q` and
+  `-k 'ac049 or ac050 or ac051 or ac052 or ac053 or ac054 or ac055'`:
+  **68/426 collected, 358 deselected**, exit 0.
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile tests/acceptance/survey_route_planner/test_survey_route_planner.py tests/acceptance/survey_route_planner/verify_design.py`: exit 0.
+- Manual selector `-k 'M18 or M19 or M20 or M21'` under `.venv`: **4 skipped,
+  422 deselected**, exit 0;
+  all four are explicitly NOT RUN.
+- The focused executable slice under `.venv` completed RED with **68 failed, 358 deselected**, exit 1.
+  Representative failures report `unsupported provider_http_failure` and
+  `unsupported platform_map_dispatch`; the newly contracted mixed-access/schema/presentation
+  operations are not implemented. Tests and expectations were not weakened.
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python tests/acceptance/survey_route_planner/verify_design.py`:
+  exit 0; approved AC001–048/QPB149–150 history, AC049–055 coverage and M01–M21 NOT RUN
+  boundaries are preserved. No application tests were executed.
+- `git diff --check -- <five changed acceptance files>`: exit 0, no output.
 
 ## Fixtures and independent oracles
 

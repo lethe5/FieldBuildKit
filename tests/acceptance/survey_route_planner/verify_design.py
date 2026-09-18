@@ -1,7 +1,7 @@
-"""Approved baseline plus approved iOS/QPB evidence-boundary correction verifier (approval 2026-09-18).
+"""Approved baseline, mixed-access slice and iOS/QPB correction verifier (approval 2026-09-18).
 
-The approved 2026-09-17 baseline and AC-SRP-042–045 correction remain preserved; no application
-code is executed.
+AC-SRP-049–055 are approved acceptance expectations and M18–M21 remain NOT RUN. The approved
+2026-09-17 baseline and AC-SRP-042–045 correction remain preserved; no application code is executed.
 """
 import ast
 import importlib.util
@@ -21,7 +21,7 @@ spec = importlib.util.spec_from_file_location("srp_test_design", path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 coverage = set(re.findall(r"ac(\d{3})", path.read_text(encoding="utf-8-sig")))
-assert {f"{i:03d}" for i in range(1, 49)} <= coverage
+assert {f"{i:03d}" for i in range(1, 56)} <= coverage
 wire = module.vroom_response(include_arrivals=True)
 route = wire["routes"][0]
 arrivals = [step["arrival"] for step in route["steps"] if step["type"] == "job"]
@@ -62,7 +62,11 @@ assert all(case in source for case in ["M01_project_dropdowns_layout", "M02_sche
                                        "M14_qfield_six_geometry_labels",
                                        "M15_ios_light_dark_contrast_matrix",
                                        "M16_ios_header_spacing_and_tap_regions",
-                                       "M17_ios_local_date_name_lifecycle"])
+                                       "M17_ios_local_date_name_lifecycle",
+                                       "M18_live_ors_mixed_route",
+                                       "M19_mixed_route_visual_accessibility",
+                                       "M20_ios_apple_maps_handoff",
+                                       "M21_android_naver_regression"])
 assert module.canonical_naver_url("조사지 A & B/#?") == (
     "nmap://navigation?dlat=37.456&dlng=127.123&dname="
     + quote("조사지 A & B/#?", safe="") + "&appname=ch.opengis.qfield")
@@ -72,7 +76,6 @@ assert module.canonical_naver_android_intent("조사지 A & B/#?") == (
     + "&appname=ch.opengis.qfield#Intent;scheme=nmap;action=android.intent.action.VIEW;"
       "category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end")
 assert module.NAVER_ANDROID_STORE == "market://details?id=com.nhn.android.nmap"
-assert module.NAVER_IOS_STORE == "http://itunes.apple.com/app/id311867728?mt=8"
 for roundtrip, count in [(False, 3), (True, 4)]:
     response = module.schema2_directions_response(roundtrip=roundtrip)
     feature = response["features"][0]
@@ -236,6 +239,18 @@ assert all(forbidden not in source for forbidden in [
     'operation="generated_site_tabler_exclusion"',
 ])
 assert '"geom_to_geojson" not in expression' in source
+assert module.canonical_apple_maps_url() == (
+    "https://maps.apple.com/directions?destination=37.456,127.123&mode=driving"
+)
+assert module.MIXED_SITES[0]["xy"] == [127.1, 37.1]
+assert module.MIXED_ACCESS[0] == [127.1035, 37.1]
+assert all(operation in source for operation in [
+    'operation="provider_http_failure"', 'operation="mixed_route_calculate"',
+    'operation="mixed_route_roundtrip"', 'operation="mixed_route_compatibility"',
+    'operation="mixed_route_presentation"', 'operation="platform_map_dispatch"',
+])
+assert "\"ios\", canonical_naver_url" not in source
+assert "NAVER_IOS_STORE" not in source
 assert all(token in source for token in ['"centroid" in expression', '"transform" in expression',
                                          '"x(" in expression', '"y(" in expression'])
 for kind, center in module.CENTROIDS.items():
@@ -267,6 +282,6 @@ for fmt in ["SHP", "ZIP", "GPKG"]:
             except FixtureChecked:
                 count += 1
 assert count == 18
-print("Design checks: approved AC001-045 history preserved; approved AC046-048/QPB149-150 correction "
-      "uses bounded structure/controller/builder/symbol boundaries; superseded operations are absent; "
-      "M01-M17 remain NOT RUN. No application tests executed.")
+print("Design checks: approved AC001-055/QPB149-150 history preserved; approved AC049-055 fixtures, "
+      "operations, iOS supersession and M18-M21 manual boundaries are present; M01-M21 remain "
+      "NOT RUN. No application tests executed.")

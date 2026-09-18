@@ -1,5 +1,9 @@
 # Survey Route Planner — APPROVED legacy-expectation supersession reconciliation
 
+> **APPROVED TEST DESIGN (approval 2026-09-18).** AC-SRP-049–055 and mappings for D-SRP-049–056,
+> FR-SRP-047–053 and NFR-SRP-007–009 are additive to the preserved approved history.
+> M18–M21 are NOT RUN and cannot be satisfied by automated fixtures.
+
 > **APPROVED TEST DESIGN — supersession reconciliation (approval 2026-09-17).**
 > This approved reconciliation aligns retained AC-SRP-019/022/024/031 executable expectations with approved
 > D-SRP-043/045, FR-SRP-041/043 and AC-SRP-043/045. Prior approvals below remain preserved.
@@ -55,7 +59,7 @@ test asks for the removed remaining-route calculation.
 | AC-SRP-022 | `ac022_ac024_labels_guidance_and_conditional_controls` (2 widths × 3 modes, D-SRP-037 `계산 대상`, D-SRP-043 `저장 경로 불러오기`, explicit all scope), `ac022_stale_target_is_cleared_and_blocks_target_start` | M01/M02; native feature-model refresh and touch/keyboard controls |
 | AC-SRP-023 | `ac023_storage_feedback_names_exact_committed_relative_path` (2), `ac023_storage_failure_has_no_success_or_secret_feedback` (2) | M03; actual QField FileUtils path and accessible project folder |
 | AC-SRP-024 | `ac022_ac024_labels_guidance_and_conditional_controls` (`저장 경로 불러오기` dropdown; editable field remains `저장할 경로 이름`) | M01/M04; native wrapping/readability |
-| AC-SRP-025 | `ac025_exact_encoded_android_intent_and_honest_qt_true` (2 caller IDs), `ac025_mobile_fallback_and_all_refused` (exact Android intent/iOS scheme and stores), `ac025_non_mobile_has_actionable_error_without_install_dispatch`, retained `ac012_road_and_naver` | M05 separately on Android/iOS; actual handoff, destination acceptance and guidance |
+| AC-SRP-025 | `ac025_exact_encoded_android_intent_and_honest_qt_true` (2 caller IDs), `ac025_mobile_fallback_and_all_refused` (retained Android intent/store only under D-SRP-056), `ac025_non_mobile_has_actionable_error_without_install_dispatch`, retained `ac012_road_and_naver` | Android remains M05/M21; superseded iOS provider/fallback is covered by AC-SRP-055/M20 |
 | AC-SRP-026 | `ac011_ac026_remaining_recalculation_is_superseded`, `ac026_ac035_schema2_complete_immutable_legs_roundtrip` (open/roundtrip), `ac026_invalid_schema2_leg_preserves_existing_route` (7 raw route-level/top-level fault documents with exact provenance and no segment-level way_points), `ac026_provider_total_tolerance` (4 boundaries) | M02/M03; native QField storage roundtrip and UI control absence |
 | AC-SRP-027 | `ac010_ac011_ac027_all_complete_uses_saved_full_route`, `ac027_ordered_completion_then_uncheck_creates_out_of_order_gap_and_roundtrip_return` (blocked later-row attempt, then ordered completion and uncheck-created gap; mapped/local; raw intermediate-vertex directions and committed-route provenance), `ac027_completion_overlay_is_blue_accessible_nonpersistent_and_rederived` (3 geometries × mapped/local), `ac027_mapped_write_failure_preserves_overlay_metrics_and_source`, `ac027_ac028_progression_survives_restart_recovery_offline_move` | M04; actual map rendering, source writes and recovery |
 | AC-SRP-028 | `ac028_metric_formatting_and_bottom_bar` (4 ceil-minute edges), `ac028_route_line_toggle_scope_persistence_move_and_zero_api`, `ac027_ac028_progression_survives_restart_recovery_offline_move` | M03/M04; native device-local setting and overlay visibility |
@@ -79,6 +83,13 @@ test asks for the removed remaining-route calculation.
 | AC-SRP-046 | `ac046_theme_structure_uses_host_palette_and_semantic_roles_only` | M15 is authoritative for pixels, thresholds, non-color cues and passive theme-switch state; NOT RUN |
 | AC-SRP-047 | `ac047_header_and_first_control_are_distinct_ordered_structures_only` | M16 is authoritative for painted 8 dp clearance, clipping and tap regions; NOT RUN |
 | AC-SRP-048 | `ac048_controller_local_date_save_roundtrip_and_next_success_reset` (3 injected timezone/locale boundaries); retained `ac042_touch_equivalent_text_input_uses_real_editable_qml_control_without_recalculation` | M17 is authoritative for iOS caret/soft keyboard and device presentation; NOT RUN |
+| AC-SRP-049 | `ac049_provider_http_failure_preserves_stage_status_and_safe_json_detail` (5 stages); `ac049_unsafe_or_unusable_provider_body_has_no_detail` (9 unsafe/unusable bodies); `ac049_plain_text_is_bounded_and_success_body_never_enters_error_ui`; `ac049_404_meaning_comes_only_from_provider_content` (explicit endpoint/no-result/generic) | M18; live provider response behavior remains NOT RUN |
+| AC-SRP-050 | `ac050_single_ordered_access_snap_uses_originals_and_exact_radius` (0.35/2/5 km); `ac050_access_boundary_failures_stop_pipeline_and_preserve_last_good` (null/batch/radius/origin) | M18; live ORS snap/routing coverage remains NOT RUN |
+| AC-SRP-051 | `ac051_mapped_zero_and_open_last_visits_are_out_and_back`; `ac051_explicit_no_path_requires_ack_and_keeps_duration_unknown`; `ac051_transient_or_invalid_walking_failure_is_never_downgraded` (4) | M18; live foot-hiking/no-path classification remains NOT RUN |
+| AC-SRP-052 | `ac052_schema3_exact_roundtrip_recovery_move_and_completion_are_offline` (mapped/fallback); `ac052_legacy_load_and_future_rejection_preserve_bytes` (schema 1/2 plus future) | M18; target QField native file/recovery behavior remains NOT RUN |
+| AC-SRP-053 | `ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive` (2 widths × 2 themes) | M19 authoritative native render/grayscale/screen-reader gate; NOT RUN |
+| AC-SRP-054 | `ac054_exact_stage_sequence_privacy_and_no_incidental_writes`; `ac054_each_stage_failure_stops_all_later_requests_and_writes` (7 stages); `ac054_status_actions_remain_redacted_and_nonretrying` (401/403/404/429/5xx/timeout/radius); AC049/050/051 fail-fast matrices | M18; redacted live-provider confirmation remains NOT RUN |
+| AC-SRP-055 | `ac055_ios_uses_exact_apple_maps_once_without_any_fallback` (true/false/exception); `ac055_navigation_coordinates_are_canonical_and_android_contract_is_unchanged` (4 boundaries); `ac055_invalid_navigation_coordinate_never_dispatches_or_mutates` (7 invalid inputs); retained Android-only AC039 tests | M20 iOS and M21 Android handoff; NOT RUN |
 | AC-QPB-149 | `ac_qpb149_direct_builder_credential_states_and_secret_boundaries` (five independent builder/credential-store states; parsed QGS and encrypted-store readback) | Exact copy is shared with retained AC045 UI seam; no QML/local-socket route-panel harness |
 | AC-QPB-150 | `ac_qpb150_symbol_router_excludes_canonical_site_directly`; `ac_qpb150_generated_qgs_keeps_site_base_symbol_after_rename_and_relocation` (Point/MultiPoint) | Existing AC-QPB-100/101 and AC-SRP-030/041/044 regressions retain fallback and unaffected polygon/line/Type4/data behavior; target rendering is user-observed |
 
@@ -108,6 +119,14 @@ test asks for the removed remaining-route calculation.
 | D-SRP-046; FR-SRP-044; D-UI-SRP-011 | AC-SRP-046 static semantic-theme structure; authoritative M15 |
 | D-SRP-047; FR-SRP-045; D-UI-SRP-012 | AC-SRP-047 static header/control separation; authoritative M16 |
 | D-SRP-048; FR-SRP-046; D-UI-SRP-013 | AC-SRP-048 controller clock/save/load/reset boundary + retained AC042 wiring; authoritative M17 |
+| D-SRP-049; FR-SRP-047 | AC-SRP-049 bounded stage/status/detail/redaction tests; AC-SRP-054 fail-fast privacy; M18 |
+| D-SRP-050; FR-SRP-048 | AC-SRP-050 ordered single-batch snap/radius/source preservation and boundary failures; AC-SRP-054 sequence/privacy; M18 |
+| D-SRP-051; FR-SRP-049 | AC-SRP-051 mapped/zero/no-path/transient out-and-back tests; AC-SRP-052 schema roundtrip; M18 |
+| D-SRP-052; FR-SRP-052 | AC-SRP-049–051 fail-fast preservation plus AC-SRP-054 exact stage sequence; M18 |
+| D-SRP-053; FR-SRP-051 | AC-SRP-052 schema-3 totals/provenance/recovery/compatibility tests; M18 |
+| D-SRP-054; FR-SRP-050 | AC-SRP-053 generated presentation/accessibility proxy; M19 authoritative device gate |
+| D-SRP-055; FR-SRP-052 | AC-SRP-054 notice/request-shape/privacy/no-write test plus all injected failure boundaries; M18 |
+| D-SRP-056; FR-SRP-053 | AC-SRP-055 exact iOS Apple Maps/no-fallback, canonical-coordinate and unchanged Android tests; M20–M21 |
 | D-101; FR-QPB-144; NFR-QPB-084 | AC-QPB-149 five-state direct builder/QGS/encrypted-store boundary |
 | D-102; FR-QPB-145; NFR-QPB-084 | AC-QPB-150 direct symbol routing + generated-QGS rename/relocation; existing fallback/regression coverage reused |
 | NFR-SRP-001 | AC-SRP-022/024 320px proxy plus M01 touch/keyboard |
@@ -116,6 +135,9 @@ test asks for the removed remaining-route calculation.
 | NFR-SRP-004 | AC-SRP-037–038/040–041 320px/render/accessibility proxies plus M10 native verification |
 | NFR-SRP-005 | AC-SRP-042–044 explicitly bounded automatic proxies plus M11–M14 NOT RUN device evidence |
 | NFR-SRP-006 | AC-SRP-046/047 structural checks and AC-SRP-048 controller boundary plus M15–M17 NOT RUN authoritative iOS evidence |
+| NFR-SRP-007 | AC-SRP-049 64/320/512 limits, normalization, all-or-nothing redaction and no raw-body retention; M18 |
+| NFR-SRP-008 | AC-SRP-050 exact configured radius/single batch/no probes plus AC-SRP-054 sequence and privacy; M18 |
+| NFR-SRP-009 | AC-SRP-053 automatic structural/accessibility proxy plus authoritative M19 device evidence |
 
 ## Approved supersession reconciliation (2026-09-17; preserved)
 

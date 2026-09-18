@@ -1,6 +1,7 @@
-"""APPROVED TEST-DESIGN CORRECTION — iOS/QField follow-up (approval 2026-09-18).
+"""APPROVED TEST DESIGN — mixed-access/Apple Maps slice and iOS/QField correction (approval 2026-09-18).
 
-The approved history is preserved. This approved correction replaces over-scoped rendered/device proxies for
+AC-SRP-049–055 are approved acceptance expectations; M18–M21 remain NOT RUN. The approved history
+is preserved. The approved correction replaces over-scoped rendered/device proxies for
 AC-SRP-046–048 and AC-QPB-149–150; it does not claim device PASS or alter product requirements.
 
 APPROVED TEST-DESIGN SUPERSESSION RECONCILIATION (approval 2026-09-17) — retained
@@ -312,7 +313,6 @@ STEP7_ROUTE_KEY_COPY = {
 }
 NAVER_ANDROID_PACKAGE = "com.nhn.android.nmap"
 NAVER_ANDROID_STORE = "market://details?id=com.nhn.android.nmap"
-NAVER_IOS_STORE = "http://itunes.apple.com/app/id311867728?mt=8"
 SELECTION_GUIDANCE = (
     "조사지 레이어를 열고 피처 선택/체크 도구로 계산할 조사지를 선택한 뒤 이 패널로 돌아오세요. "
     "현재 선택한 조사지: {count}개"
@@ -1031,7 +1031,11 @@ def test_ac018_ac030_regression_portability(run, survey_type, reference):
                                   "M14_qfield_six_geometry_labels",
                                   "M15_ios_light_dark_contrast_matrix",
                                   "M16_ios_header_spacing_and_tap_regions",
-                                  "M17_ios_local_date_name_lifecycle"])
+                                  "M17_ios_local_date_name_lifecycle",
+                                  "M18_live_ors_mixed_route",
+                                  "M19_mixed_route_visual_accessibility",
+                                  "M20_ios_apple_maps_handoff",
+                                  "M21_android_naver_regression"])
 def test_manual_qfield_device(case):
     pytest.skip(f"User-run QField iOS/Android case {case}; see test design. No device PASS implied.")
 
@@ -1575,7 +1579,6 @@ def test_ac025_exact_encoded_android_intent_and_honest_qt_true(run, caller_id):
 
 @pytest.mark.parametrize("platform,expected_primary,expected_store,identifier", [
     ("android", canonical_naver_android_intent("목적지"), NAVER_ANDROID_STORE, "com.nhn.android.nmap"),
-    ("ios", canonical_naver_url("목적지"), NAVER_IOS_STORE, "311867728"),
 ])
 def test_ac025_mobile_fallback_and_all_refused(run, platform, expected_primary, expected_store, identifier):
     r = run(operation="reopen_navigate", road_geometry=ROAD, destination=[127.123, 37.456], name="목적지",
@@ -2024,7 +2027,6 @@ def test_ac038_failed_settings_save_preserves_last_good_and_session_key(run):
 
 @pytest.mark.parametrize("platform,expected_primary", [
     ("android", canonical_naver_android_intent("조사지 A & B/#?", "org.example.fieldbuild")),
-    ("ios", canonical_naver_url("조사지 A & B/#?", "org.example.fieldbuild")),
 ])
 def test_ac039_platform_specific_official_primary_dispatch(run, platform, expected_primary):
     r = run(operation="platform_naver_dispatch", platform=platform, host_context="supported_native",
@@ -2039,7 +2041,6 @@ def test_ac039_platform_specific_official_primary_dispatch(run, platform, expect
 
 @pytest.mark.parametrize("platform,expected_primary,expected_store", [
     ("android", canonical_naver_android_intent("목적지"), NAVER_ANDROID_STORE),
-    ("ios", canonical_naver_url("목적지"), NAVER_IOS_STORE),
 ])
 def test_ac039_official_install_fallback_once_and_no_inferred_web_url(run, platform, expected_primary, expected_store):
     r = run(operation="platform_naver_dispatch", platform=platform, host_context="supported_native",
@@ -2497,3 +2498,312 @@ def test_ac_qpb150_generated_qgs_keeps_site_base_symbol_after_rename_and_relocat
         assert "SvgMarker" in records[table]["classes"]
         assert records[table]["svg_values"] == {"symbols/map-pin.svg"}
         assert (moved / "symbols/map-pin.svg").is_file()
+
+
+# 2026-09-18 approved mixed vehicle/walking route and Apple Maps acceptance slice.
+MIXED_SITES = [
+    {"id": "rural-a", "name": "산지 A", "xy": [127.1000, 37.1000]},
+    {"id": "rural-b", "name": "농지 B", "xy": [127.2000, 37.2000]},
+]
+MIXED_ACCESS = [[127.1035, 37.1000], [127.2000, 37.2000]]
+MAPPED_FOOT = {
+    "distance_m": 480.25, "duration_s": 390.5,
+    "geometry": {"type": "LineString", "coordinates": [MIXED_ACCESS[0], [127.1017, 37.1002], MIXED_SITES[0]["xy"]]},
+}
+
+
+def assert_mixed_failure_preserves_state(result):
+    assert result["ok"] is False and result["message"].strip()
+    assert result["candidate_after"] == result["candidate_before"]
+    assert result["saved_after"] == result["saved_before"]
+    assert result["revision_after"] == result["revision_before"]
+    assert result["settings_after"] == result["settings_before"]
+    assert result["writes"] == [] and result["automatic_retries"] == []
+
+
+@pytest.mark.parametrize("stage", ["matrix", "optimizer", "directions", "access-snap", "walking-directions"])
+def test_ac049_provider_http_failure_preserves_stage_status_and_safe_json_detail(run, stage):
+    body = {"error": {"code": "NO_ROUTE\u202e  ", "message": "  경로\n  검색 결과 없음  "}}
+    r = run(operation="provider_http_failure", stage=stage, status=404, body=body,
+            content_type="application/json", key=KEY, seed_saved=True, seed_candidate=True)
+    assert_mixed_failure_preserves_state(r)
+    error = r["error_record"]
+    assert error["stage"] == stage and error["http_status"] == 404
+    assert error["provider_code"] == "NO_ROUTE" and error["provider_message"] == "경로 검색 결과 없음"
+    assert len(error["provider_code"]) <= 64 and len(error["provider_message"]) <= 320
+    assert len(r["message"]) <= 512 and "HTTP 404" in r["message"]
+    assert r["classification"] == "no-result-explicit"
+    assert KEY not in str({k: v for k, v in r.items() if k != "captured_request"})
+
+
+@pytest.mark.parametrize("body,content_type", [
+    ("", "text/plain"),
+    ("<html><body>404</body></html>", "text/html"),
+    ("<b>markup</b>", "text/plain"),
+    ("not { json", "application/json"),
+    (f"Authorization: Bearer {KEY}", "text/plain"),
+    (f"key={KEY}", "text/plain"),
+    ("https://example.invalid/path?token=secret-value", "text/plain"),
+    ({"error": {"message": "request body locations=[127,37] token=secret"}}, "application/json"),
+    ("x" * 200000, "text/plain"),
+], ids=["empty", "html", "markup", "malformed-json", "authorization", "known-key",
+        "key-bearing-url", "key-bearing-body", "huge-body"])
+def test_ac049_unsafe_or_unusable_provider_body_has_no_detail(run, body, content_type):
+    r = run(operation="provider_http_failure", stage="directions", status=404, body=body,
+            content_type=content_type, key=KEY, seed_saved=True, seed_candidate=True)
+    assert_mixed_failure_preserves_state(r)
+    assert r["error_record"] == {"stage": "directions", "http_status": 404,
+                                 "provider_code": None, "provider_message": None, "safe_text": None}
+    assert r["classification"] == "generic-http" and "HTTP 404" in r["message"]
+    assert KEY not in str(r["message"]) and r["retained_raw_response"] is False
+
+
+def test_ac049_plain_text_is_bounded_and_success_body_never_enters_error_ui(run):
+    failure = run(operation="provider_http_failure", stage="matrix", status=503,
+                  body="  provider\n temporarily   unavailable  ", content_type="text/plain",
+                  seed_saved=True, seed_candidate=True)
+    assert failure["error_record"]["safe_text"] == "provider temporarily unavailable"
+    assert len(failure["error_record"]["safe_text"]) <= 320
+    success = run(operation="provider_http_failure", stage="matrix", status=200,
+                  body={"message": "success-body-marker"}, content_type="application/json")
+    assert "success-body-marker" not in str(success["error_ui"])
+
+
+@pytest.mark.parametrize("provider_message,expected", [
+    ("configured endpoint unavailable", "endpoint-unavailable-explicit"),
+    ("no route found for locations", "no-result-explicit"),
+    (None, "generic-http"),
+])
+def test_ac049_404_meaning_comes_only_from_provider_content(run, provider_message, expected):
+    body = {"error": {"code": "NOT_FOUND", "message": provider_message}} if provider_message else ""
+    r = run(operation="provider_http_failure", stage="directions", status=404, body=body,
+            content_type="application/json" if provider_message else "text/plain",
+            seed_saved=True, seed_candidate=True)
+    assert r["classification"] == expected
+
+
+@pytest.mark.parametrize("radius", [350, 2000, 5000])
+def test_ac050_single_ordered_access_snap_uses_originals_and_exact_radius(run, radius):
+    r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=radius,
+            access_snap_response={"locations": [{"location": MIXED_ACCESS[0]}, {"location": MIXED_ACCESS[1]}]},
+            walking_responses=[MAPPED_FOOT, "exact-zero"], return_to_start=True)
+    assert r["ok"] is True
+    requests = r["requests"]
+    snap = [request for request in requests if request["kind"] == "access-snap"]
+    assert len(snap) == 1 and snap[0]["url"].endswith("/v2/snap/driving-car/json")
+    assert snap[0]["body"]["locations"] == [site["xy"] for site in MIXED_SITES]
+    assert snap[0]["body"]["radius"] == radius
+    assert r["generated_snap_inputs"] == [] and r["radius_adjustments"] == []
+    assert r["source_features_after"] == r["source_features_before"]
+    assert r["original_source_snapshots"] and all(
+        snapshot == r["original_source_snapshots"][0] for snapshot in r["original_source_snapshots"])
+    for request in requests:
+        if request["kind"] in {"matrix", "optimizer", "directions"}:
+            assert all(str(site["xy"]) not in str(request["body"]) for site in MIXED_SITES)
+    assert r["vehicle_coordinates"] == MIXED_ACCESS
+
+
+@pytest.mark.parametrize("fault", ["null", "batch-limit", "radius-rejected", "origin-not-routable"])
+def test_ac050_access_boundary_failures_stop_pipeline_and_preserve_last_good(run, fault):
+    r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=2000,
+            access_fault=fault, seed_saved=True, seed_candidate=True, key=KEY)
+    assert_mixed_failure_preserves_state(r)
+    assert r["downstream_requests"] == []
+    if fault == "null":
+        assert "산지 A" in r["message"] and "2.00 km" in r["message"]
+        assert {"coordinates", "osm_coverage", "max_access_distance_m"} <= set(r["suggested_actions"])
+    elif fault == "batch-limit":
+        assert r["requests"] == [] and r["preflight_failed"] is True
+    elif fault == "radius-rejected":
+        assert r["error_record"]["stage"] == "access-snap" and r["radius_adjustments"] == []
+    else:
+        assert r["requests"] == [] and r["origin_snap_requests"] == [] and r["origin_walking_legs"] == []
+
+
+def test_ac051_mapped_zero_and_open_last_visits_are_out_and_back(run):
+    r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=2000,
+            access_snap_response={"locations": [{"location": MIXED_ACCESS[0]}, {"location": MIXED_ACCESS[1]}]},
+            walking_responses=[MAPPED_FOOT, "exact-zero"], return_to_start=False)
+    assert r["walking_request_count"] == 1
+    mapped, zero = r["candidate"]["visits"]
+    assert [leg["direction"] for leg in mapped["walking_legs"]] == ["outbound", "return"]
+    assert mapped["walking_legs"][0]["distance_m"] == mapped["walking_legs"][1]["distance_m"] == 480.25
+    assert mapped["walking_legs"][1]["geometry"]["coordinates"] == list(reversed(
+        mapped["walking_legs"][0]["geometry"]["coordinates"]))
+    assert all(leg["distance_m"] == leg["duration_s"] == 0 and leg["geometry"] is None
+               for leg in zero["walking_legs"])
+    assert r["optimizer_request"]["walking_costs"] == []
+
+
+def test_ac051_explicit_no_path_requires_ack_and_keeps_duration_unknown(run):
+    r = run(operation="mixed_route_calculate", sites=MIXED_SITES[:1], max_access_distance_m=2000,
+            access_snap_response={"locations": [{"location": MIXED_ACCESS[0]}]},
+            walking_responses=[{"explicit_no_path": True}], save_attempts=[False, True])
+    visit = r["candidate"]["visits"][0]
+    assert visit["walking_mode"] == "unmapped_estimate"
+    assert visit["metric_source"] == "straight_line_lower_bound_m"
+    lon1, lat1 = map(math.radians, MIXED_ACCESS[0])
+    lon2, lat2 = map(math.radians, MIXED_SITES[0]["xy"])
+    haversine = math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+    expected_lower_bound = 6371008.8 * 2 * math.asin(math.sqrt(haversine))
+    assert all(leg["distance_m"] == pytest.approx(expected_lower_bound, abs=0.01)
+               for leg in visit["walking_legs"])
+    assert all(leg["duration_s"] is None for leg in visit["walking_legs"])
+    assert r["candidate"]["walking_totals"]["duration_s"] is None
+    assert r["candidate"]["combined_totals"] is None
+    assert r["save_attempts"][0]["blocked"] is True and "지도에 없는 도보 구간 포함" in r["save_attempts"][0]["message"]
+    assert r["save_attempts"][1]["committed_schema"] == 3
+
+
+@pytest.mark.parametrize("fault", ["http", "timeout", "malformed", "metric-mismatch"])
+def test_ac051_transient_or_invalid_walking_failure_is_never_downgraded(run, fault):
+    r = run(operation="mixed_route_calculate", sites=MIXED_SITES[:1], max_access_distance_m=2000,
+            access_snap_response={"locations": [{"location": MIXED_ACCESS[0]}]},
+            walking_fault=fault, seed_saved=True, seed_candidate=True)
+    assert_mixed_failure_preserves_state(r)
+    assert r["fallback_visits"] == [] and r["vehicle_requests"] == []
+
+
+@pytest.mark.parametrize("fallback", [False, True])
+def test_ac052_schema3_exact_roundtrip_recovery_move_and_completion_are_offline(run, fallback):
+    r = run(operation="mixed_route_roundtrip", sites=MIXED_SITES, fallback=fallback,
+            lifecycle=["save", "restart", "recover-last-good", "offline", "move", "complete", "uncheck"])
+    route = r["reloaded_route"]
+    assert r["reloaded_document"]["schema"] == 3 and route == r["saved_route"]
+    assert {"vehicle_legs", "visits", "vehicle_totals", "walking_totals", "combined_totals"} <= set(route)
+    assert all({"source_coordinate", "access_coordinate", "access_offset_m", "walking_mode",
+                "walking_legs", "metric_source"} <= set(visit) for visit in route["visits"])
+    assert all(len(visit["walking_legs"]) == 2 for visit in route["visits"])
+    assert all(visit["trip_multiplier"] == 2 for visit in route["visits"])
+    if fallback:
+        assert route["walking_totals"]["duration_s"] is None and route["combined_totals"] is None
+    else:
+        assert route["combined_totals"]["distance_m"] == (
+            route["vehicle_totals"]["distance_m"] + route["walking_totals"]["mapped_distance_m"])
+    assert r["lifecycle_requests"] == [] and r["immutable_route_snapshots"]
+    assert all(snapshot == r["immutable_route_snapshots"][0] for snapshot in r["immutable_route_snapshots"])
+    assert r["remaining_states"][-1] == r["remaining_states"][0]
+    completed = r["remaining_states"][1]
+    assert completed["vehicle_leg_count"] < r["remaining_states"][0]["vehicle_leg_count"]
+    assert completed["walking_visit_count"] < r["remaining_states"][0]["walking_visit_count"]
+
+
+@pytest.mark.parametrize("schema", [1, 2])
+def test_ac052_legacy_load_and_future_rejection_preserve_bytes(run, schema):
+    legacy = schema2_legacy_document(schema=schema)
+    loaded = run(operation="mixed_route_compatibility", document=legacy, action="load")
+    assert loaded["bytes_after"] == loaded["bytes_before"] and loaded["requests"] == loaded["writes"] == []
+    assert loaded["schema_after"] == schema
+    future = run(operation="mixed_route_compatibility", document={"schema": 99, "opaque": "keep"}, action="load")
+    assert future["ok"] is False and future["bytes_after"] == future["bytes_before"]
+    assert future["requests"] == future["writes"] == []
+
+
+@pytest.mark.parametrize("viewport,theme", [(320, "light"), (320, "dark"), (1024, "light"), (1024, "dark")])
+def test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive(run, viewport, theme):
+    r = run(operation="mixed_route_presentation", viewport_width=viewport, theme=theme,
+            include_fallback=True, actions=["preview", "toggle", "complete", "uncheck"])
+    assert r["line_classes"] == {
+        "vehicle": {"pattern": "solid", "legend": "차량 경로"},
+        "mapped_walking": {"pattern": "dashed", "legend": "도보 경로"},
+        "unmapped_walking": {"pattern": "dotted", "legend": "지도 경로 없음"},
+    }
+    assert all(value["contrasting_casing"] for value in r["line_classes"].values())
+    assert r["warning_marker"]["visible"] is True and r["warning_marker"]["non_color_cue"]
+    for surface in ("preview", "detail", "bottom_summary", "screen_reader"):
+        assert {"vehicle_distance", "vehicle_duration", "walking_distance", "walking_duration",
+                "roundtrip", "metric_source", "unavailable_reason"} <= set(r[surface])
+    assert r["source_renderer_after"] == r["source_renderer_before"]
+    assert r["immutable_route_after"] == r["immutable_route_before"]
+    assert r["requests"] == r["writes"] == []
+    assert r["claims"].get("target_qfield_rendering_verified") is not True
+
+
+def test_ac054_exact_stage_sequence_privacy_and_no_incidental_writes(run):
+    r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=2000,
+            access_snap_response={"locations": [{"location": MIXED_ACCESS[0]}, {"location": MIXED_ACCESS[1]}]},
+            walking_responses=[MAPPED_FOOT, "exact-zero"], coordinate_notice_acknowledged=True,
+            source_attributes={"rural-a": {"business_id": "SECRET-BIZ", "name": "비공개 사업지"}})
+    assert r["stage_sequence"] == ["preflight", "origin-validation", "access-snap",
+                                          "walking-directions", "matrix", "optimizer", "directions", "validation"]
+    assert r["coordinate_sharing_notice_shown_before_request"] is True
+    assert r["explicit_calculate_count"] == 1 and r["generated_coordinates"] == []
+    assert r["vroom_payload_fields"] <= {"access_coordinates", "cost_matrix", "request_local_indices"}
+    for request in r["requests"]:
+        wire = str(request)
+        assert "SECRET-BIZ" not in wire and "비공개 사업지" not in wire
+    for field in ("logs", "errors", "settings_storage"):
+        assert "SECRET-BIZ" not in str(r[field]) and "비공개 사업지" not in str(r[field])
+    assert r["writes"] == [] and r["raw_bodies_retained"] is False
+
+
+@pytest.mark.parametrize("stage", ["origin-validation", "access-snap", "walking-directions",
+                                    "matrix", "optimizer", "directions", "validation"])
+def test_ac054_each_stage_failure_stops_all_later_requests_and_writes(run, stage):
+    r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=2000,
+            injected_failure_stage=stage, seed_saved=True, seed_candidate=True, key=KEY)
+    assert_mixed_failure_preserves_state(r)
+    assert r["stage_sequence"][-1] == stage and r["post_failure_requests"] == []
+    assert r["raw_bodies_retained"] is False
+
+
+@pytest.mark.parametrize("fault,action", [
+    ("http-401", "key"), ("http-403", "permission"), ("http-404", "endpoint"),
+    ("http-429", "wait"), ("http-500", "retry-provider"), ("timeout", "timeout"),
+    ("radius-rejected", "max_access_distance_m"),
+])
+def test_ac054_status_actions_remain_redacted_and_nonretrying(run, fault, action):
+    r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=2000,
+            access_fault=fault, seed_saved=True, seed_candidate=True, key=KEY)
+    assert_mixed_failure_preserves_state(r)
+    assert action in r["suggested_actions"] and r["post_failure_requests"] == []
+    assert KEY not in str(r["message"]) and r["raw_bodies_retained"] is False
+
+
+def canonical_apple_maps_url(coordinate=(127.123, 37.456)):
+    return f"https://maps.apple.com/directions?destination={coordinate[1]},{coordinate[0]}&mode=driving"
+
+
+@pytest.mark.parametrize("launch_result", [True, False, "exception"])
+def test_ac055_ios_uses_exact_apple_maps_once_without_any_fallback(run, launch_result):
+    r = run(operation="platform_map_dispatch", platform="ios", destination=[127.123, 37.456],
+            name="조사지 A & B/#% ", caller_id="org.example.fieldbuild", launch_result=launch_result)
+    assert r["button_label"] == "다음 지점 지도 안내"
+    assert [call["url"] for call in r["launcher_calls"]] == [canonical_apple_maps_url()]
+    assert r["launcher_calls"][0]["via"] == "Qt.openUrlExternally"
+    assert r["fallback_count"] == 0
+    assert not any(token in str(r["launcher_calls"]) for token in ["nmap", "itunes.apple.com", "apps.apple.com", "play.google.com"])
+    assert r["claims"] == {"app_started": False, "destination_accepted": False, "navigation_started": False}
+    if launch_result is not True:
+        assert r["ok"] is False and "Apple Maps" in r["message"]
+    assert r["routing_requests"] == [] and r["writes"] == []
+
+
+@pytest.mark.parametrize("destination", [
+    [180, 90], [-180, -90], [127.123456789, 37.456789123], [-0.0, 0.0],
+])
+def test_ac055_navigation_coordinates_are_canonical_and_android_contract_is_unchanged(run, destination):
+    ios = run(operation="platform_map_dispatch", platform="ios", destination=destination,
+              name="ignored", launch_result=True)
+    assert ios["launcher_calls"][0]["url"] == ios["canonical_expected_url"]
+    canonical_destination = parse_qs(urlsplit(ios["launcher_calls"][0]["url"]).query)["destination"][0]
+    assert "e" not in canonical_destination.lower()
+    android = run(operation="platform_map_dispatch", platform="android", destination=destination,
+                  name="  한글 & #%  ", caller_id="org.example.fieldbuild", launch_results=[False, True])
+    assert android["button_label"] == "다음 지점 지도 안내"
+    assert android["launcher_calls"][0]["url"].startswith("intent://navigation?")
+    assert android["launcher_calls"][0]["url"].endswith("package=com.nhn.android.nmap;end")
+    assert android["launcher_calls"][1]["url"] == NAVER_ANDROID_STORE
+    assert android["encoded_name_occurrences"] == 1 and android["encoded_caller_occurrences"] == 1
+
+
+@pytest.mark.parametrize("destination", [
+    [float("nan"), 37], [127, float("inf")], ["127.1", 37], [127, "37"],
+    [181, 37], [127, 91], ["1e2", 37],
+])
+def test_ac055_invalid_navigation_coordinate_never_dispatches_or_mutates(run, destination):
+    r = run(operation="platform_map_dispatch", platform="ios", destination=destination,
+            name="invalid", launch_result=True)
+    assert r["ok"] is False and r["launcher_calls"] == []
+    assert r["routing_requests"] == [] and r["writes"] == []
+    assert r["state_after"] == r["state_before"] and "좌표" in r["message"]

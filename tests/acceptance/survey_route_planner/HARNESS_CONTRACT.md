@@ -1,5 +1,10 @@
 # Survey route acceptance harness — APPROVED legacy-expectation supersession reconciliation
 
+> **APPROVED TEST DESIGN — 2026-09-18 mixed-access/Apple Maps slice (approval 2026-09-18).** This additive contract covers
+> approved D-SRP-049–056, FR-SRP-047–053, NFR-SRP-007–009 and AC-SRP-049–055. It preserves
+> the approved harness history below. The approved D-SRP-056 supersession narrows retained iOS
+> NAVER expectations to Android and makes AC-SRP-055 authoritative for iOS.
+
 **APPROVED TEST DESIGN — supersession reconciliation (approval 2026-09-17).** This approved reconciliation changes only how
 retained AC-SRP-019/022/024/031 tests consume existing observations under approved D-SRP-043/045,
 FR-SRP-041/043 and AC-SRP-043/045. All approval history below remains preserved. No adapter or
@@ -155,6 +160,14 @@ The adapter blocks real network access. It must preserve the actual generated UR
 the tests can distinguish routing-base suffix construction from a complete optimizer endpoint and
 prove that a key appears only as the `Authorization` header value.
 
+For the mixed-access slice, request `kind` additionally admits `access-snap` and
+`walking-directions`. A captured request includes only its bounded decoded wire record; raw response
+bodies are not retained in result/log/settings evidence. Every calculated scenario returns the
+actual ordered stage trace, automatic-retry list, write capture, immutable before/after candidate,
+saved route, revision, settings and source-feature snapshots. Failure setup must seed nonempty saved
+and candidate state through production actions. Constant empty lists or copied `case` snapshots are
+not preservation evidence.
+
 For `generated_geometry_calculate`, the supplied evaluator contract is a strict QField-shaped
 surface for QML's `ExpressionEvaluator`, backed by the documented `QfExpressionEvaluator`: only
 the listed writable properties exist, dynamic properties are rejected, and only `evaluate()` and
@@ -254,6 +267,22 @@ must never report OS soft-keyboard opening or QField map-canvas labels as automa
 | `generated_site_label_contract` | Drive the normal FieldBuild Kit build path for all six geometry families without QGS/GPKG post-editing. The LineString fixture includes two same-name features sharing an endpoint. Return paths, hashes and generated layer ID/name so tests independently reopen the artifacts. XML configuration must disable both `labelPerPart` and `mergeLines`; this prevents multipart duplication and same-text connected-feature merging before labeling. The test independently validates the exact generated expression structure and feature rows. Do not return Python-reimplemented expression results as QGIS observations. Probe PyQGIS and record probe provenance: when available, load the QGS and use `QgsProject`, `QgsPalLayerSettings` and `QgsExpression` for configuration and per-feature results; when unavailable, return `available=false`, the actual diagnostic and an empty runtime-claims list. Both paths remain configuration evidence; target QField rendering stays M14 NOT RUN. |
 | `builder_step7_route_credentials` | Retained AC-SRP-045-only UI seam: expose real Step 7 widget order, focus chain, masking, exact copy and actual-or-unavailable accessibility observations for one representative state. Credential destination combinations belong to the direct boundary below. |
 | `builder_route_credentials_boundary` | Without loading QML, a wizard page, or a local socket, submit blank+both-checked, non-blank+neither, consent-only, remember-only and both directly through the production builder/credential-store boundary. Return only the two exact checkbox strings, build result, parsed QGS variables, artifact paths, redacted diagnostics, and isolated encrypted-store readback (`present`, provenance, plaintext-at-rest boolean). Never return the key. Only non-blank consent may create one QGS project-variable occurrence; only non-blank remember may create encrypted desktop retention. |
+
+### 2026-09-18 mixed-access operations — APPROVED TEST DESIGN (approval 2026-09-18)
+
+| Operation | Required driving steps and returned evidence |
+| --- | --- |
+| `provider_http_failure` | Inject one HTTP result at the named real transport stage. Return the minimal `{stage,http_status,provider_code,provider_message,safe_text}` record, rendered diagnostic, classification, intercepted request, raw-body-retention flag and independently observed state/write/retry snapshots. JSON scalar code/message and plain-text fallback are sanitized by production. Unsafe/HTML/secret-like/huge content yields no detail. Status 200 is a bounded negative oracle: its body must never enter error UI. |
+| `mixed_route_calculate` | Drive notice acknowledgement and the explicit calculate control. Execute production preflight/origin validation, one ordered batched `driving-car` snap, per-site walking validation, matrix, optimizer, driving directions and candidate validation. Inject only documented provider responses/faults. Return exact request/stage traces, snap/radius/origin workaround observations, request payload field sets, before/after source/state/storage snapshots and the actual candidate. `batch-limit` is rejected before transport. `null`, radius rejection/cap, origin failure and transient/malformed walking faults stop all downstream work. Only an explicit no-foot-path response may continue as unmapped lower-bound, and its first save attempt is blocked until the real acknowledgement is made. |
+| `mixed_route_roundtrip` | Create a mapped or one-fallback candidate through production, explicitly save schema 3, independently reopen it, then perform restart, last-good recovery, offline open, physical folder relocation and complete→uncheck through real controls. Return saved/reloaded documents, immutable full-route snapshots, derived remaining states and all lifecycle requests. No lifecycle action may call a provider or rewrite route metrics/geometry. |
+| `mixed_route_compatibility` | Load exact supplied schema 1/2 or future-schema bytes offline through the production repository. Return byte snapshots and request/write captures. Older schema is displayed without upgrade; unknown future schema is rejected while preserving bytes. |
+| `mixed_route_presentation` | Load a real schema-3 route containing vehicle, mapped-walking and unmapped-walking segments into the generated route panel/map at supplied width/theme. Observe actual overlay classes, patterns/casing/legend/warning marker, preview/detail/bottom-summary accessibility values and passive toggle/completion state. It is a generated/headless proxy only and must explicitly deny target-QField rendering proof. |
+| `platform_map_dispatch` | Seed the active route's next stored WGS84 coordinate and invoke the exact `다음 지점 지도 안내` action. Capture every `Qt.openUrlExternally` call, result/exception, status/claims, state and writes. iOS permits exactly one canonical Apple Maps HTTPS call and no fallback. Android retains the package-bound NAVER intent and Google Play fallback. Invalid or noncanonical input is rejected before launcher dispatch. |
+
+Provider failure fixtures use bounded synthetic data only. They must not make live ORS calls or
+claim endpoint/provider availability. Presentation automation cannot claim color/contrast,
+screen-reader or interaction PASS on target QField. M18–M21 remain the authoritative user-run
+live-provider/device gates.
 
 ### 2026-09-18 iOS/QPB evidence-boundary correction — APPROVED TEST DESIGN (approval 2026-09-18)
 
