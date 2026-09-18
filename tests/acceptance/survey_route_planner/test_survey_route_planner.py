@@ -1,9 +1,9 @@
-"""DRAFT TEST-DESIGN CORRECTION — production-path and supersession reconciliation.
+"""DRAFT TEST-DESIGN CORRECTION — evidence integrity and schema-3 visit validation.
 
 The previously approved mixed-access/Apple Maps expectations remain authority. This draft corrects
 their executable evidence boundary and retained expectations; it is not approved implementation evidence.
 
-AC-SRP-049–055 are approved acceptance expectations; M18–M21 remain NOT RUN. The approved history
+AC-SRP-049–056 are approved acceptance expectations; M18–M21 remain NOT RUN. The approved history
 is preserved. The approved correction replaces over-scoped rendered/device proxies for
 AC-SRP-046–048 and AC-QPB-149–150; it does not claim device PASS or alter product requirements.
 
@@ -85,6 +85,34 @@ MIXED_PRODUCTION_SOURCES = {
     "navigation": "qfield_builder/qfield_routes/navigation.js",
     "qml": "qfield_builder/qfield_routes/RoutePanel.qml",
 }
+MIXED_EVIDENCE_FIELDS = {
+    "provider_http_failure": {
+        "requests", "failed_transport_observation", "error_record", "message",
+        "candidate_after", "saved_after", "revision_after", "writes",
+    },
+    "mixed_route_calculate": {
+        "requests", "stage_sequence", "preflight_observation", "coordinate_notice",
+        "calculate_activation", "candidate", "writes",
+    },
+    "mixed_route_roundtrip": {
+        "saved_route", "reloaded_route", "reloaded_document", "lifecycle_requests",
+    },
+    "mixed_route_compatibility": {
+        "ok", "bytes_before", "bytes_after", "requests", "writes",
+    },
+    "mixed_route_presentation": {
+        "line_classes", "presentation_provenance", "accessibility_observations",
+        "source_renderer_before", "source_renderer_after", "requests", "writes",
+    },
+    "platform_map_dispatch": {
+        "launcher_calls", "request_observation", "write_observation",
+        "state_before", "state_after", "revision_before", "revision_after",
+    },
+}
+MIXED_EVIDENCE_SOURCES = {
+    "production_call", "runtime_property", "captured_transport", "captured_storage",
+    "loaded_artifact", "accessibility_interface", "source_layer_reread", "signal_delivery",
+}
 
 
 def assert_mixed_production_path(result, operation):
@@ -95,6 +123,7 @@ def assert_mixed_production_path(result, operation):
     assert provenance["adapter_postprocessed_fields"] == []
     assert provenance["case_copied_result_fields"] == []
     assert provenance["fixture_expected_values_used_as_results"] == []
+
     assert Path(provenance["driver_path"]).name != "survey_route_mixed_driver.js"
     calls = provenance["production_calls"]
     assert MIXED_PRODUCTION_CALLS[operation] <= set(calls)
@@ -113,6 +142,23 @@ def assert_mixed_production_path(result, operation):
         project_dir = Path(result["project_dir"]).resolve()
         assert qml["loaded"] is True and qml_path.is_file() and qml_path.is_relative_to(project_dir)
         assert qml["sha256"] == hashlib.sha256(qml_path.read_bytes()).hexdigest()
+
+
+def assert_mixed_evidence_integrity(result, operation):
+    """One representative per operation rejects unverifiable self-declared provenance."""
+    provenance = result["production_provenance"]
+    integrity = provenance["evidence_integrity"]
+    events = {event["id"]: event for event in integrity["observation_events"]}
+    assert events and len(events) == len(integrity["observation_events"])
+    assert integrity["hardcoded_result_fields"] == []
+    assert integrity["unattributed_result_fields"] == []
+    assert MIXED_EVIDENCE_FIELDS[operation] <= set(integrity["field_origins"])
+    for field in MIXED_EVIDENCE_FIELDS[operation]:
+        origins = integrity["field_origins"][field]
+        assert origins and all(origin in events for origin in origins)
+        assert all(events[origin]["source"] in MIXED_EVIDENCE_SOURCES for origin in origins)
+        assert all(field in events[origin]["observed_fields"] for origin in origins)
+        assert all(events[origin].get("copied_from_case") is False for origin in origins)
 
 
 KEY = "SRP_SYNTHETIC_SECRET_94_&/"
@@ -466,6 +512,29 @@ def schema2_legacy_document(schema=1):
 SCHEMA3_ROUTE_REQUIRED_FIELDS = {
     "vehicle_legs", "visits", "vehicle_totals", "walking_totals", "combined_totals",
 }
+SCHEMA3_VISIT_REQUIRED_FIELDS = {"layer_id", "site_id", "metric_source"}
+SCHEMA3_ALLOWED_WALKING_PROVENANCE = {
+    ("mapped", "ors-foot-hiking"),
+    ("exact_zero", "exact_zero"),
+    ("unmapped_estimate", "straight_line_lower_bound_m"),
+}
+SCHEMA3_VISIT_CORRUPTIONS = [
+    pytest.param({"kind": "omit", "field": field}, id=f"omit-{field}")
+    for field in sorted(SCHEMA3_VISIT_REQUIRED_FIELDS)
+] + [
+    pytest.param({"kind": "replace", "field": field, "value": "   "}, id=f"blank-{field}")
+    for field in sorted(SCHEMA3_VISIT_REQUIRED_FIELDS)
+] + [
+    pytest.param({"kind": "stop_identity_mismatch", "field": "site_id"}, id="stop-identity-mismatch"),
+    pytest.param({"kind": "replace", "field": "walking_mode", "value": "teleport"}, id="unknown-mode"),
+    pytest.param({"kind": "replace", "field": "metric_source", "value": "guessed"}, id="unknown-source"),
+] + [
+    pytest.param({"kind": "mode_source_mismatch", "walking_mode": mode,
+                  "metric_source": source}, id=f"mismatch-{mode}-{source}")
+    for mode in ("mapped", "exact_zero", "unmapped_estimate")
+    for source in ("ors-foot-hiking", "exact_zero", "straight_line_lower_bound_m")
+    if (mode, source) not in SCHEMA3_ALLOWED_WALKING_PROVENANCE
+]
 
 
 def assert_schema3_document_contract(document):
@@ -482,6 +551,16 @@ def assert_schema3_document_contract(document):
         }
         if route["combined_totals"] is not None:
             assert set(route["combined_totals"]) == {"distance_m", "duration_s"}
+        stop_identities = {
+            (stop["source_layer"], stop["site_id"]) for stop in route["stops"]
+        }
+        for visit in route["visits"]:
+            assert SCHEMA3_VISIT_REQUIRED_FIELDS <= set(visit)
+            assert all(isinstance(visit[field], str) and visit[field].strip()
+                       for field in SCHEMA3_VISIT_REQUIRED_FIELDS)
+            assert (visit["layer_id"], visit["site_id"]) in stop_identities
+            assert (visit["walking_mode"], visit["metric_source"]) in (
+                SCHEMA3_ALLOWED_WALKING_PROVENANCE)
 
 
 PROJECT_LAYERS = [
@@ -2166,6 +2245,7 @@ def test_ac039_platform_specific_official_primary_dispatch(run, platform, expect
     assert r["claims"] == {"app_started": False, "destination_accepted": False, "navigation_started": False}
     assert not any("map.naver.com" in call["url"] for call in r["launcher_calls"])
     no_calls(r)
+    assert_navigation_has_observed_no_route_or_storage_activity(r)
 
 
 @pytest.mark.parametrize("platform,expected_primary,expected_store", [
@@ -2182,6 +2262,7 @@ def test_ac039_official_install_fallback_once_and_no_inferred_web_url(run, platf
     assert not any("map.naver.com" in call["url"] for call in r["launcher_calls"])
     assert r["claims"]["navigation_started"] is False
     no_calls(r)
+    assert_navigation_has_observed_no_route_or_storage_activity(r)
 
 
 @pytest.mark.parametrize("completion_source", ["field", "route_stop"])
@@ -2653,11 +2734,37 @@ def assert_mixed_failure_preserves_state(result):
     assert result["writes"] == [] and result["automatic_retries"] == []
 
 
+def assert_actual_failed_provider_request(result, stage, status):
+    """The failing request must remain in the unfiltered captured wire log."""
+    requests = result["requests"]
+    assert requests and requests[0]["kind"] == "origin-validation"
+    failed = result["failed_transport_observation"]
+    assert failed["source"] == "captured_transport"
+    assert failed["request_index"] < len(requests)
+    assert requests[failed["request_index"]] == failed["request"]
+    assert failed["request"]["kind"] == stage
+    assert failed["http_status"] == status
+    assert failed["response_was_injected_at_transport"] is True
+
+
+def assert_navigation_has_observed_no_route_or_storage_activity(result):
+    for field, kind in (("request_observation", "routing-provider-request-log"),
+                        ("write_observation", "route-storage-write-log")):
+        observed = result[field]
+        assert observed["observer_installed_before_action"] is True
+        assert observed["source"] == kind
+        assert observed["events"] == []
+    assert result["state_after"] == result["state_before"]
+    assert result["revision_after"] == result["revision_before"]
+
+
 @pytest.mark.parametrize("stage", ["matrix", "optimizer", "directions", "access-snap", "walking-directions"])
 def test_ac049_provider_http_failure_preserves_stage_status_and_safe_json_detail(run, stage):
     body = {"error": {"code": "NO_ROUTE\u202e  ", "message": "  경로\n  검색 결과 없음  "}}
     r = run(operation="provider_http_failure", stage=stage, status=404, body=body,
             content_type="application/json", key=KEY, seed_saved=True, seed_candidate=True)
+    if stage == "matrix":
+        assert_mixed_evidence_integrity(r, "provider_http_failure")
     assert_mixed_failure_preserves_state(r)
     error = r["error_record"]
     assert error["stage"] == stage and error["http_status"] == 404
@@ -2665,6 +2772,7 @@ def test_ac049_provider_http_failure_preserves_stage_status_and_safe_json_detail
     assert len(error["provider_code"]) <= 64 and len(error["provider_message"]) <= 320
     assert len(r["message"]) <= 512 and "HTTP 404" in r["message"]
     assert r["classification"] == "no-result-explicit"
+    assert_actual_failed_provider_request(r, stage, 404)
     assert KEY not in str({k: v for k, v in r.items() if k != "captured_request"})
 
 
@@ -2728,6 +2836,7 @@ def test_ac049_statusless_transport_failure_has_connection_action_without_http_s
     }
     assert "HTTP 0" not in r["message"] and "connection" in r["suggested_actions"]
     assert "연결" in r["message"] or "네트워크" in r["message"]
+    assert_actual_failed_provider_request(r, "access-snap", None)
 
 
 @pytest.mark.parametrize("provider_message,expected", [
@@ -2777,11 +2886,30 @@ def test_ac050_access_boundary_failures_stop_pipeline_and_preserve_last_good(run
         assert "산지 A" in r["message"] and "2.00 km" in r["message"]
         assert {"coordinates", "osm_coverage", "max_access_distance_m"} <= set(r["suggested_actions"])
     elif fault == "batch-limit":
-        assert r["requests"] == [] and r["preflight_failed"] is True
+        assert r["requests"] == [] and r["stage_sequence"] == ["preflight"]
+        preflight = r["preflight_observation"]
+        assert preflight["source"] == "controller_state_after_explicit_calculate"
+        assert preflight["passed"] is False and preflight["reason"].strip()
+        assert preflight["derived_from_case_input"] is False
     elif fault == "radius-rejected":
         assert r["error_record"]["stage"] == "access-snap" and r["radius_adjustments"] == []
     else:
         assert r["requests"] == [] and r["origin_snap_requests"] == [] and r["origin_walking_legs"] == []
+
+
+def test_ac050_origin_null_with_finite_snapped_distance_stops_before_access_snap(run):
+    r = run(operation="mixed_route_calculate", sites=MIXED_SITES,
+            max_access_distance_m=2000, seed_saved=True, seed_candidate=True,
+            origin_validation_response={"location": None, "snapped_distance": 12.5})
+    assert_mixed_failure_preserves_state(r)
+    assert r["stage_sequence"] == ["preflight", "origin-validation"]
+    assert [request["kind"] for request in r["requests"]] == ["origin-validation"]
+    assert r["failed_transport_observation"]["request"] == r["requests"][0]
+    assert r["failed_transport_observation"]["response"] == {
+        "location": None, "snapped_distance": 12.5,
+    }
+    assert r["downstream_requests"] == [] and r["writes"] == []
+    assert r["origin_snap_requests"] == [] and r["origin_walking_legs"] == []
 
 
 def test_ac051_mapped_zero_and_open_last_visits_are_out_and_back(run):
@@ -2853,7 +2981,7 @@ def test_ac052_schema3_exact_roundtrip_recovery_move_and_completion_are_offline(
 
 
 @pytest.mark.parametrize("schema", [1, 2])
-def test_ac052_legacy_load_and_future_rejection_preserve_bytes(run, schema):
+def test_ac052_ac056_legacy_load_and_future_rejection_preserve_bytes(run, schema):
     legacy = schema2_legacy_document(schema=schema)
     loaded = run(operation="mixed_route_compatibility", document=legacy, action="load")
     assert loaded["bytes_after"] == loaded["bytes_before"] and loaded["requests"] == loaded["writes"] == []
@@ -2879,10 +3007,80 @@ def test_ac052_every_schema3_route_rejects_required_field_omission(run, missing_
     assert r["requests"] == r["writes"] == [] and r["repaired_document"] is None
 
 
+@pytest.mark.parametrize("corrupt_route_index", [0, 1], ids=["active", "inactive"])
+@pytest.mark.parametrize("corrupt_visit_index", [0, 1], ids=["first-visit", "second-visit"])
+@pytest.mark.parametrize("visit_corruption", SCHEMA3_VISIT_CORRUPTIONS)
+def test_ac056_every_active_and_inactive_visit_corruption_rejects_whole_document(
+        run, corrupt_route_index, corrupt_visit_index, visit_corruption):
+    r = run(operation="mixed_route_compatibility", sites=MIXED_SITES,
+            seed_schema3_routes_with_production=2,
+            corrupt_route_index=corrupt_route_index, corrupt_visit_index=corrupt_visit_index,
+            visit_corruption=visit_corruption, actions=["load", "recover-last-good"])
+    if (corrupt_route_index, corrupt_visit_index) == (0, 0) and visit_corruption == {
+            "kind": "omit", "field": "layer_id"}:
+        assert_mixed_evidence_integrity(r, "mixed_route_compatibility")
+    seed = r["seed_schema3_provenance"]
+    assert seed["route_count"] == 2 and len(seed["production_save_events"]) == 2
+    assert seed["visit_counts"] == [2, 2]
+    assert all(event["committed"] is True and event["project_relative_path"]
+               for event in seed["production_save_events"])
+    assert r["active_route_index"] == 0
+    assert r["corrupted_route_index"] == corrupt_route_index
+    assert r["corrupted_visit_index"] == corrupt_visit_index
+    assert r["corrupted_route_was_active"] is (corrupt_route_index == 0)
+    assert [attempt["action"] for attempt in r["attempts"]] == ["load", "recover-last-good"]
+    for attempt in r["attempts"]:
+        assert attempt["ok"] is False and attempt["message"].strip()
+        assert attempt["bytes_after"] == attempt["bytes_before"]
+        assert attempt["last_good_after"] == attempt["last_good_before"]
+        assert attempt["requests"] == attempt["writes"] == []
+        assert attempt["repaired_document"] is None
+        assert attempt["defaulted_fields"] == [] and attempt["inferred_fields"] == []
+    assert r["bytes_after"] == r["bytes_before"]
+    assert r["last_good_after"] == r["last_good_before"]
+    assert r["requests"] == r["writes"] == [] and r["repaired_document"] is None
+
+
+@pytest.mark.parametrize(("access", "walking_response", "acknowledge_unmapped", "expected"), [
+    pytest.param(MIXED_ACCESS[0], MAPPED_FOOT, False,
+                 ("mapped", "ors-foot-hiking"), id="mapped-ors-foot-hiking"),
+    pytest.param(MIXED_SITES[0]["xy"], "exact-zero", False,
+                 ("exact_zero", "exact_zero"), id="exact-zero"),
+    pytest.param(MIXED_ACCESS[0], {"explicit_no_path": True}, True,
+                 ("unmapped_estimate", "straight_line_lower_bound_m"), id="unmapped-lower-bound"),
+])
+def test_ac056_three_allowed_visit_provenance_pairs_roundtrip_exactly(
+        run, access, walking_response, acknowledge_unmapped, expected):
+    r = run(operation="mixed_route_roundtrip", sites=MIXED_SITES[:1], fallback=False,
+            access_snap_response={"locations": [{"location": access}]},
+            walking_responses=[walking_response],
+            acknowledge_unmapped=acknowledge_unmapped,
+            lifecycle=["save", "restart", "offline", "move"])
+    if expected == ("mapped", "ors-foot-hiking"):
+        assert_mixed_evidence_integrity(r, "mixed_route_roundtrip")
+    assert_schema3_document_contract(r["reloaded_document"])
+    saved = r["saved_route"]
+    visit = saved["visits"][0]
+    stop = saved["stops"][0]
+    assert (visit["walking_mode"], visit["metric_source"]) == expected
+    assert visit["layer_id"].strip() and visit["site_id"].strip()
+    assert (visit["layer_id"], visit["site_id"]) == (stop["source_layer"], stop["site_id"])
+    observations = r["lifecycle_route_observations"]
+    assert [observation["stage"] for observation in observations] == [
+        "restart", "offline", "move",
+    ]
+    assert all(observation["source"] == "independent_repository_readback"
+               and observation["route"] == saved for observation in observations)
+    assert r["reloaded_route"] == saved
+    assert r["lifecycle_requests"] == [] and r["lifecycle_writes"] == []
+
+
 @pytest.mark.parametrize("viewport,theme", [(320, "light"), (320, "dark"), (1024, "light"), (1024, "dark")])
 def test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive(run, viewport, theme):
     r = run(operation="mixed_route_presentation", viewport_width=viewport, theme=theme,
             include_fallback=True, actions=["preview", "toggle", "complete", "uncheck"])
+    if (viewport, theme) == (320, "light"):
+        assert_mixed_evidence_integrity(r, "mixed_route_presentation")
     expected = {
         "vehicle": ("solid", "차량 경로"),
         "mapped_walking": ("dashed", "도보 경로"),
@@ -2903,15 +3101,50 @@ def test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive(ru
     assert provenance["evidence_source"] == "loaded_generated_qml_object_tree_and_map"
     assert provenance["theme_observation"]["effective_theme"] == theme
     assert provenance["theme_observation"]["object_id"]
+    assert provenance["theme_observation"]["source"] == "effective_host_palette_readback"
+    assert provenance["viewport_observation"] == {
+        "source": "rendered_window_geometry", "actual_width": viewport,
+    }
     assert [event["action"] for event in provenance["action_observations"]] == [
         "preview", "toggle", "complete", "uncheck",
     ]
     assert all(event["control_object_id"] and event["event_delivered"] is True
-               and event["before_capture_id"] != event["after_capture_id"]
+               and event["before_state"] != event["after_state"]
                for event in provenance["action_observations"])
+    assert all(event["viewport_width"] == viewport and event["effective_theme"] == theme
+               for event in provenance["action_observations"])
+    assert all("serial" not in event and "capture_id" not in str(event)
+               for event in provenance["action_observations"])
+    preview, toggle, complete, uncheck = provenance["action_observations"]
+    assert preview["before_state"]["expanded"] is False
+    assert preview["after_state"]["expanded"] is True
+    assert toggle["before_state"]["route_lines_visible"] is True
+    assert toggle["after_state"]["route_lines_visible"] is False
+    assert complete["before_state"]["completed_site_ids"] != complete["after_state"]["completed_site_ids"]
+    assert uncheck["after_state"]["completed_site_ids"] == complete["before_state"]["completed_site_ids"]
     source = provenance["source_layer_observation"]
-    assert source["layer_object_id"] and source["before_capture_id"] != source["after_capture_id"]
+    assert source["layer_object_id"]
+    renderer_reads = source["renderer_readbacks"]
+    assert [read["phase"] for read in renderer_reads] == ["before", "after"]
+    assert all(read["source"] == "source_layer_renderer_reread" and read["renderer_bytes"]
+               for read in renderer_reads)
+    assert renderer_reads[0]["observation_id"] != renderer_reads[1]["observation_id"]
+    assert renderer_reads[0]["renderer_bytes"] == renderer_reads[1]["renderer_bytes"]
     assert source["renderer_hash_before"] == source["renderer_hash_after"]
+    accessibility = {item["semantic_id"]: item for item in r["accessibility_observations"]}
+    assert set(accessibility) >= {"mapped_metric_source", "walking_totals", "fallback_status"}
+    assert len({accessibility[key]["object_id"] for key in accessibility}) == len(accessibility)
+    for observed in accessibility.values():
+        assert observed["source"] in {
+            "QAccessible.queryAccessibleInterface",
+            "QML Accessible attached property runtime readback",
+        }
+        assert observed["name"].strip() and observed["role"].strip()
+        assert observed["mirrored_presentation_fields"] is False
+    assert "ors-foot-hiking" in accessibility["mapped_metric_source"]["name"]
+    assert "도보" in accessibility["walking_totals"]["name"]
+    assert "직선거리 하한" in accessibility["fallback_status"]["name"]
+    assert "사용 불가" in accessibility["fallback_status"]["name"]
     for surface in ("preview", "detail", "bottom_summary", "screen_reader"):
         assert {"vehicle_distance", "vehicle_duration", "walking_distance", "walking_duration",
                 "roundtrip", "metric_source", "unavailable_reason"} <= set(r[surface])
@@ -2924,11 +3157,27 @@ def test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive(ru
 def test_ac054_exact_stage_sequence_privacy_and_no_incidental_writes(run):
     r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=2000,
             access_snap_response={"locations": [{"location": MIXED_ACCESS[0]}, {"location": MIXED_ACCESS[1]}]},
-            walking_responses=[MAPPED_FOOT, "exact-zero"], coordinate_notice_acknowledged=True,
+            walking_responses=[MAPPED_FOOT, "exact-zero"],
             source_attributes={"rural-a": {"business_id": "SECRET-BIZ", "name": "비공개 사업지"}})
+    assert_mixed_evidence_integrity(r, "mixed_route_calculate")
     assert r["stage_sequence"] == ["preflight", "origin-validation", "access-snap",
                                           "walking-directions", "matrix", "optimizer", "directions", "validation"]
-    assert r["coordinate_sharing_notice_shown_before_request"] is True
+    notice = r["coordinate_notice"]
+    assert notice["visible"] is True and notice["object_id"]
+    assert notice["visual_order"] < notice["calculate_control_visual_order"]
+    assert notice["accessibility_order"] < notice["calculate_control_accessibility_order"]
+    assert notice["accessibility"]["source"] in {
+        "QAccessible.queryAccessibleInterface",
+        "QML Accessible attached property runtime readback",
+    }
+    assert notice["accessibility"]["name"].strip() and notice["accessibility"]["role"].strip()
+    assert all(fragment in notice["text"] for fragment in ("ORS", "원본", "접근", "경로"))
+    activation = r["calculate_activation"]
+    assert activation["source"] == "calculate_button_signal_observation"
+    assert activation["explicit"] is True
+    assert activation["notice_observed_before_click"] is True
+    assert activation["first_request_started_after_click"] is True
+    assert activation["acknowledgement_required"] is False
     assert r["explicit_calculate_count"] == 1 and r["generated_coordinates"] == []
     assert set(r["vroom_payload_fields"]) <= {
         "access_coordinates", "cost_matrix", "request_local_indices",
@@ -2990,6 +3239,8 @@ def canonical_apple_maps_url(coordinate=(127.123, 37.456)):
 def test_ac055_ios_uses_exact_apple_maps_once_without_any_fallback(run, launch_result):
     r = run(operation="platform_map_dispatch", platform="ios", destination=[127.123, 37.456],
             name="조사지 A & B/#% ", caller_id="org.example.fieldbuild", launch_result=launch_result)
+    if launch_result is True:
+        assert_mixed_evidence_integrity(r, "platform_map_dispatch")
     assert r["button_label"] == "다음 지점 지도 안내"
     assert [call["url"] for call in r["launcher_calls"]] == [canonical_apple_maps_url()]
     assert r["launcher_calls"][0]["via"] == "Qt.openUrlExternally"
@@ -2998,7 +3249,7 @@ def test_ac055_ios_uses_exact_apple_maps_once_without_any_fallback(run, launch_r
     assert r["claims"] == {"app_started": False, "destination_accepted": False, "navigation_started": False}
     if launch_result is not True:
         assert r["ok"] is False and "Apple Maps" in r["message"]
-    assert r["routing_requests"] == [] and r["writes"] == []
+    assert_navigation_has_observed_no_route_or_storage_activity(r)
 
 
 @pytest.mark.parametrize("destination", [
@@ -3017,6 +3268,8 @@ def test_ac055_navigation_coordinates_are_canonical_and_android_contract_is_unch
         "  한글 & #%  ", "org.example.fieldbuild", destination)
     assert android["launcher_calls"][1]["url"] == NAVER_ANDROID_STORE
     assert android["encoded_name_occurrences"] == 1 and android["encoded_caller_occurrences"] == 1
+    assert_navigation_has_observed_no_route_or_storage_activity(ios)
+    assert_navigation_has_observed_no_route_or_storage_activity(android)
 
 
 @pytest.mark.parametrize("destination", [
@@ -3027,5 +3280,5 @@ def test_ac055_invalid_navigation_coordinate_never_dispatches_or_mutates(run, de
     r = run(operation="platform_map_dispatch", platform="ios", destination=destination,
             name="invalid", launch_result=True)
     assert r["ok"] is False and r["launcher_calls"] == []
-    assert r["routing_requests"] == [] and r["writes"] == []
-    assert r["state_after"] == r["state_before"] and "좌표" in r["message"]
+    assert_navigation_has_observed_no_route_or_storage_activity(r)
+    assert "좌표" in r["message"]

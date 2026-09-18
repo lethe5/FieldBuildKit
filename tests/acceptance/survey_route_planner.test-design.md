@@ -1,12 +1,12 @@
-# Survey Route Planner — DRAFT production-path/supersession correction
+# Survey Route Planner — DRAFT evidence-integrity/schema-3 correction
 
 > **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Approved product requirements and prior
-> acceptance approvals are preserved. This draft corrects attempt-1 evidence that passed from a
-> canned mixed-route driver, and reconciles retained tests with already-approved 2026-09-18 rules.
+> acceptance approvals are preserved. This correction cycle closes the remaining reviewer blockers
+> in automated evidence and adds approved AC-SRP-056 visit-validation coverage.
 
 ## Draft correction scope (2026-09-18)
 
-- AC-SRP-049–055 operations must execute the generated QML control and applicable production
+- AC-SRP-049–056 operations must execute the generated QML control and applicable production
   `controller.js`, `backend.js`, `repository.js` and `navigation.js` paths. Runtime call/source-hash
   provenance is required. `tests/unit/survey_route_mixed_driver.js`, canned result dictionaries,
   copied expected payloads, adapter-added field sets/comparison wrappers and production-computed
@@ -33,6 +33,21 @@
   statusless connection failures, valid JSON under missing/misleading content type, cancel/project
   close immediately after origin validation, every-route schema-3 required fields and malformed
   omission rejection.
+- Correction cycle 2 rejects empty self-declared provenance: every criterion-critical result field
+  has lineage to a captured production/runtime event. Provider request logs retain origin validation
+  and the actual failed request; batch-limit preflight comes from observed controller state; an
+  origin response with `location=null` fails even when `snapped_distance` is finite.
+- Presentation evidence uses actual effective viewport/theme, semantic before/after object state,
+  two independent renderer rereads, and runtime `QAccessible`/QML `Accessible` observations. A
+  changing serial/hash or a `screenReaderFields` mirror is not evidence. Navigation's zero request/
+  write result comes from installed observers and independent state/revision rereads.
+- AC-SRP-056 covers every missing/blank visit identity/provenance field, stop mismatch, unknown
+  mode/source and all six invalid cross-pairs in both active and inactive production-saved routes.
+  Load and recovery reject the entire document without repair/default/inference; the three allowed
+  pairs exact-roundtrip across restart/offline/folder move, while schema 1/2 remain read-only.
+- D-SRP-055/AC-SRP-054 require an actual coordinate-sharing notice before the explicit calculate
+  signal in visual and accessibility order. They do not approve a separate notice acknowledgement;
+  the existing fallback-save acknowledgement remains distinct.
 
 The correction is intentionally RED before implementation. M01–M21 remain NOT RUN and no automated
 provenance check is native-QField, live-provider or device evidence.
@@ -175,6 +190,12 @@ UI presentation must come from production. No new dependency or test-only provid
   Android keeps its exact package-bound NAVER intent, one-time UTF-8 encoding and Google Play fallback.
   Boundary/rounding/negative-zero inputs canonicalize; invalid type/nonfinite/range/exponent-inducing
   inputs dispatch zero launchers. Both platforms retain OS-request-only success claims and zero writes.
+- AC-SRP-056 mutates one visit at a time in each active/inactive route of a production-saved
+  two-route schema-3 document. The matrix includes missing/blank `layer_id`, `site_id`,
+  `metric_source`, stop mismatch, unknown mode/source and all disallowed known-mode/source
+  cross-pairs. Both load and last-good recovery reject atomically. Separate mapped, exact-zero and
+  unmapped fixtures prove exact allowed-pair restart/offline/move roundtrips. Schema 1/2 compatibility
+  remains byte-preserving and request/write-free.
 
 ## User-run additions — NOT RUN
 
@@ -229,6 +250,32 @@ artifacts changed. No application/unit-driver/specification file or Git state wa
 - The first sandboxed focused run produced **66 failed, 372 deselected** solely because loopback bind
   was denied (`PermissionError: [Errno 1]`); it is an environment result, not the authoritative
   conformance run above.
+- Acceptance-only `git diff --check` over the five changed files: exit 0, no output.
+
+### Correction-cycle-2 DRAFT verification record (2026-09-18)
+
+Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Only the five allowed acceptance
+artifacts changed. No application, unit driver, approved specification or Git state was modified.
+
+- Focused collection (`ac049` through `ac056`): **144/502 collected, 358 deselected**, exit 0.
+- Design verifier: exit 0; AC001–056/QPB149–150 presence, 15 visit-corruption definitions,
+  operation-specific evidence lineage, unfiltered failure requests, origin-null/preflight guards,
+  semantic presentation/accessibility evidence, observed navigation inactivity and M01–M21
+  boundaries are internally consistent. It executes no application behavior.
+- Authoritative focused run with local loopback enabled: **53 passed, 91 failed, 358 deselected**,
+  exit 1, in 125.41 s. The intentional RED groups are provider provenance/unfiltered failure logs
+  (7), production preflight (1), null-origin rejection (1), AC056 corrupt active/inactive visit
+  load+recovery support across both visit positions (60), three allowed-pair lifecycle evidence/save acknowledgement (3),
+  presentation viewport/theme/semantic-state/renderer/accessibility evidence (4), coordinate-notice
+  and calculate activation provenance (1), and navigation request/write observers (14).
+- The three allowed AC056 pair cases independently reproduced **3 failed, 469 deselected**, exit 1,
+  in 3.46 s: mapped lacks evidence lineage, exact-zero lacks independent lifecycle readbacks, and
+  explicit no-path is not acknowledged through the contracted production action.
+- An earlier pre-expansion sandboxed 114-case probe failed solely because the local QML harness
+  could not bind `127.0.0.1` (`PermissionError: [Errno 1]`); it is not the authoritative conformance
+  result.
+- Manual selector: **21 skipped, 481 deselected**, exit 0. M01–M21 remain NOT RUN; no native QField,
+  live ORS, screen-reader, iOS Apple Maps or Android NAVER result is inferred.
 - Acceptance-only `git diff --check` over the five changed files: exit 0, no output.
 
 ## Fixtures and independent oracles

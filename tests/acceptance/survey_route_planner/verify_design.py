@@ -1,6 +1,6 @@
-"""Draft production-path/supersession correction verifier.
+"""Draft evidence-integrity/schema-3 correction verifier.
 
-AC-SRP-049–055 remain approved requirements and M18–M21 remain NOT RUN. This draft verifies the
+AC-SRP-049–056 remain approved requirements and M18–M21 remain NOT RUN. This draft verifies the
 corrected acceptance artifacts only; no application code is executed.
 """
 import ast
@@ -21,7 +21,7 @@ spec = importlib.util.spec_from_file_location("srp_test_design", path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 coverage = set(re.findall(r"ac(\d{3})", path.read_text(encoding="utf-8-sig")))
-assert {f"{i:03d}" for i in range(1, 56)} <= coverage
+assert {f"{i:03d}" for i in range(1, 57)} <= coverage
 wire = module.vroom_response(include_arrivals=True)
 route = wire["routes"][0]
 arrivals = [step["arrival"] for step in route["steps"] if step["type"] == "job"]
@@ -250,6 +250,13 @@ assert module.MIXED_SITES[1]["xy"] == module.MIXED_ACCESS[1]
 assert module.SCHEMA3_ROUTE_REQUIRED_FIELDS == {
     "vehicle_legs", "visits", "vehicle_totals", "walking_totals", "combined_totals",
 }
+assert module.SCHEMA3_VISIT_REQUIRED_FIELDS == {"layer_id", "site_id", "metric_source"}
+assert module.SCHEMA3_ALLOWED_WALKING_PROVENANCE == {
+    ("mapped", "ors-foot-hiking"),
+    ("exact_zero", "exact_zero"),
+    ("unmapped_estimate", "straight_line_lower_bound_m"),
+}
+assert len(module.SCHEMA3_VISIT_CORRUPTIONS) == 15
 assert all(operation in source for operation in [
     'operation="provider_http_failure"', 'operation="mixed_route_calculate"',
     'operation="mixed_route_roundtrip"', 'operation="mixed_route_compatibility"',
@@ -285,11 +292,52 @@ assert all(name in source for name in [
     "test_ac049_statusless_transport_failure_has_connection_action_without_http_status",
     "test_ac052_every_schema3_route_rejects_required_field_omission",
     "test_ac054_lifecycle_after_origin_validation_starts_no_later_request_or_write",
+    "test_ac050_origin_null_with_finite_snapped_distance_stops_before_access_snap",
+    "test_ac056_every_active_and_inactive_visit_corruption_rejects_whole_document",
+    "test_ac056_three_allowed_visit_provenance_pairs_roundtrip_exactly",
 ])
 assert all(token in contract for token in [
     "content type is missing or misleading", "http_status=null",
     "source_coordinate == access_coordinate", "immediately after origin validation",
-    "including inactive routes", "presentation_provenance",
+    "including inactive routes", "presentation_provenance", "field-to-event lineage",
+    "location=null", "source-layer rereads", "installed observer/source",
+])
+provenance_source = inspect.getsource(module.assert_mixed_evidence_integrity)
+assert all(token in provenance_source for token in [
+    '"evidence_integrity"', '"observation_events"', '"field_origins"',
+    '"hardcoded_result_fields"', '"unattributed_result_fields"',
+    '"copied_from_case"',
+])
+provider_evidence = inspect.getsource(module.assert_actual_failed_provider_request)
+assert 'requests[0]["kind"] == "origin-validation"' in provider_evidence
+assert 'requests[failed["request_index"]] == failed["request"]' in provider_evidence
+preflight_source = inspect.getsource(module.test_ac050_access_boundary_failures_stop_pipeline_and_preserve_last_good)
+assert '"controller_state_after_explicit_calculate"' in preflight_source
+assert '"derived_from_case_input"' in preflight_source
+presentation_source = inspect.getsource(module.test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive)
+assert all(token in presentation_source for token in [
+    '"before_state"', '"after_state"', '"rendered_window_geometry"',
+    '"source_layer_renderer_reread"', '"accessibility_observations"',
+    '"QAccessible.queryAccessibleInterface"', '"ors-foot-hiking"',
+])
+assert '"before_capture_id"' not in presentation_source and '"after_capture_id"' not in presentation_source
+notice_source = inspect.getsource(module.test_ac054_exact_stage_sequence_privacy_and_no_incidental_writes)
+assert "coordinate_notice_acknowledged" not in notice_source
+assert all(token in notice_source for token in [
+    '"visual_order"', '"accessibility_order"', '"calculate_button_signal_observation"',
+    '"acknowledgement_required"] is False',
+])
+navigation_source = inspect.getsource(module.assert_navigation_has_observed_no_route_or_storage_activity)
+assert all(token in navigation_source for token in [
+    '"observer_installed_before_action"', '"routing-provider-request-log"',
+    '"route-storage-write-log"', '"events"] == []',
+])
+ac056_source = inspect.getsource(
+    module.test_ac056_every_active_and_inactive_visit_corruption_rejects_whole_document)
+assert all(token in ac056_source for token in [
+    'actions=["load", "recover-last-good"]', '"last_good_after"',
+    '"defaulted_fields"', '"inferred_fields"', '"corrupted_route_was_active"',
+    '"visit_counts"] == [2, 2]', '"corrupted_visit_index"',
 ])
 assert 'assert "평문" in consent' not in source
 assert 'fresh_project=True, seed_saved=True' not in source
@@ -329,6 +377,6 @@ for fmt in ["SHP", "ZIP", "GPKG"]:
             except FixtureChecked:
                 count += 1
 assert count == 18
-print("Design checks: DRAFT attempt-2 production-path/supersession correction is internally consistent; "
-      "approved AC001-055/QPB149-150 history and M01-M21 NOT RUN boundaries are preserved. "
+print("Design checks: DRAFT evidence-integrity/schema-3 correction is internally consistent; "
+      "approved AC001-056/QPB149-150 history and M01-M21 NOT RUN boundaries are preserved. "
       "No application tests executed.")
