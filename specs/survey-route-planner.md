@@ -1,14 +1,42 @@
 # Feature: 도로망 조사 경로 및 조사대상 도형 확장
 
-> Status: **APPROVED FOLLOW-UP — iOS route-panel readability, spacing, input and default naming; approved 2026-09-17; prior approved baseline preserved**
-> Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; 2026-09-16 approved workflow/progress slice; D-SRP-031~035, FR-SRP-029~033 and AC-SRP-031~035 approved 2026-09-16; D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 and AC-SRP-036~041 approved 2026-09-17; D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 and AC-SRP-042~045 approved 2026-09-17; D-SRP-046~048, FR-SRP-044~046, NFR-SRP-006 and AC-SRP-046~048 approved 2026-09-17. Target QField device verification remains **NOT RUN (미검증)**.
+> Status: **APPROVED — iOS Apple Maps navigation, mixed vehicle/walking access routes and provider HTTP error details approved 2026-09-18; prior approved baseline preserved**
+> Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; 2026-09-16 approved workflow/progress slice; D-SRP-031~035, FR-SRP-029~033 and AC-SRP-031~035 approved 2026-09-16; D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 and AC-SRP-036~041 approved 2026-09-17; D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 and AC-SRP-042~045 approved 2026-09-17; D-SRP-046~048, FR-SRP-044~046, NFR-SRP-006 and AC-SRP-046~048 approved 2026-09-17; D-SRP-049~056, FR-SRP-047~053, NFR-SRP-007~009 and AC-SRP-049~055 approved 2026-09-18. Target QField device verification remains **NOT RUN (미검증)**.
 > Owner: spec-writer
 > Extends: [통합 명세](qfield-project-builder.md)
-> Test design: [승인된 기준본](../tests/acceptance/survey_route_planner.test-design.md) — FR-SRP-029~039, AC-SRP-031~041 및 NFR-SRP-004까지 2026-09-17 반영·승인됨; 이번 승인 ID는 아직 반영되지 않음
+> Test design: [승인된 기준본](../tests/acceptance/survey_route_planner.test-design.md) — FR-SRP-029~039, AC-SRP-031~041 및 NFR-SRP-004까지 2026-09-17 반영·승인됨; 2026-09-18 승인 ID는 아직 반영되지 않음
 > Traceability: [승인된 기준본](../tests/acceptance/survey_route_planner.traceability.md) — 이번 승인 slice 또는 현재 구현의 통과 증거 아님
 
 
 ## 0. 문서 권한과 현재 상태 (2026-09-14)
+
+**2026-09-18 iOS 지도 길안내 변경 제안:** 실제 iPhone/QField에서 `다음 지점 네이버지도 안내`를
+누르면 NAVER Maps가 설치되어 있어도 App Store의 해당 앱 페이지가 열리는 현상은, project plugin이
+QField host의 `Info.plist`와 `LSApplicationQueriesSchemes`를 바꿀 수 없는 상태에서 `nmap` dispatch의
+false 반환을 설치 부재로 간주해 자동 fallback한 결과다. iOS는 Apple Maps HTTPS driving directions를
+사용하고 iOS의 NAVER/App Store fallback만 제거한다. Android는 NAVER Maps package-bound navigation과
+기존 Google Play fallback을 변경 없이 유지한다. 이는 Category C 사용자 승인 변경이다. 아래 D-SRP-056,
+FR-SRP-053 및 AC-SRP-055는 D-SRP-022/D-SRP-039, FR-SRP-025/037 및 AC-SRP-025/039의 iOS provider와
+App Store fallback 부분만 명시적으로 supersede하는 제안이었으며 **2026-09-18 승인된 명세 기준**이다.
+기존 승인 이력과 Android NAVER dispatch/fallback contract는 보존하며, acceptance 산출물은 별도 단계에서
+정합하고 승인받아야 한다.
+
+**2026-09-18 provider 오류 세부정보 제안:** QField 도로 경로 계산에서 provider가
+HTTP 404와 원인을 설명하는 본문을 반환해도 transport가 본문을 버려 진단할 수 없는
+현상은 기존 FR-SRP-013의 HTTP/응답 오류 처리에 대한 Category A conformance defect다.
+어떤 provider 세부정보를 표시해도 비밀·요청·거대/형식 본문을 노출하지 않는지를 고정하는
+계약은 Category B clarification이다. 아래 D-SRP-049, FR-SRP-047, NFR-SRP-007 및
+AC-SRP-049는 기존 endpoint, authentication, key 저장/노출 금지 계약을 변경하지 않는
+제안이었으며 **2026-09-18 승인된 명세 기준**이다. acceptance 산출물은 별도 단계에서 정합하고 승인받아야 한다.
+
+**2026-09-18 차량 접근점·도보 last-mile 제안:** 산간·농촌·비포장 조사지의 original coordinate에
+대해 configured radius의 direct ORS `driving-car` snap을 요청하고 반환 access point에서 도보 방문을
+분리하는 일은 현재 도로-only 제품 계약에 대한 Category C 변경이다. 아래 D-SRP-050~055,
+FR-SRP-048~052, NFR-SRP-008~009 및 AC-SRP-050~054는 원본 조사 좌표를 보존하면서
+차량 접근점, 차량 구간과 도보 왕복 방문을 분리하는 제안이었으며 **2026-09-18 승인된 명세 기준**이다. 기존 ORS/VROOM
+provider를 그대로 쓰고 새 dependency, 별도 지도 자료 또는 self-hosted 서버를 요구하지 않는다.
+acceptance 산출물은 별도 단계에서 정합하고 승인받아야 하며, 기존 승인 기준과 D-SRP-049를
+소급 변경하지 않는다.
 
 **2026-09-17 iOS 후속 관찰 승인:** 제공된 iPhone/QField screenshots에서 dark-mode host의
 route panel이 light surface와 white foreground를 혼합해 label/help/value/action text를 사실상 읽을
@@ -84,7 +112,9 @@ WGS84 네이버지도 내비게이션, 교체 가능한 외부 backend, 오류 �
 초기 직접 입력에서 점·선·면 선택, SHP/ZIP/GPKG의 6가지 단일/다중 도형 자동 인식,
 선·면 TSP에는 centroid 사용. 원본 조사 도형과 관계/UUID는 보존한다.
 여기서 `남은 지점 재계산`은 승인된 기준본의 역사적 문구이며, 2026-09-16 승인으로
-D-SRP-023이 FR-SRP-006/010의 해당 동작만 명시적으로 대체한다.
+D-SRP-023이 FR-SRP-006/010의 해당 동작만 명시적으로 대체한다. `WGS84 네이버지도 내비게이션`도
+승인된 기준본의 역사적 문구이며, 승인된 D-SRP-056이 iOS provider와 App Store fallback 부분만
+Apple Maps/no-fallback 계약으로 대체하고 Android NAVER Maps dispatch와 Google Play fallback은 유지한다.
 
 **기술 상태:** D-SRP-004의 ORS matrix/VROOM/directions 조합과 D-SRP-005의
 QField FileUtils/이중 JSON 저장은 여전히 기술 후보다. 현재 자동화는 JSON 후보의 fault/restart/move
@@ -106,8 +136,11 @@ TSP centroid를 보고서 좌표로 전용하지 않는다. site 확장이 obser
 
 ## 1. Summary
 QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기준으로 방문 순서 최적화하고,
-결과를 영구 저장·재사용하며 조사 완료 및 네이버지도 내비게이션을 제공한다.
+결과를 영구 저장·재사용하며 조사 완료 및 platform별 외부 지도 길안내를 제공한다.
 앱에서 조사지를 직접 그릴 때 점/선/면을 선택하고 업로드는 단일/다중 도형을 자동 인식한다.
+이번 2026-09-18 승인 확장은 원격 조사지의 원본 좌표를 유지하면서 차량 접근점 사이 도로 경로와 접근점↔조사지
+도보 왕복을 별도 계산·저장·표시하고, 지도에 없는 도보 구간은 거리 하한/시간 사용 불가로 정직하게
+표시하는 확장이다.
 
 ## 2. Decision Log
 - D-SRP-001 (2026-09-14, Category C): 첨부 요구사항에 따라 QField Project Plugin으로
@@ -356,6 +389,111 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   현재 candidate에서 자동으로 덮어쓰지 않으며 collapse/reopen, theme change, refresh, save retry는
   reset trigger가 아니다. 저장 성공 뒤 현재 route에는 final trimmed saved name을 유지하고, saved route
   load는 저장된 name을 표시하며 오늘 날짜로 rename하지 않는다.
+- D-SRP-049 (2026-09-18 승인, Category A/B): route transport/backend의 실패 경계는
+  raw body 대신 최소 실패 레코드 `{stage, http_status, provider_code, provider_message, safe_text}`를
+  반환한다. `stage`는 기존 `matrix`/`optimizer`/`directions`와 이번 승인 범위의
+  `access-snap`/`walking-directions` 중 하나이고, HTTP non-2xx에서
+  `http_status`를 보존한다.
+  반환 본문은 JSON으로 parsing을 시도하되 표시 후보는 provider의 scalar internal
+  code/message 필드로 한정한다. JSON이 아니면 안전 정제한 text만 fallback으로
+  쓰고, empty이거나 HTML이면 단계와 status만 있는 일반 오류를 쓴다. 표시 text는
+  Unicode control/format 문자를 공백으로 정규화하고 연속 공백을 합친 뒤 code 64자,
+  message/fallback 320자, 완성 진단 512자로 잘라낸다. HTML/markup, request URL/query/body,
+  `Authorization`, 알고 있는 API key/credential 값, bearer/token/key/secret 할당으로 의심되는
+  내용은 부분 노출하지 않고 해당 세부정보 전체를 생략한다. 화면은
+  `행렬(matrix)`/`방문 순서 최적화(optimizer)`/`도로 경로(directions)`/
+  `차량 접근점(access-snap)`/`도보 경로(walking-directions)`, HTTP status,
+  존재하는 안전한 provider code/message 순서의 간결한 한국어 진단만 표시한다.
+  HTTP 404만으로 endpoint unavailable이나 no-result를 추정하지 않고, 반환된 provider
+  code/message가 그 분류를 명시할 때만 해당 의미를 표시한다. 성공 응답 본문은
+  진단에 전달·표시하지 않으며, 실패는 retry, route/settings write, candidate 폐기를
+  일으키지 않고 기존 candidate와 저장 경로를 그대로 보존한다. 새 logging framework,
+  dependency 또는 provider별 확장 계층은 추가하지 않는다.
+- D-SRP-050 (2026-09-18 승인, Category C): 조사지 대표점은 계속 source coordinate다. provider에
+  보내거나 저장·표시할 때도 `source_coordinate`로 보존하며 source feature geometry/attribute/
+  renderer를 이동·수정하지 않는다. 차량용 `access_coordinate`는 별도 파생값이다. 새 계산은
+  `/v2/snap/driving-car/json`에 모든 original site `source_coordinate`를 현재 계산 순서 그대로 담은
+  단일 batched request를 보내고 필수 `radius`에는 `max_access_distance_m`를 그대로 쓴다. 기본값은
+  2,000 m, 허용 설정 범위는 350~5,000 m다. 응답의 snapped point 또는 `null`을 input 순서에 1:1로
+  대응하며 각 site에는 반환된 point 하나만 access point로 채택한다. provider의 documented batch
+  한도를 계산 전 검사하고 한도를 넘으면 actionable preflight error로 중단한다. provider가 설정 반경을
+  거부하거나 더 작은 값으로 제한한다는 HTTP/code/message를 반환하면 D-SRP-049의 안전한 provider
+  오류를 표시하고 중단하며, radius를 줄이거나 여러 좌표를 생성·탐색하는 silent workaround를 하지
+  않는다. `null`이면 해당 site name/stable ID와 설정 한도를 표시하고 전체 candidate를 만들지 않는다.
+  좌표 순서를 바꾸거나 source를 access point로 덮어쓰지 않는다. 기존 route origin 동작은 유지하되
+  origin은 계산 전에 이미 `driving-car` routing 가능한 위치여야 한다. 이 slice는 origin을 snap하거나
+  origin walking leg를 만들지 않으며, origin routing 실패는 `지도 위치 출발` 또는 도로 위의 저장
+  출발지를 사용하라는 actionable start error로 끝난다.
+- D-SRP-051 (2026-09-18 승인, Category C/B): 각 site에 D-SRP-050이 반환한 단일 access point와
+  original source 사이 `foot-hiking` directions를 요청해 geometry와 distance/duration을 확정한다.
+  source와 access가 1 m 이하로 같으면 walking은 exact zero이며 foot request를 생략한다. provider가
+  mapped foot route 없음이라고 명시하면 그 site의 반환된 단일 access point와 source 사이 geodesic을
+  `straight_line_lower_bound_m`으로 저장·표시하고 walking duration은
+  `null/사용 불가`, geometry는 source-access 직선이며 mode는 `unmapped_estimate`다. HTTP/network/
+  timeout, malformed response 또는 서로 다른 foot 응답의 metric 불일치는 no-path로 간주하지 않고
+  전체 계산을 실패시킨다. 따라서 provider 장애를 추정 fallback으로 숨기지 않는다.
+  모든 방문은 access→source에서 조사→같은 access로 복귀하는 out-and-back이다. 다음 차량 구간이
+  있는 stop, roundtrip return 전 stop과 open route의 마지막 stop도 동일하며, 한 방향 provider
+  walking metric/geometry를 두 배/정방향+역방향으로 명시적으로 저장한다. 별도 one-way 선택은 이번
+  범위가 아니다.
+- D-SRP-052 (2026-09-18 승인, Category B): 새 계산의 순서는 (1) local preflight와 원본 좌표 snapshot,
+  origin의 vehicle-routable 조건 확인, (2) original site 좌표 전체의 단일 batched car access snap,
+  (3) 각 반환 access point의 walking directions 또는 명시적 unmapped fallback,
+  (4) access coordinates만 쓰는 `driving-car` matrix, (5) 기존 VROOM
+  optimization, (6) ordered access coordinates만 쓰는 `driving-car` directions, (7) 완전한 candidate
+  validation이다. VROOM objective는 차량 matrix만 최적화한다. walking 방문비용은 순서에 무관하므로
+  차량 cost로 가장하지 않는다. snap의 `null`은 site와 한도, 좌표/OSM coverage/한도 설정 확인 방법을
+  보여주며, provider의 radius 거부/cap 또는 origin routing 실패는 D-SRP-049의 안전한 provider 내용과
+  D-SRP-050의 start/radius action을 보여준다. 어느 필수 stage든 실패하면 후속 stage, 자동 retry와
+  write는 없고 이전 unsaved candidate,
+  saved route, active revision과 설정을 보존한다. explicit no-foot-path만 D-SRP-051 fallback으로 계속한다.
+- D-SRP-053 (2026-09-18 승인, Category C): mixed route의 저장 schema는 `3`이다. route는 기존
+  identity/name/revision/backend/snapshot과 함께 `vehicle_legs[]`, `visits[]`, `vehicle_totals`,
+  `walking_totals`, `combined_totals`를 가진다. 각 visit은 `{layer_id, site_id, source_coordinate,
+  access_coordinate, access_offset_m, walking_mode, walking_legs[2], metric_source}`를 저장하고
+  walking leg는 `{direction: outbound|return, distance_m, duration_s|null, geometry}`다. mapped return
+  geometry는 provider outbound geometry의 exact reverse이고 metric은 같으며, exact-zero visit은 두 leg의
+  distance/duration이 0이고 geometry는 `null`이다. fallback 두 leg는 각각 같은 geodesic lower-bound와
+  `null` duration 및 서로 반대인 straight LineString이다. vehicle leg의 from/to는 start 또는
+  access-coordinate visit reference이고 기존 finite metric/WGS84 LineString 검증을 따른다.
+  `vehicle_totals`는 exact `{distance_m,duration_s}`, `walking_totals`는
+  `{mapped_distance_m,lower_bound_distance_m,duration_s|null,unavailable_duration_count}`다.
+  `combined_totals`는 모든 walking leg가 mapped/exact-zero일 때만 exact `{distance_m,duration_s}`이고
+  fallback이 하나라도 있으면 `null`이다. 따라서 lower-bound를 exact total에 합치거나 unknown time을
+  숫자로 추정하지 않는다.
+  schema 1/2는 read-time request/write/추정 없이 기존 의미로 계속 열고, explicit 새 계산·저장만 schema
+  3을 만든다. schema 3을 모르는 이전 reader는 기존 future-schema 규칙대로 bytes를 보존하고 거부한다.
+- D-SRP-054 (2026-09-18 승인, Category D): panel과 bottom summary는 `차량` 거리/시간과 `도보`
+  거리/시간을 분리한다. 모두 provider metric이면 combined도 표시할 수 있으나 어느 값도 중복 합산하지
+  않는다. fallback walking은 `직선거리 하한 · 경로/시간 사용 불가`와 affected site를 표시하고 저장 전
+  `지도에 없는 도보 구간 포함` acknowledgement를 요구한다. 차량선은 기존 solid style, mapped walking은
+  purple dashed line, unmapped fallback은 더 촘촘한 dotted straight line과 warning marker를 쓴다.
+  adaptive contrasting casing을 두고 `차량 경로`/`도보 경로`/`지도 경로 없음` text+line-pattern legend를
+  panel과 map에 제공한다. 색만으로 mode를 구분하지 않으며 light/dark basemap과 route-panel theme에서
+  읽혀야 한다. completion prefix는 site 방문과 access 복귀가 끝난 뒤 complete로 보며, completed stop의
+  inbound vehicle leg와 해당 walking roundtrip을 remaining totals/overlay에서 함께 제외한다.
+- D-SRP-055 (2026-09-18 승인, Category B/E): explicit calculate 전 안내는 ORS에 source coordinates,
+  반환된 access coordinates와 route geometry request가 전송됨을 알린다. ORS에는
+  site name, source layer attributes, stable business ID나 completion을 보내지 않고 request-local integer
+  index만 쓴다. VROOM에는 access coordinates와 cost matrix 및 request-local index만 보낸다. request/
+  response body는 로그·오류·project settings에 남기지 않고, 저장에는 D-SRP-053의 최종
+  source/access/route geometry만 둔다. D-SRP-049 redaction은 모든 새 stage에 적용한다. 계산·fallback
+  preview·legend/toggle은 source feature, completion field, route/settings storage를 쓰지 않으며,
+  사용자의 explicit save만 atomic schema-3 route commit을 수행한다.
+- D-SRP-056 (2026-09-18 승인, Category C): 외부 길안내 action은 platform-neutral label
+  `다음 지점 지도 안내`를 사용한다. iOS에서는 NAVER custom scheme 대신 Apple의 공식 HTTPS unified
+  Maps URL `https://maps.apple.com/directions?destination=<latitude>,<longitude>&mode=driving`을
+  `Qt.openUrlExternally`에 정확히 한 번 전달한다. `destination`은 현재 next stop의 저장된 WGS84
+  representative coordinate이고 순서는 latitude,longitude다. Apple의 `/directions` 계약에 목적지
+  표시 이름 parameter가 문서화되어 있지 않으므로 현재 URL에는 이름을 넣지 않는다. 향후 공식 문서가
+  coordinate와 함께 쓰는 destination-name parameter를 명시하더라도 별도 승인 전에는 추정 parameter를
+  추가하지 않는다. Android는 D-SRP-039의 NAVER package-bound `intent://` destination dispatch를
+  포함한 기존 dispatch와 Google Play fallback을 D-SRP-039, FR-SRP-037 및 AC-SRP-039 그대로 유지한다.
+  iOS는 Apple Maps HTTPS primary launcher가 false를 반환하거나 exception이 발생해도 NAVER `nmap`,
+  App Store 또는 web page를 추가 실행하지 않고 설치·지원 환경 확인 안내로 끝낸다. 이 결정은
+  D-SRP-022/D-SRP-039, FR-SRP-025/037 및 AC-SRP-025/039의 iOS NAVER provider와 iOS App Store fallback
+  부분만 supersede한다. Android NAVER destination/encoding/dispatch/fallback 계약과 OS request만 확인
+  가능하다는 기존 증거 경계는 변경하지 않는다.
 
 ## 3. Functional Requirements
 - FR-SRP-001: 생성 프로젝트에 기존 보고서/식별 플러그인과 공존하는 하단 접이식 패널.
@@ -618,6 +756,83 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   새 successful candidate마다 D-SRP-048의 exact local-date default를 제공한다. default도 일반 editable
   text이므로 사용자는 전부 선택, 한글/영문 수정, 삭제 및 교체할 수 있고 save에는 final trim 값만 쓴다.
 
+### 3.6 2026-09-18 provider HTTP 오류 세부정보 정합 (승인)
+
+- FR-SRP-047 (2026-09-18 승인): `matrix`, `optimizer`, `directions`, `access-snap`,
+  `walking-directions` 각 HTTP 요청은 실패
+  레코드에 해당 stage를 포함한다. non-2xx면 HTTP status를 잃지 않고 D-SRP-049의
+  allowlist/sanitization/length 규칙으로 JSON provider code/message 또는 non-JSON text fallback을
+  만든다. 패널은 예를 들어 `도로 경로(directions) 요청 실패 · HTTP 404 ·
+  <provider code>: <provider message>` 형태로 존재하는 항목만 간결하게 표시한다.
+  provider detail이 empty, unsafe 또는 HTML이면 `<stage> 요청 실패 · HTTP <status>`로
+  fallback한다. network/timeout처럼 HTTP status가 없는 실패도 stage를 표시하되 status를
+  만들지 않는다. 404의 의미는 provider content가 명시한 경우만 endpoint-unavailable
+  또는 no-result로 구분하고, 그렇지 않으면 일반 HTTP 404로 남긴다. 오류 표시로
+  인한 자동 retry/API request, route/settings write, candidate/revision 변경은 0회이며 기존
+  candidate와 저장 경로를 보존한다. 2xx 성공 본문은 이 진단에 포함하지 않는다.
+
+### 3.7 2026-09-18 차량 접근점·도보 last-mile 경로 (승인)
+
+- FR-SRP-048 (2026-09-18 승인): 새 계산은 각 조사지의 승인된 representative WGS84 좌표를
+  immutable `source_coordinate`로 snapshot하고 D-SRP-050의 original-coordinate batched snap으로 별도
+  `access_coordinate`를 찾는다. `max_access_distance_m` 설정은 `차량 최대 접근 거리`로 표시하고 기본 2.00 km,
+  허용 0.35~5.00 km이며 project-local non-secret settings로 저장·이동한다. 요청은 모든 original site
+  좌표를 순서대로 `locations`에 넣고 설정값을 필수 `radius`로 넣은 단일 `driving-car` snap batch다.
+  각 응답 위치는 input 순서의 해당 site에만 대응하며 `null`은 site name/ID와 configured radius를 밝힌
+  actionable failure다. provider의 radius 거부/cap은 안전한 provider 오류로 끝내고 radius 축소,
+  추가 snap input 생성 또는 별도 후보 탐색으로 우회하지 않는다. 기존 origin은 vehicle-routable이어야 하며 자동 snap이나
+  origin walking leg 없이 도로 위의 map/saved start를 선택하라는 actionable error를 제공한다. source
+  feature와 좌표는 모든 성공/실패/save/load에서 byte-for-byte 불변이다.
+- FR-SRP-049 (2026-09-18 승인): 반환된 단일 access point와 source 사이 walking 검증은 D-SRP-051을
+  따른다. mapped `foot-hiking` path가 있으면 provider distance/duration/geometry를 쓰고 왕복 방문으로
+  저장한다. 명시적 no-path만 straight-line lower-bound+duration unavailable fallback을 허용하며
+  `driving-car` route나 provider walking route라고 표시하지 않는다. vehicle matrix/VROOM/directions에는
+  source가 아니라 chosen access coordinate만 들어간다. open/roundtrip 모두 모든 site의 walking visit은
+  out-and-back이며 optimization objective와 vehicle totals에는 walking metric을 섞지 않는다.
+- FR-SRP-050 (2026-09-18 승인): 계산 preview, saved-route detail, bottom remaining summary와 map은
+  vehicle/walking distance와 duration을 별도 label로 표시한다. all-mapped일 때만 정확한 combined
+  distance/duration을 추가할 수 있다. fallback이 있으면 walking distance를 `직선거리 하한`으로,
+  walking/combined time을 `사용 불가`로 보이고 affected sites와 acknowledgement를 저장 전에 제공한다.
+  route overlay와 legend는 D-SRP-054의 solid/dashed/dotted pattern, text, warning marker와 contrast casing을
+  사용한다. route-line toggle은 세 route line class를 함께 숨기되 access/source/warning marker와 legend의
+  현재 state 설명을 보존한다.
+- FR-SRP-051 (2026-09-18 승인): explicit save는 validated mixed candidate를 schema 3으로 atomic commit한다.
+  D-SRP-053의 vehicle legs, visits, original/access coordinates, exact provider metric provenance,
+  fallback lower-bound/unavailable state와 separate totals가 restart, last-good recovery, offline reopen과
+  project-folder move 뒤 동일해야 한다. completion/uncheck/load/toggle은 request 0회이며 vehicle leg와
+  walking visit을 수정하지 않고 D-SRP-054의 prefix-derived remaining view만 다시 만든다. schema 1/2
+  route의 표시·보존과 명시 재계산 upgrade는 D-SRP-027을 유지한다.
+- FR-SRP-052 (2026-09-18 승인): controller는 D-SRP-052의 stage order와 D-SRP-049의 safe error record를
+  사용한다. 401/403은 key/permission, 404는 configured endpoint 확인(본문이 명시하지 않으면 원인 단정
+  없음), 429는 quota/wait, 5xx는 provider 재시도, timeout/network는 연결/timeout 확인을 action으로
+  제공한다. snap의 `null`은 해당 site와 configured radius를, provider radius 거부/cap은 안전한
+  `access-snap` detail과 설정 확인 action을, origin routing 실패는 도로 위 map/saved start 선택 action을
+  보인다. transient walking failure를 no-path fallback으로 바꾸지 않는다. UI는 explicit
+  calculate 전에 D-SRP-055 coordinate-sharing notice를 제공하고 어떤 실패에도 automatic retry, source/
+  completion/settings/route write, candidate/revision loss를 만들지 않는다.
+
+### 3.8 2026-09-18 iOS Apple Maps 길안내 변경 (승인)
+
+- FR-SRP-053 (2026-09-18 승인): 사용자가 `다음 지점 지도 안내`를 누르면 controller는 active route의
+  earliest incomplete next stop 하나를 읽고 그 stop의 WGS84 coordinate를 `[longitude, latitude]`로
+  해석한다. 두 값은 number이며 finite이고 latitude `[-90, 90]`, longitude `[-180, 180]` 범위여야 한다.
+  각 값은 locale과 무관한 base-10 fixed 7자리 소수로 반올림한 뒤 trailing zero와 trailing decimal point를
+  제거하고 negative zero를 `0`으로 정규화한다. NaN/Infinity, 지수 표기, 공백, locale decimal/group
+  separator 또는 범위 밖 값은 URL을 만들지 않고 next-stop coordinate 오류를 표시한다. iOS URL은
+  parameter order까지 exact
+  `https://maps.apple.com/directions?destination=<latitude>,<longitude>&mode=driving`이며 현재
+  destination name parameter는 0개다. Android URL은 승인된 package-bound NAVER intent를 같은
+  normalized destination과 percent-encoded stop name/required `appname`으로 만든다. name과 `appname`은
+  UTF-8 `encodeURIComponent` 의미로 각각 한 번만 encode하며 query delimiter나 fragment를 값에서
+  주입할 수 없다. Android dispatch/fallback 순서와 결과 처리는 D-SRP-039/FR-SRP-037을 변경 없이 따른다.
+  primary 호출 true에는 platform 공통으로
+  `지도 앱에 길안내를 요청했습니다. 앱 실행·목적지 수락·안내 시작 여부는 확인할 수 없습니다.`를
+  표시한다. iOS false/exception에는 `Apple 지도를 열 수 없습니다. 기기 설정과 네트워크 상태를
+  확인하세요.`를 표시하고 iOS launcher는 primary 1회, fallback 0회다. Android 실패와 Google Play
+  fallback은 기존 FR-SRP-037의 횟수·안내를 그대로 따른다. invalid coordinate는 모든 platform에서
+  launcher 0회다. 모든 success/failure/validation path는 source feature·completion, candidate,
+  active/saved route, revision, settings와 route storage를 쓰거나 바꾸지 않고 routing API도 호출하지 않는다.
+
 ## 4. Data / Compatibility
 새 프로젝트 생성만 도형 메타데이터를 변경한다. 사용자의 기존 GPKG를 자동 마이그레이션하지
 않는다. 기본 도형 유형을 지정하지 않은 과거 호출은 MULTIPOLYGON 기본값을 유지한다.
@@ -633,7 +848,7 @@ route_stop의 site_id는 설정한 레이어 ID 필드의 문자열 값이며 �
 생성시각일 뿐 ETA epoch가 아니다.
 
 프로젝트 이동 대상 non-secret 설정은 routing base URL, optimizer endpoint URL, provider ID, profile, timeout,
-max road offset, default start, layer/id/name/optional completion mapping이다. API key는 이 일반 설정에서
+max road offset, 이번 승인 범위의 max access distance, default start, layer/id/name/optional completion mapping이다. API key는 이 일반 설정에서
 제외하며, 자동 전달에 동의한 경우에만 별도 generated project variable에 평문으로 포함한다. 이 값은
 암호화되지 않고 프로젝트 폴더 접근자가 읽고 사용할 수 있다.
 저장 형식은 규범이 아니며 소비자는 상대 경로로 동일한 route/revision/settings 의미를 복구해야 한다.
@@ -661,6 +876,9 @@ max road offset, default start, layer/id/name/optional completion mapping이다.
   leg가 없으면 남은 거리·시간·trimmed overlay를 `사용 불가`로 표시하고 향상된 남은 동작에는 새 전체
   경로 계산·저장 1회가 필요함을 알린다. 그 명시 작업만 schema 2를 쓰며 silent split은 금지한다.
   future schema는 덮어쓰지 않고 보존한 채 명확히 거부한다.
+  **2026-09-18 승인 supersession:** mixed vehicle/walking route의 explicit 새 계산·저장은
+  D-SRP-053의 schema 3을 쓰며 schema 1/2 read-only compatibility와 future-schema byte preservation은
+  그대로 유지한다.
 - D-SRP-028 (Category C): stop 수 `n`에서 open은 `n`, roundtrip은 `n+1` leg를 방문 순서로 저장한다.
   각 leg는 sequence, start 또는 `{layer_id, site_id}` from/to, finite non-negative `distance_m`/
   `duration_s`, WGS84 GeoJSON LineString을 가진다. canonical totals와 full route display geometry는
@@ -709,6 +927,22 @@ max road offset, default start, layer/id/name/optional completion mapping이다.
   `{surface #111827, text #F9FAFB, muted #CBD5E1, outline #94A3B8}`이고 focus `#2563EB`, error는
   각 theme에서 위 contrast threshold를 만족하는 red variant를 쓴다. exact implementation colors는
   동일하거나 더 높은 contrast로 바꿀 수 있지만 state matrix와 semantic meaning은 바꾸지 않는다.
+- NFR-SRP-007 (2026-09-18 승인): provider 오류 진단은 최대 512 Unicode 문자이며
+  단일 화면 message와 screen-reader status에서 동일한 정제 결과를 제공한다. 응답
+  parsing/sanitization은 기존 runtime/standard 기능만 쓰고 새 dependency와 logging subsystem을
+  요구하지 않는다. malformed/huge body에서도 전체 본문을 UI에 복사하거나
+  비밀·HTML·control 문자를 표시하지 않고 bounded generic error로 안전하게 종료한다.
+- NFR-SRP-008 (2026-09-18 승인): access snap은 `max_access_distance_m`, provider snap radius와
+  documented location/batch limit로 bounded되고 UI cancel/project close 뒤 추가 request를 시작하지
+  않는다. 동일 input/settings/provider responses는 동일 input-order access mapping/schema-3 bytes
+  (생성시각·route ID 제외)를 만든다. 요청 좌표를 생성하거나 원본 외 위치를 탐색하지 않으며 raw
+  provider body를 영구 저장하거나 화면에 덤프하지 않는다.
+- NFR-SRP-009 (2026-09-18 승인): vehicle/mapped-walking/unmapped line, legend, warning,
+  separate totals와 unavailable state는 320 px와 supported light/dark theme에서 잘림 없이 보이고
+  keyboard/screen reader가 mode, site, metric source, out-and-back 및 unavailable 이유를 읽을 수 있다.
+  line casing은 basemap에 대해 3:1 visual boundary를 만들고 dash/dot/text/icon을 함께 써서 color vision
+  deficiency 또는 grayscale에서도 세 mode를 구분한다. map screenshot은 실제 target QField 증거이며
+  source color literal만으로 PASS하지 않는다.
 
 ## 5. Acceptance Criteria
 | ID | 관찰 가능한 조건 및 결과 |
@@ -761,6 +995,13 @@ max road offset, default start, layer/id/name/optional completion mapping이다.
 | AC-SRP-046 (2026-09-17 승인) | 같은 project/candidate를 target iOS QField의 light와 dark appearance에서 열고 normal/value/empty/focus/selected/checked/error/disabled 상태를 capture하면 summary, 모든 label/value/help/action/status가 읽히며 NFR-SRP-006의 4.5:1/3:1 threshold를 측정 통과한다. theme 전환은 값·focus·candidate·route·scroll을 보존하고 request/write는 0회다. screenshot/pixel measurement와 실제 기기 interaction이 최종 증거이며 source의 color literal 존재만으로 PASS하지 않는다. |
 | AC-SRP-047 (2026-09-17 승인) | 320 px 이상 narrow/wide iOS QField에서 expanded header의 painted bottom과 첫 `조사지` label painted top 사이가 최소 8 dp이고 label/notch/top outline이 전부 보인다. empty/value/focus/error/disabled 및 supported text scale에서 clipping/overlap/horizontal scroll은 0개이며 label/control tap은 header collapse를 trigger하지 않고 header tap만 collapse한다. geometry 자동 검사는 proxy이고 실제 screenshot/tap 결과를 함께 기록한다. |
 | AC-SRP-048 (2026-09-17 승인) | device local date가 2026-09-17인 fixture에서 새 successful candidate는 exact `2026-09-17 조사`를 editable input에 보인다. iOS tap→caret→soft keyboard 뒤 수정/삭제한 final trim name이 request 0회로 저장된다. collapse/theme/refresh/save retry와 실패 계산은 name을 보존하고, 다음 explicit successful calculation은 그때의 local date default로 reset한다. UTC와 local date가 다른 boundary fixture는 local date를 택하며 locale 변경에도 `yyyy-MM-dd 조사` 형식이 유지된다. saved-route load는 stored name을 보존한다. |
+| AC-SRP-049 (2026-09-18 승인) | matrix/optimizer/directions 각 fixture의 non-2xx가 exact stage와 HTTP status를 보존한다. JSON의 safe scalar provider code/message는 control/format 문자·연속 공백이 정규화되고 64/320/512자 제한 안에서 간결한 한국어 진단에 표시된다. plain-text 본문은 320자 안전 fallback, empty/HTML/markup/malformed/secret-like/Authorization/known-key/key-bearing URL·query·body/huge-body fixture는 detail 0개와 generic stage+status만 표시한다. 서로 다른 provider content의 404 endpoint-unavailable/no-result는 그 content가 명시한 분류만 표시하고 content 없는 404는 둘 중 하나로 추정하지 않는다. 모든 실패에서 자동 retry/request, route/settings write, candidate/revision 변경은 0회이고 기존 candidate/saved route는 동일하며, 2xx 본문은 error UI에 노출되지 않는다. |
+| AC-SRP-050 (2026-09-18 승인) | 350 m보다 멀지만 2 km 안의 `driving-car` graph point로 snap 가능한 rural site를 포함한 ordered site fixture를 계산하면 단일 `/v2/snap/driving-car/json` request의 `locations`가 original site 좌표와 같은 순서이고 required `radius`가 exact 2000이다. 응답 point/null은 input 순서에 1:1 대응하고 모든 vehicle request는 반환 access coordinates만 쓰며 original representative/source feature bytes는 before/after/save/reload에서 동일하다. `null`, documented batch-limit 초과, provider radius reject/cap 각각은 name/ID·2.00 km 또는 안전한 provider detail과 설정/좌표/OSM 확인 action으로 실패하고 후속 walking/matrix/optimizer/directions/write 0회 및 기존 candidate/saved route 불변이다. 0.35/2/5 km 설정 모두 original site 외 snap input 생성, 후보 탐색, radius 자동 축소와 추가 snap request가 0회다. routable origin은 기존 동작을 유지하고 non-routable origin은 자동 snap/origin walking leg 없이 도로 위 map/saved start를 쓰라는 오류로 끝난다. |
+| AC-SRP-051 (2026-09-18 승인) | mapped foot fixture는 각 site에 반환된 단일 access point에서 original source까지 exact foot-hiking distance/duration/geometry의 왕복을 저장한다. ≤1 m fixture는 walking zero와 foot request 0회다. explicit no-path fixture는 그 access point의 exact geodesic 왕복 lower-bound, null time, dotted line과 `지도 경로 없음`을 만들고 acknowledgement 전 save를 막는다. HTTP/timeout/malformed/mismatched foot fixture는 fallback 0개, 후속 vehicle request/write 0회와 last-good 보존이다. open과 roundtrip의 마지막 stop을 포함한 모든 visit은 out-and-back이고 VROOM cost에는 walking metric이 없다. |
+| AC-SRP-052 (2026-09-18 승인) | all-mapped와 one-fallback mixed candidates가 schema 3의 vehicle legs, visits, source/access coordinates, trip multiplier, metric source와 separate totals를 exact roundtrip한다. fallback route의 walking/combined duration은 null이며 숫자 0이나 추정값이 아니다. restart/recovery/offline/folder move와 complete→uncheck는 request 0회로 같은 full data와 prefix-derived vehicle/walking remaining state를 복원한다. schema 1/2 load는 bytes/write/request 불변이고 explicit recalculation/save만 schema 3을 만들며 older-reader future-schema rejection은 bytes를 보존한다. |
+| AC-SRP-053 (2026-09-18 승인) | 320 px 및 wide target QField의 light/dark basemap에서 solid vehicle, dashed mapped walking, dotted unmapped segment와 warning marker가 contrasting casing 및 text+pattern legend로 color/grayscale 모두 구분된다. preview/detail/bottom summary와 screen reader가 vehicle and walking distance/time, 왕복, metric source 및 unavailable reason을 별도로 전달하고 fallback affected site/acknowledgement를 보인다. toggle/completion은 immutable data와 source renderer를 바꾸지 않고 expected overlays/totals만 갱신한다. 자동 style 검사는 proxy이며 실제 device screenshot/interaction을 최종 증거로 기록한다. |
+| AC-SRP-054 (2026-09-18 승인) | captured request sequence는 preflight/origin validation→single batched access-snap→per-site walking directions 또는 explicit fallback→driving matrix→optimizer→driving directions→validation이고 각 injected stage failure 뒤 request/write가 없다. 401/403/404/429/5xx/timeout과 provider radius reject/cap은 D-SRP-049 길이/redaction 및 FR-SRP-052 action을 보이며 raw key, Authorization, URL query/body, raw response, source attributes/name/business ID는 UI/log/storage에 없다. coordinate-sharing notice 뒤 explicit calculate만 original source와 returned access coordinates를 ORS에 보내고 VROOM은 access/cost/request-local integer만 받는다. original source 외 생성 좌표와 automatic radius change는 0회다. cancel/project close와 preview/legend/toggle은 추가 request 및 source/completion/settings/route write 0회다. |
+| AC-SRP-055 (2026-09-18 승인) | button의 exact label은 Android/iOS 모두 `다음 지점 지도 안내`다. `[127.123, 37.456]` next stop의 iOS tap은 exact `https://maps.apple.com/directions?destination=37.456,127.123&mode=driving`만 `Qt.openUrlExternally`에 한 번 전달하고 NAVER/App Store/Google Play/web URL과 destination-name parameter는 0개다. iOS primary false/exception도 total launcher 1회, fallback 0회와 actionable Apple Maps error로 끝난다. Android tap은 같은 normalized destination에 D-SRP-039/FR-SRP-037/AC-SRP-039의 exact package-bound NAVER intent와 기존 Google Play fallback을 변경 없이 사용한다. Korean, `&`, `#`, `%`, whitespace가 포함된 Android stop name/caller ID는 UTF-8로 각각 한 번만 encode되어 parameter/fragment를 주입하지 않는다. boundary, excess-decimal rounding/trimming 및 negative-zero fixture는 FR-SRP-053의 canonical coordinate를 만들고 NaN/Infinity/string/지수표기 유도/범위 밖 fixture는 launcher 0회와 coordinate 오류가 된다. primary true는 exact OS-request-only status를 보이고 app/destination/navigation success claim은 false이며, Android fallback 결과도 앱 실행·목적지 수락·안내 시작으로 주장하지 않는다. 모든 branch는 routing request와 source/completion/candidate/route/revision/settings/storage write 0회다. 자동 fixture는 URL·call count·state preservation proxy일 뿐이며, target iOS QField에서 Apple Maps가 exact next-stop destination과 driving directions를 표시하는지와 target Android QField에서 NAVER Maps가 exact destination 및 기존 fallback behavior를 받는지는 OS/QField/device version과 함께 사용자 handoff로 각각 검증한다. 미수행 결과는 PASS가 아니라 `미검증`이다. |
 
 ## 6. API 근거 / 검증 경계
 VROOM 근거는 초기 provider가 대상으로 삼은 **v1.14.0 tag**에 고정한다. 공식 문서는 timing을
@@ -773,6 +1014,19 @@ section(distance/duration/steps) 목록으로, geometry waypoint index를 별도
 `properties.way_points`로 정의한다. FR-SRP-033은 이 구조를 따르며 segment 내부의 비문서화 index를
 가정하지 않는다.
 - https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/requests-and-return-types
+
+openrouteservice 공식 snapping 문서는 profile별 graph edge로 point를 snap하고 지정 반경에 적합한
+edge가 없으면 input 순서의 `null`을 반환한다고 정의한다. request body는 `locations`와 필수 `radius`를
+직접 받으며 endpoint configuration은 한 request의 location batch limit를 문서화한다. hosted API
+reference와 2026 endpoint migration 표는 `api.heigit.org/openrouteservice/v2/snap`을 공개 endpoint로
+포함한다. D-SRP-050은 original site 좌표만 한 ordered batch로 보내고 configured radius를 그대로
+사용한다. provider가 radius를 거부·제한하거나 documented batch limit를 넘는 경우 오류를 그대로
+드러내며 추가 snap input 생성, 자동 반경 축소 또는 별도 후보 탐색으로 우회하지 않는다. live hosted limit과
+QField transport 동작은 O-SRP-002 검증 대상으로 남긴다.
+- https://giscience.github.io/openrouteservice/api-reference/endpoints/snapping/
+- https://giscience.github.io/openrouteservice/frequently-asked-questions
+- https://openrouteservice.org/dev/
+- https://openrouteservice.org/restrictions/
 
 현재 hosted endpoint와 key migration 근거는 openrouteservice의 공식 공지다. 2026-04-28 공지는
 directions/matrix를 `api.heigit.org/openrouteservice/v2/...`, optimization을
@@ -811,7 +1065,20 @@ context의 package-bound intent handling과 Google Play fallback, iOS의 direct 
 FR-SRP-037은 generated project가 host manifest capability를 만들 수 있다고 가정하지 않으며,
 navigation web URL은 공식 문서가 해당 context에 명시한 경우에만 채택한다.
 
-실제 QField/iOS/Android와 네이버지도 실행 검증은 AGENTS.md에 따라 사용자 수행 항목이다.
+**2026-09-18 iOS 변경 근거:** Qt 공식 `QDesktopServices::openUrl` 문서는 iOS에서 application이
+query할 custom URL scheme을 host application의 `Info.plist` `LSApplicationQueriesSchemes`에 선언해야
+한다고 명시한다. FieldBuild Kit의 generated project plugin은 QField host bundle manifest를 수정하지
+않으므로 `nmap` false 반환을 NAVER Maps 미설치로 해석할 수 없고, false 뒤 App Store를 자동 실행하면
+실제 설치 상태와 모순될 수 있다. Apple 공식 unified Maps URL은 iOS 18.4 이상에서 `/directions`의
+`destination`에 address, place name 또는 latitude,longitude coordinate를 받고 `mode=driving`을 지원한다.
+공식 directions parameter 표에는 destination display-name parameter가 없으므로 D-SRP-056/FR-SRP-053은
+이름을 URL에 넣지 않고 exact coordinate를 destination으로 쓴다. target iOS/QField/device에서 URL이
+Apple Maps로 handoff되고 exact 목적지와 차량 길안내를 표시하는지는 AC-SRP-055의 필수 사용자 기기
+검증이며 자동 launcher true만으로 PASS하지 않는다.
+- https://developer.apple.com/documentation/mapkit/unified-map-urls
+- https://doc.qt.io/qt-6/qdesktopservices.html#openUrl
+
+실제 QField/iOS Apple Maps와 Android NAVER Maps 실행 검증은 AGENTS.md에 따라 사용자 수행 항목이다.
 자동 QML/JS 검사를 실기 검증으로 기록하지 않는다. 서버 실호출 미실행도 구분한다.
 
 **2026-09-17 승인 증거 경계:** route-name control에 `editable`, focus 또는 input-method 관련
@@ -865,15 +1132,51 @@ device, project fixture, zoom/basemap, 수행한 gesture와 관찰 결과를 함
   provider parsing은 검증되지 않았다. Point와 Polygon은 아직 수동 확인되지 않았고 MultiPoint/
   MultiLineString/MultiPolygon도 별도 증거가 필요하다. 자동 fixture와 실제 QField 결과를 구분한다.
 - **O-SRP-010 (실기 검증 대기; 2026-09-17 명세 승인 비차단):** target QField Android host가 NAVER의
-  package-bound `intent://`를 `Qt.openUrlExternally`로 직접 처리하는지, iOS host가 `nmap` query scheme을
-  whitelist했는지, 공식 navigation web fallback이 target context에 제공되는지는 실제 기기와 당시 공식
-  문서로 확인한다. 지원하지 않는 branch에는 추정 URL을 추가하지 않고 actionable install/host 안내로 끝낸다.
+  package-bound `intent://`를 `Qt.openUrlExternally`로 직접 처리하는지는 실제 기기와 당시 공식 문서로
+  확인한다. 기존 iOS `nmap` whitelist와 automatic store/web fallback 검증 질문은 승인된 D-SRP-056과
+  O-SRP-014의 Apple Maps handoff 검증으로 supersede된다. 지원하지 않는 branch에는 추정 URL을 추가하지
+  않고 actionable install/host 안내로 끝낸다.
 - **O-SRP-011 (2026-09-17 명세 승인·실기 검증 대기):** D-SRP-042~045, FR-SRP-040~043,
   NFR-SRP-005 및 AC-SRP-042~045는 이해관계자 승인을 받았다. 요구 의미에 미결정 제품 질문은 없으며,
   soft keyboard와 rendered map label은 NFR-SRP-005에 따라 target QField 기기 검증 전까지
   PASS가 아니라 **NOT RUN (`미검증`)**이다.
+- **O-SRP-012 (2026-09-18 해결·명세 승인):** 이해관계자가 provider HTTP 오류 세부정보의
+  D-SRP-049, FR-SRP-047, NFR-SRP-007 및 AC-SRP-049를 승인했다. 이 명세 승인은 기존 endpoint,
+  authentication 또는 key 저장/노출 금지 계약을 바꾸지 않으며, fresh test-designer의
+  acceptance/traceability 정합과 그 산출물의 별도 승인은 아직 필요하다.
+- **O-SRP-013 (2026-09-18 해결·명세 승인, 실기 검증 대기):** 이해관계자가 D-SRP-050~055,
+  FR-SRP-048~052, NFR-SRP-008~009 및 AC-SRP-050~054의 mixed vehicle/walking 계약을 승인했다.
+  승인된 제품 결정은 default 2 km/허용 0.35~5 km를 radius로 쓰는 original-site ordered single snap
+  batch, input-order access point, 모든 stop의 out-and-back, provider foot path 우선, explicit no-path의
+  straight-line lower-bound+time unavailable, schema 3과 fallback save acknowledgement다. origin은 기존
+  동작과 vehicle-routable 조건을 유지하고 이 slice에서는 자동 snap 또는 origin walking leg를 만들지
+  않는다. acceptance/traceability 정합과 승인은 별도 단계이며, hosted snap/foot-hiking의 live quota,
+  QField transport와 실제 산간 fixture는 O-SRP-002와 함께 **NOT RUN (`미검증`)**이다.
+- **O-SRP-014 (2026-09-18 명세 승인·실기 검증 대기):** 이해관계자가 D-SRP-056, FR-SRP-053 및
+  AC-SRP-055의 iOS NAVER Maps/App Store fallback을 Apple Maps HTTPS/no-fallback으로 바꾸는 계약을
+  승인했다. Android의 package-bound NAVER intent와 Google Play fallback은 기존 승인 계약 그대로다.
+  target iOS/QField에서 official HTTPS URL이 Apple Maps의 exact next-stop driving destination으로
+  handoff되는지, target Android/QField에서 package-bound NAVER intent가 exact destination을 받는지는
+  각각 사용자 기기 검증 전까지 PASS가 아니라 **NOT RUN (`미검증`)**이다. unified Apple Maps URL의
+  공식 최소 OS와 실제 target OS/QField version을 함께 기록한다. iOS 지원 밖 host를 성공으로 주장하거나
+  store/web fallback으로 우회하지 않으며 Android 검증은 기존 fallback을 포함한다.
 
 ### 승인된 slice의 acceptance 정합 범위
+
+2026-09-18 iOS 지도 변경 명세 승인에 따라 새 test-designer는 **D-SRP-056, FR-SRP-053 및
+AC-SRP-055**를 acceptance design/traceability에 추가하고, 기존 AC-SRP-025/039의 iOS NAVER 및
+App Store fallback 기대만 명시적 supersession으로 바꾼다. canonical coordinate,
+platform-neutral label, iOS exact Apple Maps HTTPS URL, Android exact package-bound NAVER intent,
+Android의 기존 Google Play fallback, launcher true/false/exception의 honest status와 iOS fallback/write
+0회, target-device handoff를 각각 독립
+항목으로 둔다. 이 문서는 acceptance 파일을 수정하거나 그 변경을 미리 승인하지 않는다.
+
+2026-09-18 명세 승인에 따라 새 test-designer는 **D-SRP-049~055, FR-SRP-047~052,
+NFR-SRP-007~009, AC-SRP-049~054**를 acceptance design/traceability에 추가한다. 특히
+original-coordinate snap batch와 radius/provider-error 경계, origin non-snapping, all-stop out-and-back,
+mapped/unmapped walking provenance, schema-3 compatibility,
+partial-stage failure/redaction과 target-QField legend/style evidence를 독립적으로 검사한다. 이 문서는 현재
+acceptance 파일을 수정하거나 그 변경을 미리 승인하지 않는다.
 
 새 test-designer는 승인된 이력을 보존하면서
 **D-SRP-031~035, FR-SRP-029~033, AC-SRP-031~035**를 acceptance test design과 traceability에
