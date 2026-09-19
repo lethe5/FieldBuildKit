@@ -1,6 +1,6 @@
 # Feature: 도로망 조사 경로 및 조사대상 도형 확장
 
-> Status: **APPROVED — iOS Apple Maps navigation, mixed vehicle/walking access routes, provider HTTP error details and D-SRP-057 / FR-SRP-054 / AC-SRP-056 schema-3 visit-validation clarification approved 2026-09-18; prior approved baseline preserved.**
+> Status: **APPROVED — D-SRP-058~059 / FR-SRP-055~056 / AC-SRP-057~058 storage compatibility and route-line preference reconciliation approved 2026-09-19; prior approved baseline preserved.**
 > Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; 2026-09-16 approved workflow/progress slice; D-SRP-031~035, FR-SRP-029~033 and AC-SRP-031~035 approved 2026-09-16; D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 and AC-SRP-036~041 approved 2026-09-17; D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 and AC-SRP-042~045 approved 2026-09-17; D-SRP-046~048, FR-SRP-044~046, NFR-SRP-006 and AC-SRP-046~048 approved 2026-09-17; D-SRP-049~056, FR-SRP-047~053, NFR-SRP-007~009 and AC-SRP-049~055 approved 2026-09-18. Target QField device verification remains **NOT RUN (미검증)**.
 > Owner: spec-writer
 > Extends: [통합 명세](qfield-project-builder.md)
@@ -9,6 +9,25 @@
 
 
 ## 0. 문서 권한과 현재 상태 (2026-09-14)
+
+**2026-09-19 reviewer-blocker 분류와 최소 정합 제안 (DRAFT):** 이번 correction cycle은
+승인된 동작을 구현·검증하는 과정에서 드러난 일곱 항목을 다시 분류한다. (1) callback 시점에
+관찰되고 result 생성 전에 닫혀 별도 seal된 provenance를 요구하는 것은 제품 동작이 아니라 승인
+acceptance evidence의 신뢰성 문제이므로 Category E acceptance conformance이고 제품 명세 공백이 아니다.
+(2) 일반 앱 cold start에서 last-good recovery가 실제로 도달 가능해야 하는 것은 FR-SRP-008/051과
+AC-SRP-052/056의 restart/recovery 계약에 대한 Category A conformance다. (5) 모든 visit에서 site,
+mode, metric source와 out-and-back 의미를 screen reader로 읽을 수 있어야 하고 `exact_zero`도 제외하지
+않는 것은 FR-SRP-049, NFR-SRP-009 및 AC-SRP-053의 Category A conformance다. (7) iOS launcher
+false/exception의 exact 문구 `Apple 지도를 열 수 없습니다. 기기 설정과 네트워크 상태를 확인하세요.`는
+이미 FR-SRP-053에 고정되어 있으므로 Category A conformance다. 이 네 항목은 새 제품 요구를 만들지 않는다.
+
+반면 (3) 빈 저장소와 settings-only/default write가 언제 schema 3이 되는지, (4) 하나의 legacy route를
+mixed route로 저장할 때 같은 문서의 관련 없는 legacy route를 어떻게 보존하면서 D-SRP-057의 schema-3
+검증 범위를 표현할지는 승인 문구에 결정적 표현 규칙이 없어 Category B ambiguity다. (6) D-SRP-025/030의
+`show_route_line` 재시작·폴더 이동 persistence와 D-SRP-055/AC-SRP-054의 toggle settings-write 0회는
+동시에 충족할 수 없는 Category B direct conflict다. 아래 D-SRP-058~059, FR-SRP-055~056 및
+AC-SRP-057~058만 이를 최소 정합하며 **2026-09-19 사용자 승인됨**. 기존 승인 요구·acceptance
+artifact를 소급 변경하지 않는다.
 
 **2026-09-18 schema-3 visit 검증 명확화 제안:** D-SRP-053은 각 visit에 `layer_id`와
 `metric_source`를 저장하도록 승인했지만, 누락된 필드가 있는 저장 문서의 read-time 처리와
@@ -511,6 +530,30 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   조합 불일치 또는 stop identity 불일치가 하나라도 있으면 reader는 schema-3 문서 전체를 repair,
   request 또는 write 없이 거부하고 기존 bytes와 last-good route를 보존한다. schema 1/2에는 이 검증을
   소급 적용하지 않는다.
+- D-SRP-058 (2026-09-19 승인, Category B): 경로가 없는 fresh/default in-memory document와
+  settings-only save는 mixed route를 생성하지 않으며 schema 3으로 승격하지 않는다. fresh/default는
+  disk write 없이 schema 2 의미로 시작하고, 사용자가 일반 설정만 명시적으로 저장하면 schema 2를 쓴다.
+  schema 1/2 read는 계속 write-free이며, schema 1에서 settings-only write가 필요한 경우에도 최대 schema
+  2까지만 승격한다. top-level schema 3 전환은 validated mixed candidate의 explicit save에서만 일어난다.
+  이 전환 때 `routes[]`의 새 mixed route는 `route_schema: 3`과 D-SRP-053/057 구조를 가지며, 선택한 동일
+  identity의 legacy route만 대체한다. 관련 없는 schema-1/2 route는 삭제하거나 mixed provenance를
+  추정하지 않고 기존 route fields를 그대로 둔 채 원래 top-level schema를 값으로 한
+  `route_schema: 1|2`를 붙여 같은 schema-3 document 안의 read-only legacy variant로 보존한다.
+  `active_id`는 mixed와 legacy variant의 합집합에서 유일한 `route_id`를 가리킨다. schema-3 reader는
+  `route_schema: 3` route에 D-SRP-057 전체를 적용하고 `route_schema: 1|2`에는 해당 legacy schema의
+  기존 validator/표시 제한만 적용한다. 이미 승인된 untagged homogeneous schema-3 route는 호환성을
+  위해 `route_schema: 3`으로 읽되 read-time write는 하지 않으며, 이후 정상 write는 discriminator를
+  명시한다. unknown discriminator, legacy marker와 mixed-only fields의 모순, duplicate identity 또는
+  어느 variant의 validation 실패도 문서 전체를 repair/write 없이 거부하고 bytes와 last-good을 보존한다.
+- D-SRP-059 (2026-09-19 승인, Category B): `show_route_line`은 D-SRP-025/030의 persistent
+  project-scoped device-local preference가 우선한다. 사용자의 toggle은 route object, route revision,
+  source/completion data를 바꾸지 않고 provider request도 만들지 않지만, 값이 실제로 바뀌면 오직
+  `settings.show_route_line`을 기존 atomic settings snapshot 경로에 저장할 수 있고 저장해야 한다.
+  따라서 D-SRP-055와 AC-SRP-054의 toggle write 0회는 route/source/completion write 0회로 좁혀 읽으며
+  settings write 금지에는 적용하지 않는다. 저장 성공 뒤 panel reopen/app restart/settings를 포함한
+  folder move에서 같은 값이 복구된다. 저장 실패는 현재 저장된 preference와 route/revision을 보존하고
+  실패 feedback을 제공하며 성공으로 보고하지 않는다. preview와 legend를 보는 것만으로는 여전히 어떤
+  write도 만들지 않는다.
 
 ## 3. Functional Requirements
 - FR-SRP-001: 생성 프로젝트에 기존 보고서/식별 플러그인과 공존하는 하단 접이식 패널.
@@ -855,6 +898,18 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   launcher 0회다. 모든 success/failure/validation path는 source feature·completion, candidate,
   active/saved route, revision, settings와 route storage를 쓰거나 바꾸지 않고 routing API도 호출하지 않는다.
 
+### 3.9 2026-09-19 storage compatibility와 route-line preference 정합 (승인)
+
+- FR-SRP-055 (2026-09-19 승인): empty/default initialization, schema-1/2 load 및 settings-only save는
+  D-SRP-058의 schema 경계를 지킨다. explicit mixed candidate save가 top-level schema 3으로 전환할 때
+  selected same-identity legacy route만 mixed route로 교체하고 다른 모든 legacy route를 route-level
+  discriminator와 원래 fields로 계속 list/load할 수 있게 보존한다. mixed와 legacy variant 각각을 자기
+  schema로 검증하며 어느 하나라도 invalid하면 atomic commit 또는 load/recovery 전체를 거부한다.
+- FR-SRP-056 (2026-09-19 승인): route-line toggle은 세 line class의 visibility와
+  `settings.show_route_line`만 함께 바꾼다. 성공한 변경은 panel reopen, app restart와 settings 파일을
+  포함한 folder move 뒤 복구되고 provider request, route object/revision, source/completion write는 0회다.
+  settings write/readback 실패에는 저장된 값과 route 상태를 유지하고 actionable failure를 표시한다.
+
 ## 4. Data / Compatibility
 새 프로젝트 생성만 도형 메타데이터를 변경한다. 사용자의 기존 GPKG를 자동 마이그레이션하지
 않는다. 기본 도형 유형을 지정하지 않은 과거 호출은 MULTIPOLYGON 기본값을 유지한다.
@@ -1025,6 +1080,8 @@ max road offset, 이번 승인 범위의 max access distance, default start, lay
 | AC-SRP-054 (2026-09-18 승인) | captured request sequence는 preflight/origin validation→single batched access-snap→per-site walking directions 또는 explicit fallback→driving matrix→optimizer→driving directions→validation이고 각 injected stage failure 뒤 request/write가 없다. 401/403/404/429/5xx/timeout과 provider radius reject/cap은 D-SRP-049 길이/redaction 및 FR-SRP-052 action을 보이며 raw key, Authorization, URL query/body, raw response, source attributes/name/business ID는 UI/log/storage에 없다. coordinate-sharing notice 뒤 explicit calculate만 original source와 returned access coordinates를 ORS에 보내고 VROOM은 access/cost/request-local integer만 받는다. original source 외 생성 좌표와 automatic radius change는 0회다. cancel/project close와 preview/legend/toggle은 추가 request 및 source/completion/settings/route write 0회다. |
 | AC-SRP-055 (2026-09-18 승인) | button의 exact label은 Android/iOS 모두 `다음 지점 지도 안내`다. `[127.123, 37.456]` next stop의 iOS tap은 exact `https://maps.apple.com/directions?destination=37.456,127.123&mode=driving`만 `Qt.openUrlExternally`에 한 번 전달하고 NAVER/App Store/Google Play/web URL과 destination-name parameter는 0개다. iOS primary false/exception도 total launcher 1회, fallback 0회와 actionable Apple Maps error로 끝난다. Android tap은 같은 normalized destination에 D-SRP-039/FR-SRP-037/AC-SRP-039의 exact package-bound NAVER intent와 기존 Google Play fallback을 변경 없이 사용한다. Korean, `&`, `#`, `%`, whitespace가 포함된 Android stop name/caller ID는 UTF-8로 각각 한 번만 encode되어 parameter/fragment를 주입하지 않는다. boundary, excess-decimal rounding/trimming 및 negative-zero fixture는 FR-SRP-053의 canonical coordinate를 만들고 NaN/Infinity/string/지수표기 유도/범위 밖 fixture는 launcher 0회와 coordinate 오류가 된다. primary true는 exact OS-request-only status를 보이고 app/destination/navigation success claim은 false이며, Android fallback 결과도 앱 실행·목적지 수락·안내 시작으로 주장하지 않는다. 모든 branch는 routing request와 source/completion/candidate/route/revision/settings/storage write 0회다. 자동 fixture는 URL·call count·state preservation proxy일 뿐이며, target iOS QField에서 Apple Maps가 exact next-stop destination과 driving directions를 표시하는지와 target Android QField에서 NAVER Maps가 exact destination 및 기존 fallback behavior를 받는지는 OS/QField/device version과 함께 사용자 handoff로 각각 검증한다. 미수행 결과는 PASS가 아니라 `미검증`이다. |
 | AC-SRP-056 (2026-09-18 승인) | production save로 만든 active+inactive route가 있는 schema-3 문서에서 각 visit의 `layer_id`, `site_id`, `metric_source` 누락·blank, stop identity 불일치, unknown `walking_mode`/`metric_source`, 그리고 `mapped/ors-foot-hiking`, `exact_zero/exact_zero`, `unmapped_estimate/straight_line_lower_bound_m` 외 mode/source 조합을 하나씩 주입하면 load/recovery가 문서 전체를 거부한다. 모든 case에서 repair/default/추정, provider request와 storage write는 0회이고 원본 bytes와 last-good route는 동일하다. 세 허용 조합의 정상 문서는 restart/offline/folder move 뒤 exact roundtrip한다. schema 1/2 fixture는 기존 read-only 의미로 계속 열린다. |
+| AC-SRP-057 (2026-09-19 승인) | no-file/default open은 write 0회와 schema-2 in-memory 의미를 보이고, 최초 settings-only save 및 schema-1 settings-only upgrade는 top-level schema가 3이 아니다. 두 개 이상의 schema-1/2 route 중 하나를 explicit recalculation+save하면 document만 schema 3이 되고 selected identity 하나는 `route_schema: 3` mixed route로 교체되며 unrelated routes는 원래 fields와 `route_schema: 1|2`로 모두 남아 list/load된다. active ID, names, revisions와 legacy bytes/semantics는 삭제·mixed 추정 없이 보존된다. untagged homogeneous schema-3 fixture는 write 없이 mixed로 열리고 다음 정상 write에 marker가 생긴다. mixed/legacy corruption, unknown marker, marker/content contradiction 또는 duplicate identity는 전체 commit/load/recovery 실패, provider/storage 후속 동작 0회와 이전 bytes/last-good 보존이다. |
+| AC-SRP-058 (2026-09-19 승인) | default-on toggle을 off로 바꾸면 정확히 한 번의 atomic settings write/readback 뒤 route line 세 class만 숨고 route/source/completion/revision은 불변이다. panel reopen, cold restart와 settings 동반 folder move에서 off가 복구되며 다시 on 저장도 같다. preview/legend view는 write 0회다. settings write/readback failure는 success 0회, persisted preference와 route 상태 불변 및 actionable feedback이고 모든 branch의 provider request는 0회다. |
 
 ## 6. API 근거 / 검증 경계
 VROOM 근거는 초기 provider가 대상으로 삼은 **v1.14.0 tag**에 고정한다. 공식 문서는 timing을
@@ -1183,6 +1240,12 @@ device, project fixture, zoom/basemap, 수행한 gesture와 관찰 결과를 함
   각각 사용자 기기 검증 전까지 PASS가 아니라 **NOT RUN (`미검증`)**이다. unified Apple Maps URL의
   공식 최소 OS와 실제 target OS/QField version을 함께 기록한다. iOS 지원 밖 host를 성공으로 주장하거나
   store/web fallback으로 우회하지 않으며 Android 검증은 기존 fallback을 포함한다.
+- **O-SRP-015 (2026-09-19 CLOSED — 사용자 승인됨):** reviewer blockers 중 제품 명세상 실제
+  ambiguity/conflict는 empty/settings-only schema 경계, mixed save 때 unrelated legacy route 보존 표현,
+  persistent `show_route_line`과 toggle settings-write 금지의 충돌뿐이다. D-SRP-058~059,
+  FR-SRP-055~056 및 AC-SRP-057~058은 이를 정합하는 승인 기준이다.
+  callback evidence, product cold-start recovery, 모든 visit의 accessibility 및 exact Apple Maps error copy는
+  각각 기존 acceptance/product 요구의 conformance 문제이므로 새 ID를 만들지 않았다.
 
 ### 승인된 slice의 acceptance 정합 범위
 
