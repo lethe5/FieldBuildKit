@@ -92,6 +92,13 @@ MIXED_EVIDENCE_SOURCES = {
     "navigation_launcher", "render_observation",
 }
 MIXED_UNJOURNALED_FIELDS = {"production_provenance", "captured_request"}
+MIXED_RAW_FIELD_ROOTS = {
+    "controller", "backend", "repository", "navigation", "qml", "transport", "storage",
+    "accessibility", "renderer", "launcher", "signal", "artifact",
+}
+MIXED_FORBIDDEN_REPLAY_KEYS = {
+    "result_source", "bind_result", "field_name_inference", "implicit_previous_event_parent",
+}
 
 
 def _required_boundary_sources(field):
@@ -102,10 +109,13 @@ def _required_boundary_sources(field):
         return {"captured_transport"}
     if ("write" in field or "bytes" in field or "storage" in field or "last_good" in field
             or field in {"lifecycle_route_observations", "immutable_route_snapshots",
-                         "seed_schema3_provenance", "attempts"}
+                         "seed_schema3_provenance", "attempts", "load_rejection_observation",
+                         "recovery_observation"}
             or field.startswith(("saved", "reloaded", "loaded_route", "atomic_replace"))):
         return {"captured_storage"}
-    if "accessibility" in field or field in {"coordinate_notice", "metric_source_binding_observations"}:
+    if "accessibility" in field or field in {
+            "coordinate_notice", "metric_source_binding_observations",
+            "quantity_binding_observations"}:
         return {"accessibility_interface"}
     if field in {"launcher_calls", "fallback_count", "claims"}:
         return {"navigation_launcher"}
@@ -125,6 +135,7 @@ MIXED_REQUIRED_ANCESTOR_SOURCES = {
     "error_record": {"captured_transport"},
     "accessibility_observations": {"captured_storage"},
     "metric_source_binding_observations": {"captured_storage"},
+    "quantity_binding_observations": {"captured_storage", "render_observation"},
 }
 
 
@@ -136,7 +147,8 @@ def assert_mixed_production_path(result, operation, boundary_events):
     for self_declared_flag in (
             "adapter_postprocessed_fields", "case_copied_result_fields",
             "fixture_expected_values_used_as_results", "hardcoded_result_fields",
-            "unattributed_result_fields", "field_origins", "evidence_integrity"):
+            "unattributed_result_fields", "field_origins", "evidence_integrity",
+            "result_source", "bind_result", "field_name_inference"):
         assert self_declared_flag not in provenance
 
     assert Path(provenance["driver_path"]).name != "survey_route_mixed_driver.js"
@@ -170,34 +182,92 @@ def _event_digest(event):
     return hashlib.sha256(payload).hexdigest()
 
 
+def _contains_forbidden_replay_key(value):
+    if isinstance(value, dict):
+        return bool(MIXED_FORBIDDEN_REPLAY_KEYS & set(value)) or any(
+            _contains_forbidden_replay_key(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_forbidden_replay_key(item) for item in value)
+    return False
+
+
+def _lineage_from_boundary_events(events):
+    """Resolve only callback-captured bindings; returned result data is not an input."""
+    lineage = {}
+    for event in events:
+        raw = event["raw_observed_fields"]
+        for field, binding in event["output_bindings"].items():
+            raw_field = binding["raw_field"]
+            lineage.setdefault(field, []).append(
+                (event["event_id"], raw_field, raw[raw_field], event["source"]))
+    return lineage
+
+
 def assert_mixed_boundary_event_lineage(result):
-    """Derive output lineage from the sealed observer journal, never adapter declarations."""
+    """Derive output lineage from the pre-result sealed callback journal only."""
     provenance = result["production_provenance"]
     journal = provenance["boundary_event_journal"]
     journal_path = Path(journal["path"])
+    seal_path = Path(journal["seal_path"])
     assert journal_path.is_file()
     journal_bytes = journal_path.read_bytes()
+    seal_bytes = seal_path.read_bytes()
     assert journal["sha256"] == hashlib.sha256(journal_bytes).hexdigest()
+    seal = json.loads(seal_bytes.decode("utf-8"))
     events = [json.loads(line) for line in journal_bytes.decode("utf-8").splitlines() if line]
     assert events and [event["sequence"] for event in events] == list(range(len(events)))
     assert len({event["event_id"] for event in events}) == len(events)
+    assert len({event["callback_id"] for event in events}) == len(events)
+    assert journal["finalized"] is True and journal["writer_closed"] is True
+    assert journal["opened_at_monotonic_ns"] < journal["finalized_at_monotonic_ns"]
+    assert (journal["finalized_at_monotonic_ns"]
+            < journal["result_materialization_started_at_monotonic_ns"])
+    assert journal["event_count"] == len(events)
+    assert journal["byte_length"] == len(journal_bytes)
+    assert journal["append_attempts_after_finalize"] == []
+    assert seal == {
+        "run_id": journal["run_id"],
+        "journal_sha256": journal["sha256"],
+        "event_count": len(events),
+        "byte_length": len(journal_bytes),
+        "final_event_sha256": events[-1]["event_sha256"],
+        "finalized_at_monotonic_ns": journal["finalized_at_monotonic_ns"],
+    }
+    assert not _contains_forbidden_replay_key(events)
+    assert not _contains_forbidden_replay_key(provenance)
+    assert not (MIXED_FORBIDDEN_REPLAY_KEYS & set(result))
 
     previous = None
-    lineage = {}
     event_sequences = {}
     event_by_id = {}
+    callback_by_event_id = {}
     production_paths = set(MIXED_PRODUCTION_SOURCES.values())
     for event in events:
         assert not ({"copied_from_case", "hardcoded_result_fields", "unattributed_result_fields",
                      "adapter_postprocessed_fields"} & set(event))
         assert event["run_id"] == journal["run_id"]
         assert event["source"] in MIXED_EVIDENCE_SOURCES
+        assert event["capture_phase"] == "boundary_callback"
+        assert event["callback_started_at_monotonic_ns"] <= event["observed_at_monotonic_ns"]
+        assert event["observed_at_monotonic_ns"] <= event["callback_finished_at_monotonic_ns"]
+        assert journal["opened_at_monotonic_ns"] <= event["callback_started_at_monotonic_ns"]
+        assert event["callback_finished_at_monotonic_ns"] <= journal["finalized_at_monotonic_ns"]
         assert event["previous_event_sha256"] == previous
         assert event["event_sha256"] == _event_digest(event)
         parents = event["parent_event_ids"]
         assert isinstance(parents, list) and len(parents) == len(set(parents))
         assert all(parent in event_sequences and event_sequences[parent] < event["sequence"]
                    for parent in parents)
+        causal_links = event["causal_parent_observations"]
+        assert [link["event_id"] for link in causal_links] == parents
+        assert all(
+            set(link) == {"event_id", "callback_id", "source", "observer_boundary", "relation"}
+            and link["callback_id"] == callback_by_event_id[link["event_id"]]
+            and link["source"] == event_by_id[link["event_id"]]["source"]
+            and link["observer_boundary"] == event_by_id[link["event_id"]]["observer"]["boundary"]
+            and link["relation"].strip()
+            for link in causal_links
+        )
         observer = event["observer"]
         assert observer["production_source"] in production_paths
         assert observer["boundary"].strip()
@@ -205,19 +275,31 @@ def assert_mixed_boundary_event_lineage(result):
         raw = event["raw_observed_fields"]
         assert isinstance(raw, dict) and raw
         bindings = event["output_bindings"]
-        assert isinstance(bindings, dict) and bindings
-        for field, raw_field in bindings.items():
+        assert isinstance(bindings, dict)
+        for field, binding in bindings.items():
             assert field not in MIXED_UNJOURNALED_FIELDS
+            assert set(binding) == {
+                "raw_field", "captured_event_id", "captured_callback_id",
+            }
+            assert binding["captured_event_id"] == event["event_id"]
+            assert binding["captured_callback_id"] == event["callback_id"]
+            raw_field = binding["raw_field"]
             assert raw_field in raw and raw_field != field and "." in raw_field
-            assert not raw_field.lower().startswith(("case.", "fixture.", "expected."))
-            lineage.setdefault(field, []).append(
-                (event["event_id"], raw_field, raw[raw_field], event["source"]))
+            assert raw_field.split(".", 1)[0] in MIXED_RAW_FIELD_ROOTS
+            assert raw_field.startswith(observer["boundary"] + ".")
+            assert not raw_field.lower().startswith(("result.", "case.", "fixture.", "expected."))
         event_sequences[event["event_id"]] = event["sequence"]
         event_by_id[event["event_id"]] = event
+        callback_by_event_id[event["event_id"]] = event["callback_id"]
         previous = event["event_sha256"]
 
+    lineage = _lineage_from_boundary_events(events)
     used_outputs = set(result) - MIXED_UNJOURNALED_FIELDS
     assert used_outputs <= set(lineage)
+    replayed_result = deepcopy(result)
+    for field in used_outputs:
+        replayed_result[field] = {"tampered_after_return": field}
+    assert _lineage_from_boundary_events(events) == lineage
     for field in used_outputs:
         event_id, raw_field, raw_value, source = lineage[field][-1]
         assert event_id and source in _required_boundary_sources(field)
@@ -230,6 +312,9 @@ def assert_mixed_boundary_event_lineage(result):
             ancestor_sources.add(parent["source"])
             pending.extend(parent["parent_event_ids"])
         assert required_ancestors <= ancestor_sources
+        assert raw_value != replayed_result[field]
+    assert journal_path.read_bytes() == journal_bytes
+    assert seal_path.read_bytes() == seal_bytes
     return events
 
 
@@ -238,6 +323,23 @@ def observed_production_calls(result):
     events = [json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line]
     return {event["observer"]["boundary"] for event in events
             if event["source"] == "production_call"}
+
+
+def assert_lifecycle_observation_is_journal_event(result, observation, expected_action):
+    journal_path = Path(result["production_provenance"]["boundary_event_journal"]["path"])
+    events = {event["event_id"]: event for event in (
+        json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line
+    )}
+    event = events[observation["event_id"]]
+    assert observation["action"] == expected_action
+    assert event["callback_id"] == observation["callback_id"]
+    assert event["observer"]["boundary"] == observation["boundary"]
+    assert event["observer"]["production_source"] in {
+        MIXED_PRODUCTION_SOURCES["controller"], MIXED_PRODUCTION_SOURCES["repository"],
+    }
+    assert event["source"] in {"production_call", "controller_state", "captured_storage"}
+    assert event["raw_observed_fields"][observation["raw_field"]] == observation["raw_observation"]
+    return event
 
 
 KEY = "SRP_SYNTHETIC_SECRET_94_&/"
@@ -633,6 +735,8 @@ SCHEMA3_VISIT_CORRUPTIONS = [
                   "field": "walking_legs[1].distance_m"}, id="mapped-return-distance-mismatch"),
     pytest.param({"kind": "metric_distance_mismatch", "walking_mode": "exact_zero",
                   "field": "walking_legs[0].distance_m"}, id="exact-zero-distance-mismatch"),
+    pytest.param({"kind": "metric_distance_mismatch", "walking_mode": "exact_zero",
+                  "field": "access_offset_m"}, id="exact-zero-offset-distance-mismatch"),
     pytest.param({"kind": "metric_distance_mismatch", "walking_mode": "unmapped_estimate",
                   "field": "access_offset_m"}, id="unmapped-offset-distance-mismatch"),
     pytest.param({"kind": "metric_distance_mismatch", "walking_mode": "unmapped_estimate",
@@ -688,7 +792,8 @@ def assert_visit_distance_semantics(visit, provider_observation=None):
         assert returning["geometry"]["coordinates"] == list(reversed(
             outbound["geometry"]["coordinates"]))
     elif mode == "exact_zero":
-        assert lower_bound <= 1.0 and 0 <= visit["access_offset_m"] <= 1.0
+        assert 0 < lower_bound <= 1.0
+        assert visit["access_offset_m"] == pytest.approx(lower_bound, abs=0.01)
         assert all(leg["distance_m"] == 0 and leg["duration_s"] == 0
                    and leg["geometry"] is None for leg in (outbound, returning))
     else:
@@ -2861,7 +2966,8 @@ MIXED_SITES = [
     {"id": "rural-a", "name": "산지 A", "xy": [127.1000, 37.1000]},
     {"id": "rural-b", "name": "농지 B", "xy": [127.2000, 37.2000]},
 ]
-MIXED_ACCESS = [[127.1035, 37.1000], [127.2000, 37.2000]]
+MIXED_ACCESS = [[127.1035, 37.1000], [127.200005, 37.2000]]
+EXACT_ZERO_ACCESS = [127.100005, 37.1000]
 MAPPED_FOOT = {
     "distance_m": 480.25, "duration_s": 390.5,
     "geometry": {"type": "LineString", "coordinates": [MIXED_ACCESS[0], [127.1017, 37.1002], MIXED_SITES[0]["xy"]]},
@@ -3008,7 +3114,9 @@ def test_ac050_single_ordered_access_snap_uses_originals_and_exact_radius(run, r
     assert r["source_features_after"] == r["source_features_before"]
     assert r["original_source_snapshots"] and all(
         snapshot == r["original_source_snapshots"][0] for snapshot in r["original_source_snapshots"])
-    assert MIXED_SITES[1]["xy"] == MIXED_ACCESS[1], "second visit is the approved exact-zero case"
+    exact_zero_gap = geodesic_distance_m(MIXED_SITES[1]["xy"], MIXED_ACCESS[1])
+    assert MIXED_SITES[1]["xy"] != MIXED_ACCESS[1]
+    assert 0 < exact_zero_gap <= 1.0, "second visit is a non-identical exact-zero case"
     nonzero_snapped_sources = [site["xy"] for site, access in zip(MIXED_SITES, MIXED_ACCESS)
                                if site["xy"] != access]
     for request in requests:
@@ -3198,24 +3306,45 @@ def test_ac056_every_active_and_inactive_visit_corruption_rejects_whole_document
     r = run(operation="mixed_route_compatibility", sites=MIXED_SITES,
             seed_schema3_routes_with_production=2,
             corrupt_route_index=corrupt_route_index, corrupt_visit_index=corrupt_visit_index,
-            visit_corruption=visit_corruption, actions=["load", "recover-last-good"])
+            visit_corruption=visit_corruption,
+            actions=["load-reject", "restart", "recover-last-good"])
     seed = r["seed_schema3_provenance"]
     assert seed["route_count"] == 2 and len(seed["production_save_events"]) == 2
     assert seed["visit_counts"] == [2, 2]
+    assert seed["corrupt_newest"] is True
     assert all(event["committed"] is True and event["project_relative_path"]
                for event in seed["production_save_events"])
     assert r["active_route_index"] == 0
     assert r["corrupted_route_index"] == corrupt_route_index
     assert r["corrupted_visit_index"] == corrupt_visit_index
     assert r["corrupted_route_was_active"] is (corrupt_route_index == 0)
-    assert [attempt["action"] for attempt in r["attempts"]] == ["load", "recover-last-good"]
-    for attempt in r["attempts"]:
-        assert attempt["ok"] is False and attempt["message"].strip()
-        assert attempt["bytes_after"] == attempt["bytes_before"]
-        assert attempt["last_good_after"] == attempt["last_good_before"]
-        assert attempt["requests"] == attempt["writes"] == []
-        assert attempt["repaired_document"] is None
-        assert attempt["defaulted_fields"] == [] and attempt["inferred_fields"] == []
+    load_reject = r["load_rejection_observation"]
+    restart = r["restart_observation"]
+    recover = r["recovery_observation"]
+    lifecycle = [load_reject, restart, recover]
+    assert [item["action"] for item in lifecycle] == [
+        "load-reject", "restart", "recover-last-good",
+    ]
+    assert len({item["event_id"] for item in lifecycle}) == 3
+    assert len({item["callback_id"] for item in lifecycle}) == 3
+    assert len({item["boundary"] for item in lifecycle}) == 3
+    journal_events = [
+        assert_lifecycle_observation_is_journal_event(r, item, item["action"])
+        for item in lifecycle
+    ]
+    assert [event["sequence"] for event in journal_events] == sorted(
+        event["sequence"] for event in journal_events)
+    assert load_reject["ok"] is False and load_reject["message"].strip()
+    assert restart["delivered_through_production"] is True
+    assert recover["ok"] is True
+    assert recover["selected_route"] == seed["last_good_route"]
+    assert recover["selected_document_sha256"] == seed["last_good_document_sha256"]
+    assert recover["selected_document_sha256"] != seed["corrupt_document_sha256"]
+    for observation in lifecycle:
+        assert observation["corrupt_bytes_after"] == observation["corrupt_bytes_before"]
+        assert observation["requests"] == observation["writes"] == []
+    assert load_reject["repaired_document"] is None
+    assert load_reject["defaulted_fields"] == [] and load_reject["inferred_fields"] == []
     assert r["bytes_after"] == r["bytes_before"]
     assert r["last_good_after"] == r["last_good_before"]
     assert r["requests"] == r["writes"] == [] and r["repaired_document"] is None
@@ -3224,7 +3353,7 @@ def test_ac056_every_active_and_inactive_visit_corruption_rejects_whole_document
 @pytest.mark.parametrize(("access", "walking_response", "acknowledge_unmapped", "expected"), [
     pytest.param(MIXED_ACCESS[0], MAPPED_FOOT, False,
                  ("mapped", "ors-foot-hiking"), id="mapped-ors-foot-hiking"),
-    pytest.param(MIXED_SITES[0]["xy"], "exact-zero", False,
+    pytest.param(EXACT_ZERO_ACCESS, "exact-zero", False,
                  ("exact_zero", "exact_zero"), id="exact-zero"),
     pytest.param(MIXED_ACCESS[0], {"explicit_no_path": True}, True,
                  ("unmapped_estimate", "straight_line_lower_bound_m"), id="unmapped-lower-bound"),
@@ -3245,6 +3374,8 @@ def test_ac056_three_allowed_visit_provenance_pairs_roundtrip_exactly(
     assert (visit["layer_id"], visit["site_id"]) == (stop["source_layer"], stop["site_id"])
     provider_observation = r["walking_provider_observations"][0] if expected[0] == "mapped" else None
     assert_visit_distance_semantics(visit, provider_observation)
+    if expected[0] == "exact_zero":
+        assert visit["source_coordinate"] != visit["access_coordinate"]
     observations = r["lifecycle_route_observations"]
     assert [observation["stage"] for observation in observations] == [
         "restart", "offline", "move",
@@ -3310,7 +3441,9 @@ def test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive(ru
     assert renderer_reads[0]["renderer_bytes"] == renderer_reads[1]["renderer_bytes"]
     assert source["renderer_hash_before"] == source["renderer_hash_after"]
     accessibility = {item["semantic_id"]: item for item in r["accessibility_observations"]}
-    assert set(accessibility) >= {"mapped_metric_source", "walking_totals", "fallback_status"}
+    assert set(accessibility) >= {
+        "mapped_metric_source", "mapped_walking_totals", "fallback_lower_bound_status",
+    }
     assert len({accessibility[key]["object_id"] for key in accessibility}) == len(accessibility)
     for observed in accessibility.values():
         assert observed["source"] in {
@@ -3322,12 +3455,14 @@ def test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive(ru
     storage_metric = r["loaded_route_readback"]["visits"][0]["metric_source"]
     assert accessibility["mapped_metric_source"]["value"] == storage_metric
     assert storage_metric in accessibility["mapped_metric_source"]["name"]
-    assert "도보" in accessibility["walking_totals"]["name"]
-    assert "직선거리 하한" in accessibility["fallback_status"]["name"]
-    assert "사용 불가" in accessibility["fallback_status"]["name"]
+    assert "도보" in accessibility["mapped_walking_totals"]["name"]
+    assert "직선거리 하한" in accessibility["fallback_lower_bound_status"]["name"]
+    assert "사용 불가" in accessibility["fallback_lower_bound_status"]["name"]
     for surface in ("preview", "detail", "bottom_summary", "screen_reader"):
-        assert {"vehicle_distance", "vehicle_duration", "walking_distance", "walking_duration",
+        assert {"vehicle_distance", "vehicle_duration", "mapped_walking_distance",
+                "mapped_walking_duration", "straight_line_lower_bound_m",
                 "roundtrip", "metric_source", "unavailable_reason"} <= set(r[surface])
+        assert "walking_distance" not in r[surface]
     assert r["source_renderer_after"] == r["source_renderer_before"]
     assert r["immutable_route_after"] == r["immutable_route_before"]
     assert r["requests"] == r["writes"] == []
@@ -3356,6 +3491,70 @@ def test_ac053_accessible_metric_source_tracks_runtime_visit_value_without_sourc
         assert accessible["event_id"] and accessible["object_id"] and accessible["role"]
         assert accessible["value"] == stored["value"]
         assert stored["value"] in accessible["name"]
+
+
+def test_ac053_mapped_provider_and_unmapped_lower_bound_stay_separate_on_all_surfaces(run):
+    r = run(operation="mixed_route_presentation", viewport_width=320, theme="light",
+            quantity_fixtures=["mixed-a", "mixed-b"],
+            actions=["reload-each-mixed-quantity-route"])
+    observations = r["quantity_binding_observations"]
+    assert len(observations) == 2
+    assert len({item["storage_readback"]["document_sha256"] for item in observations}) == 2
+    assert len({(
+        item["storage_readback"]["mapped_distance_m"],
+        item["storage_readback"]["mapped_duration_s"],
+        item["storage_readback"]["straight_line_lower_bound_m"],
+    ) for item in observations}) == 2
+    object_bindings = {}
+    for item in observations:
+        assert_schema3_document_contract(item["document"])
+        stored = item["storage_readback"]
+        assert stored["source"] == "captured_storage" and stored["event_id"]
+        assert stored["mapped_distance_m"] > 0 and stored["mapped_duration_s"] > 0
+        assert stored["straight_line_lower_bound_m"] > 0
+        assert stored["combined_totals"] is None
+        expected = {
+            "mapped_provider_distance": stored["mapped_distance_m"],
+            "mapped_provider_duration": stored["mapped_duration_s"],
+            "straight_line_lower_bound": stored["straight_line_lower_bound_m"],
+        }
+        visual = item["visible_readbacks"]
+        assert {entry["surface"] for entry in visual} == {
+            "preview", "detail", "bottom_summary",
+        }
+        for surface in ("preview", "detail", "bottom_summary"):
+            entries = {entry["semantic_id"]: entry for entry in visual
+                       if entry["surface"] == surface}
+            assert set(entries) == set(expected)
+            assert len({entry["object_id"] for entry in entries.values()}) == 3
+            assert all(entry["source"] == "render_observation" and entry["event_id"]
+                       and entry["visible"] is True and entry["value"] == expected[semantic_id]
+                       for semantic_id, entry in entries.items())
+            assert "도보" in entries["mapped_provider_distance"]["name"]
+            assert "도보" in entries["mapped_provider_duration"]["name"]
+            assert "직선거리 하한" in entries["straight_line_lower_bound"]["name"]
+            assert all("정확한 도보 합계" not in entry["name"] for entry in entries.values())
+            for semantic_id, entry in entries.items():
+                key = (surface, semantic_id)
+                object_bindings.setdefault(key, entry["object_id"])
+                assert object_bindings[key] == entry["object_id"]
+        accessible = {entry["semantic_id"]: entry
+                      for entry in item["accessibility_readbacks"]}
+        assert set(accessible) == set(expected)
+        assert len({entry["object_id"] for entry in accessible.values()}) == 3
+        for semantic_id, entry in accessible.items():
+            assert entry["source"] in {
+                "QAccessible.queryAccessibleInterface",
+                "QML Accessible attached property runtime readback",
+            }
+            assert entry["event_id"] and entry["role"] and entry["name"].strip()
+            assert entry["value"] == expected[semantic_id]
+            key = ("accessible", semantic_id)
+            object_bindings.setdefault(key, entry["object_id"])
+            assert object_bindings[key] == entry["object_id"]
+        assert "직선거리 하한" in accessible["straight_line_lower_bound"]["name"]
+        assert item["exact_walking_total_present"] is False
+        assert item["summed_mapped_plus_lower_bound_present"] is False
 
 
 def test_ac054_exact_stage_sequence_privacy_and_no_incidental_writes(run):

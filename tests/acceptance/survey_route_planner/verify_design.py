@@ -250,7 +250,10 @@ assert module.canonical_apple_maps_url() == (
 )
 assert module.MIXED_SITES[0]["xy"] == [127.1, 37.1]
 assert module.MIXED_ACCESS[0] == [127.1035, 37.1]
-assert module.MIXED_SITES[1]["xy"] == module.MIXED_ACCESS[1]
+assert module.MIXED_SITES[1]["xy"] != module.MIXED_ACCESS[1]
+assert 0 < module.geodesic_distance_m(module.MIXED_SITES[1]["xy"], module.MIXED_ACCESS[1]) <= 1
+assert module.MIXED_SITES[0]["xy"] != module.EXACT_ZERO_ACCESS
+assert 0 < module.geodesic_distance_m(module.MIXED_SITES[0]["xy"], module.EXACT_ZERO_ACCESS) <= 1
 assert module.SCHEMA3_ROUTE_REQUIRED_FIELDS == {
     "vehicle_legs", "visits", "vehicle_totals", "walking_totals", "combined_totals",
 }
@@ -260,7 +263,7 @@ assert module.SCHEMA3_ALLOWED_WALKING_PROVENANCE == {
     ("exact_zero", "exact_zero"),
     ("unmapped_estimate", "straight_line_lower_bound_m"),
 }
-assert len(module.SCHEMA3_VISIT_CORRUPTIONS) == 19
+assert len(module.SCHEMA3_VISIT_CORRUPTIONS) == 20
 assert all(operation in source for operation in [
     'operation="provider_http_failure"', 'operation="mixed_route_calculate"',
     'operation="mixed_route_roundtrip"', 'operation="mixed_route_compatibility"',
@@ -304,18 +307,29 @@ assert all(name in source for name in [
     "test_ac052_selected_schema1_and_schema2_route_upgrade_atomically_replaces_identity",
     "test_ac052_failed_schema1_and_schema2_upgrade_preserves_selected_route_and_bytes",
     "test_ac053_accessible_metric_source_tracks_runtime_visit_value_without_source_oracle",
+    "test_ac053_mapped_provider_and_unmapped_lower_bound_stay_separate_on_all_surfaces",
 ])
 assert all(token in contract for token in [
     "content type is missing or misleading", "http_status=null",
     "source_coordinate == access_coordinate", "immediately after origin validation",
     "including inactive routes", "presentation_provenance", "computes field lineage",
     "location=null", "source-layer rereads", "actual `QAccessible` parent/child traversal",
-    "explicit production recalculation plus save", "No metric-source literal",
+    "explicit production recalculation plus save", "No metric-source/value literal",
+    "closed and separately sealed", "before any result dictionary is materialized",
+    "`result_source`", "`bind_result`", "post-result replay", "explicit causal links",
+    "non-identical source/access coordinates", "preceding valid route",
+    "three separate real lifecycle callbacks", "straight-line lower bounds",
 ])
 provenance_source = inspect.getsource(module.assert_mixed_boundary_event_lineage)
 assert all(token in provenance_source for token in [
     '"boundary_event_journal"', '"event_id"', '"previous_event_sha256"',
     '"parent_event_ids"', '"raw_observed_fields"', '"output_bindings"',
+    '"seal_path"', '"finalized_at_monotonic_ns"',
+    '"result_materialization_started_at_monotonic_ns"',
+    '"append_attempts_after_finalize"', '"capture_phase"] == "boundary_callback"',
+    '"causal_parent_observations"', '"captured_callback_id"',
+    "_contains_forbidden_replay_key", "_lineage_from_boundary_events(events)",
+    'replayed_result[field] = {"tampered_after_return": field}',
     "used_outputs = set(result) - MIXED_UNJOURNALED_FIELDS",
     "raw_value == result[field]", "MIXED_REQUIRED_ANCESTOR_SOURCES.get",
     "required_ancestors <= ancestor_sources",
@@ -359,15 +373,35 @@ assert all(token in navigation_source for token in [
 ac056_source = inspect.getsource(
     module.test_ac056_every_active_and_inactive_visit_corruption_rejects_whole_document)
 assert all(token in ac056_source for token in [
-    'actions=["load", "recover-last-good"]', '"last_good_after"',
+    'actions=["load-reject", "restart", "recover-last-good"]', '"last_good_after"',
     '"defaulted_fields"', '"inferred_fields"', '"corrupted_route_was_active"',
-    '"visit_counts"] == [2, 2]', '"corrupted_visit_index"',
+    '"visit_counts"] == [2, 2]', '"corrupted_visit_index"', '"corrupt_newest"] is True',
+    '"load_rejection_observation"', '"restart_observation"', '"recovery_observation"',
+    'recover["selected_route"] == seed["last_good_route"]',
+    'recover["selected_document_sha256"] != seed["corrupt_document_sha256"]',
+    "assert_lifecycle_observation_is_journal_event",
 ])
 distance_source = inspect.getsource(module.assert_visit_distance_semantics)
 assert all(token in distance_source for token in [
     "geodesic_distance_m", 'visit["access_offset_m"]', 'abs=0.01',
-    'lower_bound <= 1.0', 'provider_observation["response"]',
+    '0 < lower_bound <= 1.0', 'provider_observation["response"]',
     'list(reversed(',
+])
+exact_roundtrip_source = inspect.getsource(
+    module.test_ac056_three_allowed_visit_provenance_pairs_roundtrip_exactly)
+assert 'visit["source_coordinate"] != visit["access_coordinate"]' in exact_roundtrip_source
+assert any(parameter.values[0].get("field") == "access_offset_m"
+           and parameter.values[0].get("walking_mode") == "exact_zero"
+           for parameter in module.SCHEMA3_VISIT_CORRUPTIONS)
+quantity_source = inspect.getsource(
+    module.test_ac053_mapped_provider_and_unmapped_lower_bound_stay_separate_on_all_surfaces)
+assert all(token in quantity_source for token in [
+    'quantity_fixtures=["mixed-a", "mixed-b"]', '"quantity_binding_observations"',
+    '"mapped_provider_distance"', '"mapped_provider_duration"',
+    '"straight_line_lower_bound"', '"visible_readbacks"', '"accessibility_readbacks"',
+    '"render_observation"', '"QAccessible.queryAccessibleInterface"',
+    '"exact_walking_total_present"] is False',
+    '"summed_mapped_plus_lower_bound_present"] is False',
 ])
 upgrade_source = inspect.getsource(
     module.test_ac052_selected_schema1_and_schema2_route_upgrade_atomically_replaces_identity)

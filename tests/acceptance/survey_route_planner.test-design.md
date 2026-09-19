@@ -57,6 +57,20 @@
 - AC-SRP-053 cycles three otherwise-valid stored visit variants through the production QML object
   and compares its runtime accessible metric-source value to independent repository readback. The
   test contains no source-value literal oracle.
+- Correction-cycle-2 retry 2 seals and closes the boundary journal before result materialization,
+  checks callback/finalization monotonic timing and a detached seal, rejects `result_source`,
+  `bind_result`, implicit predecessor causality and post-result field-name replay, and resolves every
+  consumed output only from bindings already present in actual callback events. Explicit causal
+  parent links, not hash-chain order, determine ancestry.
+- The exact-zero valid fixture now uses non-identical coordinates 0–1 m apart and preserves the
+  measured geodesic as `access_offset_m` while both walking legs remain zero/null; a separate offset
+  corruption must reject. Presentation reloads two mixed routes with changed values and requires
+  mapped provider distance/time and straight-line lower-bound to remain separate on visible and
+  runtime-accessibility surfaces, never summed or labeled as an exact walking total.
+- AC056 corruption now observes three distinct repository/controller lifecycle callbacks—load
+  rejection, restart and last-good recovery—with unique journal event/callback/boundary IDs. Recovery
+  selects the preceding valid document after the corrupt newest one is rejected, without modifying
+  corrupt bytes or issuing provider/storage writes; action strings alone are insufficient.
 
 The correction is intentionally RED before implementation. M01–M21 remain NOT RUN and no automated
 provenance check is native-QField, live-provider or device evidence.
@@ -208,10 +222,12 @@ UI presentation must come from production. No new dependency or test-only provid
 - AC-SRP-056 mutates one visit at a time in each active/inactive route of a production-saved
   two-route schema-3 document. The matrix includes missing/blank `layer_id`, `site_id`,
   `metric_source`, stop mismatch, unknown mode/source and all disallowed known-mode/source
-  cross-pairs, plus mapped return, exact-zero and unmapped offset/leg distance mismatches. Both load
-  and last-good recovery reject atomically. Separate mapped, exact-zero and unmapped fixtures prove
-  provider-derived, ≤1 m/zero and geodesic-lower-bound semantics plus exact restart/offline/move
-  roundtrips. Schema 1/2 compatibility remains byte-preserving and request/write-free.
+  cross-pairs, plus mapped return, exact-zero leg/offset and unmapped offset/leg distance mismatches.
+  Corrupt-newest load rejects, restart is separately observed, and last-good recovery selects the
+  preceding valid document without repairing the corruption. Separate mapped, exact-zero and
+  unmapped fixtures prove provider-derived, measured non-identical ≤1 m offset with zero/null legs,
+  and geodesic-lower-bound semantics plus exact restart/offline/move roundtrips. Schema 1/2
+  compatibility remains byte-preserving and request/write-free.
 
 ## User-run additions — NOT RUN
 
@@ -314,6 +330,27 @@ specification, Git state or M01–M21 results.
 - One explicit unmapped `access_offset_m` distance-corruption case independently failed, exit 1, in
   1.71 s because the current harness does not recognize `metric_distance_mismatch`; the expectation
   was not weakened.
+- Acceptance-only `git diff --check` over the five changed files: exit 0, no output.
+
+### Correction-cycle-2 retry-2 DRAFT verification record (2026-09-19)
+
+Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** This retry changed only the same
+five allowed acceptance artifacts. It did not modify application code, unit driver/tests, approved
+specification, Git state or M01–M21 results.
+
+- Python compilation and the design verifier: exit 0. The verifier now requires journal close/seal
+  before result materialization, callback timing and explicit causal links, result-replay rejection,
+  20 visit corruption definitions, non-identical sub-meter exact-zero offset semantics, dynamic
+  separate walking quantities and distinct corruption lifecycle callbacks.
+- Focused collection (`ac049` through `ac056`): **172/530 collected, 358 deselected**, exit 0.
+- The first four-case probe was **4 failed**, exit 1, solely because the sandbox denied the local
+  QML harness's `127.0.0.1` bind; it is not the authoritative conformance result.
+- The authoritative loopback-enabled rerun was **4 failed**, exit 1, in 4.41 s. Provider, exact-zero
+  and corruption representatives fail at the intentionally missing journal `seal_path`; the new
+  presentation case fails because `reload-each-mixed-quantity-route` is unsupported. These are the
+  expected implementation RED boundaries, not product PASS.
+- Manual selector: **21 skipped, 509 deselected**, exit 0. M01–M21 remain NOT RUN; no native QField,
+  live ORS, screen-reader, iOS Apple Maps or Android NAVER result is inferred.
 - Acceptance-only `git diff --check` over the five changed files: exit 0, no output.
 
 M01–M21 remain **NOT RUN**. No automated journal, QML, accessibility, local transport or storage
@@ -451,9 +488,10 @@ fixture establishes live ORS, native QField, screen-reader, iOS Apple Maps or An
   negative/non-finite, non-WGS84 or count-mismatched legs preserve the old route. Completion,
   uncheck, toggle and load leave schema/revision/full legs/totals/geometry byte-equivalent.
 - The two-site mixed fixture deliberately combines one nonzero snapped access point with one
-  exact-zero visit whose source and access coordinates are identical. Downstream vehicle captures
-  must use the returned access sequence; the nonzero source is absent, while the exact-zero shared
-  coordinate is allowed because it is itself the selected access coordinate.
+  exact-zero visit whose source and access coordinates are distinct but no more than 1 m apart.
+  Downstream vehicle captures must use the returned access sequence; both source coordinates are
+  absent when they differ from access. Separate roundtrip evidence preserves the measured nonzero
+  exact-zero `access_offset_m` while keeping both walking legs at zero distance/time and null geometry.
 - Schema-3 validation is document-wide. A production-seeded two-route document is faulted only at
   the storage boundary by removing each required mixed-route field from the inactive second route.
   Production load must reject it without repair, request or write. This is separate from unchanged
