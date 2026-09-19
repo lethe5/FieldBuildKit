@@ -1,8 +1,8 @@
-# Survey Route Planner — DRAFT immutable-boundary/schema-3 semantic correction
+# Survey Route Planner — DRAFT callback-provenance/storage-compatibility correction
 
 > **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Approved product requirements and prior
-> acceptance approvals are preserved. This correction cycle closes the remaining reviewer blockers
-> in automated evidence and adds approved AC-SRP-056 visit-validation coverage.
+> acceptance approvals are preserved. This correction cycle closes the remaining reviewer blockers,
+> adds approved AC-SRP-057–058, and repairs conformance coverage without weakening earlier criteria.
 
 ## Draft correction scope (2026-09-18)
 
@@ -17,9 +17,10 @@
   access-snap request, schema-3 output for every explicit new calculation/save, schema 1/2 read-only
   compatibility, and unknown-future schema 99. Access markers are distinct from AC032's sole start
   marker and therefore do not violate its exactly-one-start-marker rule.
-- D-SRP-055 makes route-line toggle passive: it changes the in-session overlay only, issues no
-  provider request or route/settings write, does not increment revision or stale a candidate, and
-  returns to default-on after session re-creation. D-SRP-056 makes the visible action label
+- D-SRP-055's historical passive-toggle reading is superseded by approved D-SRP-059/AC-SRP-058:
+  the toggle issues no provider or route/source/completion write and does not increment revision or
+  stale a candidate, but an actual value change performs one settings-only atomic write/readback and
+  persists across sessions. D-SRP-056 makes the visible action label
   `다음 지점 지도 안내`; retained Android dispatch uses the current operation.
 - AC042 clears the exact 13-character approved local-date default before its text-edit sequence. AC019 checks plaintext
   meaning in the warning copy, not in the intentionally short consent label. Fresh/blank AC013
@@ -71,6 +72,26 @@
   rejection, restart and last-good recovery—with unique journal event/callback/boundary IDs. Recovery
   selects the preceding valid document after the corrupt newest one is rejected, without modifying
   corrupt bytes or issuing provider/storage writes; action strings alone are insufficient.
+- Correction cycle 3 removes the final replay loophole: real boundary hooks emit observations during
+  execution, the journal seals before result construction, and both a deliberate result tamper and
+  AST inspection of the actual driver must reject `capture_outputs`, result iteration, field-name
+  classification, `output_bindings`, `result_source` and `bind_result`. Explicit causal parents are
+  checked by observation source rather than inferred from a returned field name or hash predecessor.
+- Cold-start recovery is now a separate product-reachability test: corrupt the newest slot, destroy
+  the seed session, create the generated RoutePanel normally, and observe Component.onCompleted →
+  controller creation/reload → repository load selecting the prior good route without changing either
+  slot or issuing provider/write activity. A direct harness-only `recoverLastGood` call cannot pass.
+- AC-SRP-057 covers schema-2 no-file/default state, schema-2 maximum for settings-only writes,
+  explicit mixed-save `route_schema` markers, same-ID selected replacement, exact unrelated legacy
+  preservation/list/load, untagged homogeneous schema-3 read compatibility plus next-write tagging,
+  and atomic rejection of corruption, duplicate IDs and marker/content contradictions.
+- AC-SRP-058 supersedes the old settings-write-zero interpretation for an actual route-line value
+  change. Toggle performs exactly one atomic settings-only write/readback and persists through panel
+  reopen, cold restart and settings-accompanied move; route/source/completion/revision/provider state
+  stays unchanged. Preview/legend remain zero-write and failure rolls back with actionable feedback.
+- Every visit—not one reused metric-source example—has dynamic runtime accessibility for site,
+  mode, source, 왕복 and distance/time, including exact-zero. Exact-zero and fallback totals remain
+  separate decisive tests. iOS false/exception requires the exact FR-SRP-053 Korean message.
 
 The correction is intentionally RED before implementation. M01–M21 remain NOT RUN and no automated
 provenance check is native-QField, live-provider or device evidence.
@@ -199,14 +220,17 @@ UI presentation must come from production. No new dependency or test-only provid
   rejects the complete schema-3 document without repair or write. Schema 1/2 loads are byte-preserving
   and request/write-free; future schema rejection preserves bytes. Separately, valid selected schema
   1 and schema 2 routes upgrade only after explicit recalculation+save, atomically replace the same
-  route identity with one schema-3 route, and preserve bytes/route/last-good on calculation or save
-  failure.
+  route identity with one schema-3 route while preserving every unrelated legacy variant, and
+  preserve bytes/route/last-good on calculation or save failure. A separate cold-start case reaches
+  last-good selection through generated RoutePanel/controller normal reload rather than a direct
+  repository recovery helper.
 - AC-SRP-053 inspects distinct solid/dashed/dotted+casing patterns, text legend, warning marker and
   separate vehicle/walking accessible values at 320/wide and light/dark. This is only an automatic
   structure/state proxy; the harness must expose actual loaded object IDs, effective theme,
-  window-delivered preview/toggle/complete/uncheck observations and source-layer renderer captures.
-  A three-variant runtime binding check compares QML accessibility output to independently reread
-  `visit.metric_source`, without any source string in the test oracle.
+  window-delivered preview/legend/complete/uncheck observations and source-layer renderer captures.
+  Two changed three-mode documents require each visit's runtime accessibility to follow independently
+  reread site/mode/source/out-and-back and distance/time values, including exact-zero, without a
+  source-value literal oracle.
   M19 is authoritative for pixels, grayscale and screen reader behavior.
 - AC-SRP-054 captures the exact stage sequence and fail-fast boundary. It proves notice-before-explicit
   calculate, no names/attributes/business IDs in ORS/VROOM, request-local indices only, no generated
@@ -218,7 +242,8 @@ UI presentation must come from production. No new dependency or test-only provid
   Maps HTTPS directions URL once with no name or fallback, including false/exception outcomes.
   Android keeps its exact package-bound NAVER intent, one-time UTF-8 encoding and Google Play fallback.
   Boundary/rounding/negative-zero inputs canonicalize; invalid type/nonfinite/range/exponent-inducing
-  inputs dispatch zero launchers. Both platforms retain OS-request-only success claims and zero writes.
+  inputs dispatch zero launchers. False/exception returns the exact FR-SRP-053 Korean failure copy.
+  Both platforms retain OS-request-only success claims and zero writes.
 - AC-SRP-056 mutates one visit at a time in each active/inactive route of a production-saved
   two-route schema-3 document. The matrix includes missing/blank `layer_id`, `site_id`,
   `metric_source`, stop mismatch, unknown mode/source and all disallowed known-mode/source
@@ -228,13 +253,24 @@ UI presentation must come from production. No new dependency or test-only provid
   unmapped fixtures prove provider-derived, measured non-identical ≤1 m offset with zero/null legs,
   and geodesic-lower-bound semantics plus exact restart/offline/move roundtrips. Schema 1/2
   compatibility remains byte-preserving and request/write-free.
+- AC-SRP-057 opens no-file/default state as schema 2 in memory with no write and keeps fresh/schema-1
+  settings-only and default-start-only writes at schema 2. Explicit mixed save replaces only the selected same-ID route with
+  tagged schema 3, retains unrelated exact legacy fields under `route_schema: 1|2`, and proves those
+  variants remain listed/loadable. Untagged homogeneous schema 3 is read without write and tagged on
+  its next normal write. Unknown/contradictory markers, invalid variants and duplicate identity fail
+  load/commit atomically with bytes, selection and last-good unchanged.
+- AC-SRP-058 toggles default-on→off and off→on through the actual panel. Each changed value has one
+  settings-only atomic commit and one readback; three line classes follow the value while route,
+  source, completion, revision and provider requests remain unchanged. Off survives reopen, cold
+  restart and folder move with settings. Preview/legend are write-free and injected write/readback
+  failures roll back both displayed and persisted preference with actionable non-success feedback.
 
 ## User-run additions — NOT RUN
 
 | ID | Procedure | Criteria |
 | --- | --- | --- |
 | M18 | In a disposable project, acknowledge coordinate sharing and calculate against live configured ORS with one routable site and one rural site more than 350 m but within 2 km of `driving-car`. Record redacted request-stage evidence, returned access points, mapped/no-path outcome and compare source geometry before/after. Do not expose a key or raw body. | 049–052,054; NFR-007–008 |
-| M19 | On target QField at 320 px and wide widths over light/dark and grayscale basemaps, inspect vehicle solid, mapped-walk dashed and unmapped dotted+casing lines, legend, warning, separate totals, toggle/completion and screen-reader output. Record OS/QField/device versions and screenshots/interactions. | 053; NFR-009 |
+| M19 | On target QField at 320 px and wide widths over light/dark and grayscale basemaps, inspect vehicle solid, mapped-walk dashed and unmapped dotted+casing lines, legend, warning, separate totals, toggle/completion and every visit's site/mode/source/왕복 screen-reader output including exact-zero. Record OS/QField/device versions and screenshots/interactions. | 053,058; NFR-009 |
 | M20 | On target iOS QField, tap `다음 지점 지도 안내` for the stored next stop. Verify Apple Maps shows that exact destination in driving-directions mode; repeat a launcher refusal/unavailable condition and verify no NAVER/App Store/web fallback. | 055 |
 | M21 | On target Android QField, re-run the existing NAVER installed/unavailable cases and verify exact destination, package-bound dispatch and Google Play fallback are unchanged. | 055; retained 039 |
 
@@ -355,6 +391,27 @@ specification, Git state or M01–M21 results.
 
 M01–M21 remain **NOT RUN**. No automated journal, QML, accessibility, local transport or storage
 fixture establishes live ORS, native QField, screen-reader, iOS Apple Maps or Android NAVER PASS.
+
+### Correction cycle 3 DRAFT verification record (2026-09-19)
+
+Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Only the five allowed acceptance
+artifacts changed. Application/QML/JS, unit tests, approved specification and Git state were not
+modified by the test-designer.
+
+- Python compilation and design verifier: exit 0; the verifier covers AC001–058/QPB149–150,
+  hook-before-result provenance/source inspection/tamper detection, product cold-start recovery,
+  tagged heterogeneous storage, every-visit accessibility, exact Apple failure copy and AC058.
+- Collection: **555 cases**, exit 0.
+- Focused collection: **31/555 selected, 524 deselected**, exit 0.
+- Focused loopback-enabled selector for final blockers and AC057–058: **31 failed, 524 deselected**,
+  exit 1, 27.43 s. Existing result-producing cases are stopped by the AST guard at the current
+  forbidden `capture_outputs`; new default/marker/cold-start/accessibility/toggle actions are absent
+  or unsupported. This is the intended implementation RED, not product or device PASS.
+- Manual boundary selector: **21 skipped, 534 deselected**, exit 0. M01–M21 remain NOT RUN.
+- Acceptance-only `git diff --check` over the five files: exit 0, no output.
+
+Ponytail kept this cycle to existing operations and the five approved artifacts: no new dependency,
+helper module or test-only product API was added.
 
 ## Fixtures and independent oracles
 
@@ -533,8 +590,9 @@ fixture establishes live ORS, native QField, screen-reader, iOS Apple Maps or An
   restart/load rederive the non-persistent overlay.
 - Metric controls cover 0, 1, 3599 and 3601 seconds, ceil-minute formatting, 1.23 km and exact active/
   no-route bottom bars. Route-line toggle leaves completion overlays/full geometry/source renderer
-  unchanged and is passive: no provider request, route/settings write or revision change. It applies
-  during the loaded session and returns to default-on after panel/session reconstruction or move.
+  unchanged: no provider request, route write or revision change. An actual value change performs one
+  atomic settings-only write/readback, remains project-scoped through panel/session reconstruction and
+  folder move with settings, while an unrelated project retains default-on.
 - A schema-1 route keeps line, totals, stops and bytes unchanged offline, shows enhanced remaining
   values as `사용 불가`, infers no legs and explains the one explicit full calculate/save upgrade.
   That explicit action alone may write schema 3 with a higher revision. Unknown future schema is preserved
@@ -647,6 +705,7 @@ fixture establishes live ORS, native QField, screen-reader, iOS Apple Maps or An
 | D-SRP-036–041 follow-up | Generated-asset/contract gates cover name-only save, rendered labels/disclosure, key provenance and snapshot exclusion, exact URL dispatch, ordered checklist state and generated styling. Native QField accessibility/rendering, atomic file behavior and mobile handoff remain M10. |
 | D-SRP-042–045 follow-up | Loaded-control and generated-artifact proxies cover editable/input-method wiring, exact eight-control geometry, six-family QGS/GPKG labeling configuration and Step 7 copy/secret boundaries. Android/iOS soft keyboards and actual QField layout/map rendering remain M11–M14. |
 | D-SRP-046–048 follow-up | Static structure plus controller/state checks cover only stable automatic invariants. Actual iOS/QField pixels, taps, theme behavior and soft keyboard are authoritative M15–M17 evidence. |
+| D-SRP-049–059 mixed/storage follow-up | Hook-time provenance, product cold-start recovery, tagged heterogeneous storage, every-visit dynamic accessibility, exact Apple failure copy and settings-only toggle persistence are automated gates. Live ORS and native QField file/render/accessibility/launcher behavior remain M03 and M18–M21. |
 | D-101/102 integrated builder follow-up | Direct builder/credential and symbol-router/generated-QGS boundaries cover independent key destinations and canonical-site exclusion without QML/local-socket harnesses. |
 
 A complete per-criterion map means tests/design are present; it does not mean every criterion has
@@ -663,7 +722,7 @@ operation per AGENTS.md; automated sidecar checks never substitute for this evid
 | --- | --- | --- |
 | M01 | On iOS and Android, move/open the generated folder and inspect the actual project layer dropdown order, duplicate-label disambiguation, `조사지` default and provider-order field lists. Rename/remove a disposable field/layer, reopen and verify refresh, fallback or blank blocking. At 320px-class and wide devices verify all six in-control floating labels in empty/value/focus/error states, selected-only guidance/count, no hidden gap, exact target `이름 · ID`, wrapping, touch and keyboard access. | 001–003,013,020–024,031,033–034; NFR-001 |
 | M02 | Build one consented and one declined project using only a synthetic key and redact evidence. Verify device key sourcing, GPS/map/target/saved start and a small real `ors-vroom` open and roundtrip route. Capture the map center marker separately from access markers and verify its lifecycle. Reopen the new schema-3 route and compare route-level-waypoint vehicle legs plus visits/totals. Finish/unfinish stops and verify zero provider traffic; no `남은 지점 계산` control exists. | 004–007,013,017,019,022–023,026,032,035; NFR-003 |
-| M03 | Save two routes and default start, confirm feedback points to actual accessible project-relative settings/route files, turn route line off, switch routes, reopen panel, terminate/restart offline, then move the whole folder with settings and repeat. Preference, full route, completion overlay and progression remain identical; use only a disposable copy for corruption/recovery. | 008–009,013,023,026–029; NFR-003 |
+| M03 | Save mixed and legacy routes plus default start, confirm feedback points to actual accessible project-relative settings/route files, turn route line off, switch/list/load every variant, reopen panel, terminate/restart offline, then move the whole folder with settings and repeat. Preference, route markers/legacy fields, full route, completion overlay and progression remain identical; corrupt newest only in a disposable copy and verify normal panel cold-start last-good recovery. | 008–009,013,023,026–029,052,057–058; NFR-003 |
 | M04 | For mapped Boolean and route-local completion, attempt a later target and verify it is blocked, complete point/line/polygon targets in order, then create a gap by unchecking or externally changing the source Boolean. Verify Blue 800 opacity/fill, check and `완료`/`순서 밖 완료` text, visit context, trimmed line, km/time/bottom bar and roundtrip return. Force a disposable write failure and verify every visual/metric/source value stays unchanged. | 010–011,024,027–028,040; NFR-002–004 |
 | M05 | Retained Android NAVER baseline only: invoke a Korean/special-character target, verify exact destination, then repeat unavailable/all-refused Google Play fallback. Record that Qt true proves only OS request acceptance. iOS NAVER/App Store steps are superseded; current iOS/Android handoff gates are M20/M21. | 012–013,025 |
 | M06 | Desktop direct point/line/polygon drawing, invalid finish and two named sites; upload all six types. Open moved outputs on both device platforms, inspect each geometry/style/form. Existing polygons, UUID relations, observation/plot/community and report/identification remain functional; report non-point rows have no centroid-derived coordinates. Run the schema-1 unavailable/read-only case on a disposable legacy copy. | 014–018,029–030 |

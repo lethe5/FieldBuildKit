@@ -1,4 +1,4 @@
-# Survey route acceptance harness — DRAFT immutable-boundary/schema-3 semantic correction
+# Survey route acceptance harness — DRAFT callback-provenance/storage-compatibility correction
 
 > **DRAFT TEST-DESIGN CORRECTION — pending user approval.** The approved requirements and earlier
 > approved acceptance history below remain authoritative. This correction removes circular/canned
@@ -28,6 +28,14 @@
 > reject post-result replay or implicit chain ancestry. Exact-zero uses a measured non-identical
 > sub-meter fixture, mapped/fallback quantities bind separately on visible/accessibility surfaces,
 > and corrupt-newest load, restart and last-good recovery are three actual lifecycle callbacks.
+>
+> **DRAFT correction cycle 3.** Approved AC-SRP-057–058 are added. Boundary hooks now emit
+> observations while production executes and seal the journal before result construction;
+> `capture_outputs`, completed-result iteration, result-field classification, `result_source` and
+> `bind_result` are forbidden and an AST source verifier plus a deliberate returned-result tamper
+> prove the guard fails closed. Recovery must also be reachable through a generated RoutePanel's
+> product cold start. Mixed storage preserves tagged legacy variants, and route-line toggle performs
+> exactly one settings-only atomic write/readback while preview and legend remain write-free.
 
 > **APPROVED TEST DESIGN — 2026-09-18 mixed-access/Apple Maps slice (approval 2026-09-18).** This additive contract covers
 > approved D-SRP-049–056, FR-SRP-047–053, NFR-SRP-007–009 and AC-SRP-049–055. It preserves
@@ -79,7 +87,7 @@ QField objects is a contract test, not proof of native QField loading. Real QML 
 must identify the actual runtime. No source-string matching or test-only reimplementation is
 acceptable.
 
-For AC-SRP-049–056, dispatching to `tests/unit/survey_route_mixed_driver.js` or any equivalent
+For AC-SRP-049–058, dispatching to `tests/unit/survey_route_mixed_driver.js` or any equivalent
 operation switch that returns preassembled result dictionaries is forbidden. The adapter must not
 inject `math` or any other name into `builtins`, replace captured request bodies after execution,
 wrap values with comparison-only classes, or add expected field sets/formatting/classification to
@@ -90,11 +98,12 @@ with unchanged production observations.
 Every mixed operation returns `production_provenance`, captured by runtime instrumentation rather
 than declared from the operation name. It contains the actual driver path, independently verifiable
 production-source paths/hashes, generated-QML artifact identity where applicable, and a
-`boundary_event_journal`. The journal is UTF-8 JSONL and its writer is closed and separately sealed
-before any result dictionary is materialized. Provenance gives its path, seal path, run ID, SHA-256,
-byte/event counts, open/finalization/result-materialization-start monotonic timestamps and the empty list
-of post-finalize append attempts. The seal independently repeats the run/hash/count/length/final-event
-hash/finalization time; the executable test reads both files twice and requires them unchanged.
+`boundary_event_journal`. Named boundary hooks are installed before the operation starts and emit
+UTF-8 JSONL records from their actual callbacks. The writer is closed and separately sealed before any result dictionary is constructed. Provenance gives its path, seal path, run ID, SHA-256,
+byte/event counts, hook-install/operation-start/finalization/result-construction-start monotonic
+timestamps, registered hook IDs and the empty list of post-finalize append attempts. The seal
+independently repeats the run/hash/count/length/final-event hash/finalization time plus hook-registry
+hash; the executable test reads both files twice and requires them unchanged.
 Each hash-chained record was emitted inside an actual boundary callback and has unique event/callback
 IDs, callback start/observation/end timestamps before journal finalization, zero-based `sequence`,
 `previous_event_sha256`, canonical `event_sha256`, explicit earlier `parent_event_ids` plus causal
@@ -102,32 +111,31 @@ links to those callbacks, an observer naming the real production source and boun
 source (`production_call`, `controller_state`, `captured_transport`, `captured_storage`,
 `loaded_artifact`, `accessibility_interface`, `source_layer_reread`, `signal_delivery`,
 `navigation_launcher`, `render_observation`), and the raw observed production field paths/values.
-The hash-chain predecessor is never an implicit causal parent. Per-event `output_bindings`, when
-present, already map returned top-level names to a dotted raw boundary field and repeat their own
-event/callback IDs before the seal; production-call events need not bind an output. `result_source`,
-`bind_result`, result-field inference or any post-result replay into the journal is forbidden.
-Production-call counts are computed from these records.
+The hash-chain predecessor is never an implicit causal parent. Each callback may publish explicit
+observations containing a unique observation ID, dotted raw field, raw value and optional top-level
+published key before the seal; production-call events need not publish an output. No generic output
+capture may inspect the completed result. `capture_outputs`, iteration over `result` or its keys/items,
+field-name source classification, `output_bindings`, `result_source`, `bind_result`, or any post-result
+replay into the journal is forbidden. Production-call counts are computed from these records.
 
-The executable test reads and hashes the journal itself, validates finalization/timing, chain and
-explicit causal parent order, and computes field lineage from its raw callback records without
-accepting the result dictionary as an input. It mutates a copy of every returned field after return
-and requires the independently resolved lineage to remain unchanged, rejecting a journal that can
-be manufactured by replaying or naming result fields. Every mixed-operation output field consumed by
-AC-SRP-049–056—and, to avoid a declaration loophole, every returned top-level output except
-`production_provenance` and the unused secret-bearing `captured_request`—must have an event ID and a
-last raw observation equal to the returned value. Request/failure-capture fields terminate at
-transport observation; sanitized error output terminates at controller/production observation with
-the transport event in its computed parent ancestry. Persistence/bytes/readback fields terminate at
-storage observation, controller state at controller/production observation, accessibility and notice values at an accessibility interface,
-navigation calls at the launcher boundary, presentation values at render/accessibility observation,
-and renderer invariance at source-layer reread. Route accessibility has captured-storage ancestry,
-including the dynamic metric-source comparison. Empty `adapter_postprocessed_fields`,
+The executable test reads and hashes the journal itself, validates hook-before-operation timing,
+finalization, chain and explicit causal parent order, and computes field lineage from raw callback
+records without accepting the result dictionary as an input. It mutates a returned field, reruns the
+lineage/result consistency check and requires that tampering to raise. An AST verifier reads the
+actual driver source and rejects completed-result iteration, output capture/classification and the
+forbidden symbols. Every mixed-operation output field consumed by AC-SRP-049–058—and, to avoid a
+declaration loophole, every returned top-level output except `production_provenance` and the unused
+secret-bearing `captured_request`—must have an event ID and a last raw observation equal to the
+returned value. Source-type causal rules, rather than returned field names, require captured
+transport/storage/artifact, controller, renderer, accessibility, signal and launcher observations
+to descend from explicit production-call parents; render and accessibility observations also descend
+from captured storage. Empty `adapter_postprocessed_fields`,
 `case_copied_result_fields`, `fixture_expected_values_used_as_results`, `hardcoded_result_fields`,
 `unattributed_result_fields`, an adapter-created `field_origins` table, or an
 `evidence_integrity`/operation table are forbidden rather than accepted as proof. A copied source
 hash, declared call list, synthesized journal after execution, or event whose observer boundary is
-the input `case` is not evidence. An output binding to a `case.*`, `fixture.*` or `expected.*` raw
-path is likewise rejected.
+the input `case` is not evidence. An observation rooted at a `case.*`, `fixture.*`, `expected.*` or
+`result.*` raw path is likewise rejected.
 
 Use the current QGIS-free standalone generation path; no QGIS Desktop prerequisite or private
 reference dataset. With `reference=True`, create/use a tiny fictional valid taxonomy fixture.
@@ -297,7 +305,7 @@ QField evidence.
 | `map_start_marker` | Load the generated panel and live map, select map-start mode, capture supplied map centers through the real control, and drive pan/zoom, recapture, panel collapse/reopen, calculation success/failure, mode change, clear/invalidate and project close actions. Traverse the whole canvas marker collection after every action and return its count plus every marker's object identity, role, coordinate, visible text, accessible name, visibility and measured contrast. Install actual source-provider and route-storage commit observers before the first action and return their complete attempt logs plus independent before/after storage snapshots in `write_capture`; a panel/controller pointer or constant empty lists are invalid. A transform fault is injected only at the coordinate-transform boundary and must leave the prior valid start/marker intact. |
 | `completion_overlay` | Complete/uncheck/recomplete one actual Point, LineString or Polygon feature through mapped or route-local state, restart and load. Return normalized rendered overlays, check/text state, source renderer and source bytes before/after. Overlay observations come from the production map-item/render path, not QML source strings. |
 | `metric_display` | Render an active and no-route bottom bar from supplied metric inputs and return the visible formatted strings. |
-| `route_line_toggle` | Create two saved routes and a separate project, turn the generated route-line control off and switch route in the same loaded session. The in-session view becomes hidden; panel/session re-creation and folder move return to default-on because D-SRP-055 forbids toggle-triggered route/settings writes. Return actual overlay visibility, completed overlay/source/full-route snapshots, independently observed route/settings commit attempts and route revisions. All action windows have zero routing requests; the toggle has zero route/settings write and zero revision change. |
+| `route_line_toggle` | Create two saved routes and a separate project, turn the generated route-line control off, switch route, reopen the panel, cold restart and move the folder with settings. The first project remains off through every lifecycle while the unrelated project starts default-on. Return actual overlay visibility, completed overlay/source/full-route snapshots, independently observed route/settings commit attempts and route revisions. The value change performs exactly one atomic settings-only write/readback with changed path `settings.show_route_line`; route writes, revision change and provider requests remain zero. |
 | `legacy_route` | Materialize supplied schema-1/2 or unknown-future bytes, then load offline or explicitly invoke full calculate-and-save. Load never repairs/splits/writes; only the explicit action may issue requests and publish schema 3 with normal revision semantics. Schema 3 is current, not a future-schema fixture; use an actually unknown value such as 99 for rejection. |
 
 Transport fault names and their semantics are literal parameters in the test module. `status_0`, network,
@@ -330,7 +338,7 @@ QML/project assets and independently reopened files. Source-text matches, expect
 
 | Operation | Required driving steps and returned evidence |
 | --- | --- |
-| `candidate_name_save` | Create a real candidate through the captured provider boundaries, then drive focus, text changes and save through the generated panel. Snapshot candidate, base revision, calculation inputs and request/write capture after every action. A real calculation-input change or independently committed snapshot revision is stale. A route-line toggle is passive under D-SRP-055: it performs no route/settings commit, does not increment revision or stale the candidate, and the same candidate can still be saved. Return `passive_toggle_observation` from installed storage observers, not a constant. |
+| `candidate_name_save` | Create a real candidate through the captured provider boundaries, then drive focus, text changes and save through the generated panel. Snapshot candidate, base revision, calculation inputs and request/write capture after every action. A real calculation-input change or independently committed route snapshot revision is stale. A route-line toggle follows D-SRP-059: it performs one settings-only atomic write/readback, no route write/revision/provider request, does not stale the candidate, and the same candidate can still be saved. Return `toggle_observation` from installed storage observers, not a constant. |
 | `followup_panel_ui` | Load the actual generated panel at 320/1024 px in empty/value/focus/error/disabled states, render a screenshot and traverse the live QML object tree. Return all seven controls with raw control/label/value/indicator/error rectangles, kind, outline/notch/font/padding metrics, stable object identity, exact accessibility name/role/state and stored values before/after. Do not return a precomputed pass/signature. |
 | `settings_disclosure` | Start a new generated-panel session, observe initial disclosure state, then expand/collapse/re-expand through its real control. Return rendered labels/masking/accessibility state, preserved input values and complete request/storage-write captures; toggling must be passive. |
 | `settings_key_provenance` | For manual input, enter the synthetic key into the masked generated panel and restart the app session. For project provenance, build with plaintext consent, independently parse the generated `.qgs` project variable, then open/restart the panel. Return the source message, warning/masking observations and actual post-restart key source without exposing the value in UI/diagnostics. |
@@ -359,14 +367,17 @@ must never report OS soft-keyboard opening or QField map-canvas labels as automa
 | `provider_http_failure` | Through the generated QML calculate control and production controller/backend, create and independently reopen nonempty saved/candidate baselines, then inject one HTTP or statusless transport result at the real transport stage. The unfiltered `requests` log retains origin validation and the actual failed request. `failed_transport_observation` points back to that exact log entry and records its captured response/status; a stage copied from `case` is not evidence. Return the production minimal record, live message-label diagnostic, classification/action, raw-body-retention flag and independently observed state/write/retry snapshots. Production first attempts JSON parsing for a syntactically valid body even when content type is missing or misleading. `status_0`/network records have `http_status=null`, never synthesize HTTP 0, and expose an actionable connection check. Sanitization is performed only by production. Status 200 is a bounded negative oracle: its body must never enter error UI. |
 | `mixed_route_calculate` | Observe the actual coordinate-sharing notice object and accessibility interface before delivering the explicit calculate-button signal. The approved specification requires notice, not a new notice acknowledgement; report `acknowledgement_required=false`. Visual order comes from rendered geometry. Accessibility order comes from actual `QAccessible` parent/child traversal with parent/interface/object IDs and the traversal sequence; QML `childItems` DFS is forbidden. The notice precedes calculate in that observed traversal, and the first request starts after the signal. Execute production preflight/origin validation, one ordered batched `driving-car` snap, per-site walking validation, matrix, optimizer, driving directions and candidate validation. `preflight_observation` is controller state after the click, never `case.access_fault`. Retain origin validation in `requests`. An origin response with `location=null` remains failure even if `snapped_distance` is finite, and starts no access-snap/downstream/write. Cancel or project close delivered immediately after origin validation also starts no later work. Return exact request/stage traces, snap/radius/origin workaround observations, request payload field sets, before/after source/state/storage snapshots and the actual candidate. The exact-zero case may legitimately have `source_coordinate == access_coordinate`; only a nonzero snapped source is forbidden from downstream vehicle payloads. `batch-limit` is rejected before transport. Only an explicit no-foot-path response may continue as unmapped lower-bound, and its save acknowledgement is separate from the coordinate-sharing notice. |
 | `mixed_route_roundtrip` | Create the requested external walking fixture (mapped, exact-zero or explicit no-path) through generated QML and production controller/backend, explicitly save schema 3 through the real save control/repository, independently reopen committed bytes, then perform restart, last-good recovery when requested, offline open, physical folder relocation and complete→uncheck through real controls. `lifecycle_route_observations` independently reread restart/offline/move state; each allowed visit pair must exact-roundtrip. For unmapped visits, the independently calculated source/access geodesic equals `access_offset_m` and both leg distances within 0.01 m. The executable exact-zero fixture deliberately uses non-identical source/access coordinates with `0 < geodesic <= 1 m`; its preserved `access_offset_m` equals that measured geodesic within 0.01 m while both leg distance/duration values stay zero and both geometries stay null. Identical coordinates remain valid under the approved `<=1 m` product rule; the fixture only prevents assuming every exact-zero offset is literally zero. Mapped request endpoints and outbound distance/duration/geometry come from the captured `foot-hiking` response, and return metrics match it with exact reversed geometry. Echoing the candidate as saved/reloaded, constructing a schema wrapper in the harness, or calculating remaining counts in the harness is forbidden. |
-| `mixed_route_compatibility` | Materialize exact valid supplied schema 1/2 or future-schema bytes, load them offline through production `repository.js`, and independently reread the same file after the action. For each schema 1 and schema 2 selected route, explicit production recalculation plus save must atomically replace that same route identity with one valid schema-3 route and leave no old schema-2 instance in the schema-3 document; calculation or atomic-save failure preserves selected route, bytes, last-good state and has no successful commit. For schema-3 corruption cases, create two active/inactive-capable routes through real calculate/save actions, preserve the preceding valid document as last-good, and corrupt exactly the selected visit in the newest committed bytes at the storage boundary. Then execute three separate real lifecycle callbacks in order: repository load rejects the corrupt newest document, controller/repository restart occurs, and repository last-good recovery selects the preceding valid route. Each callback has a distinct journal event ID, callback ID and observer boundary; action strings alone are not evidence. Recovery must identify the selected last-good route/document and must not repair or mutate the corrupt newest bytes. Missing/blank identity/provenance, stop mismatch, unknown/disallowed mode/source, mapped return-metric mismatch, exact-zero leg or measured-offset mismatch, or unmapped offset/leg distance mismatch rejects the corrupt document. All three lifecycle actions return independently captured corrupt bytes/last-good before and after, zero provider request/storage write, and empty repair/default/inference evidence for the rejection. Schema 1/2 remain read-only compatible until that explicit action. A harness-only input-dictionary comparison or `schema > 3` branch is forbidden. |
-| `mixed_route_presentation` | Commit and independently reload a real schema-3 route, then load the generated `RoutePanel.qml` object tree/map at supplied width/theme. `presentation_provenance` observes the effective window width and host palette, real overlay object IDs/canvas stroke settings, all three patterns, contrasting casing, non-color cues, legends and warning marker. Window-delivered preview/toggle/complete/uncheck events return semantic `before_state`/`after_state` (expanded, route-line visibility and completed IDs), never a serial/hash forced to change. Before and after renderer values are two independent source-layer rereads with distinct observation IDs and equal nonempty bytes. Accessibility evidence comes from `QAccessible.queryAccessibleInterface` or runtime QML `Accessible` attached properties on distinct objects. Reuse production QML visual and accessibility objects while independently storing/loading two mixed routes with different provider-mapped walking distance/time and fallback straight-line lower bounds. Preview, detail and bottom-summary visible readbacks plus runtime accessibility readbacks must dynamically follow the repository values as three distinct semantic quantities/objects. The mapped provider quantity is labeled as walking distance/time, the fallback quantity as `직선거리 하한`, and neither surface exposes their sum or labels it as an exact walking total; the mixed route's combined exact total remains null. Also cycle three otherwise-valid mapped, exact-zero and unmapped visits through one accessibility object and require its metric-source value/name to follow repository-read `visit.metric_source`. No metric-source/value literal or operation/fixture mapping may serve as the oracle. Walking totals and fallback lower-bound/unavailable status are never mirrored from an arbitrary `presentationFields` proxy. It remains a generated/headless proxy only. |
+| `mixed_route_compatibility` | Materialize exact supplied storage bytes and run production repository/controller/panel paths. No-file/default open is schema-2 in memory and write-free; settings-only or default-start-only save from no file or schema 1 writes at most schema 2. An explicit production recalculation plus save makes a top-level schema-3 document: the selected same-ID route is tagged `route_schema: 3`, while every unrelated legacy route preserves all original fields plus `route_schema: 1|2` and remains listable/loadable. Untagged homogeneous schema 3 loads without write and receives markers on its next normal write. Unknown markers, duplicate identity, invalid variants and marker/content contradictions fail load/recovery/commit atomically with bytes and last-good unchanged. Existing visit corruption still performs three separate real lifecycle callbacks. A separate corrupt-newest case destroys the seed panel/session and performs a product cold start through generated `RoutePanel.Component.onCompleted` → `Controller.create` → normal reload → `Repository.load`; it must select the preceding valid route as last-good with corrupt and last-good bytes unchanged and zero provider/write activity. Direct harness-only `recoverLastGood` invocation cannot satisfy this case. |
+| `mixed_route_presentation` | Commit and independently reload real schema-3 routes, then load the generated `RoutePanel.qml` object tree/map at supplied width/theme. `presentation_provenance` observes effective width/palette, real overlay objects, all three patterns/casings/non-color cues, legends and warning marker. Preview, legend, complete and uncheck events use semantic before/after state and remain write-free where the product contract says so. Before/after renderer values are independent source-layer rereads. For two changed all-mode documents, every mapped, exact-zero and unmapped visit has a runtime accessibility readback bound to its stored site name/ID, walking mode, metric source, out-and-back meaning and dynamic distance/time values; no visit may be omitted. Separate visible and accessibility objects bind mapped provider distance/time and fallback straight-line lower bounds without summing them as exact walking totals. No metric-source/value literal or operation/fixture mapping may serve as the oracle. A real route-line toggle performs exactly one atomic settings-only write and readback per actual value change, preserves route/source/completion/revision and provider inactivity, survives panel reopen, cold restart and folder move with settings, and restores on write/readback failure with actionable feedback. Preview and legend alone produce zero writes. It remains a generated/headless proxy only. |
 | `platform_map_dispatch` | Save and independently reload an active route through production repository/controller, install routing-request and route-storage-write observers, then locate and invoke the loaded generated QML control whose exact label is `다음 지점 지도 안내`. Capture the controller→navigation call plus every real `Qt.openUrlExternally` call/result/exception. `request_observation` and `write_observation` identify the installed observer/source and return their observed empty event logs; hardcoded `routing_requests=[]`/`writes=[]` mirrors are not evidence. Independently reread state and revision before/after. iOS permits one Apple Maps HTTPS call and no fallback; Android retains NAVER intent/Google Play fallback. The harness never returns a production-computed expected URL for a circular test comparison. |
 
-The only allowed schema-3 visit pairs are `mapped/ors-foot-hiking`, `exact_zero/exact_zero`, and
+Within a top-level schema-3 document, only a `route_schema: 3` route (or retained untagged
+homogeneous schema-3 route) uses the mixed visit contract. Its only allowed visit pairs are
+`mapped/ors-foot-hiking`, `exact_zero/exact_zero`, and
 `unmapped_estimate/straight_line_lower_bound_m`; every visit also has nonblank `layer_id`, `site_id`
-and `metric_source`, with layer/site identity matching its route stop. This applies equally to active
-and inactive routes and to normal load and recovery.
+and `metric_source`, with layer/site identity matching its route stop. Tagged `route_schema: 1|2`
+routes use their legacy validator and contain no inferred mixed fields. Validation applies equally
+to active and inactive routes and to normal load and recovery.
 
 Provider failure fixtures use bounded synthetic data only. They must not make live ORS calls or
 claim endpoint/provider availability. Presentation automation cannot claim color/contrast,

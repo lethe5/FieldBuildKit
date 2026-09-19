@@ -3,7 +3,7 @@
 The previously approved mixed-access/Apple Maps expectations remain authority. This draft corrects
 their executable evidence boundary and retained expectations; it is not approved implementation evidence.
 
-AC-SRP-049–056 are approved acceptance expectations; M18–M21 remain NOT RUN. The approved history
+AC-SRP-049–058 are approved acceptance expectations; M18–M21 remain NOT RUN. The approved history
 is preserved. The approved correction replaces over-scoped rendered/device proxies for
 AC-SRP-046–048 and AC-QPB-149–150; it does not claim device PASS or alter product requirements.
 
@@ -19,6 +19,7 @@ See HARNESS_CONTRACT.md. Missing new seam skips; broken existing seam fails.
 """
 from __future__ import annotations
 
+import ast
 import importlib
 import hashlib
 import json
@@ -56,6 +57,8 @@ def run(tmp_path):
     def invoke(**case):
         result = fn(case=case, work_dir=str(tmp_path))
         if case["operation"] in MIXED_PRODUCTION_OPERATIONS:
+            assert_boundary_driver_has_no_result_replay(
+                result["production_provenance"]["driver_path"])
             boundary_events = assert_mixed_boundary_event_lineage(result)
             assert_mixed_production_path(result, case["operation"], boundary_events)
         return result
@@ -98,44 +101,19 @@ MIXED_RAW_FIELD_ROOTS = {
 }
 MIXED_FORBIDDEN_REPLAY_KEYS = {
     "result_source", "bind_result", "field_name_inference", "implicit_previous_event_parent",
+    "output_bindings", "capture_outputs",
 }
 
-
-def _required_boundary_sources(field):
-    if field == "project_dir":
-        return {"loaded_artifact"}
-    if ("request" in field or field in {"failed_transport_observation",
-                                        "walking_provider_observations"}):
-        return {"captured_transport"}
-    if ("write" in field or "bytes" in field or "storage" in field or "last_good" in field
-            or field in {"lifecycle_route_observations", "immutable_route_snapshots",
-                         "seed_schema3_provenance", "attempts", "load_rejection_observation",
-                         "recovery_observation"}
-            or field.startswith(("saved", "reloaded", "loaded_route", "atomic_replace"))):
-        return {"captured_storage"}
-    if "accessibility" in field or field in {
-            "coordinate_notice", "metric_source_binding_observations",
-            "quantity_binding_observations"}:
-        return {"accessibility_interface"}
-    if field in {"launcher_calls", "fallback_count", "claims"}:
-        return {"navigation_launcher"}
-    if field.startswith("source_renderer"):
-        return {"source_layer_reread"}
-    if field in {"line_classes", "warning_marker", "presentation_provenance",
-                 "preview", "detail", "bottom_summary", "screen_reader"}:
-        return {"render_observation", "accessibility_interface"}
-    if (field in {"error_record", "message", "classification", "suggested_actions",
-                  "stage_sequence", "preflight_observation", "candidate"}
-            or field.startswith(("candidate_", "state_", "revision_", "settings_"))):
-        return {"controller_state", "production_call", "signal_delivery"}
-    return {"controller_state", "production_call", "signal_delivery"}
-
-
-MIXED_REQUIRED_ANCESTOR_SOURCES = {
-    "error_record": {"captured_transport"},
-    "accessibility_observations": {"captured_storage"},
-    "metric_source_binding_observations": {"captured_storage"},
-    "quantity_binding_observations": {"captured_storage", "render_observation"},
+MIXED_EVENT_REQUIRED_ANCESTOR_SOURCES = {
+    "controller_state": {"production_call"},
+    "captured_transport": {"production_call"},
+    "captured_storage": {"production_call"},
+    "loaded_artifact": {"production_call"},
+    "accessibility_interface": {"production_call", "captured_storage"},
+    "source_layer_reread": {"production_call"},
+    "signal_delivery": {"production_call"},
+    "navigation_launcher": {"production_call"},
+    "render_observation": {"production_call", "captured_storage"},
 }
 
 
@@ -148,7 +126,7 @@ def assert_mixed_production_path(result, operation, boundary_events):
             "adapter_postprocessed_fields", "case_copied_result_fields",
             "fixture_expected_values_used_as_results", "hardcoded_result_fields",
             "unattributed_result_fields", "field_origins", "evidence_integrity",
-            "result_source", "bind_result", "field_name_inference"):
+            "result_source", "bind_result", "field_name_inference", "output_bindings"):
         assert self_declared_flag not in provenance
 
     assert Path(provenance["driver_path"]).name != "survey_route_mixed_driver.js"
@@ -191,16 +169,66 @@ def _contains_forbidden_replay_key(value):
     return False
 
 
+def _iterates_completed_result(node):
+    if isinstance(node, ast.Name):
+        return node.id == "result"
+    return (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name) and node.func.value.id == "result"
+            and node.func.attr in {"items", "keys", "values"})
+
+
+def assert_boundary_driver_has_no_result_replay(driver_path):
+    """Reject a journal synthesized by walking/classifying the completed result."""
+    path = Path(driver_path)
+    if not path.is_absolute():
+        path = Path(__file__).parents[3] / path
+    assert path.is_file()
+    source = path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    forbidden_symbols = {
+        "capture_outputs", "bind_result", "result_source", "classify_result_fields",
+    }
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            assert node.name not in forbidden_symbols
+        if isinstance(node, ast.Call):
+            called = node.func.attr if isinstance(node.func, ast.Attribute) else (
+                node.func.id if isinstance(node.func, ast.Name) else "")
+            assert called not in forbidden_symbols
+        if isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
+            assert not _iterates_completed_result(node.iter)
+    assert not any(token in source for token in (
+        "capture_outputs(", "result.items()", "result.keys()", "for field in result",
+        "for key in result", "output_bindings", "field_name_inference",
+    ))
+
+
 def _lineage_from_boundary_events(events):
-    """Resolve only callback-captured bindings; returned result data is not an input."""
+    """Resolve only callback-published observations; returned result data is not an input."""
     lineage = {}
     for event in events:
-        raw = event["raw_observed_fields"]
-        for field, binding in event["output_bindings"].items():
-            raw_field = binding["raw_field"]
-            lineage.setdefault(field, []).append(
-                (event["event_id"], raw_field, raw[raw_field], event["source"]))
+        for observation in event["observations"]:
+            published_key = observation["published_key"]
+            if published_key is not None:
+                lineage.setdefault(published_key, []).append(
+                    (event["event_id"], observation["raw_field"], observation["value"],
+                     event["source"], observation["observation_id"]))
     return lineage
+
+
+def _assert_result_matches_boundary_lineage(result, lineage):
+    used_outputs = set(result) - MIXED_UNJOURNALED_FIELDS
+    assert used_outputs <= set(lineage)
+    for field in used_outputs:
+        assert lineage[field][-1][2] == result[field]
+
+
+def _assert_tampered_result_is_rejected(result, lineage):
+    tampered = deepcopy(result)
+    field = sorted(set(result) - MIXED_UNJOURNALED_FIELDS)[0]
+    tampered[field] = {"tampered_result_source": field}
+    with pytest.raises(AssertionError):
+        _assert_result_matches_boundary_lineage(tampered, lineage)
 
 
 def assert_mixed_boundary_event_lineage(result):
@@ -220,8 +248,9 @@ def assert_mixed_boundary_event_lineage(result):
     assert len({event["callback_id"] for event in events}) == len(events)
     assert journal["finalized"] is True and journal["writer_closed"] is True
     assert journal["opened_at_monotonic_ns"] < journal["finalized_at_monotonic_ns"]
+    assert journal["hooks_installed_at_monotonic_ns"] < journal["operation_started_at_monotonic_ns"]
     assert (journal["finalized_at_monotonic_ns"]
-            < journal["result_materialization_started_at_monotonic_ns"])
+            < journal["result_construction_started_at_monotonic_ns"])
     assert journal["event_count"] == len(events)
     assert journal["byte_length"] == len(journal_bytes)
     assert journal["append_attempts_after_finalize"] == []
@@ -232,6 +261,7 @@ def assert_mixed_boundary_event_lineage(result):
         "byte_length": len(journal_bytes),
         "final_event_sha256": events[-1]["event_sha256"],
         "finalized_at_monotonic_ns": journal["finalized_at_monotonic_ns"],
+        "hook_registry_sha256": journal["hook_registry_sha256"],
     }
     assert not _contains_forbidden_replay_key(events)
     assert not _contains_forbidden_replay_key(provenance)
@@ -241,6 +271,8 @@ def assert_mixed_boundary_event_lineage(result):
     event_sequences = {}
     event_by_id = {}
     callback_by_event_id = {}
+    hook_ids = set(journal["registered_boundary_hook_ids"])
+    assert hook_ids and len(hook_ids) == len(journal["registered_boundary_hook_ids"])
     production_paths = set(MIXED_PRODUCTION_SOURCES.values())
     for event in events:
         assert not ({"copied_from_case", "hardcoded_result_fields", "unattributed_result_fields",
@@ -248,6 +280,9 @@ def assert_mixed_boundary_event_lineage(result):
         assert event["run_id"] == journal["run_id"]
         assert event["source"] in MIXED_EVIDENCE_SOURCES
         assert event["capture_phase"] == "boundary_callback"
+        assert event["hook_id"] in hook_ids
+        assert event["hook_registered_at_monotonic_ns"] <= journal["hooks_installed_at_monotonic_ns"]
+        assert journal["operation_started_at_monotonic_ns"] <= event["callback_started_at_monotonic_ns"]
         assert event["callback_started_at_monotonic_ns"] <= event["observed_at_monotonic_ns"]
         assert event["observed_at_monotonic_ns"] <= event["callback_finished_at_monotonic_ns"]
         assert journal["opened_at_monotonic_ns"] <= event["callback_started_at_monotonic_ns"]
@@ -274,45 +309,39 @@ def assert_mixed_boundary_event_lineage(result):
         assert "case" not in observer["boundary"].lower()
         raw = event["raw_observed_fields"]
         assert isinstance(raw, dict) and raw
-        bindings = event["output_bindings"]
-        assert isinstance(bindings, dict)
-        for field, binding in bindings.items():
-            assert field not in MIXED_UNJOURNALED_FIELDS
-            assert set(binding) == {
-                "raw_field", "captured_event_id", "captured_callback_id",
+        observations = event["observations"]
+        assert isinstance(observations, list)
+        assert len({item["observation_id"] for item in observations}) == len(observations)
+        for observation in observations:
+            assert set(observation) == {
+                "observation_id", "raw_field", "value", "published_key",
             }
-            assert binding["captured_event_id"] == event["event_id"]
-            assert binding["captured_callback_id"] == event["callback_id"]
-            raw_field = binding["raw_field"]
-            assert raw_field in raw and raw_field != field and "." in raw_field
+            raw_field = observation["raw_field"]
+            assert raw_field in raw and raw[raw_field] == observation["value"] and "." in raw_field
             assert raw_field.split(".", 1)[0] in MIXED_RAW_FIELD_ROOTS
             assert raw_field.startswith(observer["boundary"] + ".")
             assert not raw_field.lower().startswith(("result.", "case.", "fixture.", "expected."))
+            if observation["published_key"] is not None:
+                assert observation["published_key"] not in MIXED_UNJOURNALED_FIELDS
         event_sequences[event["event_id"]] = event["sequence"]
         event_by_id[event["event_id"]] = event
         callback_by_event_id[event["event_id"]] = event["callback_id"]
         previous = event["event_sha256"]
 
     lineage = _lineage_from_boundary_events(events)
-    used_outputs = set(result) - MIXED_UNJOURNALED_FIELDS
-    assert used_outputs <= set(lineage)
-    replayed_result = deepcopy(result)
-    for field in used_outputs:
-        replayed_result[field] = {"tampered_after_return": field}
-    assert _lineage_from_boundary_events(events) == lineage
-    for field in used_outputs:
-        event_id, raw_field, raw_value, source = lineage[field][-1]
-        assert event_id and source in _required_boundary_sources(field)
-        assert raw_field
-        assert raw_value == result[field]
-        required_ancestors = MIXED_REQUIRED_ANCESTOR_SOURCES.get(field, set())
-        ancestor_sources, pending = set(), list(event_by_id[event_id]["parent_event_ids"])
+    _assert_result_matches_boundary_lineage(result, lineage)
+    _assert_tampered_result_is_rejected(result, lineage)
+    event_sources_by_id = {event["event_id"]: event["source"] for event in events}
+    ancestor_sources_by_id = {}
+    for event in events:
+        ancestor_sources, pending = set(), list(event["parent_event_ids"])
         while pending:
-            parent = event_by_id[pending.pop()]
-            ancestor_sources.add(parent["source"])
-            pending.extend(parent["parent_event_ids"])
-        assert required_ancestors <= ancestor_sources
-        assert raw_value != replayed_result[field]
+            parent_id = pending.pop()
+            ancestor_sources.add(event_sources_by_id[parent_id])
+            pending.extend(event_by_id[parent_id]["parent_event_ids"])
+        ancestor_sources_by_id[event["event_id"]] = ancestor_sources
+        assert MIXED_EVENT_REQUIRED_ANCESTOR_SOURCES.get(event["source"], set()) <= ancestor_sources
+    assert _lineage_from_boundary_events(events) == lineage
     assert journal_path.read_bytes() == journal_bytes
     assert seal_path.read_bytes() == seal_bytes
     return events
@@ -753,9 +782,17 @@ def geodesic_distance_m(first, second):
 
 
 def assert_schema3_document_contract(document):
-    """Every route in a schema-3 document carries the approved mixed-route payload."""
+    """Validate tagged heterogeneous schema 3 and retained untagged homogeneous schema 3."""
     assert document["schema"] == 3 and document["routes"]
     for route in document["routes"]:
+        route_schema = route.get("route_schema", 3)
+        assert route_schema in {1, 2, 3}
+        if route_schema in {1, 2}:
+            assert not (SCHEMA3_ROUTE_REQUIRED_FIELDS & set(route))
+            assert {"route_id", "name", "revision", "stops"} <= set(route)
+            if route_schema == 2:
+                assert isinstance(route.get("legs"), list) and route["legs"]
+            continue
         assert SCHEMA3_ROUTE_REQUIRED_FIELDS <= set(route)
         assert isinstance(route["vehicle_legs"], list) and route["vehicle_legs"]
         assert isinstance(route["visits"], list) and route["visits"]
@@ -776,6 +813,21 @@ def assert_schema3_document_contract(document):
             assert (visit["layer_id"], visit["site_id"]) in stop_identities
             assert (visit["walking_mode"], visit["metric_source"]) in (
                 SCHEMA3_ALLOWED_WALKING_PROVENANCE)
+
+
+def heterogeneous_legacy_document(schema):
+    document = schema2_legacy_document(schema=schema)
+    selected = document["routes"][0]
+    selected["legacy_extension"] = {"owner": "selected", "schema": schema}
+    unrelated = deepcopy(selected)
+    unrelated.update({
+        "route_id": f"legacy-{schema}-unrelated",
+        "name": f"보존 경로 schema {schema}",
+        "revision": selected["revision"] + 4,
+        "legacy_extension": {"owner": "unrelated", "schema": schema},
+    })
+    document["routes"].append(unrelated)
+    return document
 
 
 def assert_visit_distance_semantics(visit, provider_observation=None):
@@ -2266,14 +2318,18 @@ def test_ac028_route_line_toggle_scope_persistence_move_and_zero_api(run):
     r = run(operation="route_line_toggle", offline=True, move_folder=True,
             transitions=["off", "route_switch", "panel_reopen", "app_restart", "folder_move"])
     assert r["initial_show_route_line"] is True
-    assert [state["show_route_line"] for state in r["states"]] == [False, False, True, True, True]
+    assert [state["show_route_line"] for state in r["states"]] == [False] * 5
     assert r["other_project_initial_show_route_line"] is True
     assert r["saved_geometry_after"] == r["saved_geometry_before"]
     assert r["completed_overlay_after"] == r["completed_overlay_before"]
     assert r["source_renderer_after"] == r["source_renderer_before"]
     assert Path(r["old_dir"]).resolve() != Path(r["project_dir"]).resolve() and not Path(r["old_dir"]).exists()
     assert r["write_capture"]["route_storage_commit_attempts"] == []
-    assert r["write_capture"]["settings_storage_commit_attempts"] == []
+    assert len(r["write_capture"]["settings_storage_commit_attempts"]) == 1
+    write = r["write_capture"]["settings_storage_commit_attempts"][0]
+    assert write["changed_paths"] == ["settings.show_route_line"]
+    assert write["atomic_commit_count"] == write["readback_count"] == 1
+    assert write["readback_value"] is False
     assert r["route_revision_after"] == r["route_revision_before"]
     no_calls(r)
 
@@ -2373,17 +2429,20 @@ def test_ac036_only_real_input_or_revision_change_blocks_stale_candidate(run, st
     assert r["requests_after_calculation"] == []
 
 
-def test_ac036_passive_route_line_toggle_does_not_stale_candidate_or_write(run):
+def test_ac036_route_line_toggle_settings_write_does_not_stale_candidate(run):
     r = run(operation="candidate_name_save", seed_saved=True,
             optimizer_response=vroom_response(include_arrivals=True),
             directions_response=schema2_directions_response(roundtrip=True),
-            actions=[{"set_name": "토글 후 저장"}, {"make_stale": "snapshot_revision"}, {"save": True}])
+            actions=[{"set_name": "토글 후 저장"}, {"toggle_route_line": False}, {"save": True}])
     assert r["save_ok"] is True and r["saved_route"]["name"] == "토글 후 저장"
-    passive = r["passive_toggle_observation"]
-    assert passive["route_revision_after"] == passive["route_revision_before"]
-    assert passive["route_storage_commit_attempts"] == []
-    assert passive["settings_storage_commit_attempts"] == []
-    assert passive["routing_requests"] == []
+    toggle = r["toggle_observation"]
+    assert toggle["route_revision_after"] == toggle["route_revision_before"]
+    assert toggle["route_storage_commit_attempts"] == []
+    assert len(toggle["settings_storage_commit_attempts"]) == 1
+    assert toggle["settings_storage_commit_attempts"][0]["changed_paths"] == [
+        "settings.show_route_line",
+    ]
+    assert toggle["routing_requests"] == []
 
 
 @pytest.mark.parametrize("viewport_width", [320, 1024])
@@ -3227,6 +3286,40 @@ def test_ac052_schema3_exact_roundtrip_recovery_move_and_completion_are_offline(
     assert completed["walking_visit_count"] < r["remaining_states"][0]["walking_visit_count"]
 
 
+def test_ac052_ac056_exact_zero_totals_stay_exact_and_separate(run):
+    r = run(operation="mixed_route_roundtrip", sites=MIXED_SITES[:1], fallback=False,
+            access_snap_response={"locations": [{"location": EXACT_ZERO_ACCESS}]},
+            walking_responses=["exact-zero"], lifecycle=["save", "restart", "offline", "move"])
+    route = r["reloaded_route"]
+    visit = route["visits"][0]
+    assert (visit["walking_mode"], visit["metric_source"]) == ("exact_zero", "exact_zero")
+    assert 0 < visit["access_offset_m"] <= 1
+    assert all(leg["distance_m"] == leg["duration_s"] == 0 and leg["geometry"] is None
+               for leg in visit["walking_legs"])
+    assert route["walking_totals"] == {
+        "mapped_distance_m": 0, "lower_bound_distance_m": 0, "duration_s": 0,
+        "unavailable_duration_count": 0,
+    }
+    assert route["combined_totals"] == route["vehicle_totals"]
+    assert r["lifecycle_requests"] == r["lifecycle_writes"] == []
+
+
+def test_ac052_ac053_fallback_totals_stay_lower_bound_and_duration_unknown(run):
+    r = run(operation="mixed_route_roundtrip", sites=MIXED_SITES[:1], fallback=True,
+            access_snap_response={"locations": [{"location": MIXED_ACCESS[0]}]},
+            walking_responses=[{"explicit_no_path": True}], acknowledge_unmapped=True,
+            lifecycle=["save", "restart", "offline", "move"])
+    route = r["reloaded_route"]
+    visit = route["visits"][0]
+    expected = 2 * geodesic_distance_m(visit["source_coordinate"], visit["access_coordinate"])
+    assert route["walking_totals"]["mapped_distance_m"] == 0
+    assert route["walking_totals"]["lower_bound_distance_m"] == pytest.approx(expected, abs=0.01)
+    assert route["walking_totals"]["duration_s"] is None
+    assert route["walking_totals"]["unavailable_duration_count"] == 2
+    assert route["combined_totals"] is None
+    assert r["lifecycle_requests"] == r["lifecycle_writes"] == []
+
+
 @pytest.mark.parametrize("schema", [1, 2])
 def test_ac052_ac056_legacy_load_and_future_rejection_preserve_bytes(run, schema):
     legacy = schema2_legacy_document(schema=schema)
@@ -3240,8 +3333,9 @@ def test_ac052_ac056_legacy_load_and_future_rejection_preserve_bytes(run, schema
 
 @pytest.mark.parametrize("schema", [1, 2])
 def test_ac052_selected_schema1_and_schema2_route_upgrade_atomically_replaces_identity(run, schema):
-    legacy = schema2_legacy_document(schema=schema)
+    legacy = heterogeneous_legacy_document(schema)
     route_id = legacy["active_route_id"]
+    unrelated_before = deepcopy(legacy["routes"][1])
     r = run(operation="mixed_route_compatibility", document=legacy,
             action="explicit-recalculate-and-save", selected_route_id=route_id,
             sites=MIXED_SITES,
@@ -3255,10 +3349,15 @@ def test_ac052_selected_schema1_and_schema2_route_upgrade_atomically_replaces_id
     replacements = [route for route in r["saved_document"]["routes"]
                     if route["route_id"] == route_id]
     assert replacements == [r["saved_route"]]
-    assert r["saved_document"]["active_route_id"] == route_id
+    assert r["saved_route"]["route_schema"] == 3
+    assert r["saved_document"].get("active_id", r["saved_document"].get("active_route_id")) == route_id
     assert r["saved_route"]["revision"] > legacy["routes"][0]["revision"]
-    assert all(SCHEMA3_ROUTE_REQUIRED_FIELDS <= set(route)
-               for route in r["saved_document"]["routes"])
+    unrelated_after = next(route for route in r["saved_document"]["routes"]
+                           if route["route_id"] == unrelated_before["route_id"])
+    assert unrelated_after["route_schema"] == schema
+    assert {key: value for key, value in unrelated_after.items() if key != "route_schema"} == unrelated_before
+    assert r["listed_route_ids"] == [route["route_id"] for route in r["saved_document"]["routes"]]
+    assert r["loaded_legacy_route"] == unrelated_after
     commit = r["atomic_replace_observation"]
     assert commit["source"] == "captured_storage"
     assert commit["target_route_id"] == route_id and commit["commit_count"] == 1
@@ -3271,7 +3370,7 @@ def test_ac052_selected_schema1_and_schema2_route_upgrade_atomically_replaces_id
 @pytest.mark.parametrize("fault_stage", ["walking-directions", "atomic-save"])
 def test_ac052_failed_schema1_and_schema2_upgrade_preserves_selected_route_and_bytes(
         run, schema, fault_stage):
-    legacy = schema2_legacy_document(schema=schema)
+    legacy = heterogeneous_legacy_document(schema)
     r = run(operation="mixed_route_compatibility", document=legacy,
             action="explicit-recalculate-and-save", selected_route_id=legacy["active_route_id"],
             sites=MIXED_SITES, injected_failure_stage=fault_stage)
@@ -3281,6 +3380,87 @@ def test_ac052_failed_schema1_and_schema2_upgrade_preserves_selected_route_and_b
     assert r["last_good_after"] == r["last_good_before"]
     assert r["successful_storage_commits"] == []
     assert r["saved_document"] == legacy
+
+
+def test_ac057_no_file_default_open_is_schema2_in_memory_and_write_free(run):
+    r = run(operation="mixed_route_compatibility", action="open-default", no_route_files=True)
+    assert r["in_memory_document"] == {
+        "schema": 2, "active_id": "", "routes": [], "settings": {"show_route_line": True},
+    }
+    assert r["route_files_after"] == r["route_files_before"] == []
+    assert r["requests"] == r["writes"] == []
+
+
+@pytest.mark.parametrize("starting_document", [None, schema2_legacy_document(schema=1)],
+                         ids=["fresh", "schema-1"])
+@pytest.mark.parametrize(("action", "settings_update"), [
+    pytest.param("settings-only-save", {"show_route_line": False}, id="settings"),
+    pytest.param("default-start-only-save", {"default_start": [127.2, 37.2]}, id="default-start"),
+])
+def test_ac057_settings_or_default_only_save_never_promotes_beyond_schema2(
+        run, starting_document, action, settings_update):
+    r = run(operation="mixed_route_compatibility", document=starting_document,
+            no_route_files=starting_document is None, action=action,
+            settings_update=settings_update)
+    assert r["saved_document"]["schema"] == 2
+    assert all("route_schema" not in route for route in r["saved_document"]["routes"])
+    assert all(r["saved_document"]["settings"][key] == value
+               for key, value in settings_update.items())
+    assert r["provider_requests"] == []
+    assert r["successful_storage_commits"] == 1
+    assert r["atomic_settings_observation"]["readback_document"] == r["saved_document"]
+
+
+def test_ac057_untagged_homogeneous_schema3_reads_without_write_then_tags_next_write(run):
+    r = run(operation="mixed_route_compatibility", seed_schema3_routes_with_production=2,
+            omit_route_schema_markers=True,
+            actions=["load-untagged", "settings-only-save"])
+    assert r["load_observation"]["ok"] is True
+    assert r["load_observation"]["writes"] == []
+    assert r["load_observation"]["bytes_after"] == r["load_observation"]["bytes_before"]
+    assert all("route_schema" not in route for route in r["load_observation"]["document"]['routes'])
+    assert r["saved_document"]["schema"] == 3
+    assert all(route["route_schema"] == 3 for route in r["saved_document"]["routes"])
+    assert_schema3_document_contract(r["saved_document"])
+    assert r["requests"] == [] and r["successful_storage_commits"] == 1
+
+
+@pytest.mark.parametrize("corruption", [
+    "unknown-route-schema", "legacy-marker-with-mixed-fields",
+    "mixed-marker-with-legacy-fields", "duplicate-route-identity",
+    "legacy-variant-corruption", "mixed-variant-corruption",
+])
+@pytest.mark.parametrize("boundary", ["load", "commit"])
+def test_ac057_marker_corruption_and_duplicates_fail_atomically(run, corruption, boundary):
+    r = run(operation="mixed_route_compatibility", seed_schema3_routes_with_production=2,
+            action=f"corrupt-{boundary}", route_variant_corruption=corruption)
+    assert r["ok"] is False and r["message"].strip()
+    assert r["bytes_after"] == r["bytes_before"]
+    assert r["last_good_after"] == r["last_good_before"]
+    assert r["selected_route_after"] == r["selected_route_before"]
+    assert r["provider_requests"] == [] and r["successful_storage_commits"] == []
+    assert r["repaired_document"] is None
+
+
+def test_ac052_ac056_product_cold_start_panel_recovers_last_good_without_mutation(run):
+    r = run(operation="mixed_route_compatibility", seed_schema3_routes_with_production=2,
+            action="product-cold-start-open-panel", corrupt_newest_slot=True)
+    lifecycle = r["product_cold_start_observation"]
+    assert lifecycle["prior_panel_destroyed"] is True
+    assert lifecycle["new_process_session_id"] != lifecycle["seed_process_session_id"]
+    assert lifecycle["generated_route_panel_loaded"] is True
+    assert lifecycle["route_panel_object_id"] and lifecycle["controller_object_id"]
+    assert lifecycle["entry_path"] == [
+        "RoutePanel.Component.onCompleted", "Controller.create", "Controller.reload", "Repository.load",
+    ]
+    assert {"qml.open_panel", "controller.create", "controller.reload", "repository.load"} <= (
+        observed_production_calls(r))
+    assert lifecycle["selected_route"] == r["last_good_route_before_corruption"]
+    assert lifecycle["selected_document_sha256"] == r["last_good_document_sha256"]
+    assert lifecycle["selected_document_sha256"] != r["corrupt_newest_document_sha256"]
+    assert r["corrupt_newest_bytes_after"] == r["corrupt_newest_bytes_before"]
+    assert r["last_good_bytes_after"] == r["last_good_bytes_before"]
+    assert r["provider_requests"] == r["storage_writes_after_corruption"] == []
 
 
 @pytest.mark.parametrize("missing_field", sorted(SCHEMA3_ROUTE_REQUIRED_FIELDS))
@@ -3389,7 +3569,7 @@ def test_ac056_three_allowed_visit_provenance_pairs_roundtrip_exactly(
 @pytest.mark.parametrize("viewport,theme", [(320, "light"), (320, "dark"), (1024, "light"), (1024, "dark")])
 def test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive(run, viewport, theme):
     r = run(operation="mixed_route_presentation", viewport_width=viewport, theme=theme,
-            include_fallback=True, actions=["preview", "toggle", "complete", "uncheck"])
+            include_fallback=True, actions=["preview", "legend", "complete", "uncheck"])
     expected = {
         "vehicle": ("solid", "차량 경로"),
         "mapped_walking": ("dashed", "도보 경로"),
@@ -3415,20 +3595,19 @@ def test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive(ru
         "source": "rendered_window_geometry", "actual_width": viewport,
     }
     assert [event["action"] for event in provenance["action_observations"]] == [
-        "preview", "toggle", "complete", "uncheck",
+        "preview", "legend", "complete", "uncheck",
     ]
     assert all(event["control_object_id"] and event["event_delivered"] is True
-               and event["before_state"] != event["after_state"]
                for event in provenance["action_observations"])
     assert all(event["viewport_width"] == viewport and event["effective_theme"] == theme
                for event in provenance["action_observations"])
     assert all("serial" not in event and "capture_id" not in str(event)
                for event in provenance["action_observations"])
-    preview, toggle, complete, uncheck = provenance["action_observations"]
+    preview, legend, complete, uncheck = provenance["action_observations"]
     assert preview["before_state"]["expanded"] is False
     assert preview["after_state"]["expanded"] is True
-    assert toggle["before_state"]["route_lines_visible"] is True
-    assert toggle["after_state"]["route_lines_visible"] is False
+    assert legend["before_state"]["route_lines_visible"] is True
+    assert legend["after_state"]["route_lines_visible"] is True
     assert complete["before_state"]["completed_site_ids"] != complete["after_state"]["completed_site_ids"]
     assert uncheck["after_state"]["completed_site_ids"] == complete["before_state"]["completed_site_ids"]
     source = provenance["source_layer_observation"]
@@ -3469,28 +3648,46 @@ def test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive(ru
     assert r["claims"].get("target_qfield_rendering_verified") is not True
 
 
-def test_ac053_accessible_metric_source_tracks_runtime_visit_value_without_source_oracle(run):
+def test_ac053_every_visit_accessibility_tracks_dynamic_site_mode_source_and_roundtrip(run):
     r = run(operation="mixed_route_presentation", viewport_width=320, theme="light",
-            visit_fixtures=["mapped", "exact-zero", "unmapped"],
-            actions=["reload-each-valid-route"])
-    observations = r["metric_source_binding_observations"]
-    assert len(observations) == 3
-    assert len({item["storage_readback"]["value"] for item in observations}) == 3
-    assert len({item["storage_readback"]["document_sha256"] for item in observations}) == 3
-    assert len({item["accessibility_readback"]["object_id"] for item in observations}) == 1
+            visit_value_fixtures=["all-modes-a", "all-modes-b"],
+            actions=["reload-each-visit-value-route"])
+    observations = r["visit_accessibility_binding_observations"]
+    assert len(observations) == 2
+    assert len({item["document_sha256"] for item in observations}) == 2
+    dynamic_values = []
+    stable_objects = {}
     for item in observations:
         assert_schema3_document_contract(item["document"])
-        stored = item["storage_readback"]
-        accessible = item["accessibility_readback"]
-        assert stored["source"] == "captured_storage"
-        assert stored["field_path"].endswith(".metric_source") and stored["event_id"]
-        assert accessible["source"] in {
-            "QAccessible.queryAccessibleInterface",
-            "QML Accessible attached property runtime readback",
-        }
-        assert accessible["event_id"] and accessible["object_id"] and accessible["role"]
-        assert accessible["value"] == stored["value"]
-        assert stored["value"] in accessible["name"]
+        assert item["storage_readback"]["source"] == "captured_storage"
+        stored = item["storage_readback"]["visits"]
+        accessible = item["accessibility_readbacks"]
+        assert len(stored) == len(accessible) == 3
+        assert {(visit["walking_mode"], visit["metric_source"]) for visit in stored} == (
+            SCHEMA3_ALLOWED_WALKING_PROVENANCE)
+        for index, (visit, readback) in enumerate(zip(stored, accessible)):
+            assert readback["source"] in {
+                "QAccessible.queryAccessibleInterface",
+                "QML Accessible attached property runtime readback",
+            }
+            assert readback["event_id"] and readback["object_id"] and readback["role"]
+            expected_distance = sum(leg["distance_m"] for leg in visit["walking_legs"])
+            durations = [leg["duration_s"] for leg in visit["walking_legs"]]
+            expected_duration = None if None in durations else sum(durations)
+            assert readback["value"] == {
+                "site_id": visit["site_id"], "site_name": visit["site_name"],
+                "walking_mode": visit["walking_mode"], "metric_source": visit["metric_source"],
+                "roundtrip": True, "distance_m": expected_distance,
+                "duration_s": expected_duration,
+            }
+            assert all(str(value) in readback["name"] for value in (
+                visit["site_name"], visit["walking_mode"], visit["metric_source"],
+            ))
+            assert "왕복" in readback["name"]
+            stable_objects.setdefault(index, readback["object_id"])
+            assert stable_objects[index] == readback["object_id"]
+            dynamic_values.append((index, expected_distance, expected_duration))
+    assert dynamic_values[:3] != dynamic_values[3:]
 
 
 def test_ac053_mapped_provider_and_unmapped_lower_bound_stay_separate_on_all_surfaces(run):
@@ -3555,6 +3752,57 @@ def test_ac053_mapped_provider_and_unmapped_lower_bound_stay_separate_on_all_sur
         assert "직선거리 하한" in accessible["straight_line_lower_bound"]["name"]
         assert item["exact_walking_total_present"] is False
         assert item["summed_mapped_plus_lower_bound_present"] is False
+
+
+def test_ac058_route_line_toggle_is_one_atomic_settings_only_write_and_persists(run):
+    r = run(operation="mixed_route_presentation", viewport_width=320, theme="light",
+            actions=["toggle-off", "panel-reopen", "cold-restart", "move-with-settings", "toggle-on"])
+    assert r["initial_show_route_line"] is True
+    assert [state["show_route_line"] for state in r["lifecycle_states"]] == [
+        False, False, False, False, True,
+    ]
+    assert all(not line["visible"] for line in r["line_classes_after_toggle_off"].values())
+    assert all(line["visible"] for line in r["line_classes_after_toggle_on"].values())
+    writes = r["settings_write_observations"]
+    assert [write["requested_value"] for write in writes] == [False, True]
+    for write in writes:
+        assert write["source"] == "captured_storage"
+        assert write["atomic_commit_count"] == 1 and write["readback_count"] == 1
+        assert write["successful_commit_count"] == 1
+        assert write["changed_paths"] == ["settings.show_route_line"]
+        assert write["readback_value"] is write["requested_value"]
+        assert write["temporary_path_removed"] is True
+    assert r["route_after"] == r["route_before"]
+    assert r["source_after"] == r["source_before"]
+    assert r["completion_after"] == r["completion_before"]
+    assert r["revision_after"] == r["revision_before"]
+    assert r["provider_requests"] == []
+
+
+def test_ac058_preview_and_legend_are_write_free(run):
+    r = run(operation="mixed_route_presentation", viewport_width=320, theme="light",
+            actions=["preview", "legend"])
+    assert [event["action"] for event in r["presentation_provenance"]["action_observations"]] == [
+        "preview", "legend",
+    ]
+    assert r["settings_write_observations"] == []
+    assert r["route_storage_write_observations"] == []
+    assert r["provider_requests"] == []
+
+
+@pytest.mark.parametrize("failure", ["atomic-write", "readback"])
+def test_ac058_toggle_failure_rolls_back_and_reports_actionable_feedback(run, failure):
+    r = run(operation="mixed_route_presentation", viewport_width=320, theme="light",
+            actions=["toggle-off"], settings_failure=failure)
+    assert r["ok"] is False and r["success_feedback_count"] == 0
+    assert r["message"].strip() and any(word in r["message"] for word in ("저장", "확인", "다시"))
+    assert r["show_route_line_after"] is r["show_route_line_before"] is True
+    assert r["persisted_show_route_line_after"] is r["persisted_show_route_line_before"] is True
+    assert r["route_after"] == r["route_before"]
+    assert r["source_after"] == r["source_before"]
+    assert r["completion_after"] == r["completion_before"]
+    assert r["revision_after"] == r["revision_before"]
+    assert r["successful_storage_commits"] == [] and r["provider_requests"] == []
 
 
 def test_ac054_exact_stage_sequence_privacy_and_no_incidental_writes(run):
@@ -3643,6 +3891,9 @@ def canonical_apple_maps_url(coordinate=(127.123, 37.456)):
             f"{canonical_coordinate(coordinate[1])},{canonical_coordinate(coordinate[0])}&mode=driving")
 
 
+APPLE_MAPS_FAILURE_MESSAGE = "Apple 지도를 열 수 없습니다. 기기 설정과 네트워크 상태를 확인하세요."
+
+
 @pytest.mark.parametrize("launch_result", [True, False, "exception"])
 def test_ac055_ios_uses_exact_apple_maps_once_without_any_fallback(run, launch_result):
     r = run(operation="platform_map_dispatch", platform="ios", destination=[127.123, 37.456],
@@ -3654,7 +3905,7 @@ def test_ac055_ios_uses_exact_apple_maps_once_without_any_fallback(run, launch_r
     assert not any(token in str(r["launcher_calls"]) for token in ["nmap", "itunes.apple.com", "apps.apple.com", "play.google.com"])
     assert r["claims"] == {"app_started": False, "destination_accepted": False, "navigation_started": False}
     if launch_result is not True:
-        assert r["ok"] is False and "Apple Maps" in r["message"]
+        assert r["ok"] is False and r["message"] == APPLE_MAPS_FAILURE_MESSAGE
     assert_navigation_has_observed_no_route_or_storage_activity(r)
 
 
