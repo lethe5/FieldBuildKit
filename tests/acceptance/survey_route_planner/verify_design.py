@@ -118,6 +118,10 @@ for fault, _ in [
 legacy = module.schema2_legacy_document()
 assert legacy["schema"] == 1 and legacy["routes"][0]["revision"] == 7
 assert "legs" not in legacy["routes"][0]
+legacy2 = module.schema2_legacy_document(schema=2)
+assert legacy2["schema"] == 2 and len(legacy2["routes"][0]["legs"]) == 3
+assert sum(leg["distance_m"] for leg in legacy2["routes"][0]["legs"]) == legacy2["routes"][0]["distance_m"]
+assert sum(leg["duration_s"] for leg in legacy2["routes"][0]["legs"]) == legacy2["routes"][0]["duration_s"]
 assert [layer["layer_id"] for layer in module.PROJECT_LAYERS] == [
     "duplicate-a", module.SITE_LAYER_ID, "duplicate-b"]
 assert module.PROJECT_LAYERS[2]["fields"][-2:] == ["SECOND_ID", "SECOND_NAME"]
@@ -256,7 +260,7 @@ assert module.SCHEMA3_ALLOWED_WALKING_PROVENANCE == {
     ("exact_zero", "exact_zero"),
     ("unmapped_estimate", "straight_line_lower_bound_m"),
 }
-assert len(module.SCHEMA3_VISIT_CORRUPTIONS) == 15
+assert len(module.SCHEMA3_VISIT_CORRUPTIONS) == 19
 assert all(operation in source for operation in [
     'operation="provider_http_failure"', 'operation="mixed_route_calculate"',
     'operation="mixed_route_roundtrip"', 'operation="mixed_route_compatibility"',
@@ -265,9 +269,11 @@ assert all(operation in source for operation in [
 assert 'import math' in source
 assert 'canonical_expected_url' not in source
 assert 'survey_route_mixed_driver.js' in source
+assert "MIXED_EVIDENCE_FIELDS" not in source
 assert all(token in source for token in [
-    '"production_provenance"', '"adapter_postprocessed_fields"] == []',
-    '"case_copied_result_fields"] == []', '"fixture_expected_values_used_as_results"] == []',
+    '"production_provenance"', 'assert self_declared_flag not in provenance',
+    '"boundary_event_journal"', '"raw_observed_fields"', '"output_bindings"',
+    '"parent_event_ids"',
     '"controller.calculate"', '"backend.calculate"', '"repository.save"',
     '"repository.load"', '"navigation.open"', '"qml.render_route"',
     '"passive_toggle_observation"', 'document["schema"] == 3',
@@ -295,18 +301,24 @@ assert all(name in source for name in [
     "test_ac050_origin_null_with_finite_snapped_distance_stops_before_access_snap",
     "test_ac056_every_active_and_inactive_visit_corruption_rejects_whole_document",
     "test_ac056_three_allowed_visit_provenance_pairs_roundtrip_exactly",
+    "test_ac052_selected_schema1_and_schema2_route_upgrade_atomically_replaces_identity",
+    "test_ac052_failed_schema1_and_schema2_upgrade_preserves_selected_route_and_bytes",
+    "test_ac053_accessible_metric_source_tracks_runtime_visit_value_without_source_oracle",
 ])
 assert all(token in contract for token in [
     "content type is missing or misleading", "http_status=null",
     "source_coordinate == access_coordinate", "immediately after origin validation",
-    "including inactive routes", "presentation_provenance", "field-to-event lineage",
-    "location=null", "source-layer rereads", "installed observer/source",
+    "including inactive routes", "presentation_provenance", "computes field lineage",
+    "location=null", "source-layer rereads", "actual `QAccessible` parent/child traversal",
+    "explicit production recalculation plus save", "No metric-source literal",
 ])
-provenance_source = inspect.getsource(module.assert_mixed_evidence_integrity)
+provenance_source = inspect.getsource(module.assert_mixed_boundary_event_lineage)
 assert all(token in provenance_source for token in [
-    '"evidence_integrity"', '"observation_events"', '"field_origins"',
-    '"hardcoded_result_fields"', '"unattributed_result_fields"',
-    '"copied_from_case"',
+    '"boundary_event_journal"', '"event_id"', '"previous_event_sha256"',
+    '"parent_event_ids"', '"raw_observed_fields"', '"output_bindings"',
+    "used_outputs = set(result) - MIXED_UNJOURNALED_FIELDS",
+    "raw_value == result[field]", "MIXED_REQUIRED_ANCESTOR_SOURCES.get",
+    "required_ancestors <= ancestor_sources",
 ])
 provider_evidence = inspect.getsource(module.assert_actual_failed_provider_request)
 assert 'requests[0]["kind"] == "origin-validation"' in provider_evidence
@@ -318,15 +330,27 @@ presentation_source = inspect.getsource(module.test_ac053_mixed_route_visual_acc
 assert all(token in presentation_source for token in [
     '"before_state"', '"after_state"', '"rendered_window_geometry"',
     '"source_layer_renderer_reread"', '"accessibility_observations"',
-    '"QAccessible.queryAccessibleInterface"', '"ors-foot-hiking"',
+    '"QAccessible.queryAccessibleInterface"', '"loaded_route_readback"',
 ])
 assert '"before_capture_id"' not in presentation_source and '"after_capture_id"' not in presentation_source
+dynamic_metric_source = inspect.getsource(
+    module.test_ac053_accessible_metric_source_tracks_runtime_visit_value_without_source_oracle)
+assert all(literal not in dynamic_metric_source for literal in [
+    "ors-foot-hiking", "exact_zero", "straight_line_lower_bound_m",
+])
+assert all(token in dynamic_metric_source for token in [
+    '"metric_source_binding_observations"', '"captured_storage"',
+    '"accessibility_readback"', 'accessible["value"] == stored["value"]',
+    'item["accessibility_readback"]["object_id"]',
+])
 notice_source = inspect.getsource(module.test_ac054_exact_stage_sequence_privacy_and_no_incidental_writes)
 assert "coordinate_notice_acknowledged" not in notice_source
 assert all(token in notice_source for token in [
-    '"visual_order"', '"accessibility_order"', '"calculate_button_signal_observation"',
+    '"visual_order"', '"accessibility_order_observation"',
+    '"QAccessible parent/child traversal"', '"calculate_button_signal_observation"',
     '"acknowledgement_required"] is False',
 ])
+assert "childItems" not in notice_source
 navigation_source = inspect.getsource(module.assert_navigation_has_observed_no_route_or_storage_activity)
 assert all(token in navigation_source for token in [
     '"observer_installed_before_action"', '"routing-provider-request-log"',
@@ -338,6 +362,25 @@ assert all(token in ac056_source for token in [
     'actions=["load", "recover-last-good"]', '"last_good_after"',
     '"defaulted_fields"', '"inferred_fields"', '"corrupted_route_was_active"',
     '"visit_counts"] == [2, 2]', '"corrupted_visit_index"',
+])
+distance_source = inspect.getsource(module.assert_visit_distance_semantics)
+assert all(token in distance_source for token in [
+    "geodesic_distance_m", 'visit["access_offset_m"]', 'abs=0.01',
+    'lower_bound <= 1.0', 'provider_observation["response"]',
+    'list(reversed(',
+])
+upgrade_source = inspect.getsource(
+    module.test_ac052_selected_schema1_and_schema2_route_upgrade_atomically_replaces_identity)
+assert all(token in upgrade_source for token in [
+    'action="explicit-recalculate-and-save"', 'replacements == [r["saved_route"]]',
+    '"atomic_replace_observation"', '"commit_count"] == 1',
+    'assert_schema3_document_contract',
+])
+failed_upgrade_source = inspect.getsource(
+    module.test_ac052_failed_schema1_and_schema2_upgrade_preserves_selected_route_and_bytes)
+assert all(token in failed_upgrade_source for token in [
+    '"bytes_after"] == r["bytes_before"]', '"last_good_after"] == r["last_good_before"]',
+    '"successful_storage_commits"] == []', '"saved_document"] == legacy',
 ])
 assert 'assert "평문" in consent' not in source
 assert 'fresh_project=True, seed_saved=True' not in source
@@ -377,6 +420,6 @@ for fmt in ["SHP", "ZIP", "GPKG"]:
             except FixtureChecked:
                 count += 1
 assert count == 18
-print("Design checks: DRAFT evidence-integrity/schema-3 correction is internally consistent; "
+print("Design checks: DRAFT immutable-boundary/schema-3 semantic correction is internally consistent; "
       "approved AC001-056/QPB149-150 history and M01-M21 NOT RUN boundaries are preserved. "
       "No application tests executed.")

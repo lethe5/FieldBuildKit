@@ -1,4 +1,4 @@
-# Survey Route Planner — DRAFT evidence-integrity/schema-3 correction
+# Survey Route Planner — DRAFT immutable-boundary/schema-3 semantic correction
 
 > **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Approved product requirements and prior
 > acceptance approvals are preserved. This correction cycle closes the remaining reviewer blockers
@@ -33,21 +33,30 @@
   statusless connection failures, valid JSON under missing/misleading content type, cancel/project
   close immediately after origin validation, every-route schema-3 required fields and malformed
   omission rejection.
-- Correction cycle 2 rejects empty self-declared provenance: every criterion-critical result field
-  has lineage to a captured production/runtime event. Provider request logs retain origin validation
-  and the actual failed request; batch-limit preflight comes from observed controller state; an
-  origin response with `location=null` fails even when `snapped_distance` is finite.
+- Correction-cycle-2 retry 1 rejects empty self-declared provenance and adapter operation tables.
+  Every mixed output is tied to a unique raw observation in a hash-chained boundary-event journal;
+  the executable test independently validates event IDs/hashes/parents and computes field lineage.
+  Provider request logs retain origin validation and the actual failed request; batch-limit
+  preflight comes from observed controller state; an origin response with `location=null` fails even
+  when `snapped_distance` is finite.
 - Presentation evidence uses actual effective viewport/theme, semantic before/after object state,
   two independent renderer rereads, and runtime `QAccessible`/QML `Accessible` observations. A
   changing serial/hash or a `screenReaderFields` mirror is not evidence. Navigation's zero request/
   write result comes from installed observers and independent state/revision rereads.
 - AC-SRP-056 covers every missing/blank visit identity/provenance field, stop mismatch, unknown
-  mode/source and all six invalid cross-pairs in both active and inactive production-saved routes.
-  Load and recovery reject the entire document without repair/default/inference; the three allowed
-  pairs exact-roundtrip across restart/offline/folder move, while schema 1/2 remain read-only.
+  mode/source, all six invalid cross-pairs and four mode-distance corruptions in both active and
+  inactive production-saved routes. Load and recovery reject the entire document without
+  repair/default/inference. The three allowed pairs enforce geodesic lower-bound, exact-zero and
+  captured provider semantics across restart/offline/folder move. Schema 1/2 remain read-only until
+  explicit recalculation+save atomically replaces the selected route identity with schema 3; both
+  calculation and commit failure preserve old bytes/route/last-good state.
 - D-SRP-055/AC-SRP-054 require an actual coordinate-sharing notice before the explicit calculate
-  signal in visual and accessibility order. They do not approve a separate notice acknowledgement;
-  the existing fallback-save acknowledgement remains distinct.
+  signal in visual order and actual `QAccessible` parent/child traversal order. QML `childItems` DFS
+  is not evidence. They do not approve a separate notice acknowledgement; the existing
+  fallback-save acknowledgement remains distinct.
+- AC-SRP-053 cycles three otherwise-valid stored visit variants through the production QML object
+  and compares its runtime accessible metric-source value to independent repository readback. The
+  test contains no source-value literal oracle.
 
 The correction is intentionally RED before implementation. M01–M21 remain NOT RUN and no automated
 provenance check is native-QField, live-provider or device evidence.
@@ -174,17 +183,23 @@ UI presentation must come from production. No new dependency or test-only provid
   totals across restart/recovery/offline/folder move and complete→uncheck. Every route, including an
   inactive second route, requires vehicle legs, visits and all three total groups; omitting any one
   rejects the complete schema-3 document without repair or write. Schema 1/2 loads are byte-preserving
-  and request/write-free; future schema rejection preserves bytes.
+  and request/write-free; future schema rejection preserves bytes. Separately, valid selected schema
+  1 and schema 2 routes upgrade only after explicit recalculation+save, atomically replace the same
+  route identity with one schema-3 route, and preserve bytes/route/last-good on calculation or save
+  failure.
 - AC-SRP-053 inspects distinct solid/dashed/dotted+casing patterns, text legend, warning marker and
   separate vehicle/walking accessible values at 320/wide and light/dark. This is only an automatic
   structure/state proxy; the harness must expose actual loaded object IDs, effective theme,
   window-delivered preview/toggle/complete/uncheck observations and source-layer renderer captures.
+  A three-variant runtime binding check compares QML accessibility output to independently reread
+  `visit.metric_source`, without any source string in the test oracle.
   M19 is authoritative for pixels, grayscale and screen reader behavior.
 - AC-SRP-054 captures the exact stage sequence and fail-fast boundary. It proves notice-before-explicit
   calculate, no names/attributes/business IDs in ORS/VROOM, request-local indices only, no generated
   coordinates/radius changes/raw-body retention and no writes from preview/legend/toggle/cancel.
   Cancel and project close delivered immediately after origin validation start no access-snap or
-  later request and perform no source/completion/settings/route write.
+  later request and perform no source/completion/settings/route write. Notice order is captured from
+  real `QAccessible` parent/child traversal, not QML object-tree DFS.
 - AC-SRP-055 supersedes only retained iOS NAVER/App Store expectations. iOS launches the exact Apple
   Maps HTTPS directions URL once with no name or fallback, including false/exception outcomes.
   Android keeps its exact package-bound NAVER intent, one-time UTF-8 encoding and Google Play fallback.
@@ -193,9 +208,10 @@ UI presentation must come from production. No new dependency or test-only provid
 - AC-SRP-056 mutates one visit at a time in each active/inactive route of a production-saved
   two-route schema-3 document. The matrix includes missing/blank `layer_id`, `site_id`,
   `metric_source`, stop mismatch, unknown mode/source and all disallowed known-mode/source
-  cross-pairs. Both load and last-good recovery reject atomically. Separate mapped, exact-zero and
-  unmapped fixtures prove exact allowed-pair restart/offline/move roundtrips. Schema 1/2 compatibility
-  remains byte-preserving and request/write-free.
+  cross-pairs, plus mapped return, exact-zero and unmapped offset/leg distance mismatches. Both load
+  and last-good recovery reject atomically. Separate mapped, exact-zero and unmapped fixtures prove
+  provider-derived, ≤1 m/zero and geodesic-lower-bound semantics plus exact restart/offline/move
+  roundtrips. Schema 1/2 compatibility remains byte-preserving and request/write-free.
 
 ## User-run additions — NOT RUN
 
@@ -277,6 +293,31 @@ artifacts changed. No application, unit driver, approved specification or Git st
 - Manual selector: **21 skipped, 481 deselected**, exit 0. M01–M21 remain NOT RUN; no native QField,
   live ORS, screen-reader, iOS Apple Maps or Android NAVER result is inferred.
 - Acceptance-only `git diff --check` over the five changed files: exit 0, no output.
+
+### Correction-cycle-2 retry-1 DRAFT verification record (2026-09-18)
+
+Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** This retry changed only the same
+five allowed acceptance artifacts. It did not modify application code, unit driver/tests, approved
+specification, Git state or M01–M21 results.
+
+- Design verifier: exit 0; it now rejects operation/field-origin tables and empty anti-hardcoding
+  declarations, validates raw-field/output bindings in the boundary-event hash chain, requires 19
+  visit corruption definitions, valid schema-1/2 atomic upgrade/failure cases, dynamic QML
+  metric-source accessibility and real QAccessible traversal order.
+- Focused collection (`ac049` through `ac056`): **167/525 collected, 358 deselected**, exit 0.
+- The first 11-case required-mode probe was **11 failed, 514 deselected**, exit 1, because the
+  sandbox denied the harness's `127.0.0.1` bind. That is an environment result, not conformance.
+- The authoritative loopback-enabled rerun was **11 failed, 514 deselected**, exit 1, in 8.27 s:
+  ten cases fail on the intentionally missing immutable `boundary_event_journal`, and the dynamic
+  accessibility case fails because `reload-each-valid-route` is not implemented. This is the
+  expected implementation RED, not a product PASS.
+- One explicit unmapped `access_offset_m` distance-corruption case independently failed, exit 1, in
+  1.71 s because the current harness does not recognize `metric_distance_mismatch`; the expectation
+  was not weakened.
+- Acceptance-only `git diff --check` over the five changed files: exit 0, no output.
+
+M01–M21 remain **NOT RUN**. No automated journal, QML, accessibility, local transport or storage
+fixture establishes live ORS, native QField, screen-reader, iOS Apple Maps or Android NAVER PASS.
 
 ## Fixtures and independent oracles
 
