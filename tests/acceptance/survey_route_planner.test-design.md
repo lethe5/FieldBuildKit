@@ -92,6 +92,18 @@
 - Every visit—not one reused metric-source example—has dynamic runtime accessibility for site,
   mode, source, 왕복 and distance/time, including exact-zero. Exact-zero and fallback totals remain
   separate decisive tests. iOS false/exception requires the exact FR-SRP-053 Korean message.
+- Correction-cycle-3 retry 1 rejects `ObservedState` and any `__setitem__`/`update` result journaling,
+  as well as helpers that assign every earlier production event as a causal parent. Registered hooks
+  identify and hash the concrete callback implementation and predeclared projection paths; raw callback payloads
+  are appended before a pure post-seal projection. The executable verifier tampers with both a
+  returned value and causal parents, and the source guard rejects the current mutation journal.
+- Cold-start evidence crosses a real `subprocess.Popen`/OS-PID boundary and independently reopens
+  and hashes the generated RoutePanel; UUIDs and loaded flags are not evidence. Toggle commit/readback
+  counts and changed paths are derived by the test from actual storage callback payloads, feedback
+  from its rendered object, and off/on visibility from actual QML object properties after each action.
+- AC053 uses two changing documents with at least five visits. Runtime QML Repeater/QAccessible
+  delegates cover every site/mode/source/out-and-back value, place exact-zero after index 3, and
+  reject the fixed `visitAccessibility0/1/2` implementation.
 
 The correction is intentionally RED before implementation. M01–M21 remain NOT RUN and no automated
 provenance check is native-QField, live-provider or device evidence.

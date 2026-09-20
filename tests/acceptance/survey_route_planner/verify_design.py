@@ -337,6 +337,9 @@ assert all(token in contract for token in [
     "explicit causal links", "product cold start", "route_schema",
     "non-identical source/access coordinates", "preceding valid route",
     "three separate real lifecycle callbacks", "straight-line lower bounds",
+    "`ObservedState`", "callback-owned `callback_payload`", "pure post-seal projection",
+    "`originating_event_ids`", "`subprocess.Popen`", "different OS PID",
+    "QML Repeater/QAccessible", "Fixed `visitAccessibility0/1/2` objects are invalid",
 ])
 provenance_source = inspect.getsource(module.assert_mixed_boundary_event_lineage)
 assert all(token in provenance_source for token in [
@@ -345,21 +348,31 @@ assert all(token in provenance_source for token in [
     '"seal_path"', '"finalized_at_monotonic_ns"',
     '"result_construction_started_at_monotonic_ns"',
     '"append_attempts_after_finalize"', '"capture_phase"] == "boundary_callback"',
-    '"causal_parent_observations"', '"hook_id"',
+    '"causal_parent_observations"', '"hook_id"', '"registered_boundary_hooks"',
+    '"callback_owner"', '"callback_payload"', '"event_appended_at_monotonic_ns"',
     "_contains_forbidden_replay_key", "_lineage_from_boundary_events(events)",
     "_assert_result_matches_boundary_lineage", "_assert_tampered_result_is_rejected",
+    "_assert_explicit_causal_origins", "_assert_tampered_causal_origins_are_rejected",
     "MIXED_EVENT_REQUIRED_ANCESTOR_SOURCES.get",
 ])
 driver_guard_source = inspect.getsource(module.assert_boundary_driver_has_no_result_replay)
 assert all(token in driver_guard_source for token in [
     "ast.parse", "capture_outputs", "result.items()", "result.keys()",
     "_iterates_completed_result(node.iter)", "output_bindings", "field_name_inference",
+    '"ObservedState"', '"production_parent_ids"', '"__setitem__"', '"update"',
+    '"journal_event"',
 ])
 assert "assert_boundary_driver_has_no_result_replay" in inspect.getsource(module.run)
 tamper_guard_source = inspect.getsource(module._assert_tampered_result_is_rejected)
 assert all(token in tamper_guard_source for token in [
     "deepcopy(result)", 'tampered[field] = {"tampered_result_source": field}',
     "pytest.raises(AssertionError)", "_assert_result_matches_boundary_lineage",
+])
+causal_tamper_source = inspect.getsource(module._assert_tampered_causal_origins_are_rejected)
+assert all(token in causal_tamper_source for token in [
+    "deepcopy(events)", 'event["source"] == "production_call"',
+    'tampered[target_index]["parent_event_ids"] = prior',
+    "pytest.raises(AssertionError)", "_assert_explicit_causal_origins",
 ])
 provider_evidence = inspect.getsource(module.assert_actual_failed_provider_request)
 assert 'requests[0]["kind"] == "origin-validation"' in provider_evidence
@@ -377,12 +390,15 @@ assert '"before_capture_id"' not in presentation_source and '"after_capture_id"'
 dynamic_visit_accessibility = inspect.getsource(
     module.test_ac053_every_visit_accessibility_tracks_dynamic_site_mode_source_and_roundtrip)
 assert all(token in dynamic_visit_accessibility for token in [
-    'visit_value_fixtures=["all-modes-a", "all-modes-b"]',
+    'visit_value_fixtures=["five-visits-all-modes-a", "five-visits-all-modes-b"]',
+    'sites=ACCESSIBILITY_FIVE_SITES', 'exact_zero_visit_index=4',
     '"visit_accessibility_binding_observations"', '"captured_storage"',
+    '"delegate_model_observation"', '"QML Repeater delegate"',
+    '"created_dynamically"] is True', 'visitAccessibility[0-9]+',
     '"site_id": visit["site_id"]', '"walking_mode": visit["walking_mode"]',
     '"metric_source": visit["metric_source"]', '"roundtrip": True',
     'SCHEMA3_ALLOWED_WALKING_PROVENANCE', '"왕복"',
-    "dynamic_values[:3] != dynamic_values[3:]",
+    'max(exact_zero_indices) > 3', "dynamic_values[:visit_count] != dynamic_values[visit_count:]",
 ])
 notice_source = inspect.getsource(module.test_ac054_exact_stage_sequence_privacy_and_no_incidental_writes)
 assert "coordinate_notice_acknowledged" not in notice_source
@@ -447,7 +463,9 @@ assert all(token in failed_upgrade_source for token in [
 cold_start_source = inspect.getsource(
     module.test_ac052_ac056_product_cold_start_panel_recovers_last_good_without_mutation)
 assert all(token in cold_start_source for token in [
-    'action="product-cold-start-open-panel"', '"prior_panel_destroyed"] is True',
+    'action="product-cold-start-open-panel"', '"seed_process_observation"',
+    '"cold_start_process_observation"', '"pid"] != seed_process["pid"]',
+    '"process_boundary"] == "subprocess.Popen"', '"reopened_route_panel_sha256"',
     '"RoutePanel.Component.onCompleted"', '"Controller.create"', '"Controller.reload"',
     '"Repository.load"', '"qml.open_panel"', '"controller.create"', '"controller.reload"',
     '"corrupt_newest_bytes_after"] == r["corrupt_newest_bytes_before"]',
@@ -472,9 +490,27 @@ toggle_source = inspect.getsource(
     module.test_ac058_route_line_toggle_is_one_atomic_settings_only_write_and_persists)
 assert all(token in toggle_source for token in [
     '"toggle-off"', '"panel-reopen"', '"cold-restart"', '"move-with-settings"',
-    '"toggle-on"', '"atomic_commit_count"] == 1', '"readback_count"] == 1',
-    '"changed_paths"] == ["settings.show_route_line"]',
+    '"toggle-on"', '"line_visibility_readback_observations"',
+    '"before_storage_observation"', '"commit_observations"', '"readback_observation"',
+    'changed_leaf_paths(before["document"], readback["document"])',
+    '"settings.show_route_line"', '"feedback_observation"',
     '"route_after"] == r["route_before"]', '"revision_after"] == r["revision_before"]',
+])
+assert all(token not in toggle_source for token in [
+    'write["atomic_commit_count"]', 'write["readback_count"]',
+    'write["successful_commit_count"]', 'write["changed_paths"]',
+])
+toggle_failure_source = inspect.getsource(
+    module.test_ac058_toggle_failure_rolls_back_and_reports_actionable_feedback)
+assert all(token in toggle_failure_source for token in [
+    '"success_feedback_count" not in r', '"feedback_observation"',
+    '"qml_visibility_rollback_observation"', '"storage_rollback_observation"',
+    '"storage_attempt_observations"', 'attempt["kind"] == "readback"',
+])
+preview_source = inspect.getsource(module.test_ac058_preview_and_legend_are_write_free)
+assert all(token in preview_source for token in [
+    '"passive_write_observers"', '"installed_before_action"] is True',
+    'observer["events"] == []',
 ])
 apple_source = inspect.getsource(module.test_ac055_ios_uses_exact_apple_maps_once_without_any_fallback)
 assert 'r["message"] == APPLE_MAPS_FAILURE_MESSAGE' in apple_source
