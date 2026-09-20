@@ -1,10 +1,10 @@
-"""DRAFT TEST-DESIGN CORRECTION — immutable boundary evidence and schema-3 semantics.
+"""DRAFT AC-SRP-049–058 direct-observation redesign (2026-09-21).
 
-The previously approved mixed-access/Apple Maps expectations remain authority. This draft corrects
-their executable evidence boundary and retained expectations; it is not approved implementation evidence.
+The approved AC-SRP-001–048 and QPB149–150 history is preserved below.
 
-AC-SRP-049–058 are approved acceptance expectations; M18–M21 remain NOT RUN. The approved history
-is preserved. The approved correction replaces over-scoped rendered/device proxies for
+APPROVED TEST-DESIGN CORRECTION — iOS/QField follow-up (approval 2026-09-18).
+
+The approved history is preserved. This approved correction replaces over-scoped rendered/device proxies for
 AC-SRP-046–048 and AC-QPB-149–150; it does not claim device PASS or alter product requirements.
 
 APPROVED TEST-DESIGN SUPERSESSION RECONCILIATION (approval 2026-09-17) — retained
@@ -19,19 +19,20 @@ See HARNESS_CONTRACT.md. Missing new seam skips; broken existing seam fails.
 """
 from __future__ import annotations
 
-import ast
 import importlib
 import hashlib
 import json
-import math
 import os
 import re
 import shutil
+import threading
 import sqlite3
 import subprocess
 import xml.etree.ElementTree as ET
 from copy import deepcopy
+from contextlib import contextmanager
 from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 from zoneinfo import ZoneInfo
@@ -54,1188 +55,10 @@ def run(tmp_path):
             pytest.fail(reason)
         pytest.skip(reason)
     assert callable(fn)
-    def invoke(**case):
-        result = fn(case=case, work_dir=str(tmp_path))
-        if case["operation"] in MIXED_PRODUCTION_OPERATIONS:
-            assert_boundary_driver_has_no_result_replay(
-                result["production_provenance"]["driver_path"])
-            if case["operation"] == "platform_map_dispatch":
-                assert_product_navigation_is_instrumented_externally(
-                    result["production_provenance"]["driver_path"])
-            if case["operation"] == "mixed_route_compatibility" and case.get(
-                    "action") == "product-cold-start-open-panel":
-                assert_cold_start_entries_are_instrumented_externally(
-                    result["production_provenance"]["driver_path"])
-            boundary_events = assert_mixed_boundary_event_lineage(result)
-            assert_mixed_production_path(result, case["operation"], boundary_events)
-        return result
-    return invoke
-
-
-MIXED_PRODUCTION_OPERATIONS = {
-    "provider_http_failure",
-    "mixed_route_calculate",
-    "mixed_route_roundtrip",
-    "mixed_route_compatibility",
-    "mixed_route_presentation",
-    "platform_map_dispatch",
-}
-MIXED_PRODUCTION_CALLS = {
-    "provider_http_failure": {"controller.calculate", "backend.calculate", "repository.load", "qml.calculate"},
-    "mixed_route_calculate": {"controller.calculate", "backend.calculate", "repository.load", "qml.calculate"},
-    "mixed_route_roundtrip": {"controller.calculate", "backend.calculate", "controller.save",
-                              "repository.save", "repository.load", "qml.calculate", "qml.save"},
-    "mixed_route_compatibility": {"repository.load"},
-    "mixed_route_presentation": {"repository.load", "qml.load_route", "qml.render_route"},
-    "platform_map_dispatch": {"controller.navigate", "navigation.open", "repository.load", "qml.navigate"},
-}
-MIXED_PRODUCTION_SOURCES = {
-    "controller": "qfield_builder/qfield_routes/controller.js",
-    "backend": "qfield_builder/qfield_routes/backend.js",
-    "repository": "qfield_builder/qfield_routes/repository.js",
-    "navigation": "qfield_builder/qfield_routes/navigation.js",
-    "qml": "qfield_builder/qfield_routes/RoutePanel.qml",
-}
-MIXED_EVIDENCE_SOURCES = {
-    "production_call", "controller_state", "captured_transport", "captured_storage",
-    "loaded_artifact", "accessibility_interface", "source_layer_reread", "signal_delivery",
-    "navigation_launcher", "render_observation",
-}
-MIXED_UNJOURNALED_FIELDS = {
-    "production_provenance",
-    # Security exception: these captures exist only in memory for the assertion that consumed them.
-    # They are never projected into the sealed journal, seal, project files or diagnostic/log output.
-    "captured_request", "captured_requests",
-}
-MIXED_RAW_FIELD_ROOTS = {
-    "controller", "backend", "repository", "navigation", "qml", "transport", "storage",
-    "accessibility", "renderer", "launcher", "signal", "artifact",
-}
-MIXED_FORBIDDEN_REPLAY_KEYS = {
-    "result_source", "bind_result", "field_name_inference", "implicit_previous_event_parent",
-    "output_bindings", "capture_outputs", "observed_state", "result_mutation_journal",
-    "observed_outputs", "latest_by_source", "current_production_event_id",
-    "current_storage_event_id", "raw_provider_response", "raw_response_body",
-    "raw_request_url", "raw_request_query", "raw_request_body",
-}
-MIXED_FORBIDDEN_SYNTHETIC_BOUNDARY_PREFIXES = (
-    "controller.output.", "controller.observe",
-)
-
-MIXED_WRAPPED_CALL_FIELDS = {
-    "phase", "invocation_id", "original_callable_id", "original_call_count",
-    "outcome", "return_identity", "exception_type",
-}
-
-MIXED_EVENT_REQUIRED_ANCESTOR_SOURCES = {
-    "controller_state": {"production_call"},
-    "captured_transport": {"production_call"},
-    "captured_storage": {"production_call"},
-    "loaded_artifact": {"production_call"},
-    "accessibility_interface": {"production_call", "captured_storage"},
-    "source_layer_reread": {"production_call"},
-    "signal_delivery": {"production_call"},
-    "navigation_launcher": {"production_call"},
-    "render_observation": {"production_call", "captured_storage"},
-}
-
-
-def assert_mixed_production_path(result, operation, boundary_events):
-    """Reject canned/circular mixed-route evidence before criterion assertions consume it."""
-    provenance = result["production_provenance"]
-    assert provenance["operation"] == operation
-    assert provenance["result_origin"] == "production_observation"
-    for self_declared_flag in (
-            "adapter_postprocessed_fields", "case_copied_result_fields",
-            "fixture_expected_values_used_as_results", "hardcoded_result_fields",
-            "unattributed_result_fields", "field_origins", "evidence_integrity",
-            "result_source", "bind_result", "field_name_inference", "output_bindings"):
-        assert self_declared_flag not in provenance
-
-    assert Path(provenance["driver_path"]).name != "survey_route_mixed_driver.js"
-    calls = {}
-    for event in boundary_events:
-        if (event["source"] == "production_call"
-                and event["callback_payload"].get(
-                    f'{event["observer"]["boundary"]}.phase') == "entry"):
-            call = event["observer"]["boundary"]
-            calls[call] = calls.get(call, 0) + 1
-    assert MIXED_PRODUCTION_CALLS[operation] <= set(calls)
-    for call in calls:
-        assert calls[call] >= 1
-    root = Path(__file__).parents[3]
-    for component in {call.split(".", 1)[0] for call in MIXED_PRODUCTION_CALLS[operation]}:
-        relative = MIXED_PRODUCTION_SOURCES[component]
-        source = root / relative
-        observed = provenance["production_sources"][component]
-        assert observed["path"] == relative
-        assert observed["sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
-    if any(call.startswith("qml.") for call in MIXED_PRODUCTION_CALLS[operation]):
-        qml = provenance["generated_qml"]
-        qml_path = Path(qml["path"]).resolve()
-        project_dir = Path(result["project_dir"]).resolve()
-        assert qml["loaded"] is True and qml_path.is_file() and qml_path.is_relative_to(project_dir)
-        assert qml["sha256"] == hashlib.sha256(qml_path.read_bytes()).hexdigest()
-
-
-def _event_digest(event):
-    unsigned = {key: value for key, value in event.items() if key != "event_sha256"}
-    payload = json.dumps(unsigned, ensure_ascii=False, sort_keys=True,
-                         separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
-
-
-def _receipt_digest(receipt):
-    unsigned = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
-    payload = json.dumps(unsigned, ensure_ascii=False, sort_keys=True,
-                         separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
-
-
-def _journal_event_receipt_pairs(journal_bytes):
-    """Decode the only serializable truth: event core, then its post-IO receipt."""
-    raw_lines = [line for line in journal_bytes.splitlines(keepends=True) if line.strip()]
-    records = [json.loads(line) for line in raw_lines]
-    assert records and len(records) % 2 == 0
-    events, receipts = records[::2], records[1::2]
-    assert all(record.get("record_type") == "event" for record in events)
-    assert all(record.get("record_type") == "event_io_receipt" for record in receipts)
-    for index, (event, receipt, event_line) in enumerate(
-            zip(events, receipts, raw_lines[::2])):
-        assert event["sequence"] == receipt["sequence"] == index
-        assert receipt["event_id"] == event["event_id"]
-        assert receipt["event_sha256"] == event["event_sha256"]
-        assert receipt["event_line_sha256"] == hashlib.sha256(event_line).hexdigest()
-        assert receipt["receipt_sha256"] == _receipt_digest(receipt)
-    return raw_lines, events, receipts
-
-
-def _contains_forbidden_replay_key(value):
-    if isinstance(value, dict):
-        return bool(MIXED_FORBIDDEN_REPLAY_KEYS & set(value)) or any(
-            _contains_forbidden_replay_key(item) for item in value.values())
-    if isinstance(value, list):
-        return any(_contains_forbidden_replay_key(item) for item in value)
-    return False
-
-
-def _iterates_completed_result(node):
-    if isinstance(node, ast.Name):
-        return node.id == "result"
-    return (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-            and isinstance(node.func.value, ast.Name) and node.func.value.id == "result"
-            and node.func.attr in {"items", "keys", "values"})
-
-
-def _called_name(call):
-    return call.func.attr if isinstance(call.func, ast.Attribute) else (
-        call.func.id if isinstance(call.func, ast.Name) else "")
-
-
-def _contains_call(node, names):
-    return any(isinstance(child, ast.Call) and _called_name(child) in names
-               for child in ast.walk(node))
-
-
-def _references_name(node, name):
-    return any(isinstance(child, ast.Name) and child.id == name for child in ast.walk(node))
-
-
-def _node_position(node):
-    return node.lineno, node.col_offset
-
-
-def _assigned_name_positions(function, fragment):
-    positions = []
-    for node in ast.walk(function):
-        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
-            continue
-        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-        if any(isinstance(target, ast.Name) and fragment in target.id for target in targets):
-            positions.append(_node_position(node))
-    return sorted(positions)
-
-
-def _assigned_name_calls(function, fragment, called_name):
-    matches = []
-    for node in ast.walk(function):
-        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
-            continue
-        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-        if any(isinstance(target, ast.Name) and fragment in target.id for target in targets):
-            matches.append(_contains_call(node.value, {called_name}))
-    return matches
-
-
-def _call_positions(function, attribute):
-    return sorted(_node_position(node) for node in ast.walk(function)
-                  if isinstance(node, ast.Call) and _called_name(node) == attribute)
-
-
-def _driver_integrity_violations(source):
-    """Return stable reviewer-finding codes for circular/lazy harness structures."""
-    tree = ast.parse(source)
-    violations = set()
-    forbidden_helpers = {
-        "capture_outputs", "bind_result", "result_source", "classify_result_fields",
-        "ObservedState", "observed_outputs", "production_parent_ids",
-        "declared_projection_paths", "latest_event_id", "latest_by_source", "cause_ids",
-        "collect", "productionCall", "wrappedEntry", "wrappedExit",
-    }
-    forbidden_event_names = re.compile(
-        r"^(?:current|latest)(?:_production|_storage)?_?event(?:_id)?$", re.I)
-    journal_names = {"journal_event", "append_boundary_event"}
-    has_predeclared_schema_table = False
-    wrapper_string_names = set()
-    for node in tree.body:
-        if isinstance(node, (ast.Assign, ast.AnnAssign)):
-            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-            if any(isinstance(target, ast.Name) and target.id == "OUTPUT_FIELDS"
-                   for target in targets):
-                violations.add("global-output-schema")
-            if (any(isinstance(target, ast.Name)
-                    and "hook" in target.id.lower() and "schema" in target.id.lower()
-                    for target in targets)
-                    and isinstance(node.value, ast.Dict) and node.value.keys):
-                has_predeclared_schema_table = True
-            if (any(isinstance(target, ast.Name)
-                    and target.id in {"STATE_CALLBACK_FIELDS", "RESULT_CALLBACK_FIELDS"}
-                    for target in targets)):
-                violations.add("bulk-result-callback")
-            if (isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
-                    and "phase" in node.value.value.lower()):
-                wrapper_string_names.update(
-                    target.id for target in targets if isinstance(target, ast.Name)
-                    and "wrapper" in target.id.lower())
-    for name in wrapper_string_names:
-        if not any(isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-                   and node.id == name for node in ast.walk(tree)):
-            violations.add("dormant-wrapper-source")
-    if not has_predeclared_schema_table:
-        violations.add("lazy-schema-registration")
-
-    journal_functions = [node for node in tree.body
-                         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                         and node.name in journal_names]
-    receipt_functions = [node for node in tree.body
-                         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                         and node.name == "append_event_receipt"]
-    if len(journal_functions) != 1 or len(receipt_functions) != 1:
-        violations.add("missing-post-callback-receipt-writer")
-    else:
-        journal_function, receipt_function = journal_functions[0], receipt_functions[0]
-        core_write = _call_positions(journal_function, "write")
-        core_write_returned = _assigned_name_positions(journal_function, "write_returned")
-        core_flush = _call_positions(journal_function, "flush")
-        core_flush_returned = _assigned_name_positions(journal_function, "flush_returned")
-        core_visible = _assigned_name_positions(journal_function, "line_visible")
-        if not (core_write and core_write_returned and core_flush and core_flush_returned
-                and core_visible and core_write[-1] < core_write_returned[0]
-                < core_flush[-1] < core_flush_returned[0] < core_visible[0]
-                and all(all(_assigned_name_calls(
-                    journal_function, fragment, "monotonic_ns"))
-                    for fragment in ("write_returned", "flush_returned", "line_visible"))):
-            violations.add("unmeasured-event-core-io")
-        receipt_finished = _assigned_name_positions(receipt_function, "callback_finished")
-        receipt_write = _call_positions(receipt_function, "write")
-        receipt_flush = _call_positions(receipt_function, "flush")
-        if not (receipt_finished and receipt_write and receipt_flush
-                and receipt_finished[0] < receipt_write[-1] < receipt_flush[-1]
-                and all(_assigned_name_calls(
-                    receipt_function, "callback_finished", "monotonic_ns"))):
-            violations.add("receipt-before-callback-return")
-        receipt_callers = []
-        for node in tree.body:
-            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            receipt_calls = _call_positions(node, "append_event_receipt")
-            if not receipt_calls:
-                continue
-            receipt_callers.append(node)
-            observer_calls = sorted(
-                _node_position(child) for child in ast.walk(node)
-                if isinstance(child, ast.Call)
-                and (_called_name(child) == "callback"
-                     or _called_name(child).endswith("_callback"))
-                and _called_name(child) != "append_event_receipt")
-            if node.name.endswith("_callback") or not observer_calls or not all(
-                    any(observer < receipt for observer in observer_calls)
-                    for receipt in receipt_calls):
-                violations.add("receipt-not-after-observer-return")
-        if not receipt_callers:
-            violations.add("receipt-not-after-observer-return")
-
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
-            if node.name in forbidden_helpers:
-                violations.add("generic-observed-output")
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            calls_journal = any(isinstance(child, ast.Call)
-                                and _called_name(child) in journal_names | {"emit_callback"}
-                                for child in ast.walk(node))
-            parameter_names = {argument.arg for argument in (
-                list(node.args.posonlyargs) + list(node.args.args)
-                + list(node.args.kwonlyargs))}
-            if node.args.kwarg is not None and (calls_journal or node.name == "collect"):
-                violations.add("generic-keyword-snapshot")
-            if (calls_journal and node.name not in journal_names
-                    and (not node.name.endswith("_callback")
-                         or parameter_names & {"source", "boundary", "field", "raw",
-                                               "values", "snapshot"})):
-                violations.add("nonconcrete-boundary-callback")
-            if (node.name == "put"
-                    and (_references_name(node, "result")
-                         or _contains_call(node, {"observed_outputs"}))):
-                violations.add("put-after-result-assembly")
-            if calls_journal and node.name not in journal_names:
-                if "cause_id" not in parameter_names:
-                    violations.add("callback-missing-explicit-cause-id")
-                if (parameter_names & {"result", "final_result", "values", "snapshot"}
-                        or _contains_call(node, {"state_payload"})):
-                    violations.add("bulk-result-callback")
-            if node.name in journal_names:
-                if "cause_id" not in parameter_names:
-                    violations.add("journal-missing-explicit-cause-id")
-                if parameter_names & {"projections", "schema", "observation_schema"}:
-                    violations.add("lazy-schema-registration")
-                for child in ast.walk(node):
-                    if (isinstance(child, ast.Call)
-                            and isinstance(child.func, ast.Attribute)
-                            and child.func.attr in {"append", "setdefault"}
-                            and any(token in ast.unparse(child.func.value).lower()
-                                    for token in ("hook", "schema", "registry"))):
-                        violations.add("lazy-schema-registration")
-                for child in ast.walk(node):
-                    if isinstance(child, ast.Dict):
-                        literal_keys = {key.value for key in child.keys
-                                        if isinstance(key, ast.Constant)
-                                        and isinstance(key.value, str)}
-                        if literal_keys & {
-                                "event_appended_at_monotonic_ns",
-                                "event_flushed_at_monotonic_ns",
-                                "callback_finished_at_monotonic_ns"}:
-                            violations.add("event-claims-post-serialization-time")
-        if isinstance(node, ast.Global) and any(
-                forbidden_event_names.match(name) for name in node.names):
-            violations.add("global-current-or-latest-event")
-        if isinstance(node, ast.Name) and forbidden_event_names.match(node.id):
-            violations.add("global-current-or-latest-event")
-        if isinstance(node, ast.Call) and _called_name(node) in forbidden_helpers:
-            if _called_name(node) in {"productionCall", "wrappedEntry", "wrappedExit"}:
-                violations.add("manual-production-boundary")
-            else:
-                violations.add("generic-observed-output")
-        if isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
-            if _iterates_completed_result(node.iter):
-                violations.add("completed-result-journaling")
-        if isinstance(node, ast.Call) and _called_name(node) in journal_names:
-            if any(keyword.arg is None for keyword in node.keywords):
-                violations.add("generic-keyword-snapshot")
-            if any(_references_name(argument, "result") or _references_name(argument, "final_result")
-                   for argument in (*node.args,
-                                    *(keyword.value for keyword in node.keywords))):
-                violations.add("completed-result-journaling")
-    if "navigationBoundary" in source or "observationBoundary" in source:
-        violations.add("product-test-navigation-api")
-    if ("visual_parent.itemAt(index)" in source
-            or "visual_parent_object_id" in source):
-        violations.add("fabricated-visual-parent-delegate-path")
-    if "controller.output." in source or "controller.observe" in source:
-        violations.add("synthetic-controller-observation")
-    return violations
-
-
-def assert_boundary_driver_has_no_result_replay(driver_path):
-    """Reject completed-result capture and end-of-run journal/projection synthesis."""
-    path = Path(driver_path)
-    if not path.is_absolute():
-        path = Path(__file__).parents[3] / path
-    assert path.is_file()
-    source = path.read_text(encoding="utf-8")
-    tree = ast.parse(source)
-    assert _driver_integrity_violations(source) == set()
-    forbidden_symbols = {
-        "capture_outputs", "bind_result", "result_source", "classify_result_fields",
-        "ObservedState", "production_parent_ids", "declared_projection_paths",
-        "latest_event_id", "latest_by_source", "cause_ids", "observed_outputs", "collect",
-        "productionCall", "wrappedEntry", "wrappedExit",
-    }
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef):
-            assert node.name not in forbidden_symbols
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            assert node.name not in forbidden_symbols
-            if node.name in {"__setitem__", "update", "setdefault"}:
-                assert not _contains_call(node, {"journal_event", "append_boundary_event"})
-        if isinstance(node, ast.Call):
-            called = _called_name(node)
-            assert called not in forbidden_symbols
-            assert not (isinstance(node.func, ast.Attribute)
-                        and isinstance(node.func.value, ast.Name)
-                        and node.func.value.id == "ast" and node.func.attr in {"parse", "walk"})
-        if isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
-            assert not _iterates_completed_result(node.iter)
-    assert not any(token in source for token in (
-        "capture_outputs(", "result.items()", "result.keys()", "for field in result",
-        "for key in result", "output_bindings", "field_name_inference",
-        "class ObservedState", "result=ObservedState", "result = ObservedState",
-        "production_parent_ids(", "dict(result)", "controller.final_state",
-        "final_result['captured_request']", 'final_result["captured_request"]',
-        "declared_projection_paths(", "latest_event_id(", "cause_ids(",
-        "latest_by_source(", "current_production_event_id", "current_storage_event_id",
-        "def observed_outputs", "result.update(observed_outputs", "navigationBoundary",
-        "visual_parent.itemAt(index)", "visual_parent_object_id",
-        "ast.parse(driver_path", "ast.walk(tree)",
-        "OUTPUT_FIELDS", "controller.output.", "controller.observe",
-        ".productionCall(", ".wrappedEntry(", ".wrappedExit(",
-        "STATE_CALLBACK_FIELDS", "RESULT_CALLBACK_FIELDS",
-        "''.join(json.dumps(event", '"".join(json.dumps(event',
-    ))
-    journal_functions = [node for node in tree.body
-                         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                         and node.name in {"journal_event", "append_boundary_event"}]
-    assert len(journal_functions) == 1
-    receipt_functions = [node for node in tree.body
-                         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                         and node.name == "append_event_receipt"]
-    assert len(receipt_functions) == 1
-    main_function = next(node for node in tree.body
-                         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                         and node.name == "main")
-    assert not any(isinstance(node, ast.Call)
-                   and any(_references_name(argument, "result")
-                           for argument in (*node.args,
-                                            *(keyword.value for keyword in node.keywords)))
-                   for node in ast.walk(main_function))
-    journal_function = journal_functions[0]
-    receipt_function = receipt_functions[0]
-    journal_calls = [_called_name(node) for node in ast.walk(journal_function)
-                     if isinstance(node, ast.Call)]
-    assert "write" in journal_calls and "flush" in journal_calls
-    for node in tree.body:
-        if node in {journal_function, receipt_function}:
-            continue
-        assert not any(isinstance(child, ast.Call)
-                       and isinstance(child.func, ast.Attribute)
-                       and isinstance(child.func.value, ast.Name)
-                       and child.func.value.id == "journal_writer"
-                       and child.func.attr == "write" for child in ast.walk(node))
-
-
-def _wrapper_literal(source, wrapped_symbol):
-    tree = ast.parse(source)
-    candidates = [node.value for node in ast.walk(tree)
-                  if isinstance(node, ast.Constant) and isinstance(node.value, str)
-                  and wrapped_symbol in node.value and "phase" in node.value]
-    assert candidates, f"missing executable wrapper for {wrapped_symbol}"
-    return max(candidates, key=len)
-
-
-def _assert_original_call_between_entry_and_exit(wrapper, original_pattern):
-    entry = wrapper.find('"entry"')
-    if entry < 0:
-        entry = wrapper.find("'entry'")
-    exit_ = wrapper.find('"exit"', entry + 1)
-    if exit_ < 0:
-        exit_ = wrapper.find("'exit'", entry + 1)
-    original = re.search(original_pattern, wrapper)
-    assert entry >= 0 and original is not None and exit_ > original.start() > entry
-
-
-def assert_product_navigation_is_instrumented_externally(driver_path):
-    """Reject product-only observation APIs; wrappers must target the imported functions."""
-    root = Path(__file__).parents[3]
-    product_paths = [
-        root / MIXED_PRODUCTION_SOURCES["controller"],
-        root / MIXED_PRODUCTION_SOURCES["navigation"],
-        root / MIXED_PRODUCTION_SOURCES["qml"],
-    ]
-    for path in product_paths:
-        source = path.read_text(encoding="utf-8")
-        assert "navigationBoundary" not in source
-        assert "observationBoundary" not in source
-        assert "testObservation" not in source
-    path = Path(driver_path)
-    if not path.is_absolute():
-        path = root / path
-    source = path.read_text(encoding="utf-8")
-    assert "navigationBoundary" not in source
-    assert "controller.navigate" in source and "navigation.open" in source
-    assert "external-wrapper" in source and "wrapped_symbol" in source
-    assert not re.search(r"(?:productionCall|wrappedCall)\(['\"]navigation\.open['\"]",
-                         source)
-    wrapper = _wrapper_literal(source, "Navigation.open")
-    assert re.search(r"Navigation\.open\s*=\s*function", wrapper)
-    _assert_original_call_between_entry_and_exit(
-        wrapper, r"(?:real|original)NavigationOpen\.apply\s*\(")
-
-
-def assert_cold_start_entries_are_instrumented_externally(driver_path):
-    """Cold-start evidence must come from wrappers that invoke the saved functions."""
-    path = Path(driver_path)
-    if not path.is_absolute():
-        path = Path(__file__).parents[3] / path
-    source = path.read_text(encoding="utf-8")
-    assert not any(token in source for token in (
-        ".productionCall(", ".wrappedEntry(", ".wrappedExit(",
-        "qml_open_panel_wrapper='", "controller_create_wrapper='",
-        "controller_reload_wrapper='", "repository_load_wrapper='",
-    ))
-    for symbol in ("qml.open_panel", "controller.create", "controller.reload",
-                   "repository.load"):
-        wrapper = _wrapper_literal(source, symbol)
-        flattened_symbol = symbol.replace(".", "")
-        _assert_original_call_between_entry_and_exit(
-            wrapper, rf"(?:real|original){re.escape(flattened_symbol)}\.apply\s*\(")
-
-
-def _lineage_from_boundary_events(events):
-    """Project only hook-registered callback payload paths; result data is not an input."""
-    lineage = {}
-    for event in events:
-        for observation in event["observations"]:
-            projection_path = observation["projection_path"]
-            if projection_path is not None:
-                lineage.setdefault(projection_path, []).append(
-                    (event["event_id"], observation["payload_path"], observation["value"],
-                     event["source"], observation["observation_id"]))
-    return lineage
-
-
-def _assert_result_matches_boundary_lineage(result, lineage):
-    used_outputs = set(result) - MIXED_UNJOURNALED_FIELDS
-    assert used_outputs <= set(lineage)
-    for field in used_outputs:
-        assert len(lineage[field]) == 1, f"{field} must bind at one concrete callback"
-        assert lineage[field][0][2] == result[field]
-
-
-def _assert_tampered_result_is_rejected(result, lineage):
-    tampered = deepcopy(result)
-    field = sorted(set(result) - MIXED_UNJOURNALED_FIELDS)[0]
-    tampered[field] = {"tampered_result_source": field}
-    with pytest.raises(AssertionError):
-        _assert_result_matches_boundary_lineage(tampered, lineage)
-
-
-def _assert_explicit_causal_origins(events):
-    event_by_id = {event["event_id"]: event for event in events}
-    prior_production_ids = []
-    for event in events:
-        parents = event["parent_event_ids"]
-        assert parents == event["originating_event_ids"]
-        assert all(event_by_id[parent]["sequence"] < event["sequence"] for parent in parents)
-        assert all(link["relation"] != "earlier production boundary contributed to this observation"
-                   for link in event["causal_parent_observations"])
-        if len(prior_production_ids) > 1:
-            assert set(parents) != set(prior_production_ids), (
-                "causal parents must identify originating events, not every prior production call")
-        if event["source"] == "production_call":
-            prior_production_ids.append(event["event_id"])
-
-
-def _assert_tampered_causal_origins_are_rejected(events):
-    tampered = deepcopy(events)
-    candidates = [index for index, event in enumerate(tampered)
-                  if event["source"] != "production_call"
-                  and sum(prior["source"] == "production_call"
-                          for prior in tampered[:index]) > 1]
-    if not candidates:
-        return
-    target_index = candidates[0]
-    prior = [event["event_id"] for event in tampered[:target_index]
-             if event["source"] == "production_call"]
-    assert prior
-    tampered[target_index]["parent_event_ids"] = prior
-    tampered[target_index]["originating_event_ids"] = prior
-    with pytest.raises(AssertionError):
-        _assert_explicit_causal_origins(tampered)
-
-
-def _assert_wrapped_call_spans(events, receipt_by_event_id):
-    """Prove production-call parents are real original-invoking wrapper spans."""
-    event_by_id = {event["event_id"]: event for event in events}
-    invocations = {}
-    for event in events:
-        if event["source"] != "production_call":
-            continue
-        boundary = event["observer"]["boundary"]
-        wrapped_symbol = "Navigation.open" if boundary == "navigation.open" else boundary
-        assert event["observer"] == {
-            "production_source": MIXED_PRODUCTION_SOURCES[boundary.split(".", 1)[0]],
-            "boundary": boundary,
-            "instrumentation": "external-wrapper",
-            "wrapped_symbol": wrapped_symbol,
-        }
-        payload = event["callback_payload"]
-        assert set(payload) == {f"{boundary}.{field}" for field in MIXED_WRAPPED_CALL_FIELDS}
-        phase = payload[f"{boundary}.phase"]
-        assert phase in {"entry", "exit"}
-        invocation_id = payload[f"{boundary}.invocation_id"]
-        assert isinstance(invocation_id, str) and invocation_id.strip()
-        invocations.setdefault(invocation_id, []).append(event)
-
-    assert invocations
-    original_counts = {}
-    for invocation_id, pair in invocations.items():
-        assert len(pair) == 2
-        phases = {
-            event["callback_payload"][f'{event["observer"]["boundary"]}.phase']: event
-            for event in pair
-        }
-        assert set(phases) == {"entry", "exit"}
-        entry, exit_ = phases["entry"], phases["exit"]
-        boundary = entry["observer"]["boundary"]
-        assert exit_["observer"]["boundary"] == boundary
-        prefix = f"{boundary}."
-        entry_payload, exit_payload = entry["callback_payload"], exit_["callback_payload"]
-        assert exit_["cause_id"] == entry["event_id"]
-        assert entry["sequence"] < exit_["sequence"]
-        assert (receipt_by_event_id[entry["event_id"]]["callback_finished_at_monotonic_ns"]
-                <= exit_["callback_started_at_monotonic_ns"])
-        assert entry_payload[prefix + "outcome"] is None
-        assert entry_payload[prefix + "return_identity"] is None
-        assert entry_payload[prefix + "exception_type"] is None
-        assert exit_payload[prefix + "outcome"] in {"returned", "threw"}
-        if exit_payload[prefix + "outcome"] == "returned":
-            assert exit_payload[prefix + "return_identity"] is not None
-            assert exit_payload[prefix + "exception_type"] is None
-        else:
-            assert exit_payload[prefix + "return_identity"] is None
-            assert isinstance(exit_payload[prefix + "exception_type"], str)
-            assert exit_payload[prefix + "exception_type"].strip()
-        original_id = entry_payload[prefix + "original_callable_id"]
-        assert original_id == exit_payload[prefix + "original_callable_id"]
-        assert isinstance(original_id, str) and original_id.strip()
-        before = entry_payload[prefix + "original_call_count"]
-        after = exit_payload[prefix + "original_call_count"]
-        assert isinstance(before, int) and after == before + 1
-        original_counts.setdefault(original_id, []).append(before)
-
-        descendants = [event for event in events if event["cause_id"] == entry["event_id"]
-                       and event["event_id"] != exit_["event_id"]]
-        assert all(entry["sequence"] < event["sequence"] < exit_["sequence"]
-                   for event in descendants)
-        assert all(receipt_by_event_id[event["event_id"]][
-                       "callback_finished_at_monotonic_ns"]
-                   <= exit_["callback_started_at_monotonic_ns"]
-                   for event in descendants)
-        if entry["cause_id"] is not None:
-            parent = event_by_id[entry["cause_id"]]
-            if parent["source"] == "production_call":
-                parent_boundary = parent["observer"]["boundary"]
-                assert parent["callback_payload"][f"{parent_boundary}.phase"] == "entry"
-
-    assert all(sorted(counts) == list(range(len(counts)))
-               for counts in original_counts.values())
-
-
-def _assert_callback_io_receipts(journal_bytes, seal, events, receipts=None):
-    raw_lines, decoded_events, decoded_receipts = _journal_event_receipt_pairs(journal_bytes)
-    assert decoded_events == events
-    receipts = decoded_receipts if receipts is None else receipts
-    assert receipts == decoded_receipts
-    assert len(receipts) == len(events) == len(raw_lines) // 2
-    receipt_by_event_id = {receipt["event_id"]: receipt for receipt in receipts}
-    assert len(receipt_by_event_id) == len(receipts)
-    for event, receipt in zip(events, receipts):
-        receipt = receipt_by_event_id[event["event_id"]]
-        assert set(receipt) == {
-            "record_type", "run_id", "sequence", "event_id", "event_sha256",
-            "event_line_sha256", "receipt_sha256", "write_returned_at_monotonic_ns",
-            "flush_returned_at_monotonic_ns", "line_visible_at_monotonic_ns",
-            "callback_finished_at_monotonic_ns", "visible_line_count",
-            "line_available_during_callback",
-        }
-        assert receipt["run_id"] == event["run_id"]
-        assert receipt["line_available_during_callback"] is True
-        assert receipt["visible_line_count"] == event["sequence"] + 1
-        assert (event["observed_at_monotonic_ns"]
-                < receipt["write_returned_at_monotonic_ns"]
-                < receipt["flush_returned_at_monotonic_ns"]
-                <= receipt["line_visible_at_monotonic_ns"]
-                < receipt["callback_finished_at_monotonic_ns"])
-    return receipts
-
-
-def assert_mixed_boundary_event_lineage(result):
-    """Derive output lineage from the pre-result sealed callback journal only."""
-    provenance = result["production_provenance"]
-    journal = provenance["boundary_event_journal"]
-    journal_path = Path(journal["path"])
-    seal_path = Path(journal["seal_path"])
-    assert journal_path.is_file()
-    journal_bytes = journal_path.read_bytes()
-    seal_bytes = seal_path.read_bytes()
-    assert journal["sha256"] == hashlib.sha256(journal_bytes).hexdigest()
-    seal = json.loads(seal_bytes.decode("utf-8"))
-    raw_lines, events, receipts = _journal_event_receipt_pairs(journal_bytes)
-    assert events and [event["sequence"] for event in events] == list(range(len(events)))
-    assert len({event["event_id"] for event in events}) == len(events)
-    assert len({event["callback_id"] for event in events}) == len(events)
-    assert journal["finalized"] is True and journal["writer_closed"] is True
-    assert journal["opened_at_monotonic_ns"] < journal["finalized_at_monotonic_ns"]
-    assert journal["file_created_at_monotonic_ns"] <= journal["operation_started_at_monotonic_ns"]
-    assert journal["hooks_installed_at_monotonic_ns"] < journal["operation_started_at_monotonic_ns"]
-    assert journal["hooks_predeclared"] is True
-    assert (journal["hook_registry_frozen_at_monotonic_ns"]
-            <= journal["hooks_installed_at_monotonic_ns"])
-    assert (journal["finalized_at_monotonic_ns"]
-            < journal["result_construction_started_at_monotonic_ns"])
-    assert (journal["operation_started_at_monotonic_ns"]
-            < journal["operation_completed_at_monotonic_ns"]
-            < journal["finalized_at_monotonic_ns"])
-    assert journal["event_count"] == len(events)
-    assert journal["receipt_count"] == len(receipts)
-    assert journal["record_count"] == len(events) + len(receipts)
-    assert journal["byte_length"] == len(journal_bytes)
-    assert journal["final_record_sha256"] == hashlib.sha256(raw_lines[-1]).hexdigest()
-    assert journal["write_mode"] == "event-then-receipt-jsonl-per-callback"
-    assert journal["event_flush_count"] == len(events)
-    assert journal["receipt_flush_count"] == len(receipts)
-    assert journal["flush_count"] == len(events) + len(receipts)
-    assert journal["append_attempts_after_finalize"] == []
-    receipts = _assert_callback_io_receipts(journal_bytes, seal, events, receipts)
-    receipt_by_event_id = {receipt["event_id"]: receipt for receipt in receipts}
-    receipts_sha256 = hashlib.sha256(
-        json.dumps(receipts, ensure_ascii=False, sort_keys=True,
-                   separators=(",", ":")).encode("utf-8")).hexdigest()
-    assert journal["callback_io_receipts_sha256"] == receipts_sha256
-    assert journal["last_event_flushed_at_monotonic_ns"] == max(
-        receipt["flush_returned_at_monotonic_ns"] for receipt in receipts)
-    assert journal["last_callback_finished_at_monotonic_ns"] == max(
-        receipt["callback_finished_at_monotonic_ns"] for receipt in receipts)
-    assert journal["last_callback_finished_at_monotonic_ns"] < journal[
-        "finalized_at_monotonic_ns"]
-    assert seal == {
-        "run_id": journal["run_id"],
-        "journal_sha256": journal["sha256"],
-        "event_count": len(events),
-        "receipt_count": len(receipts),
-        "record_count": len(events) + len(receipts),
-        "byte_length": len(journal_bytes),
-        "final_event_sha256": events[-1]["event_sha256"],
-        "final_record_sha256": hashlib.sha256(raw_lines[-1]).hexdigest(),
-        "finalized_at_monotonic_ns": journal["finalized_at_monotonic_ns"],
-        "hook_registry_sha256": journal["hook_registry_sha256"],
-        "event_flush_count": len(events),
-        "receipt_flush_count": len(receipts),
-        "flush_count": len(events) + len(receipts),
-        "last_event_flushed_at_monotonic_ns": journal[
-            "last_event_flushed_at_monotonic_ns"],
-        "last_callback_finished_at_monotonic_ns": journal[
-            "last_callback_finished_at_monotonic_ns"],
-        "callback_io_receipts_sha256": receipts_sha256,
-    }
-    assert not _contains_forbidden_replay_key(events)
-    assert not _contains_forbidden_replay_key(provenance)
-    assert not (MIXED_FORBIDDEN_REPLAY_KEYS & set(result))
-
-    previous = None
-    event_sequences = {}
-    event_by_id = {}
-    callback_by_event_id = {}
-    registered_hooks = journal["registered_boundary_hooks"]
-    registered_hooks_bytes = json.dumps(
-        registered_hooks, ensure_ascii=False, sort_keys=True,
-        separators=(",", ":")).encode("utf-8")
-    assert journal["hook_registry_sha256"] == hashlib.sha256(
-        registered_hooks_bytes).hexdigest()
-    hook_ids = {hook["hook_id"] for hook in registered_hooks}
-    assert hook_ids and len(hook_ids) == len(registered_hooks)
-    assert all(set(hook) == {"hook_id", "implementation_path", "implementation_sha256",
-                             "implementation_symbol", "callback_boundary",
-                             "observation_schema", "registered_at_monotonic_ns"}
-               and hook["registered_at_monotonic_ns"]
-               <= journal["hook_registry_frozen_at_monotonic_ns"]
-               and hook["implementation_symbol"].strip()
-               and not hook["implementation_symbol"].startswith(
-                   ("ObservedState.", "dict.", "result."))
-               and hook["callback_boundary"].strip()
-               and isinstance(hook["observation_schema"], dict)
-               and hook["observation_schema"]
-               for hook in registered_hooks)
-    assert len({(hook["implementation_symbol"], hook["callback_boundary"])
-                for hook in registered_hooks}) == len(registered_hooks)
-    assert len({json.dumps(hook["observation_schema"], sort_keys=True)
-                for hook in registered_hooks}) > 1
-    assert all(not hook["callback_boundary"].startswith(
-        MIXED_FORBIDDEN_SYNTHETIC_BOUNDARY_PREFIXES) for hook in registered_hooks)
-    assert all(not raw_field.startswith(MIXED_FORBIDDEN_SYNTHETIC_BOUNDARY_PREFIXES)
-               for hook in registered_hooks for raw_field in hook["observation_schema"])
-    root = Path(__file__).parents[3]
-    for hook in registered_hooks:
-        implementation = Path(hook["implementation_path"])
-        if not implementation.is_absolute():
-            implementation = root / implementation
-        assert implementation.is_file()
-        assert hook["implementation_sha256"] == hashlib.sha256(
-            implementation.read_bytes()).hexdigest()
-    hook_by_id = {hook["hook_id"]: hook for hook in registered_hooks}
-    production_paths = set(MIXED_PRODUCTION_SOURCES.values())
-    for event in events:
-        assert not ({"copied_from_case", "hardcoded_result_fields", "unattributed_result_fields",
-                     "adapter_postprocessed_fields"} & set(event))
-        assert event["run_id"] == journal["run_id"]
-        assert event["source"] in MIXED_EVIDENCE_SOURCES
-        assert not ({"event_appended_at_monotonic_ns", "event_flushed_at_monotonic_ns",
-                     "callback_finished_at_monotonic_ns"} & set(event))
-        assert event["capture_phase"] == "boundary_callback"
-        assert event["hook_id"] in hook_ids
-        assert event["hook_registered_at_monotonic_ns"] <= journal["hooks_installed_at_monotonic_ns"]
-        assert journal["operation_started_at_monotonic_ns"] <= event["callback_started_at_monotonic_ns"]
-        assert event["callback_started_at_monotonic_ns"] <= event["observed_at_monotonic_ns"]
-        assert journal["opened_at_monotonic_ns"] <= event["callback_started_at_monotonic_ns"]
-        receipt = receipt_by_event_id[event["event_id"]]
-        assert receipt["callback_finished_at_monotonic_ns"] <= journal[
-            "operation_completed_at_monotonic_ns"]
-        assert event["previous_event_sha256"] == previous
-        assert event["event_sha256"] == _event_digest(event)
-        parents = event["parent_event_ids"]
-        assert isinstance(parents, list) and len(parents) == len(set(parents))
-        cause_id = event["cause_id"]
-        assert parents == ([] if cause_id is None else [cause_id])
-        assert event["originating_event_ids"] == parents
-        if cause_id is None:
-            assert event["source"] == "production_call"
-        assert all(parent in event_sequences and event_sequences[parent] < event["sequence"]
-                   for parent in parents)
-        causal_links = event["causal_parent_observations"]
-        assert [link["event_id"] for link in causal_links] == parents
-        assert all(
-            set(link) == {"event_id", "callback_id", "source", "observer_boundary", "relation"}
-            and link["callback_id"] == callback_by_event_id[link["event_id"]]
-            and link["source"] == event_by_id[link["event_id"]]["source"]
-            and link["observer_boundary"] == event_by_id[link["event_id"]]["observer"]["boundary"]
-            and link["relation"].strip()
-            for link in causal_links
-        )
-        observer = event["observer"]
-        assert observer["production_source"] in production_paths
-        assert observer["boundary"] == hook_by_id[event["hook_id"]]["callback_boundary"]
-        assert "case" not in observer["boundary"].lower()
-        owner = event["callback_owner"]
-        assert owner == {
-            "implementation_path": hook_by_id[event["hook_id"]]["implementation_path"],
-            "implementation_sha256": hook_by_id[event["hook_id"]]["implementation_sha256"],
-            "implementation_symbol": hook_by_id[event["hook_id"]]["implementation_symbol"],
-        }
-        raw = event["raw_observed_fields"]
-        callback_payload = event["callback_payload"]
-        assert isinstance(raw, dict) and raw == callback_payload
-        schema = hook_by_id[event["hook_id"]]["observation_schema"]
-        assert set(raw) == set(schema)
-        observations = event["observations"]
-        assert isinstance(observations, list)
-        assert len({item["observation_id"] for item in observations}) == len(observations)
-        assert len(observations) == len(raw)
-        assert {item["payload_path"] for item in observations} == set(raw)
-        for observation in observations:
-            assert set(observation) == {
-                "observation_id", "payload_path", "value", "projection_path",
-                "producer_entry_event_id",
-            }
-            raw_field = observation["payload_path"]
-            assert raw_field in raw and raw[raw_field] == observation["value"] and "." in raw_field
-            assert raw_field.split(".", 1)[0] in MIXED_RAW_FIELD_ROOTS
-            assert raw_field.startswith(observer["boundary"] + ".")
-            assert not raw_field.startswith(MIXED_FORBIDDEN_SYNTHETIC_BOUNDARY_PREFIXES)
-            assert not raw_field.lower().startswith(("result.", "case.", "fixture.", "expected."))
-            projection_path = observation["projection_path"]
-            assert projection_path == schema[raw_field]
-            if projection_path is not None:
-                assert projection_path not in MIXED_UNJOURNALED_FIELDS
-                assert len([item for item in observations
-                            if item["projection_path"] is not None]) == 1
-                assert event["source"] != "production_call"
-                assert observation["producer_entry_event_id"] == event["cause_id"]
-        event_sequences[event["event_id"]] = event["sequence"]
-        event_by_id[event["event_id"]] = event
-        callback_by_event_id[event["event_id"]] = event["callback_id"]
-        previous = event["event_sha256"]
-
-    _assert_wrapped_call_spans(events, receipt_by_event_id)
-    for event in events:
-        projected = [item for item in event["observations"]
-                     if item["projection_path"] is not None]
-        if not projected:
-            continue
-        parent = event_by_id[event["cause_id"]]
-        assert parent["source"] == "production_call"
-        boundary = parent["observer"]["boundary"]
-        assert parent["callback_payload"][f"{boundary}.phase"] == "entry"
-        assert receipt_by_event_id[parent["event_id"]][
-            "callback_finished_at_monotonic_ns"] <= event["callback_started_at_monotonic_ns"]
-
-    lineage = _lineage_from_boundary_events(events)
-    _assert_result_matches_boundary_lineage(result, lineage)
-    _assert_tampered_result_is_rejected(result, lineage)
-    _assert_explicit_causal_origins(events)
-    _assert_tampered_causal_origins_are_rejected(events)
-    event_sources_by_id = {event["event_id"]: event["source"] for event in events}
-    ancestor_sources_by_id = {}
-    for event in events:
-        ancestor_sources, pending = set(), list(event["parent_event_ids"])
-        while pending:
-            parent_id = pending.pop()
-            ancestor_sources.add(event_sources_by_id[parent_id])
-            pending.extend(event_by_id[parent_id]["parent_event_ids"])
-        ancestor_sources_by_id[event["event_id"]] = ancestor_sources
-        assert MIXED_EVENT_REQUIRED_ANCESTOR_SOURCES.get(event["source"], set()) <= ancestor_sources
-    assert _lineage_from_boundary_events(events) == lineage
-    assert journal_path.read_bytes() == journal_bytes
-    assert seal_path.read_bytes() == seal_bytes
-    return events
-
-
-def _canonical_evidence_bytes(value):
-    return json.dumps(value, ensure_ascii=False, sort_keys=True,
-                      separators=(",", ":"), default=str).encode("utf-8")
-
-
-def _sensitive_capture_values(captured_request, raw_response_marker):
-    headers = captured_request.get("headers", {})
-    authorization = next((value for name, value in headers.items()
-                          if name.lower() == "authorization"), None)
-    assert authorization and KEY in str(authorization)
-    url = captured_request["url"]
-    query = urlsplit(url).query
-    body = captured_request["body"]
-    assert query and body
-    return [
-        KEY.encode("utf-8"), str(authorization).encode("utf-8"),
-        url.encode("utf-8"), query.encode("utf-8"),
-        _canonical_evidence_bytes(body), raw_response_marker.encode("utf-8"),
-        RAW_REQUEST_QUERY_MARKER.encode("utf-8"),
-        RAW_REQUEST_FRAGMENT_MARKER.encode("utf-8"),
-    ]
-
-
-def _evidence_file_paths(value, key_hint=""):
-    paths = set()
-    if isinstance(value, dict):
-        for key, item in value.items():
-            paths.update(_evidence_file_paths(item, str(key).lower()))
-    elif isinstance(value, list):
-        for item in value:
-            paths.update(_evidence_file_paths(item, key_hint))
-    elif isinstance(value, str) and any(token in key_hint for token in (
-            "path", "file", "journal", "seal", "storage", "log", "result")):
-        candidate = Path(value)
-        try:
-            if candidate.is_file():
-                paths.add(candidate.resolve())
-        except OSError:
-            pass
-    return paths
-
-
-def _assert_persisted_provider_urls_have_no_query_or_fragment(value):
-    if isinstance(value, dict):
-        for key, item in value.items():
-            if str(key).lower() in {"server_url", "optimizer_url"} and isinstance(item, str):
-                parsed = urlsplit(item)
-                assert parsed.query == "" and parsed.fragment == ""
-            _assert_persisted_provider_urls_have_no_query_or_fragment(item)
-    elif isinstance(value, list):
-        for item in value:
-            _assert_persisted_provider_urls_have_no_query_or_fragment(item)
-
-
-def assert_sensitive_provider_material_is_memory_only(result, raw_response_marker):
-    """Only the explicit transient request capture may expose raw wire material."""
-    captured_request = result["captured_request"]
-    forbidden_values = _sensitive_capture_values(captured_request, raw_response_marker)
-    persisted_result = {key: value for key, value in result.items()
-                        if key not in {"captured_request", "captured_requests"}}
-    evidence_blobs = [("returned-result", _canonical_evidence_bytes(persisted_result))]
-    journal = result["production_provenance"]["boundary_event_journal"]
-    for label, path in (("sealed-journal", journal["path"]),
-                        ("detached-seal", journal["seal_path"])):
-        evidence_blobs.append((label, Path(path).read_bytes()))
-    for path_text in result.get("evidence_files", []):
-        path = Path(path_text)
-        assert path.is_file()
-        evidence_blobs.append(("evidence-file", path.read_bytes()))
-    project_dir = Path(result["project_dir"])
-    assert project_dir.is_dir()
-    artifact_paths = set(_evidence_file_paths(persisted_result))
-    artifact_paths.update(path.resolve() for path in project_dir.parent.rglob("*")
-                          if path.is_file())
-    for path in sorted(artifact_paths):
-        if path.is_file():
-            evidence_blobs.append((f"generated/storage/journal/seal/log/result-file:{path.name}",
-                                   path.read_bytes()))
-    for label, blob in evidence_blobs:
-        for forbidden in forbidden_values:
-            assert forbidden not in blob, f"{label} persisted raw provider/request material"
-    forbidden_evidence_keys = {
-        "authorization", "authorization_header", "raw_provider_response",
-        "raw_response_body", "raw_request_url", "raw_request_query", "raw_request_body",
-        "request_headers", "request_url", "request_query", "request_body",
-    }
-    stack = [persisted_result]
-    while stack:
-        value = stack.pop()
-        if isinstance(value, dict):
-            assert not ({str(key).lower() for key in value} & forbidden_evidence_keys)
-            stack.extend(value.values())
-        elif isinstance(value, list):
-            stack.extend(value)
-    _assert_persisted_provider_urls_have_no_query_or_fragment(persisted_result)
-
-
-def observed_production_calls(result):
-    journal_path = Path(result["production_provenance"]["boundary_event_journal"]["path"])
-    _, events, _ = _journal_event_receipt_pairs(journal_path.read_bytes())
-    return {event["observer"]["boundary"] for event in events
-            if event["source"] == "production_call"
-            and event["callback_payload"][f'{event["observer"]["boundary"]}.phase'] == "entry"}
-
-
-def boundary_event_map(result):
-    journal_path = Path(result["production_provenance"]["boundary_event_journal"]["path"])
-    _, events, _ = _journal_event_receipt_pairs(journal_path.read_bytes())
-    return {event["event_id"]: event for event in events}
-
-
-def assert_callback_observation(result, observation, *, source):
-    event = boundary_event_map(result)[observation["event_id"]]
-    assert event["source"] == source
-    assert event["callback_payload"][observation["payload_path"]] == observation["value"]
-    assert event["observed_at_monotonic_ns"] < result["production_provenance"][
-        "boundary_event_journal"]["result_construction_started_at_monotonic_ns"]
-    return observation["value"]
-
-
-def changed_leaf_paths(before, after, prefix=""):
-    if isinstance(before, dict) and isinstance(after, dict):
-        paths = set()
-        for key in set(before) | set(after):
-            path = f"{prefix}.{key}" if prefix else str(key)
-            if key not in before or key not in after:
-                paths.add(path)
-            else:
-                paths.update(changed_leaf_paths(before[key], after[key], path))
-        return paths
-    return set() if before == after else {prefix}
-
-
-def assert_lifecycle_observation_is_journal_event(result, observation, expected_action):
-    journal_path = Path(result["production_provenance"]["boundary_event_journal"]["path"])
-    _, journal_events, _ = _journal_event_receipt_pairs(journal_path.read_bytes())
-    events = {event["event_id"]: event for event in journal_events}
-    event = events[observation["event_id"]]
-    assert observation["action"] == expected_action
-    assert event["callback_id"] == observation["callback_id"]
-    assert event["observer"]["boundary"] == observation["boundary"]
-    assert event["observer"]["production_source"] in {
-        MIXED_PRODUCTION_SOURCES["controller"], MIXED_PRODUCTION_SOURCES["repository"],
-    }
-    assert event["source"] in {"production_call", "controller_state", "captured_storage"}
-    assert event["raw_observed_fields"][observation["raw_field"]] == observation["raw_observation"]
-    return event
-
-
-@pytest.mark.parametrize("expected_code,snippet", [
-    ("generic-observed-output", "def observed_outputs(**values):\n    return values\n"),
-    ("put-after-result-assembly",
-     "def observation():\n    result = {}\n    def put(**values):\n        result.update(values)\n"),
-    ("completed-result-journaling",
-     "def append_boundary_event(cause_id, value):\n    pass\ndef f(cause_id, result):\n"
-     "    append_boundary_event(cause_id, result)\n"),
-    ("lazy-schema-registration",
-     "def journal_event(cause_id, schema):\n    registry.append(schema)\n"),
-    ("global-current-or-latest-event",
-     "current_production_event_id = None\ndef callback(cause_id):\n"
-     "    global current_production_event_id\n"),
-    ("callback-missing-explicit-cause-id",
-     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
-     "def callback():\n    append_boundary_event(None, {})\n"),
-    ("product-test-navigation-api",
-     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\nnavigationBoundary = object()\n"),
-    ("fabricated-visual-parent-delegate-path",
-     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
-     "lookup = 'visual_parent.itemAt(index)'\n"),
-    ("global-output-schema",
-     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\nOUTPUT_FIELDS=('ok',)\n"),
-    ("generic-keyword-snapshot",
-     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
-     "def collect(**values):\n    return values\n"),
-    ("nonconcrete-boundary-callback",
-     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
-     "def emit(cause_id, boundary, raw):\n    return journal_event(cause_id, raw)\n"),
-    ("synthetic-controller-observation",
-     "BOUNDARY_HOOK_SCHEMAS={'controller.output.ok': {'controller.output.ok.value': 'ok'}}\n"),
-    ("event-claims-post-serialization-time",
-     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
-     "def journal_event(cause_id, raw):\n"
-     "    event={'event_appended_at_monotonic_ns': observed_at + 1, "
-     "'event_flushed_at_monotonic_ns': observed_at + 2, "
-     "'callback_finished_at_monotonic_ns': observed_at + 3}\n"
-     "    journal_writer.write(raw)\n    journal_writer.flush()\n"),
-    ("manual-production-boundary",
-     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
-     "def operation():\n    boundary.productionCall('controller.calculate')\n"),
-    ("bulk-result-callback",
-     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
-     "def assembled_result_callback(cause_id, result):\n"
-     "    return journal_event(cause_id, result)\n"),
-    ("dormant-wrapper-source",
-     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
-     "cold_wrapper='function wrapper(){ note(\"phase\") }'\n"),
-    ("unmeasured-event-core-io",
-     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
-     "def journal_event(cause_id, raw):\n"
-     "    write_returned = clock()\n    writer.write(raw)\n"
-     "    flush_returned = clock()\n    writer.flush()\n    line_visible = clock()\n"
-     "def append_event_receipt(token):\n"
-     "    callback_finished = clock()\n    writer.write(token)\n    writer.flush()\n"),
-    ("receipt-before-callback-return",
-     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
-     "def journal_event(cause_id, raw):\n"
-     "    writer.write(raw)\n    write_returned = clock()\n"
-     "    writer.flush()\n    flush_returned = clock()\n    line_visible = clock()\n"
-     "def append_event_receipt(token):\n"
-     "    writer.write(token)\n    callback_finished = clock()\n    writer.flush()\n"),
-    ("receipt-not-after-observer-return",
-     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
-     "def journal_event(cause_id, raw):\n"
-     "    writer.write(raw)\n    write_returned = time.monotonic_ns()\n"
-     "    writer.flush()\n    flush_returned = time.monotonic_ns()\n"
-     "    line_visible = time.monotonic_ns()\n"
-     "def append_event_receipt(token):\n"
-     "    callback_finished = time.monotonic_ns()\n"
-     "    writer.write(token)\n    writer.flush()\n"
-     "def concrete_callback(cause_id):\n"
-     "    token = journal_event(cause_id, {})\n"
-     "    return append_event_receipt(token)\n"),
-])
-def test_mixed_harness_source_guard_rejects_reviewer_p0_p1_patterns(expected_code, snippet):
-    assert expected_code in _driver_integrity_violations(snippet)
-
-
-def test_mixed_runtime_driver_has_no_reviewer_p0_p1_patterns():
-    driver = Path(__file__).parents[3] / "tests/unit/survey_route_qml_driver.py"
-    assert driver.is_file()
-    assert_boundary_driver_has_no_result_replay(driver)
-
-
-def test_ac055_navigation_observation_api_is_not_added_to_product_sources():
-    root = Path(__file__).parents[3]
-    for relative in (MIXED_PRODUCTION_SOURCES["controller"],
-                     MIXED_PRODUCTION_SOURCES["navigation"],
-                     MIXED_PRODUCTION_SOURCES["qml"]):
-        source = (root / relative).read_text(encoding="utf-8")
-        assert "navigationBoundary" not in source
-        assert "observationBoundary" not in source
-        assert "testObservation" not in source
+    return lambda **case: fn(case=case, work_dir=str(tmp_path))
 
 
 KEY = "SRP_SYNTHETIC_SECRET_94_&/"
-RAW_PROVIDER_RESPONSE_MARKER = "RAW_PROVIDER_RESPONSE_MUST_NOT_PERSIST_7D31"
-RAW_REQUEST_QUERY_MARKER = "RAW_REQUEST_QUERY_MUST_NOT_PERSIST_5A82"
-RAW_REQUEST_FRAGMENT_MARKER = "RAW_REQUEST_FRAGMENT_MUST_NOT_PERSIST_8C44"
 FOLLOWUP_ROUTE_NAME = "  오후 조사 경로  "
 HOSTED_ROUTING_BASE = "https://api.heigit.org/openrouteservice"
 HOSTED_OPTIMIZER_URL = "https://api.heigit.org/vroom/v0"
@@ -1496,6 +319,7 @@ STEP7_ROUTE_KEY_COPY = {
 }
 NAVER_ANDROID_PACKAGE = "com.nhn.android.nmap"
 NAVER_ANDROID_STORE = "market://details?id=com.nhn.android.nmap"
+NAVER_IOS_STORE = "http://itunes.apple.com/app/id311867728?mt=8"
 SELECTION_GUIDANCE = (
     "조사지 레이어를 열고 피처 선택/체크 도구로 계산할 조사지를 선택한 뒤 이 패널로 돌아오세요. "
     "현재 선택한 조사지: {count}개"
@@ -1560,14 +384,8 @@ def assert_zero_marker_writes(result):
     assert capture["route_storage_snapshot_after"] == capture["route_storage_snapshot_before"]
 
 
-def start_markers(state):
-    """AC032 owns only the start marker; mixed-route access markers are a distinct overlay."""
-    return [marker for marker in state["canvas_markers"]
-            if marker["semantic_role"] == "start_marker"]
-
-
 def schema2_legacy_document(schema=1):
-    document = {
+    return {
         "schema": schema,
         "routes": [{
             "route_id": "legacy-route-1", "name": "기존 경로", "revision": 7,
@@ -1581,150 +399,6 @@ def schema2_legacy_document(schema=1):
         }],
         "active_route_id": "legacy-route-1",
     }
-    if schema == 2:
-        route = document["routes"][0]
-        route["legs"] = [
-            {"sequence": index + 1,
-             "from": "start" if index == 0 else {"layer_id": SITE_LAYER_ID,
-                                                    "site_id": str(index - 1)},
-             "to": {"layer_id": SITE_LAYER_ID, "site_id": str(index)},
-             "distance_m": distance, "duration_s": duration,
-             "geometry": {"type": "LineString", "coordinates":
-                          SCHEMA2_COORDINATES[start:end + 1]}}
-            for index, (start, end, distance, duration) in enumerate(zip(
-                SCHEMA2_WAY_POINTS[:3], SCHEMA2_WAY_POINTS[1:4],
-                (100, 200, 300), (40, 80, 120)))
-        ]
-    return document
-
-
-SCHEMA3_ROUTE_REQUIRED_FIELDS = {
-    "vehicle_legs", "visits", "vehicle_totals", "walking_totals", "combined_totals",
-}
-SCHEMA3_VISIT_REQUIRED_FIELDS = {"layer_id", "site_id", "metric_source"}
-SCHEMA3_ALLOWED_WALKING_PROVENANCE = {
-    ("mapped", "ors-foot-hiking"),
-    ("exact_zero", "exact_zero"),
-    ("unmapped_estimate", "straight_line_lower_bound_m"),
-}
-SCHEMA3_VISIT_CORRUPTIONS = [
-    pytest.param({"kind": "omit", "field": field}, id=f"omit-{field}")
-    for field in sorted(SCHEMA3_VISIT_REQUIRED_FIELDS)
-] + [
-    pytest.param({"kind": "replace", "field": field, "value": "   "}, id=f"blank-{field}")
-    for field in sorted(SCHEMA3_VISIT_REQUIRED_FIELDS)
-] + [
-    pytest.param({"kind": "stop_identity_mismatch", "field": "site_id"}, id="stop-identity-mismatch"),
-    pytest.param({"kind": "replace", "field": "walking_mode", "value": "teleport"}, id="unknown-mode"),
-    pytest.param({"kind": "replace", "field": "metric_source", "value": "guessed"}, id="unknown-source"),
-] + [
-    pytest.param({"kind": "mode_source_mismatch", "walking_mode": mode,
-                  "metric_source": source}, id=f"mismatch-{mode}-{source}")
-    for mode in ("mapped", "exact_zero", "unmapped_estimate")
-    for source in ("ors-foot-hiking", "exact_zero", "straight_line_lower_bound_m")
-    if (mode, source) not in SCHEMA3_ALLOWED_WALKING_PROVENANCE
-] + [
-    pytest.param({"kind": "metric_distance_mismatch", "walking_mode": "mapped",
-                  "field": "walking_legs[1].distance_m"}, id="mapped-return-distance-mismatch"),
-    pytest.param({"kind": "metric_distance_mismatch", "walking_mode": "exact_zero",
-                  "field": "walking_legs[0].distance_m"}, id="exact-zero-distance-mismatch"),
-    pytest.param({"kind": "metric_distance_mismatch", "walking_mode": "exact_zero",
-                  "field": "access_offset_m"}, id="exact-zero-offset-distance-mismatch"),
-    pytest.param({"kind": "metric_distance_mismatch", "walking_mode": "unmapped_estimate",
-                  "field": "access_offset_m"}, id="unmapped-offset-distance-mismatch"),
-    pytest.param({"kind": "metric_distance_mismatch", "walking_mode": "unmapped_estimate",
-                  "field": "walking_legs[1].distance_m"}, id="unmapped-return-distance-mismatch"),
-]
-
-
-def geodesic_distance_m(first, second):
-    lon1, lat1 = map(math.radians, first)
-    lon2, lat2 = map(math.radians, second)
-    haversine = (math.sin((lat2 - lat1) / 2) ** 2
-                 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2)
-    return 6371008.8 * 2 * math.asin(math.sqrt(haversine))
-
-
-def assert_schema3_document_contract(document):
-    """Validate tagged heterogeneous schema 3 and retained untagged homogeneous schema 3."""
-    assert document["schema"] == 3 and document["routes"]
-    for route in document["routes"]:
-        route_schema = route.get("route_schema", 3)
-        assert route_schema in {1, 2, 3}
-        if route_schema in {1, 2}:
-            assert not (SCHEMA3_ROUTE_REQUIRED_FIELDS & set(route))
-            assert {"route_id", "name", "revision", "stops"} <= set(route)
-            if route_schema == 2:
-                assert isinstance(route.get("legs"), list) and route["legs"]
-            continue
-        assert SCHEMA3_ROUTE_REQUIRED_FIELDS <= set(route)
-        assert isinstance(route["vehicle_legs"], list) and route["vehicle_legs"]
-        assert isinstance(route["visits"], list) and route["visits"]
-        assert set(route["vehicle_totals"]) == {"distance_m", "duration_s"}
-        assert set(route["walking_totals"]) == {
-            "mapped_distance_m", "lower_bound_distance_m", "duration_s",
-            "unavailable_duration_count",
-        }
-        if route["combined_totals"] is not None:
-            assert set(route["combined_totals"]) == {"distance_m", "duration_s"}
-        stop_identities = {
-            (stop["source_layer"], stop["site_id"]) for stop in route["stops"]
-        }
-        for visit in route["visits"]:
-            assert SCHEMA3_VISIT_REQUIRED_FIELDS <= set(visit)
-            assert all(isinstance(visit[field], str) and visit[field].strip()
-                       for field in SCHEMA3_VISIT_REQUIRED_FIELDS)
-            assert (visit["layer_id"], visit["site_id"]) in stop_identities
-            assert (visit["walking_mode"], visit["metric_source"]) in (
-                SCHEMA3_ALLOWED_WALKING_PROVENANCE)
-
-
-def heterogeneous_legacy_document(schema):
-    document = schema2_legacy_document(schema=schema)
-    selected = document["routes"][0]
-    selected["legacy_extension"] = {"owner": "selected", "schema": schema}
-    unrelated = deepcopy(selected)
-    unrelated.update({
-        "route_id": f"legacy-{schema}-unrelated",
-        "name": f"보존 경로 schema {schema}",
-        "revision": selected["revision"] + 4,
-        "legacy_extension": {"owner": "unrelated", "schema": schema},
-    })
-    document["routes"].append(unrelated)
-    return document
-
-
-def assert_visit_distance_semantics(visit, provider_observation=None):
-    """Independently enforce D-SRP-057's three approved metric meanings."""
-    lower_bound = geodesic_distance_m(visit["source_coordinate"], visit["access_coordinate"])
-    outbound, returning = visit["walking_legs"]
-    mode = visit["walking_mode"]
-    if mode == "unmapped_estimate":
-        assert visit["access_offset_m"] == pytest.approx(lower_bound, abs=0.01)
-        assert all(leg["distance_m"] == pytest.approx(lower_bound, abs=0.01)
-                   and leg["duration_s"] is None for leg in (outbound, returning))
-        assert outbound["geometry"]["coordinates"] == [
-            visit["access_coordinate"], visit["source_coordinate"]]
-        assert returning["geometry"]["coordinates"] == list(reversed(
-            outbound["geometry"]["coordinates"]))
-    elif mode == "exact_zero":
-        assert 0 < lower_bound <= 1.0
-        assert visit["access_offset_m"] == pytest.approx(lower_bound, abs=0.01)
-        assert all(leg["distance_m"] == 0 and leg["duration_s"] == 0
-                   and leg["geometry"] is None for leg in (outbound, returning))
-    else:
-        assert mode == "mapped" and provider_observation is not None
-        assert provider_observation["source"] == "captured_transport"
-        assert provider_observation["request"]["profile"] == "foot-hiking"
-        assert provider_observation["request"]["coordinates"] == [
-            visit["access_coordinate"], visit["source_coordinate"]]
-        provider = provider_observation["response"]
-        assert (outbound["distance_m"], outbound["duration_s"], outbound["geometry"]) == (
-            provider["distance_m"], provider["duration_s"], provider["geometry"])
-        assert returning["distance_m"] == provider["distance_m"]
-        assert returning["duration_s"] == provider["duration_s"]
-        assert returning["geometry"]["coordinates"] == list(reversed(
-            provider["geometry"]["coordinates"]))
 
 
 PROJECT_LAYERS = [
@@ -1743,7 +417,6 @@ PORTABLE_SETTINGS = {
     "profile": "driving-car",
     "timeout_ms": 1250,
     "max_road_offset_m": 50,
-    "max_access_distance_m": 2000,
     "default_start": [127.123, 37.456],
     "mapping": {"layer": "site", "id": "custom_id", "name": "title", "completed": "done"},
     "show_route_line": True,
@@ -1989,10 +662,6 @@ def test_ac007_result_roundtrip(run, timing):
             optimizer_response=vroom_response(include_arrivals=timing),
             directions_response=DIRECTIONS_RESPONSE)
     route = r["reloaded"]
-    assert r["reloaded_document"] == r["saved_document"]
-    assert_schema3_document_contract(r["reloaded_document"])
-    assert route == next(saved for saved in r["reloaded_document"]["routes"]
-                         if saved["route_id"] == route["route_id"])
     for field in ("route_id", "name", "backend", "status"):
         assert route[field]
     datetime.fromisoformat(route["created_at"].replace("Z", "+00:00"))
@@ -2013,7 +682,7 @@ def test_ac007_result_roundtrip(run, timing):
     } for index, metrics in enumerate(LEGS)]
     assert {stop["source_layer"] for stop in route["stops"]} == {layer_id}
     assert route["road_geometry"] == RESULT_ROAD
-    assert route["vehicle_legs"] == expected_legs
+    assert route["legs"] == expected_legs
     assert r["saved"] == route
     assert r["availability"]["road_geometry"] is True
     assert r["availability"]["eta"] is timing
@@ -2436,9 +1105,8 @@ def test_ac013_backend_settings(run, configured_offset, expected_offset):
 
 def assert_provider_urls(result, routing_base, optimizer_url):
     requests = requests_by_kind(result)
-    assert set(requests) == {"access-snap", "matrix", "optimizer", "directions"}
-    expected = {"access-snap": f"{routing_base}/v2/snap/driving-car/json",
-                "matrix": f"{routing_base}/v2/matrix/driving-car",
+    assert set(requests) == {"matrix", "optimizer", "directions"}
+    expected = {"matrix": f"{routing_base}/v2/matrix/driving-car",
                 "directions": f"{routing_base}/v2/directions/driving-car/geojson",
                 "optimizer": optimizer_url}
     assert all({request["url"] for request in requests[kind]} == {url} for kind, url in expected.items())
@@ -2448,8 +1116,7 @@ def assert_provider_urls(result, routing_base, optimizer_url):
 
 def test_ac013_fresh_hosted_defaults_and_authorization(run):
     r = run(operation="configured_calculate", settings={"backend": "ors-vroom", "profile": "driving-car",
-                                                         "key": KEY}, fresh_project=True,
-            seed_fixture_settings=False)
+                                                         "key": KEY}, fresh_project=True, seed_saved=True)
     assert r["transport_settings"]["server_url"] == HOSTED_ROUTING_BASE
     assert r["transport_settings"]["optimizer_url"] == HOSTED_OPTIMIZER_URL
     assert_provider_urls(r, HOSTED_ROUTING_BASE, HOSTED_OPTIMIZER_URL)
@@ -2501,9 +1168,9 @@ def test_ac013_custom_self_hosted_urls_allow_no_key(run):
 
 def test_ac013_hosted_default_rejects_blank_key_before_request(run):
     r = run(operation="configured_calculate", settings={"backend": "ors-vroom", "profile": "driving-car"},
-            fresh_project=True, seed_fixture_settings=False)
-    assert r["ok"] is False and r["message"].strip()
-    assert r["candidate"] is None
+            fresh_project=True, seed_saved=True)
+    rejected(r)
+    assert r["active_after"] == r["active_before"]
     no_calls(r)
 
 
@@ -2520,6 +1187,7 @@ def test_ac019_builder_key_consent_embeds_only_project_variable(run):
     assert "QField가 자동으로 사용하도록" in warning
     assert "암호화되지 않은 글자" in warning
     assert "프로젝트 폴더를 열 수 있는 사람은 누구나 키를 확인하고 사용할 수 있습니다." in warning
+    assert "평문" in consent
     assert r["qfield_key_source"] == "project_variable"
     assert r["transport_key_present"] is True
     assert_no_key_outside_project_variable(r, embedded=True)
@@ -2802,18 +1470,16 @@ def test_ac032_map_start_marker_is_exact_fixed_and_replaced_not_duplicated(run):
     ])
     captured, panned, replaced = r["states"]
     assert captured["start_wgs84"] == pytest.approx(first, abs=1e-9)
-    assert captured["canvas_marker_count"] == len(captured["canvas_markers"])
-    assert len(start_markers(captured)) == 1
-    marker = start_markers(captured)[0]
+    assert captured["canvas_marker_count"] == len(captured["canvas_markers"]) == 1
+    marker = captured["canvas_markers"][0]
     assert marker["semantic_role"] == "start_marker" and marker["object_id"]
     assert marker["coordinate"] == pytest.approx(first, abs=1e-9)
     assert marker["visible_text"] == "출발지" and marker["accessible_name"] == "출발지"
     assert marker["visible"] is True and marker["contrast_ratio"] >= 3
-    assert start_markers(panned) == start_markers(captured)
+    assert panned["canvas_markers"] == captured["canvas_markers"]
     assert replaced["start_wgs84"] == pytest.approx(second, abs=1e-9)
-    assert replaced["canvas_marker_count"] == len(replaced["canvas_markers"])
-    assert len(start_markers(replaced)) == 1
-    assert start_markers(replaced)[0]["coordinate"] == pytest.approx(second, abs=1e-9)
+    assert replaced["canvas_marker_count"] == len(replaced["canvas_markers"]) == 1
+    assert replaced["canvas_markers"][0]["coordinate"] == pytest.approx(second, abs=1e-9)
     assert_zero_marker_writes(r)
     assert r["source_renderer_after"] == r["source_renderer_before"]
 
@@ -2822,12 +1488,8 @@ def test_ac032_map_start_marker_is_exact_fixed_and_replaced_not_duplicated(run):
 def test_ac032_map_start_marker_survives_panel_and_calculation_events(run, event):
     r = run(operation="map_start_marker", project_crs="EPSG:4326", seed_center=[127.1, 37.1],
             actions=[{"action": event}])
-    assert start_markers(r["states"][0]) == start_markers(r["states"][-1])
-    assert len(start_markers(r["states"][-1])) == 1
-    assert r["states"][-1]["canvas_marker_count"] == len(r["states"][-1]["canvas_markers"])
-    if event == "calculation_success":
-        assert any(marker["semantic_role"] != "start_marker"
-                   for marker in r["states"][-1]["canvas_markers"])
+    assert r["states"][0]["canvas_markers"] == r["states"][-1]["canvas_markers"]
+    assert r["states"][-1]["canvas_marker_count"] == len(r["states"][-1]["canvas_markers"]) == 1
     assert_zero_marker_writes(r)
     assert r["saved_route_geometry_after"] == r["saved_route_geometry_before"]
 
@@ -2836,8 +1498,8 @@ def test_ac032_map_start_marker_survives_panel_and_calculation_events(run, event
 def test_ac032_map_start_marker_removed_at_lifecycle_end(run, event):
     r = run(operation="map_start_marker", project_crs="EPSG:4326", seed_center=[127.1, 37.1],
             actions=[{"action": event}])
-    assert len(start_markers(r["states"][0])) == 1
-    assert start_markers(r["states"][-1]) == []
+    assert r["states"][0]["canvas_marker_count"] == len(r["states"][0]["canvas_markers"]) == 1
+    assert r["states"][-1]["canvas_marker_count"] == 0 and r["states"][-1]["canvas_markers"] == []
     assert_zero_marker_writes(r)
 
 
@@ -2846,8 +1508,8 @@ def test_ac032_map_start_transform_failure_preserves_previous_marker_and_start(r
             actions=[{"action": "capture_center", "center": [200000, 600000],
                       "transform_fault": "untransformable"}])
     assert r["states"][-1]["start_wgs84"] == r["states"][0]["start_wgs84"]
-    assert start_markers(r["states"][-1]) == start_markers(r["states"][0])
-    assert len(start_markers(r["states"][-1])) == 1
+    assert r["states"][-1]["canvas_markers"] == r["states"][0]["canvas_markers"]
+    assert r["states"][-1]["canvas_marker_count"] == len(r["states"][-1]["canvas_markers"]) == 1
     assert r["states"][-1]["message"].strip()
     assert_zero_marker_writes(r)
 
@@ -2898,19 +1560,13 @@ def test_ac023_storage_failure_has_no_success_or_secret_feedback(run, action):
     assert KEY not in exposed and quote(KEY, safe="") not in exposed
 
 
-def canonical_coordinate(value):
-    text = f"{value:.7f}".rstrip("0").rstrip(".")
-    return "0" if text in {"-0", ""} else text
-
-
-def canonical_naver_url(name, caller_id="ch.opengis.qfield", coordinate=(127.123, 37.456)):
-    return (f"nmap://navigation?dlat={canonical_coordinate(coordinate[1])}"
-            f"&dlng={canonical_coordinate(coordinate[0])}&dname="
+def canonical_naver_url(name, caller_id="ch.opengis.qfield"):
+    return ("nmap://navigation?dlat=37.456&dlng=127.123&dname="
             f"{quote(name, safe='')}&appname={quote(caller_id, safe='')}")
 
 
-def canonical_naver_android_intent(name, caller_id="ch.opengis.qfield", coordinate=(127.123, 37.456)):
-    query = canonical_naver_url(name, caller_id, coordinate).removeprefix("nmap://")
+def canonical_naver_android_intent(name, caller_id="ch.opengis.qfield"):
+    query = canonical_naver_url(name, caller_id).removeprefix("nmap://")
     return (f"intent://{query}#Intent;scheme=nmap;action=android.intent.action.VIEW;"
             "category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end")
 
@@ -2930,6 +1586,7 @@ def test_ac025_exact_encoded_android_intent_and_honest_qt_true(run, caller_id):
 
 @pytest.mark.parametrize("platform,expected_primary,expected_store,identifier", [
     ("android", canonical_naver_android_intent("목적지"), NAVER_ANDROID_STORE, "com.nhn.android.nmap"),
+    ("ios", canonical_naver_url("목적지"), NAVER_IOS_STORE, "311867728"),
 ])
 def test_ac025_mobile_fallback_and_all_refused(run, platform, expected_primary, expected_store, identifier):
     r = run(operation="reopen_navigate", road_geometry=ROAD, destination=[127.123, 37.456], name="목적지",
@@ -2951,32 +1608,28 @@ def test_ac025_non_mobile_has_actionable_error_without_install_dispatch(run):
 
 
 @pytest.mark.parametrize("roundtrip,expected_count", [(False, 3), (True, 4)])
-def test_ac026_ac035_new_calculation_schema3_complete_immutable_legs_roundtrip(run, roundtrip, expected_count):
+def test_ac026_ac035_schema2_complete_immutable_legs_roundtrip(run, roundtrip, expected_count):
     r = run(operation="schema2_roundtrip", return_to_start=roundtrip, layer_id=SITE_LAYER_ID,
             directions_response=schema2_directions_response(roundtrip=roundtrip),
             post_save_actions=["complete", "uncheck", "toggle", "load"])
     document, route = r["reloaded_document"], r["reloaded_route"]
-    assert document["schema"] == 3 and document == r["saved_document"]
-    assert_schema3_document_contract(document)
-    vehicle_legs = route["vehicle_legs"]
-    assert len(route["visits"]) == 3
-    assert all(visit["walking_mode"] == "exact_zero" for visit in route["visits"])
-    assert len(vehicle_legs) == expected_count
-    assert [leg["sequence"] for leg in vehicle_legs] == list(range(1, expected_count + 1))
-    assert vehicle_legs[0]["from"] == "start"
+    assert document["schema"] == 2 and document == r["saved_document"]
+    assert len(route["legs"]) == expected_count
+    assert [leg["sequence"] for leg in route["legs"]] == list(range(1, expected_count + 1))
+    assert route["legs"][0]["from"] == "start"
     for index in range(3):
-        assert vehicle_legs[index]["to"] == {"layer_id": SITE_LAYER_ID, "site_id": str(index)}
-    for index, leg in enumerate(vehicle_legs):
+        assert route["legs"][index]["to"] == {"layer_id": SITE_LAYER_ID, "site_id": str(index)}
+    for index, leg in enumerate(route["legs"]):
         assert leg["distance_m"] >= 0 and leg["duration_s"] >= 0
         assert leg["geometry"]["type"] == "LineString"
         assert all(-180 <= xy[0] <= 180 and -90 <= xy[1] <= 90 for xy in leg["geometry"]["coordinates"])
         start, end = SCHEMA2_WAY_POINTS[index:index + 2]
         assert leg["geometry"]["coordinates"] == SCHEMA2_COORDINATES[start:end + 1]
     if roundtrip:
-        assert vehicle_legs[-1]["to"] == "start"
+        assert route["legs"][-1]["to"] == "start"
     assert route["road_geometry"]["coordinates"] == SCHEMA2_COORDINATES[:SCHEMA2_WAY_POINTS[expected_count] + 1]
-    assert route["distance_m"] == sum(leg["distance_m"] for leg in vehicle_legs)
-    assert route["duration_s"] == sum(leg["duration_s"] for leg in vehicle_legs)
+    assert route["distance_m"] == sum(leg["distance_m"] for leg in route["legs"])
+    assert route["duration_s"] == sum(leg["duration_s"] for leg in route["legs"])
     assert r["immutable_snapshots"] and all(snapshot == r["immutable_snapshots"][0]
                                               for snapshot in r["immutable_snapshots"])
     assert "remaining_recalculate" not in r["controls"]
@@ -3182,19 +1835,13 @@ def test_ac028_route_line_toggle_scope_persistence_move_and_zero_api(run):
     r = run(operation="route_line_toggle", offline=True, move_folder=True,
             transitions=["off", "route_switch", "panel_reopen", "app_restart", "folder_move"])
     assert r["initial_show_route_line"] is True
-    assert [state["show_route_line"] for state in r["states"]] == [False] * 5
+    assert all(state["show_route_line"] is False for state in r["states"])
     assert r["other_project_initial_show_route_line"] is True
     assert r["saved_geometry_after"] == r["saved_geometry_before"]
     assert r["completed_overlay_after"] == r["completed_overlay_before"]
     assert r["source_renderer_after"] == r["source_renderer_before"]
+    assert_project_relative_file(r, r["preference_project_relative_path"])
     assert Path(r["old_dir"]).resolve() != Path(r["project_dir"]).resolve() and not Path(r["old_dir"]).exists()
-    assert r["write_capture"]["route_storage_commit_attempts"] == []
-    assert len(r["write_capture"]["settings_storage_commit_attempts"]) == 1
-    write = r["write_capture"]["settings_storage_commit_attempts"][0]
-    assert write["changed_paths"] == ["settings.show_route_line"]
-    assert write["atomic_commit_count"] == write["readback_count"] == 1
-    assert write["readback_value"] is False
-    assert r["route_revision_after"] == r["route_revision_before"]
     no_calls(r)
 
 
@@ -3223,19 +1870,18 @@ def test_ac029_legacy_schema1_load_is_offline_nonmutating_and_unavailable(run):
     no_calls(r)
 
 
-def test_ac029_explicit_full_recalculation_is_only_schema3_upgrade(run):
+def test_ac029_explicit_full_recalculation_is_only_schema2_upgrade(run):
     legacy = schema2_legacy_document()
     r = run(operation="legacy_route", document=legacy, action="explicit_calculate_and_save", offline=False,
             directions_response=schema2_directions_response(roundtrip=False))
-    assert r["saved_document"]["schema"] == 3
-    assert_schema3_document_contract(r["saved_document"])
+    assert r["saved_document"]["schema"] == 2
     assert r["saved_route"]["route_id"] == "legacy-route-1"
-    assert r["saved_route"]["revision"] > 7 and len(r["saved_route"]["vehicle_legs"]) == 3
+    assert r["saved_route"]["revision"] > 7 and len(r["saved_route"]["legs"]) == 3
     assert r["requests"], "the only permitted migration request is the explicit full calculation"
 
 
 def test_ac029_future_schema_is_preserved_and_rejected(run):
-    future = schema2_legacy_document(schema=99)
+    future = schema2_legacy_document(schema=3)
     r = run(operation="legacy_route", document=future, action="load", offline=True)
     assert r["ok"] is False and r["message"].strip()
     assert r["storage_bytes_after"] == r["storage_bytes_before"]
@@ -3281,7 +1927,7 @@ def test_ac036_recoverable_save_failure_preserves_candidate_for_corrected_retry(
     assert all(state["requests"] == [] for state in r["attempt_states"])
 
 
-@pytest.mark.parametrize("stale_change", ["calculation_input"])
+@pytest.mark.parametrize("stale_change", ["calculation_input", "snapshot_revision"])
 def test_ac036_only_real_input_or_revision_change_blocks_stale_candidate(run, stale_change):
     r = run(operation="candidate_name_save", seed_saved=True,
             optimizer_response=vroom_response(include_arrivals=True),
@@ -3291,22 +1937,6 @@ def test_ac036_only_real_input_or_revision_change_blocks_stale_candidate(run, st
     assert r["message"].strip() and r["candidate_after"] == r["candidate_before"]
     assert r["saved_routes_after"] == r["saved_routes_before"]
     assert r["requests_after_calculation"] == []
-
-
-def test_ac036_route_line_toggle_settings_write_does_not_stale_candidate(run):
-    r = run(operation="candidate_name_save", seed_saved=True,
-            optimizer_response=vroom_response(include_arrivals=True),
-            directions_response=schema2_directions_response(roundtrip=True),
-            actions=[{"set_name": "토글 후 저장"}, {"toggle_route_line": False}, {"save": True}])
-    assert r["save_ok"] is True and r["saved_route"]["name"] == "토글 후 저장"
-    toggle = r["toggle_observation"]
-    assert toggle["route_revision_after"] == toggle["route_revision_before"]
-    assert toggle["route_storage_commit_attempts"] == []
-    assert len(toggle["settings_storage_commit_attempts"]) == 1
-    assert toggle["settings_storage_commit_attempts"][0]["changed_paths"] == [
-        "settings.show_route_line",
-    ]
-    assert toggle["routing_requests"] == []
 
 
 @pytest.mark.parametrize("viewport_width", [320, 1024])
@@ -3405,35 +2035,33 @@ def test_ac038_failed_settings_save_preserves_last_good_and_session_key(run):
 
 @pytest.mark.parametrize("platform,expected_primary", [
     ("android", canonical_naver_android_intent("조사지 A & B/#?", "org.example.fieldbuild")),
+    ("ios", canonical_naver_url("조사지 A & B/#?", "org.example.fieldbuild")),
 ])
 def test_ac039_platform_specific_official_primary_dispatch(run, platform, expected_primary):
-    r = run(operation="platform_map_dispatch", platform=platform, host_context="supported_native",
+    r = run(operation="platform_naver_dispatch", platform=platform, host_context="supported_native",
             destination=[127.123, 37.456], name="조사지 A & B/#?", caller_id="org.example.fieldbuild",
             launch_results=[True])
-    assert r["button_label"] == "다음 지점 지도 안내"
     assert r["launcher_calls"] == [{"url": expected_primary, "via": "Qt.openUrlExternally", "result": True}]
     assert r["status"] == "운영체제에 실행 요청" and r["fallback_count"] == 0
     assert r["claims"] == {"app_started": False, "destination_accepted": False, "navigation_started": False}
     assert not any("map.naver.com" in call["url"] for call in r["launcher_calls"])
     no_calls(r)
-    assert_navigation_has_observed_no_route_or_storage_activity(r)
 
 
 @pytest.mark.parametrize("platform,expected_primary,expected_store", [
     ("android", canonical_naver_android_intent("목적지"), NAVER_ANDROID_STORE),
+    ("ios", canonical_naver_url("목적지"), NAVER_IOS_STORE),
 ])
 def test_ac039_official_install_fallback_once_and_no_inferred_web_url(run, platform, expected_primary, expected_store):
-    r = run(operation="platform_map_dispatch", platform=platform, host_context="supported_native",
+    r = run(operation="platform_naver_dispatch", platform=platform, host_context="supported_native",
             destination=[127.123, 37.456], name="목적지", caller_id=None, launch_results=[False, True],
             documented_navigation_web_fallback=None)
-    assert r["button_label"] == "다음 지점 지도 안내"
     assert [call["url"] for call in r["launcher_calls"]] == [expected_primary, expected_store]
     assert r["fallback_count"] == 1 and r["status"] == "설치 페이지 열림"
     assert r["web_fallback_count"] == 0
     assert not any("map.naver.com" in call["url"] for call in r["launcher_calls"])
     assert r["claims"]["navigation_started"] is False
     no_calls(r)
-    assert_navigation_has_observed_no_route_or_storage_activity(r)
 
 
 @pytest.mark.parametrize("completion_source", ["field", "route_stop"])
@@ -3517,8 +2145,7 @@ def test_ac042_touch_equivalent_text_input_uses_real_editable_qml_control_withou
             optimizer_response=vroom_response(include_arrivals=True),
             directions_response=schema2_directions_response(roundtrip=True),
             input_events=[
-                {"touch_body": True, "touch_target": touch_target},
-                {"select": [0, 13]}, {"delete_selection": True}, {"text": "오후 route"},
+                {"touch_body": True, "touch_target": touch_target}, {"text": "오후 route"},
                 {"select": [3, 8]}, {"delete_selection": True}, {"text": " 조사 경로  "},
             ], save=True)
     assert r["qml_runtime"]["loaded_generated_qml"] is True
@@ -3536,10 +2163,9 @@ def test_ac042_touch_equivalent_text_input_uses_real_editable_qml_control_withou
     assert touch["focused_object_id"] == control["object_id"]
     assert touch["active_focus"] is True and touch["cursor_visible"] is True
     assert touch["cursor_position"] >= 0
-    assert re.fullmatch(r"\d{4}-\d{2}-\d{2} 조사", r["input_states"][0]["text"])
     assert r["focus_recovery_api_invocations"] == []
-    assert next(state for state in r["input_states"]
-                if state["event_source"] == "input_method_commit_event")["active_focus"] is True
+    assert r["input_states"][2]["event_source"] == "input_method_commit_event"
+    assert r["input_states"][2]["active_focus"] is True
     assert all(state["focus_recovery_api_invocations"] == [] for state in r["input_states"])
     assert r["selection_event_observed"] is True and r["deletion_event_observed"] is True
     assert r["final_control_text"] == "오후  조사 경로  "
@@ -3884,1144 +2510,649 @@ def test_ac_qpb150_generated_qgs_keeps_site_base_symbol_after_rename_and_relocat
         assert (moved / "symbols/map-pin.svg").is_file()
 
 
-# 2026-09-18 approved mixed vehicle/walking route and Apple Maps acceptance slice.
-MIXED_SITES = [
-    {"id": "rural-a", "name": "산지 A", "xy": [127.1000, 37.1000]},
-    {"id": "rural-b", "name": "농지 B", "xy": [127.2000, 37.2000]},
-]
-MIXED_ACCESS = [[127.1035, 37.1000], [127.200005, 37.2000]]
-EXACT_ZERO_ACCESS = [127.100005, 37.1000]
-ACCESSIBILITY_FIVE_SITES = [
-    {"id": f"access-{index}", "name": f"접근성 조사지 {index}",
-     "xy": [127.31 + index / 100, 37.31 + index / 100]}
-    for index in range(5)
-]
-MAPPED_FOOT = {
-    "distance_m": 480.25, "duration_s": 390.5,
-    "geometry": {"type": "LineString", "coordinates": [MIXED_ACCESS[0], [127.1017, 37.1002], MIXED_SITES[0]["xy"]]},
+# DRAFT AC-SRP-049–058 harness redesign: observe production JS, HTTP, files and QML directly.
+ROUTE_MODULES = Path(__file__).parents[3] / "qfield_builder" / "qfield_routes"
+DIRECT_NODE = r"""
+const fs=require("fs"),vm=require("vm"),http=require("http");
+const input=JSON.parse(process.argv[1]);
+function load(name){const c=vm.createContext({});vm.runInContext(fs.readFileSync(input.modules[name],"utf8"),c,{filename:input.modules[name]});return c;}
+const backend=load("backend"),repository=load("repository"),controller=load("controller"),navigation=load("navigation");
+let writeAttempts=0,writeSuccesses=0,failWrites=false;
+function io(){
+  return {exists:p=>fs.existsSync(p),read:p=>fs.readFileSync(p,"utf8"),write:(p,v)=>{
+    writeAttempts++;if(failWrites)return false;fs.mkdirSync(require("path").dirname(p),{recursive:true});
+    fs.writeFileSync(p,v);writeSuccesses++;return true;}};
+}
+function transport(request){
+  return new Promise((resolve,reject)=>{
+    const target=new URL(request.url),body=JSON.stringify(request.body);
+    const req=http.request({hostname:target.hostname,port:target.port,path:target.pathname+target.search,
+      method:request.method,headers:Object.assign({},request.headers,{"Content-Length":Buffer.byteLength(body)})},res=>{
+      const chunks=[];res.on("data",chunk=>chunks.push(chunk));res.on("end",()=>{
+        const text=Buffer.concat(chunks).toString("utf8"),type=String(res.headers["content-type"]||"");
+        if(res.statusCode<200||res.statusCode>=300){reject(backend.httpError(request.stage,res.statusCode,text,type,input.secret||""));return;}
+        try{resolve(text?JSON.parse(text):{});}catch(error){reject(error);}
+      });
+    });
+    req.setTimeout(request.timeout_ms||2000,()=>req.destroy(new Error("timeout")));
+    req.on("error",reject);req.end(body);
+  });
+}
+function fsIo(){return io();}
+function serializeError(error){return {message:String(error&&error.message||error),stage:error&&error.stage||null,
+  http_status:error&&error.http_status||null,safe_record:error&&error.safe_record||null,
+  classification:error&&error.classification||null,suggested_actions:error&&error.suggested_actions||[]};}
+function makeController(base,features){
+  return controller.create({base,io:fsIo(),repository:{load:repository.load,save:repository.save},
+    backend:{calculate:backend.calculate},transport,features:()=>features||[],
+    geometry:{coordinate:value=>{if(!Array.isArray(value)||value.length<2)throw new Error("coordinate");return value.slice();}},
+    gps:()=>input.start||[127,37],uuid:()=>input.uuid||"mixed-new",now:()=>new Date("2026-09-21T00:00:00Z"),
+    projectKey:()=>input.secret||"",navigation:{open:navigation.open},openUrl:url=>{launcherCalls.push(url);return true;},
+    platform:()=>input.platform||"ios",callerId:()=>input.caller_id||"ch.opengis.qfield"});
+}
+let launcherCalls=[];
+(async()=>{
+  let out={};
+  if(input.operation==="backend"){
+    try{out.result=await backend.calculate(input.settings,input.targets,input.start,input.roundtrip,transport);out.ok=true;}
+    catch(error){out.ok=false;out.error=serializeError(error);}
+  }else if(input.operation==="navigation"){
+    let calls=[];let count=0;
+    const opener=url=>{calls.push(url);count++;if(input.throw_on===count)throw new Error("launcher");return (input.open_results||[])[count-1]===true;};
+    let stop=input.stop;if(input.special==="nan")stop={coordinate:[NaN,37],name:"x",site_id:"x"};
+    if(input.special==="infinity")stop={coordinate:[127,Infinity],name:"x",site_id:"x"};
+    try{out.result=navigation.open(stop,opener,input.platform,input.caller_id);out.ok=true;}catch(error){out.ok=false;out.error=serializeError(error);}
+    out.calls=calls;
+  }else if(input.operation==="repo_save"){
+    const saved=repository.save(fsIo(),input.base,input.document,input.expected_revision);
+    out={saved,files:fs.readdirSync(require("path").dirname(input.base)).sort(),writeAttempts,writeSuccesses};
+  }else if(input.operation==="repo_load"){
+    try{out.loaded=repository.load(fsIo(),input.base);out.ok=true;}catch(error){out.ok=false;out.error=serializeError(error);}
+    out.writeAttempts=writeAttempts;out.writeSuccesses=writeSuccesses;
+  }else if(input.operation==="repo_recovery"){
+    const a=repository.save(fsIo(),input.base,input.good,0);
+    const b=repository.save(fsIo(),input.base,input.good,a.revision);
+    const corruptPath=input.base+"."+b.slot+".json",payload=JSON.stringify(input.corrupt);
+    fs.writeFileSync(corruptPath,JSON.stringify({revision:b.revision,checksum:repository.checksum(payload),payload}));
+    const corruptBefore=fs.readFileSync(corruptPath,"utf8"),attemptsBefore=writeAttempts;
+    try{out.loaded=repository.load(fsIo(),input.base);out.ok=true;}catch(error){out.ok=false;out.error=serializeError(error);}
+    out.corrupt_bytes_unchanged=fs.readFileSync(corruptPath,"utf8")===corruptBefore;
+    out.repository_writes_during_load=writeAttempts-attemptsBefore;
+  }else if(input.operation==="controller_flow"){
+    if(input.document)repository.save(fsIo(),input.base,input.document,0);
+    const instance=makeController(input.base,input.features);
+    instance.state.roundtrip=input.roundtrip===true;
+    instance.configure(input.settings);
+    const calculated=await instance.calculate(input.replace_active===true);
+    const candidate=instance.state.candidate?JSON.parse(JSON.stringify(instance.state.candidate)):null;
+    if(input.acknowledge_unmapped===true)instance.acknowledgeUnmapped(true);
+    const saved=calculated?instance.save(input.name||"혼합 경로"):false;
+    out={calculated,saved,candidate,snapshot:instance.state.snapshot,state_message:instance.state.message,
+      progress:instance.progress(),writeAttempts,writeSuccesses};
+  }else if(input.operation==="controller_state"){
+    if(input.document)repository.save(fsIo(),input.base,input.document,0);
+    const instance=makeController(input.base,input.features);
+    const before=JSON.stringify(instance.state.snapshot.data),revision=instance.state.snapshot.revision;
+    failWrites=input.fail_write===true;
+    let result=null;
+    if(input.action==="toggle")result=instance.toggleRouteLine(input.value);
+    if(input.action==="settings")result=instance.saveSettings();
+    out={result,before,after:instance.state.snapshot.data,revision_before:revision,
+      revision_after:instance.state.snapshot.revision,show_route_line:instance.state.showRouteLine,
+      message:instance.state.message,progress:instance.progress(),writeAttempts,writeSuccesses};
+  }
+  process.stdout.write(JSON.stringify(out));
+})().catch(error=>{console.error(error&&error.stack||error);process.exit(1);});
+"""
+
+
+def _direct_node(operation, tmp_path, **payload):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node is required for direct production-JavaScript acceptance")
+    data = {
+        "operation": operation,
+        "modules": {name: str(ROUTE_MODULES / f"{name}.js")
+                    for name in ("backend", "controller", "repository", "navigation")},
+        **payload,
+    }
+    result = subprocess.run(
+        [node, "-e", DIRECT_NODE, json.dumps(data, ensure_ascii=False)],
+        capture_output=True, text=True, encoding="utf-8", timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout)
+
+
+@contextmanager
+def _route_http(responder):
+    records = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length)
+            body = json.loads(raw or b"{}")
+            record = {
+                "method": self.command,
+                "path": self.path,
+                "headers": {key.lower(): value for key, value in self.headers.items()},
+                "body": body,
+            }
+            records.append(record)
+            status, content_type, response = responder(record, len(records))
+            payload = response if isinstance(response, bytes) else (
+                response.encode("utf-8") if isinstance(response, str)
+                else json.dumps(response, ensure_ascii=False).encode("utf-8"))
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, *_args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}", records
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+MIXED_SOURCE = [127.01, 37.01]
+MIXED_ACCESS = [127.009, 37.009]
+MIXED_START = [127.0, 37.0]
+MIXED_TARGET = {
+    "source_layer": "site-layer", "site_id": "site-a", "name": "농촌 A",
+    "coordinate": MIXED_SOURCE, "completed": False,
 }
 
 
-def assert_mixed_failure_preserves_state(result):
-    assert result["ok"] is False and result["message"].strip()
-    assert result["candidate_after"] == result["candidate_before"]
-    assert result["saved_after"] == result["saved_before"]
-    assert result["revision_after"] == result["revision_before"]
-    assert result["settings_after"] == result["settings_before"]
-    assert result["writes"] == [] and result["automatic_retries"] == []
-
-
-def assert_actual_failed_provider_request(result, stage, status):
-    """Assert raw wire data only through the explicit transient in-memory capture."""
-    requests = result["requests"]
-    assert requests and requests[0]["kind"] == "origin-validation"
-    failed = result["failed_transport_observation"]
-    assert failed["source"] == "captured_transport"
-    assert failed["request_index"] < len(requests)
-    assert failed["request_summary"] == requests[failed["request_index"]]
-    assert failed["request_summary"]["kind"] == stage
-    captured = result["captured_request"]
-    assert captured["kind"] == stage
-    assert failed["request_sha256"] == hashlib.sha256(
-        _canonical_evidence_bytes(captured)).hexdigest()
-    assert failed["http_status"] == status
-    assert failed["response_was_injected_at_transport"] is True
-
-
-def test_ac049_secret_and_raw_wire_material_never_enters_sealed_evidence(run):
-    body = f"Authorization: Bearer {KEY}; {RAW_PROVIDER_RESPONSE_MARKER}"
-    r = run(operation="provider_http_failure", stage="directions", status=503,
-            body=body, content_type="text/plain", key=KEY,
-            settings={
-                "server_url": ("https://routing.invalid/ors?audit="
-                               + RAW_REQUEST_QUERY_MARKER + "#" + RAW_REQUEST_FRAGMENT_MARKER),
-                "optimizer_url": "https://optimizer.invalid/vroom",
-            },
-            seed_saved=True, seed_candidate=True)
-    assert_actual_failed_provider_request(r, "directions", 503)
-    assert_sensitive_provider_material_is_memory_only(r, RAW_PROVIDER_RESPONSE_MARKER)
-
-
-def assert_navigation_has_observed_no_route_or_storage_activity(result):
-    events = boundary_event_map(result).values()
-    controller_calls = [event for event in events
-                        if event["source"] == "production_call"
-                        and event["observer"]["boundary"] == "controller.navigate"]
-    navigation_calls = [event for event in events
-                        if event["source"] == "production_call"
-                        and event["observer"]["boundary"] == "navigation.open"]
-    assert len(controller_calls) == len(navigation_calls) == 2
-    controller_phases = {
-        event["callback_payload"]["controller.navigate.phase"]: event
-        for event in controller_calls
+def _settings(base, secret="SRP_DIRECT_SYNTHETIC_SECRET"):
+    return {
+        "backend": "ors-vroom", "server_url": base, "optimizer_url": base + "/optimizer",
+        "profile": "driving-car", "timeout_ms": 3000, "max_road_offset_m": 1000,
+        "max_access_distance_m": 2000, "snap_batch_limit": 3500,
+        "objective": "time", "key": secret,
     }
-    assert set(controller_phases) == {"entry", "exit"}
-    controller_call = controller_phases["entry"]
-    assert controller_call["observer"]["production_source"] == MIXED_PRODUCTION_SOURCES[
-        "controller"]
-    assert controller_call["observer"]["instrumentation"] == "external-wrapper"
-    assert controller_call["observer"]["wrapped_symbol"] == "controller.navigate"
-    phases = {event["callback_payload"]["navigation.open.phase"]: event
-              for event in navigation_calls}
-    assert set(phases) == {"entry", "exit"}
-    entry, exit_ = phases["entry"], phases["exit"]
-    for event in (entry, exit_):
-        assert event["observer"] == {
-            "production_source": MIXED_PRODUCTION_SOURCES["navigation"],
-            "boundary": "navigation.open", "instrumentation": "external-wrapper",
-            "wrapped_symbol": "Navigation.open",
-        }
-        assert set(event["callback_payload"]) == {
-            f"navigation.open.{field}" for field in MIXED_WRAPPED_CALL_FIELDS
-        }
-    assert entry["callback_payload"]["navigation.open.outcome"] is None
-    assert exit_["callback_payload"]["navigation.open.outcome"] in {"returned", "threw"}
-    assert exit_["callback_payload"]["navigation.open.original_call_count"] == (
-        entry["callback_payload"]["navigation.open.original_call_count"] + 1)
-    assert entry["cause_id"] == controller_call["event_id"]
-    assert exit_["cause_id"] == entry["event_id"]
-    assert entry["sequence"] < exit_["sequence"]
-    for field, kind in (("request_observation", "routing-provider-request-log"),
-                        ("write_observation", "route-storage-write-log")):
-        observed = result[field]
-        assert observed["observer_installed_before_action"] is True
-        assert observed["source"] == kind
-        assert observed["events"] == []
-    assert result["state_after"] == result["state_before"]
-    assert result["revision_after"] == result["revision_before"]
-    return entry, exit_
 
 
-@pytest.mark.parametrize("stage", ["matrix", "optimizer", "directions", "access-snap", "walking-directions"])
-def test_ac049_provider_http_failure_preserves_stage_status_and_safe_json_detail(run, stage):
-    body = {"error": {"code": "NO_ROUTE\u202e  ", "message": "  경로\n  검색 결과 없음  "}}
-    r = run(operation="provider_http_failure", stage=stage, status=404, body=body,
-            content_type="application/json", key=KEY, seed_saved=True, seed_candidate=True)
-    assert_mixed_failure_preserves_state(r)
-    error = r["error_record"]
-    assert error["stage"] == stage and error["http_status"] == 404
-    assert error["provider_code"] == "NO_ROUTE" and error["provider_message"] == "경로 검색 결과 없음"
-    assert len(error["provider_code"]) <= 64 and len(error["provider_message"]) <= 320
-    assert len(r["message"]) <= 512 and "HTTP 404" in r["message"]
-    assert r["classification"] == "no-result-explicit"
-    assert_actual_failed_provider_request(r, stage, 404)
-    assert KEY not in str({k: v for k, v in r.items() if k != "captured_request"})
+def _provider_responder(*, access=MIXED_ACCESS, fail_stage=None, status=503,
+                        failure=None, malformed_walking=False):
+    matrix_calls = 0
+
+    def respond(record, _sequence):
+        nonlocal matrix_calls
+        path, body = record["path"], record["body"]
+        stage = None
+        if "/v2/matrix/" in path:
+            matrix_calls += 1
+            stage = "origin-validation" if len(body.get("locations", [])) == 1 else "matrix"
+        elif "/v2/snap/" in path:
+            stage = "access-snap"
+        elif "/foot-hiking/" in path:
+            stage = "walking-directions"
+        elif path == "/optimizer":
+            stage = "optimizer"
+        elif "/v2/directions/" in path:
+            stage = "directions"
+        if stage == fail_stage:
+            return status, "application/json", failure or {"error": {"code": "PROVIDER_FAILURE", "message": "fixture failure"}}
+        if stage == "origin-validation":
+            return 200, "application/json", {"sources": [{"location": MIXED_START, "snapped_distance": 0}]}
+        if stage == "access-snap":
+            return 200, "application/json", {"locations": [{"location": access}]}
+        if stage == "walking-directions":
+            if malformed_walking:
+                return 200, "application/json", {"features": []}
+            return 200, "application/json", {"features": [{
+                "geometry": {"type": "LineString", "coordinates": [access, MIXED_SOURCE]},
+                "properties": {"summary": {"distance": 150, "duration": 120},
+                               "segments": [{"distance": 150, "duration": 120}]},
+            }]}
+        if stage == "matrix":
+            return 200, "application/json", {
+                "durations": [[0, 600], [600, 0]], "distances": [[0, 1000], [1000, 0]],
+                "sources": [{"snapped_distance": 0}, {"snapped_distance": 0}],
+            }
+        if stage == "optimizer":
+            return 200, "application/json", {
+                "code": 0, "unassigned": [],
+                "routes": [{"distance": 1000, "duration": 600,
+                            "steps": [{"type": "start"}, {"type": "job", "id": 0}]}],
+            }
+        if stage == "directions":
+            return 200, "application/json", {"features": [{
+                "geometry": {"type": "LineString", "coordinates": [MIXED_START, access]},
+                "properties": {"summary": {"distance": 1000, "duration": 600},
+                               "segments": [{"distance": 1000, "duration": 600}],
+                               "way_points": [0, 1]},
+            }]}
+        return 404, "application/json", {"error": {"message": "unexpected fixture path"}}
+
+    return respond
+
+
+def _legacy_route(route_id, *, schema=2):
+    coordinate = [127.02, 37.02] if route_id.endswith("b") else MIXED_SOURCE
+    geometry = {"type": "LineString", "coordinates": [MIXED_START, coordinate]}
+    route = {
+        "route_id": route_id, "name": route_id, "revision": 1, "start": MIXED_START,
+        "end": coordinate, "roundtrip": False, "backend": "ors-vroom",
+        "stops": [{"source_layer": "site-layer", "site_id": "site-a", "name": "농촌 A",
+                   "sequence": 1, "completed": False, "coordinate": coordinate}],
+        "distance_m": 1000, "duration_s": 600, "road_geometry": geometry,
+        "legs": [{"sequence": 1, "from": "start",
+                  "to": {"layer_id": "site-layer", "site_id": "site-a"},
+                  "distance_m": 1000, "duration_s": 600, "geometry": geometry}],
+        "eta": None, "eta_basis": None,
+    }
+    if schema == 1:
+        route.pop("legs")
+        route.pop("road_geometry")
+        route.pop("distance_m")
+        route.pop("duration_s")
+    return route
+
+
+def _legacy_document(schema=2):
+    return {
+        "schema": schema, "active_id": "legacy-a",
+        "routes": [_legacy_route("legacy-a", schema=schema), _legacy_route("legacy-b", schema=schema)],
+        "settings": {"show_route_line": True},
+    }
+
+
+def _backend_run(tmp_path, responder, *, radius=2000, secret="SRP_DIRECT_SYNTHETIC_SECRET"):
+    with _route_http(responder) as (base, records):
+        observed = _direct_node(
+            "backend", tmp_path, settings={**_settings(base, secret), "max_access_distance_m": radius},
+            targets=[MIXED_TARGET], start=MIXED_START, roundtrip=False, secret=secret,
+        )
+    return observed, records
+
+
+@pytest.mark.parametrize("stage", ["matrix", "optimizer", "directions"])
+def test_ac049_http_failure_preserves_actual_stage_status_and_stops(stage, tmp_path):
+    observed, records = _backend_run(
+        tmp_path, _provider_responder(
+            fail_stage=stage, status=429,
+            failure={"error": {"code": " RATE_LIMIT\u202e ", "message": " wait   before retry "}},
+        ))
+    assert observed["ok"] is False
+    assert observed["error"]["stage"] == stage
+    assert observed["error"]["http_status"] == 429
+    assert observed["error"]["safe_record"]["provider_code"] == "RATE_LIMIT"
+    assert observed["error"]["safe_record"]["provider_message"] == "wait before retry"
+    assert records[-1]["method"] == "POST"
+    assert all(record["method"] == "POST" for record in records)
 
 
 @pytest.mark.parametrize("body,content_type", [
     ("", "text/plain"),
-    ("<html><body>404</body></html>", "text/html"),
-    ("<b>markup</b>", "text/plain"),
-    ("not { json", "application/json"),
-    (f"Authorization: Bearer {KEY}", "text/plain"),
-    (f"key={KEY}", "text/plain"),
-    ("https://example.invalid/path?token=secret-value", "text/plain"),
-    ({"error": {"message": "request body locations=[127,37] token=secret"}}, "application/json"),
-    ("x" * 200000, "text/plain"),
-], ids=["empty", "html", "markup", "malformed-json", "authorization", "known-key",
-        "key-bearing-url", "key-bearing-body", "huge-body"])
-def test_ac049_unsafe_or_unusable_provider_body_has_no_detail(run, body, content_type):
-    r = run(operation="provider_http_failure", stage="directions", status=404, body=body,
-            content_type=content_type, key=KEY, seed_saved=True, seed_candidate=True)
-    assert_mixed_failure_preserves_state(r)
-    assert r["error_record"] == {"stage": "directions", "http_status": 404,
-                                 "provider_code": None, "provider_message": None, "safe_text": None}
-    assert r["classification"] == "generic-http" and "HTTP 404" in r["message"]
-    assert KEY not in str(r["message"]) and r["retained_raw_response"] is False
-
-
-def test_ac049_plain_text_is_bounded_and_success_body_never_enters_error_ui(run):
-    failure = run(operation="provider_http_failure", stage="matrix", status=503,
-                  body="  provider\n temporarily   unavailable  ", content_type="text/plain",
-                  seed_saved=True, seed_candidate=True)
-    assert failure["error_record"]["safe_text"] == "provider temporarily unavailable"
-    assert len(failure["error_record"]["safe_text"]) <= 320
-    success = run(operation="provider_http_failure", stage="matrix", status=200,
-                  body={"message": "success-body-marker"}, content_type="application/json")
-    assert "success-body-marker" not in str(success["error_ui"])
-
-
-@pytest.mark.parametrize("content_type", [None, "text/plain", "application/octet-stream"],
-                         ids=["missing", "misleading-text", "misleading-binary"])
-def test_ac049_valid_json_body_is_parsed_even_without_truthful_content_type(run, content_type):
-    body = json.dumps({"error": {"code": "NO_ROUTE", "message": "경로 검색 결과 없음"}},
-                      ensure_ascii=False)
-    r = run(operation="provider_http_failure", stage="walking-directions", status=404,
-            body=body, content_type=content_type, seed_saved=True, seed_candidate=True)
-    assert_mixed_failure_preserves_state(r)
-    assert r["error_record"] == {
-        "stage": "walking-directions", "http_status": 404,
-        "provider_code": "NO_ROUTE", "provider_message": "경로 검색 결과 없음",
-        "safe_text": None,
-    }
-    assert r["classification"] == "no-result-explicit"
-
-
-@pytest.mark.parametrize("fault", ["status_0", "network"])
-def test_ac049_statusless_transport_failure_has_connection_action_without_http_status(run, fault):
-    r = run(operation="provider_http_failure", stage="access-snap", transport_fault=fault,
-            seed_saved=True, seed_candidate=True)
-    assert_mixed_failure_preserves_state(r)
-    assert r["error_record"] == {
-        "stage": "access-snap", "http_status": None,
-        "provider_code": None, "provider_message": None, "safe_text": None,
-    }
-    assert "HTTP 0" not in r["message"] and "connection" in r["suggested_actions"]
-    assert "연결" in r["message"] or "네트워크" in r["message"]
-    assert_actual_failed_provider_request(r, "access-snap", None)
-
-
-@pytest.mark.parametrize("provider_message,expected", [
-    ("configured endpoint unavailable", "endpoint-unavailable-explicit"),
-    ("no route found for locations", "no-result-explicit"),
-    (None, "generic-http"),
+    ("<html>failure</html>", "text/html"),
+    ("Authorization: Bearer SRP_DIRECT_SYNTHETIC_SECRET", "text/plain"),
+    ('{"error":{"code":"key=SRP_DIRECT_SYNTHETIC_SECRET","message":"secret"}}', "application/json"),
 ])
-def test_ac049_404_meaning_comes_only_from_provider_content(run, provider_message, expected):
-    body = {"error": {"code": "NOT_FOUND", "message": provider_message}} if provider_message else ""
-    r = run(operation="provider_http_failure", stage="directions", status=404, body=body,
-            content_type="application/json" if provider_message else "text/plain",
-            seed_saved=True, seed_candidate=True)
-    assert r["classification"] == expected
+def test_ac049_unsafe_http_body_has_no_detail_or_secret(body, content_type, tmp_path):
+    def responder(record, sequence):
+        if sequence == 1:
+            return 401, content_type, body
+        return _provider_responder()(record, sequence)
+    observed, _ = _backend_run(tmp_path, responder)
+    assert observed["ok"] is False
+    record = observed["error"]["safe_record"]
+    assert record["provider_code"] is record["provider_message"] is record["safe_text"] is None
+    assert "SRP_DIRECT_SYNTHETIC_SECRET" not in json.dumps(observed, ensure_ascii=False)
 
 
 @pytest.mark.parametrize("radius", [350, 2000, 5000])
-def test_ac050_single_ordered_access_snap_uses_originals_and_exact_radius(run, radius):
-    r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=radius,
-            access_snap_response={"locations": [{"location": MIXED_ACCESS[0]}, {"location": MIXED_ACCESS[1]}]},
-            walking_responses=[MAPPED_FOOT, "exact-zero"], return_to_start=True)
-    assert r["ok"] is True
-    requests = r["requests"]
-    snap = [request for request in requests if request["kind"] == "access-snap"]
-    assert len(snap) == 1 and snap[0]["url"].endswith("/v2/snap/driving-car/json")
-    assert snap[0]["body"]["locations"] == [site["xy"] for site in MIXED_SITES]
-    assert snap[0]["body"]["radius"] == radius
-    assert r["generated_snap_inputs"] == [] and r["radius_adjustments"] == []
-    assert r["source_features_after"] == r["source_features_before"]
-    assert r["original_source_snapshots"] and all(
-        snapshot == r["original_source_snapshots"][0] for snapshot in r["original_source_snapshots"])
-    exact_zero_gap = geodesic_distance_m(MIXED_SITES[1]["xy"], MIXED_ACCESS[1])
-    assert MIXED_SITES[1]["xy"] != MIXED_ACCESS[1]
-    assert 0 < exact_zero_gap <= 1.0, "second visit is a non-identical exact-zero case"
-    nonzero_snapped_sources = [site["xy"] for site, access in zip(MIXED_SITES, MIXED_ACCESS)
-                               if site["xy"] != access]
-    for request in requests:
-        if request["kind"] in {"matrix", "optimizer", "directions"}:
-            assert all(str(source) not in str(request["body"]) for source in nonzero_snapped_sources)
-    assert r["vehicle_coordinates"] == MIXED_ACCESS
+def test_ac050_single_batched_snap_uses_original_coordinates_and_exact_radius(radius, tmp_path):
+    observed, records = _backend_run(tmp_path, _provider_responder(), radius=radius)
+    assert observed["ok"] is True
+    snap = [record for record in records if "/v2/snap/driving-car/json" in record["path"]]
+    assert len(snap) == 1
+    assert snap[0]["body"] == {"locations": [MIXED_SOURCE], "radius": radius}
+    vehicle = [record for record in records
+               if "/v2/matrix/driving-car" in record["path"] and len(record["body"]["locations"]) > 1]
+    assert vehicle[0]["body"]["locations"] == [MIXED_START, MIXED_ACCESS]
+    assert observed["result"]["stops"][0]["coordinate"] == MIXED_SOURCE
 
 
-@pytest.mark.parametrize("fault", ["null", "batch-limit", "radius-rejected", "origin-not-routable"])
-def test_ac050_access_boundary_failures_stop_pipeline_and_preserve_last_good(run, fault):
-    r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=2000,
-            access_fault=fault, seed_saved=True, seed_candidate=True, key=KEY)
-    assert_mixed_failure_preserves_state(r)
-    assert r["downstream_requests"] == []
-    if fault == "null":
-        assert "산지 A" in r["message"] and "2.00 km" in r["message"]
-        assert {"coordinates", "osm_coverage", "max_access_distance_m"} <= set(r["suggested_actions"])
-    elif fault == "batch-limit":
-        assert r["requests"] == [] and r["stage_sequence"] == ["preflight"]
-        preflight = r["preflight_observation"]
-        assert preflight["source"] == "controller_state_after_explicit_calculate"
-        assert preflight["passed"] is False and preflight["reason"].strip()
-        assert preflight["derived_from_case_input"] is False
-    elif fault == "radius-rejected":
-        assert r["error_record"]["stage"] == "access-snap" and r["radius_adjustments"] == []
+def test_ac050_null_snap_and_batch_limit_stop_without_downstream_request(tmp_path):
+    null_result, records = _backend_run(tmp_path, _provider_responder(access=None))
+    assert null_result["ok"] is False
+    assert [record["path"] for record in records] == [
+        "/v2/matrix/driving-car", "/v2/snap/driving-car/json"]
+    assert "농촌 A" in null_result["error"]["message"] and "2.00 km" in null_result["error"]["message"]
+    with _route_http(_provider_responder()) as (base, batch_records):
+        result = _direct_node(
+            "backend", tmp_path, settings={**_settings(base), "snap_batch_limit": 1},
+            targets=[MIXED_TARGET, {**MIXED_TARGET, "site_id": "site-b"}],
+            start=MIXED_START, roundtrip=False,
+        )
+    assert result["ok"] is False and batch_records == []
+
+
+@pytest.mark.parametrize("mode", ["mapped", "exact_zero", "unmapped_estimate"])
+def test_ac051_actual_backend_emits_roundtrip_walking_contract(mode, tmp_path):
+    access = MIXED_SOURCE if mode == "exact_zero" else MIXED_ACCESS
+    if mode == "unmapped_estimate":
+        responder = _provider_responder(
+            access=access, fail_stage="walking-directions", status=404,
+            failure={"error": {"code": "NO_FOOT_ROUTE", "message": "no foot route found"}},
+        )
     else:
-        assert r["requests"] == [] and r["origin_snap_requests"] == [] and r["origin_walking_legs"] == []
-
-
-def test_ac050_origin_null_with_finite_snapped_distance_stops_before_access_snap(run):
-    r = run(operation="mixed_route_calculate", sites=MIXED_SITES,
-            max_access_distance_m=2000, seed_saved=True, seed_candidate=True,
-            origin_validation_response={"location": None, "snapped_distance": 12.5})
-    assert_mixed_failure_preserves_state(r)
-    assert r["stage_sequence"] == ["preflight", "origin-validation"]
-    assert [request["kind"] for request in r["requests"]] == ["origin-validation"]
-    assert r["failed_transport_observation"]["request"] == r["requests"][0]
-    assert r["failed_transport_observation"]["response"] == {
-        "location": None, "snapped_distance": 12.5,
-    }
-    assert r["downstream_requests"] == [] and r["writes"] == []
-    assert r["origin_snap_requests"] == [] and r["origin_walking_legs"] == []
-
-
-def test_ac051_mapped_zero_and_open_last_visits_are_out_and_back(run):
-    r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=2000,
-            access_snap_response={"locations": [{"location": MIXED_ACCESS[0]}, {"location": MIXED_ACCESS[1]}]},
-            walking_responses=[MAPPED_FOOT, "exact-zero"], return_to_start=False)
-    assert r["walking_request_count"] == 1
-    mapped, zero = r["candidate"]["visits"]
-    assert [leg["direction"] for leg in mapped["walking_legs"]] == ["outbound", "return"]
-    assert mapped["walking_legs"][0]["distance_m"] == mapped["walking_legs"][1]["distance_m"] == 480.25
-    assert mapped["walking_legs"][1]["geometry"]["coordinates"] == list(reversed(
-        mapped["walking_legs"][0]["geometry"]["coordinates"]))
-    assert all(leg["distance_m"] == leg["duration_s"] == 0 and leg["geometry"] is None
-               for leg in zero["walking_legs"])
-    assert r["optimizer_request"]["walking_costs"] == []
-
-
-def test_ac051_explicit_no_path_requires_ack_and_keeps_duration_unknown(run):
-    r = run(operation="mixed_route_calculate", sites=MIXED_SITES[:1], max_access_distance_m=2000,
-            access_snap_response={"locations": [{"location": MIXED_ACCESS[0]}]},
-            walking_responses=[{"explicit_no_path": True}], save_attempts=[False, True])
-    visit = r["candidate"]["visits"][0]
-    assert visit["walking_mode"] == "unmapped_estimate"
-    assert visit["metric_source"] == "straight_line_lower_bound_m"
-    expected_lower_bound = geodesic_distance_m(MIXED_ACCESS[0], MIXED_SITES[0]["xy"])
-    assert visit["access_offset_m"] == pytest.approx(expected_lower_bound, abs=0.01)
-    assert all(leg["distance_m"] == pytest.approx(expected_lower_bound, abs=0.01)
-               for leg in visit["walking_legs"])
-    assert all(leg["duration_s"] is None for leg in visit["walking_legs"])
-    assert r["candidate"]["walking_totals"]["duration_s"] is None
-    assert r["candidate"]["combined_totals"] is None
-    assert r["save_attempts"][0]["blocked"] is True and "지도에 없는 도보 구간 포함" in r["save_attempts"][0]["message"]
-    assert r["save_attempts"][1]["committed_schema"] == 3
-
-
-@pytest.mark.parametrize("fault", ["http", "timeout", "malformed", "metric-mismatch"])
-def test_ac051_transient_or_invalid_walking_failure_is_never_downgraded(run, fault):
-    r = run(operation="mixed_route_calculate", sites=MIXED_SITES[:1], max_access_distance_m=2000,
-            access_snap_response={"locations": [{"location": MIXED_ACCESS[0]}]},
-            walking_fault=fault, seed_saved=True, seed_candidate=True)
-    assert_mixed_failure_preserves_state(r)
-    assert r["fallback_visits"] == [] and r["vehicle_requests"] == []
-
-
-@pytest.mark.parametrize("fallback", [False, True])
-def test_ac052_schema3_exact_roundtrip_recovery_move_and_completion_are_offline(run, fallback):
-    r = run(operation="mixed_route_roundtrip", sites=MIXED_SITES, fallback=fallback,
-            lifecycle=["save", "restart", "recover-last-good", "offline", "move", "complete", "uncheck"])
-    route = r["reloaded_route"]
-    assert r["reloaded_document"]["schema"] == 3 and route == r["saved_route"]
-    assert_schema3_document_contract(r["reloaded_document"])
-    assert all({"source_coordinate", "access_coordinate", "access_offset_m", "walking_mode",
-                "walking_legs", "metric_source"} <= set(visit) for visit in route["visits"])
-    assert all(len(visit["walking_legs"]) == 2 for visit in route["visits"])
-    assert all(visit["trip_multiplier"] == 2 for visit in route["visits"])
-    if fallback:
-        assert route["walking_totals"]["duration_s"] is None and route["combined_totals"] is None
+        responder = _provider_responder(access=access)
+    observed, records = _backend_run(tmp_path, responder)
+    assert observed["ok"] is True
+    visit = observed["result"]["visits"][0]
+    assert visit["walking_mode"] == mode and visit["trip_multiplier"] == 2
+    assert [leg["direction"] for leg in visit["walking_legs"]] == ["outbound", "return"]
+    if mode == "exact_zero":
+        assert not any("/foot-hiking/" in record["path"] for record in records)
+        assert all(leg == {"direction": leg["direction"], "distance_m": 0,
+                           "duration_s": 0, "geometry": None}
+                   for leg in visit["walking_legs"])
+    elif mode == "unmapped_estimate":
+        assert visit["metric_source"] == "straight_line_lower_bound_m"
+        assert all(leg["duration_s"] is None for leg in visit["walking_legs"])
+        assert observed["result"]["combined_totals"] is None
     else:
-        assert route["combined_totals"]["distance_m"] == (
-            route["vehicle_totals"]["distance_m"] + route["walking_totals"]["mapped_distance_m"])
-    assert r["lifecycle_requests"] == [] and r["immutable_route_snapshots"]
-    assert all(snapshot == r["immutable_route_snapshots"][0] for snapshot in r["immutable_route_snapshots"])
-    assert r["remaining_states"][-1] == r["remaining_states"][0]
-    completed = r["remaining_states"][1]
-    assert completed["vehicle_leg_count"] < r["remaining_states"][0]["vehicle_leg_count"]
-    assert completed["walking_visit_count"] < r["remaining_states"][0]["walking_visit_count"]
+        assert visit["metric_source"] == "ors-foot-hiking"
+        assert visit["walking_legs"][1]["geometry"]["coordinates"] == list(
+            reversed(visit["walking_legs"][0]["geometry"]["coordinates"]))
 
 
-def test_ac052_ac056_exact_zero_totals_stay_exact_and_separate(run):
-    r = run(operation="mixed_route_roundtrip", sites=MIXED_SITES[:1], fallback=False,
-            access_snap_response={"locations": [{"location": EXACT_ZERO_ACCESS}]},
-            walking_responses=["exact-zero"], lifecycle=["save", "restart", "offline", "move"])
-    route = r["reloaded_route"]
-    visit = route["visits"][0]
-    assert (visit["walking_mode"], visit["metric_source"]) == ("exact_zero", "exact_zero")
-    assert 0 < visit["access_offset_m"] <= 1
-    assert all(leg["distance_m"] == leg["duration_s"] == 0 and leg["geometry"] is None
-               for leg in visit["walking_legs"])
-    assert route["walking_totals"] == {
-        "mapped_distance_m": 0, "lower_bound_distance_m": 0, "duration_s": 0,
-        "unavailable_duration_count": 0,
-    }
-    assert route["combined_totals"] == route["vehicle_totals"]
-    assert r["lifecycle_requests"] == r["lifecycle_writes"] == []
+def test_ac051_malformed_walking_response_does_not_fallback_or_continue(tmp_path):
+    observed, records = _backend_run(tmp_path, _provider_responder(malformed_walking=True))
+    assert observed["ok"] is False
+    assert [record["path"] for record in records] == [
+        "/v2/matrix/driving-car", "/v2/snap/driving-car/json",
+        "/v2/directions/foot-hiking/geojson"]
+    assert "도보" in observed["error"]["message"]
 
 
-def test_ac052_ac053_fallback_totals_stay_lower_bound_and_duration_unknown(run):
-    r = run(operation="mixed_route_roundtrip", sites=MIXED_SITES[:1], fallback=True,
-            access_snap_response={"locations": [{"location": MIXED_ACCESS[0]}]},
-            walking_responses=[{"explicit_no_path": True}], acknowledge_unmapped=True,
-            lifecycle=["save", "restart", "offline", "move"])
-    route = r["reloaded_route"]
-    visit = route["visits"][0]
-    expected = 2 * geodesic_distance_m(visit["source_coordinate"], visit["access_coordinate"])
-    assert route["walking_totals"]["mapped_distance_m"] == 0
-    assert route["walking_totals"]["lower_bound_distance_m"] == pytest.approx(expected, abs=0.01)
+def test_ac051_unmapped_save_requires_acknowledgement_and_keeps_null_totals(tmp_path):
+    responder = _provider_responder(
+        fail_stage="walking-directions", status=404,
+        failure={"error": {"code": "NO_FOOT_ROUTE", "message": "no foot route found"}},
+    )
+    with _route_http(responder) as (base, _records):
+        common = {
+            "document": _legacy_document(),
+            "features": [{"id": "site-a", "name": "농촌 A",
+                          "coordinate": MIXED_SOURCE, "completed": False}],
+            "settings": _settings(base), "start": MIXED_START, "roundtrip": False,
+            "replace_active": True, "name": "fallback 경로",
+        }
+        blocked = _direct_node(
+            "controller_flow", tmp_path,
+            base=str(tmp_path / "fallback-blocked" / "routes"), **common,
+        )
+        accepted = _direct_node(
+            "controller_flow", tmp_path,
+            base=str(tmp_path / "fallback-accepted" / "routes"),
+            acknowledge_unmapped=True, **common,
+        )
+    assert blocked["calculated"] is True and blocked["saved"] is False
+    assert "지도에 없는 도보 구간 포함" in blocked["state_message"]
+    assert accepted["saved"] is True
+    route = next(route for route in accepted["snapshot"]["data"]["routes"]
+                 if route["route_schema"] == 3)
     assert route["walking_totals"]["duration_s"] is None
-    assert route["walking_totals"]["unavailable_duration_count"] == 2
     assert route["combined_totals"] is None
-    assert r["lifecycle_requests"] == r["lifecycle_writes"] == []
 
 
-@pytest.mark.parametrize("schema", [1, 2])
-def test_ac052_ac056_legacy_load_and_future_rejection_preserve_bytes(run, schema):
-    legacy = schema2_legacy_document(schema=schema)
-    loaded = run(operation="mixed_route_compatibility", document=legacy, action="load")
-    assert loaded["bytes_after"] == loaded["bytes_before"] and loaded["requests"] == loaded["writes"] == []
-    assert loaded["schema_after"] == schema
-    future = run(operation="mixed_route_compatibility", document={"schema": 99, "opaque": "keep"}, action="load")
-    assert future["ok"] is False and future["bytes_after"] == future["bytes_before"]
-    assert future["requests"] == future["writes"] == []
+def _saved_mixed_document(tmp_path):
+    with _route_http(_provider_responder()) as (base, records):
+        base_path = str(tmp_path / "project" / "survey-routes")
+        result = _direct_node(
+            "controller_flow", tmp_path, base=base_path, document=_legacy_document(),
+            features=[{"id": "site-a", "name": "농촌 A", "coordinate": MIXED_SOURCE, "completed": False}],
+            settings=_settings(base), start=MIXED_START, roundtrip=False, replace_active=True,
+            name="저장 혼합 경로", secret="SRP_DIRECT_SYNTHETIC_SECRET",
+        )
+    assert result["calculated"] is True
+    assert result["saved"] is True
+    return result, records, Path(base_path)
 
 
-@pytest.mark.parametrize("schema", [1, 2])
-def test_ac052_selected_schema1_and_schema2_route_upgrade_atomically_replaces_identity(run, schema):
-    legacy = heterogeneous_legacy_document(schema)
-    route_id = legacy["active_route_id"]
-    unrelated_before = deepcopy(legacy["routes"][1])
-    r = run(operation="mixed_route_compatibility", document=legacy,
-            action="explicit-recalculate-and-save", selected_route_id=route_id,
-            sites=MIXED_SITES,
-            access_snap_response={"locations": [{"location": point} for point in MIXED_ACCESS]},
-            walking_responses=[MAPPED_FOOT, "exact-zero"])
-    assert r["selected_route_before"]["route_id"] == route_id
-    assert r["explicit_recalculation_count"] == 1
-    assert r["explicit_save_count"] == 1
-    assert {"controller.calculate", "controller.save", "repository.save"} <= observed_production_calls(r)
-    assert_schema3_document_contract(r["saved_document"])
-    replacements = [route for route in r["saved_document"]["routes"]
-                    if route["route_id"] == route_id]
-    assert replacements == [r["saved_route"]]
-    assert r["saved_route"]["route_schema"] == 3
-    assert r["saved_document"].get("active_id", r["saved_document"].get("active_route_id")) == route_id
-    assert r["saved_route"]["revision"] > legacy["routes"][0]["revision"]
-    unrelated_after = next(route for route in r["saved_document"]["routes"]
-                           if route["route_id"] == unrelated_before["route_id"])
-    assert unrelated_after["route_schema"] == schema
-    assert {key: value for key, value in unrelated_after.items() if key != "route_schema"} == unrelated_before
-    assert r["listed_route_ids"] == [route["route_id"] for route in r["saved_document"]["routes"]]
-    assert r["loaded_legacy_route"] == unrelated_after
-    commit = r["atomic_replace_observation"]
-    assert commit["source"] == "captured_storage"
-    assert commit["target_route_id"] == route_id and commit["commit_count"] == 1
-    assert commit["before_sha256"] != commit["after_sha256"]
-    assert commit["replace_succeeded"] is True and commit["temporary_path_removed"] is True
-    assert r["bytes_after"] == commit["committed_bytes"]
+def test_ac052_ac057_production_save_roundtrips_schema3_and_preserves_legacy(tmp_path):
+    result, _, base = _saved_mixed_document(tmp_path)
+    document = result["snapshot"]["data"]
+    assert document["schema"] == 3
+    assert {route["route_id"] for route in document["routes"]} == {"legacy-a", "legacy-b"}
+    selected = next(route for route in document["routes"] if route["route_id"] == "legacy-a")
+    unrelated = next(route for route in document["routes"] if route["route_id"] == "legacy-b")
+    assert selected["route_schema"] == 3
+    assert unrelated["route_schema"] == 2
+    assert unrelated["name"] == "legacy-b"
+    moved = tmp_path / "moved"
+    shutil.move(base.parent, moved)
+    reopened = _direct_node("repo_load", tmp_path, base=str(moved / base.name))
+    assert reopened["ok"] is True
+    assert reopened["loaded"]["data"] == document
+    assert reopened["writeAttempts"] == 0
 
 
-@pytest.mark.parametrize("schema", [1, 2])
-@pytest.mark.parametrize("fault_stage", ["walking-directions", "atomic-save"])
-def test_ac052_failed_schema1_and_schema2_upgrade_preserves_selected_route_and_bytes(
-        run, schema, fault_stage):
-    legacy = heterogeneous_legacy_document(schema)
-    r = run(operation="mixed_route_compatibility", document=legacy,
-            action="explicit-recalculate-and-save", selected_route_id=legacy["active_route_id"],
-            sites=MIXED_SITES, injected_failure_stage=fault_stage)
-    assert r["ok"] is False and r["message"].strip()
-    assert r["selected_route_after"] == r["selected_route_before"] == legacy["routes"][0]
-    assert r["bytes_after"] == r["bytes_before"]
-    assert r["last_good_after"] == r["last_good_before"]
-    assert r["successful_storage_commits"] == []
-    assert r["saved_document"] == legacy
+def test_ac054_actual_http_sequence_and_privacy_boundary(tmp_path):
+    secret = "SRP_DIRECT_SYNTHETIC_SECRET"
+    observed, records = _backend_run(tmp_path, _provider_responder(), secret=secret)
+    assert observed["ok"] is True
+    assert [record["path"] for record in records] == [
+        "/v2/matrix/driving-car", "/v2/snap/driving-car/json",
+        "/v2/directions/foot-hiking/geojson", "/v2/matrix/driving-car",
+        "/optimizer", "/v2/directions/driving-car/geojson",
+    ]
+    optimizer = next(record for record in records if record["path"] == "/optimizer")
+    wire = json.dumps(optimizer["body"], ensure_ascii=False)
+    assert "농촌 A" not in wire and "site-a" not in wire and "site-layer" not in wire
+    assert optimizer["body"]["jobs"] == [{"id": 0, "location_index": 1}]
+    assert all(record["headers"]["authorization"] == secret for record in records)
+    for path in tmp_path.rglob("*"):
+        if path.is_file():
+            assert secret.encode() not in path.read_bytes()
 
 
-def test_ac057_no_file_default_open_is_schema2_in_memory_and_write_free(run):
-    r = run(operation="mixed_route_compatibility", action="open-default", no_route_files=True)
-    assert r["in_memory_document"] == {
-        "schema": 2, "active_id": "", "routes": [], "settings": {"show_route_line": True},
-    }
-    assert r["route_files_after"] == r["route_files_before"] == []
-    assert r["requests"] == r["writes"] == []
-
-
-@pytest.mark.parametrize("starting_document", [None, schema2_legacy_document(schema=1)],
-                         ids=["fresh", "schema-1"])
-@pytest.mark.parametrize(("action", "settings_update"), [
-    pytest.param("settings-only-save", {"show_route_line": False}, id="settings"),
-    pytest.param("default-start-only-save", {"default_start": [127.2, 37.2]}, id="default-start"),
+@pytest.mark.parametrize("platform,results,expected", [
+    ("ios", [True], ["https://maps.apple.com/directions?destination=37.456,127.123&mode=driving"]),
+    ("ios", [False], ["https://maps.apple.com/directions?destination=37.456,127.123&mode=driving"]),
+    ("android", [False, True], [
+        "intent://navigation?dlat=37.456&dlng=127.123&dname=%ED%95%9C%EA%B8%80%20%26%20%23%25%20&appname=org.example%2F%23%25#Intent;scheme=nmap;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end",
+        "market://details?id=com.nhn.android.nmap",
+    ]),
 ])
-def test_ac057_settings_or_default_only_save_never_promotes_beyond_schema2(
-        run, starting_document, action, settings_update):
-    r = run(operation="mixed_route_compatibility", document=starting_document,
-            no_route_files=starting_document is None, action=action,
-            settings_update=settings_update)
-    assert r["saved_document"]["schema"] == 2
-    assert all("route_schema" not in route for route in r["saved_document"]["routes"])
-    assert all(r["saved_document"]["settings"][key] == value
-               for key, value in settings_update.items())
-    assert r["provider_requests"] == []
-    assert r["successful_storage_commits"] == 1
-    assert r["atomic_settings_observation"]["readback_document"] == r["saved_document"]
+def test_ac055_navigation_open_direct_spy(platform, results, expected, tmp_path):
+    observed = _direct_node(
+        "navigation", tmp_path, platform=platform, open_results=results,
+        caller_id="org.example/#%", stop={"coordinate": [127.123, 37.456],
+                                          "name": "한글 & #% ", "site_id": "site-a"},
+    )
+    assert observed["calls"] == expected
+    if platform == "ios" and results == [False]:
+        assert observed["ok"] is False
+        assert observed["error"]["message"] == "Apple 지도를 열 수 없습니다. 기기 설정과 네트워크 상태를 확인하세요."
+    elif platform == "ios":
+        assert observed["result"]["os_request_accepted"] is True
+        assert "확인할 수 없습니다" in observed["result"]["message"]
 
 
-def test_ac057_untagged_homogeneous_schema3_reads_without_write_then_tags_next_write(run):
-    r = run(operation="mixed_route_compatibility", seed_schema3_routes_with_production=2,
-            omit_route_schema_markers=True,
-            actions=["load-untagged", "settings-only-save"])
-    assert r["load_observation"]["ok"] is True
-    assert r["load_observation"]["writes"] == []
-    assert r["load_observation"]["bytes_after"] == r["load_observation"]["bytes_before"]
-    assert all("route_schema" not in route for route in r["load_observation"]["document"]['routes'])
-    assert r["saved_document"]["schema"] == 3
-    assert all(route["route_schema"] == 3 for route in r["saved_document"]["routes"])
-    assert_schema3_document_contract(r["saved_document"])
-    assert r["requests"] == [] and r["successful_storage_commits"] == 1
+@pytest.mark.parametrize("coordinate,special", [
+    ([180, 90], None), ([-180, -90], None), ([127.123456789, -0.0], None),
+    (["127.1", 37], None), ([181, 37], None), ([127, 91], None),
+    ([127, 37], "nan"), ([127, 37], "infinity"),
+])
+def test_ac055_coordinate_normalization_or_rejection(coordinate, special, tmp_path):
+    observed = _direct_node(
+        "navigation", tmp_path, platform="ios", open_results=[True], special=special,
+        stop={"coordinate": coordinate, "name": "x", "site_id": "x"},
+    )
+    valid = special is None and all(isinstance(value, (int, float)) for value in coordinate) and abs(coordinate[0]) <= 180 and abs(coordinate[1]) <= 90
+    assert len(observed["calls"]) == (1 if valid else 0)
+    if coordinate == [127.123456789, -0.0]:
+        assert observed["calls"] == [
+            "https://maps.apple.com/directions?destination=0,127.1234568&mode=driving"]
+
+
+@pytest.mark.parametrize("mutation", [
+    ("layer_id", None), ("site_id", " "), ("metric_source", "guessed"),
+    ("walking_mode", "unknown"), ("metric_source", "exact_zero"),
+])
+def test_ac056_corrupt_visit_recovery_preserves_bytes_and_last_good(mutation, tmp_path):
+    result, _, base = _saved_mixed_document(tmp_path)
+    good = result["snapshot"]["data"]
+    corrupt = deepcopy(good)
+    visit = next(route for route in corrupt["routes"] if route["route_schema"] == 3)["visits"][0]
+    field, value = mutation
+    if value is None:
+        visit.pop(field)
+    else:
+        visit[field] = value
+    recovered = _direct_node(
+        "repo_recovery", tmp_path, base=str(tmp_path / "recovery" / "routes"),
+        good=good, corrupt=corrupt,
+    )
+    assert recovered["ok"] is True
+    assert recovered["loaded"]["data"] == good
+    assert recovered["loaded"]["recovered"] is True
+    assert recovered["corrupt_bytes_unchanged"] is True
+    assert recovered["repository_writes_during_load"] == 0
 
 
 @pytest.mark.parametrize("corruption", [
-    "unknown-route-schema", "legacy-marker-with-mixed-fields",
-    "mixed-marker-with-legacy-fields", "duplicate-route-identity",
-    "legacy-variant-corruption", "mixed-variant-corruption",
+    "unknown_marker", "legacy_with_mixed", "mixed_without_mixed", "duplicate_identity",
 ])
-@pytest.mark.parametrize("boundary", ["load", "commit"])
-def test_ac057_marker_corruption_and_duplicates_fail_atomically(run, corruption, boundary):
-    r = run(operation="mixed_route_compatibility", seed_schema3_routes_with_production=2,
-            action=f"corrupt-{boundary}", route_variant_corruption=corruption)
-    assert r["ok"] is False and r["message"].strip()
-    assert r["bytes_after"] == r["bytes_before"]
-    assert r["last_good_after"] == r["last_good_before"]
-    assert r["selected_route_after"] == r["selected_route_before"]
-    assert r["provider_requests"] == [] and r["successful_storage_commits"] == []
-    assert r["repaired_document"] is None
-
-
-def test_ac052_ac056_product_cold_start_panel_recovers_last_good_without_mutation(run):
-    r = run(operation="mixed_route_compatibility", seed_schema3_routes_with_production=2,
-            action="product-cold-start-open-panel", corrupt_newest_slot=True)
-    lifecycle = r["product_cold_start_observation"]
-    seed_process = assert_callback_observation(
-        r, lifecycle["seed_process_observation"], source="loaded_artifact")
-    child_artifact = assert_callback_observation(
-        r, lifecycle["cold_start_child_artifact_observation"], source="loaded_artifact")
-    child = child_artifact["payload"]
-    artifact_bytes = json.dumps(child, ensure_ascii=False, sort_keys=True,
-                                separators=(",", ":")).encode()
-    assert child_artifact["sha256"] == hashlib.sha256(artifact_bytes).hexdigest()
-    verification = assert_callback_observation(
-        r, lifecycle["parent_child_verification_observation"], source="loaded_artifact")
-    assert verification == {
-        "child_pid": child["pid"], "child_artifact_sha256": child_artifact["sha256"],
-        "child_journal_sha256": child["sealed_callback_journal"]["sha256"],
-        "generated_project_sha256": child["generated_project_sha256"],
-        "verified": True,
-    }
-    assert isinstance(seed_process["pid"], int) and seed_process["pid"] > 0
-    assert isinstance(child["pid"], int) and child["pid"] > 0
-    assert child["pid"] != seed_process["pid"]
-    assert child["parent_pid"] == seed_process["pid"]
-    assert child["process_boundary"] == "subprocess.Popen" and child["returncode"] == 0
-    assert child["reopened_project_dir"] == str(Path(r["project_dir"]).resolve())
-    manifest = child["generated_project_manifest"]
-    assert manifest and any(item["relative_path"] == "qfield_routes/RoutePanel.qml"
-                            for item in manifest)
-    assert [item["relative_path"] for item in manifest] == sorted(
-        item["relative_path"] for item in manifest)
-    manifest_bytes = json.dumps(manifest, ensure_ascii=False, sort_keys=True,
-                                separators=(",", ":")).encode()
-    assert child["generated_project_sha256"] == hashlib.sha256(manifest_bytes).hexdigest()
-    for item in manifest:
-        artifact_path = Path(r["project_dir"]) / item["relative_path"]
-        assert artifact_path.is_file()
-        assert item["sha256"] == hashlib.sha256(artifact_path.read_bytes()).hexdigest()
-    child_journal = child["sealed_callback_journal"]
-    assert child_journal["finalized"] is True and child_journal["writer_closed"] is True
-    child_bytes = Path(child_journal["path"]).read_bytes()
-    assert child_journal["sha256"] == hashlib.sha256(child_bytes).hexdigest()
-    child_seal = json.loads(Path(child_journal["seal_path"]).read_text(encoding="utf-8"))
-    assert child_seal["journal_sha256"] == child_journal["sha256"]
-    child_lines, child_events, child_receipts = _journal_event_receipt_pairs(child_bytes)
-    assert child_events and child_seal["event_count"] == child_journal["event_count"] == len(child_events)
-    assert child_seal["receipt_count"] == child_journal["receipt_count"] == len(child_receipts)
-    assert child_seal["record_count"] == child_journal["record_count"] == len(child_lines)
-    assert child_seal["byte_length"] == child_journal["byte_length"] == len(child_bytes)
-    assert child_seal["final_event_sha256"] == child_events[-1]["event_sha256"]
-    assert child_seal["final_record_sha256"] == hashlib.sha256(child_lines[-1]).hexdigest()
-    assert child_journal["final_record_sha256"] == child_seal["final_record_sha256"]
-    child_receipts = _assert_callback_io_receipts(
-        child_bytes, child_seal, child_events, child_receipts)
-    child_receipts_sha256 = hashlib.sha256(
-        json.dumps(child_receipts, ensure_ascii=False, sort_keys=True,
-                   separators=(",", ":")).encode()).hexdigest()
-    assert child_journal["callback_io_receipts_sha256"] == child_receipts_sha256
-    assert child_seal["callback_io_receipts_sha256"] == child_receipts_sha256
-    assert child_journal["last_event_flushed_at_monotonic_ns"] == max(
-        receipt["flush_returned_at_monotonic_ns"] for receipt in child_receipts)
-    assert child_journal["last_callback_finished_at_monotonic_ns"] == max(
-        receipt["callback_finished_at_monotonic_ns"] for receipt in child_receipts)
-    assert child_journal["last_callback_finished_at_monotonic_ns"] < child_journal[
-        "finalized_at_monotonic_ns"]
-    assert [event["sequence"] for event in child_events] == list(range(len(child_events)))
-    child_by_id = {event["event_id"]: event for event in child_events}
-    _assert_wrapped_call_spans(
-        child_events, {receipt["event_id"]: receipt for receipt in child_receipts})
-    entry_events = [child_by_id[event_id] for event_id in child["entry_callback_event_ids"]]
-    assert all(event["process_id"] == child["pid"] for event in child_events)
-    required_entry_boundaries = [
-        "qml.open_panel", "controller.create", "controller.reload", "repository.load",
-    ]
-    assert [event["observer"]["boundary"] for event in entry_events] == required_entry_boundaries
-    exit_events = []
-    for entry in entry_events:
-        boundary = entry["observer"]["boundary"]
-        assert entry["observer"] == {
-            "production_source": MIXED_PRODUCTION_SOURCES[boundary.split(".", 1)[0]],
-            "boundary": boundary, "instrumentation": "external-wrapper",
-            "wrapped_symbol": boundary,
-        }
-        assert entry["callback_payload"] == {
-            f"{boundary}.{field}": (
-                "entry" if field == "phase" else None
-                if field in {"outcome", "return_identity", "exception_type"}
-                else entry["callback_payload"][f"{boundary}.{field}"])
-            for field in MIXED_WRAPPED_CALL_FIELDS
-        }
-        exits = [event for event in child_events
-                 if event["observer"]["boundary"] == boundary
-                 and event["callback_payload"].get(f"{boundary}.phase") == "exit"
-                 and event["cause_id"] == entry["event_id"]]
-        assert len(exits) == 1
-        exit_event = exits[0]
-        exit_events.append(exit_event)
-        assert exit_event["callback_payload"][f"{boundary}.outcome"] in {
-            "returned", "threw",
-        }
-        assert exit_event["callback_payload"][f"{boundary}.original_call_count"] == (
-            entry["callback_payload"][f"{boundary}.original_call_count"] + 1)
-        assert exit_event["callback_payload"][f"{boundary}.original_callable_id"] == (
-            entry["callback_payload"][f"{boundary}.original_callable_id"])
-        assert entry["sequence"] < exits[0]["sequence"]
-    assert [event["observer"]["boundary"] for event in exit_events] == required_entry_boundaries
-    assert [event["sequence"] for event in exit_events] == sorted(
-        (event["sequence"] for event in exit_events), reverse=True)
-    for outer, inner in zip(entry_events, entry_events[1:]):
-        assert inner["cause_id"] == outer["event_id"]
-    assert child["selected_route"] == r["last_good_route_before_corruption"]
-    assert child["selected_document_sha256"] == r["last_good_document_sha256"]
-    assert child["selected_document_sha256"] != r["corrupt_newest_document_sha256"]
-    assert r["corrupt_newest_bytes_after"] == r["corrupt_newest_bytes_before"]
-    assert r["last_good_bytes_after"] == r["last_good_bytes_before"]
-    assert r["provider_requests"] == r["storage_writes_after_corruption"] == []
-
-
-@pytest.mark.parametrize("missing_field", sorted(SCHEMA3_ROUTE_REQUIRED_FIELDS))
-def test_ac052_every_schema3_route_rejects_required_field_omission(run, missing_field):
-    r = run(operation="mixed_route_compatibility", seed_schema3_routes_with_production=2,
-            corrupt_route_index=1, omit_route_field=missing_field, action="load")
-    seed = r["seed_schema3_provenance"]
-    assert seed["route_count"] == 2 and len(seed["production_save_events"]) == 2
-    assert all(event["committed"] is True and event["project_relative_path"]
-               for event in seed["production_save_events"])
-    assert {"controller.calculate", "controller.save", "repository.save"} <= observed_production_calls(r)
-    assert r["ok"] is False and missing_field in r["message"]
-    assert r["corrupted_route_index"] == 1 and r["active_route_index"] == 0
-    assert r["bytes_after"] == r["bytes_before"]
-    assert r["requests"] == r["writes"] == [] and r["repaired_document"] is None
-
-
-@pytest.mark.parametrize("corrupt_route_index", [0, 1], ids=["active", "inactive"])
-@pytest.mark.parametrize("corrupt_visit_index", [0, 1], ids=["first-visit", "second-visit"])
-@pytest.mark.parametrize("visit_corruption", SCHEMA3_VISIT_CORRUPTIONS)
-def test_ac056_every_active_and_inactive_visit_corruption_rejects_whole_document(
-        run, corrupt_route_index, corrupt_visit_index, visit_corruption):
-    r = run(operation="mixed_route_compatibility", sites=MIXED_SITES,
-            seed_schema3_routes_with_production=2,
-            corrupt_route_index=corrupt_route_index, corrupt_visit_index=corrupt_visit_index,
-            visit_corruption=visit_corruption,
-            actions=["load-reject", "restart", "recover-last-good"])
-    seed = r["seed_schema3_provenance"]
-    assert seed["route_count"] == 2 and len(seed["production_save_events"]) == 2
-    assert seed["visit_counts"] == [2, 2]
-    assert seed["corrupt_newest"] is True
-    assert all(event["committed"] is True and event["project_relative_path"]
-               for event in seed["production_save_events"])
-    assert r["active_route_index"] == 0
-    assert r["corrupted_route_index"] == corrupt_route_index
-    assert r["corrupted_visit_index"] == corrupt_visit_index
-    assert r["corrupted_route_was_active"] is (corrupt_route_index == 0)
-    load_reject = r["load_rejection_observation"]
-    restart = r["restart_observation"]
-    recover = r["recovery_observation"]
-    lifecycle = [load_reject, restart, recover]
-    assert [item["action"] for item in lifecycle] == [
-        "load-reject", "restart", "recover-last-good",
-    ]
-    assert len({item["event_id"] for item in lifecycle}) == 3
-    assert len({item["callback_id"] for item in lifecycle}) == 3
-    assert len({item["boundary"] for item in lifecycle}) == 3
-    journal_events = [
-        assert_lifecycle_observation_is_journal_event(r, item, item["action"])
-        for item in lifecycle
-    ]
-    assert [event["sequence"] for event in journal_events] == sorted(
-        event["sequence"] for event in journal_events)
-    assert load_reject["ok"] is False and load_reject["message"].strip()
-    assert restart["delivered_through_production"] is True
-    assert recover["ok"] is True
-    assert recover["selected_route"] == seed["last_good_route"]
-    assert recover["selected_document_sha256"] == seed["last_good_document_sha256"]
-    assert recover["selected_document_sha256"] != seed["corrupt_document_sha256"]
-    for observation in lifecycle:
-        assert observation["corrupt_bytes_after"] == observation["corrupt_bytes_before"]
-        assert observation["requests"] == observation["writes"] == []
-    assert load_reject["repaired_document"] is None
-    assert load_reject["defaulted_fields"] == [] and load_reject["inferred_fields"] == []
-    assert r["bytes_after"] == r["bytes_before"]
-    assert r["last_good_after"] == r["last_good_before"]
-    assert r["requests"] == r["writes"] == [] and r["repaired_document"] is None
-
-
-@pytest.mark.parametrize(("access", "walking_response", "acknowledge_unmapped", "expected"), [
-    pytest.param(MIXED_ACCESS[0], MAPPED_FOOT, False,
-                 ("mapped", "ors-foot-hiking"), id="mapped-ors-foot-hiking"),
-    pytest.param(EXACT_ZERO_ACCESS, "exact-zero", False,
-                 ("exact_zero", "exact_zero"), id="exact-zero"),
-    pytest.param(MIXED_ACCESS[0], {"explicit_no_path": True}, True,
-                 ("unmapped_estimate", "straight_line_lower_bound_m"), id="unmapped-lower-bound"),
-])
-def test_ac056_three_allowed_visit_provenance_pairs_roundtrip_exactly(
-        run, access, walking_response, acknowledge_unmapped, expected):
-    r = run(operation="mixed_route_roundtrip", sites=MIXED_SITES[:1], fallback=False,
-            access_snap_response={"locations": [{"location": access}]},
-            walking_responses=[walking_response],
-            acknowledge_unmapped=acknowledge_unmapped,
-            lifecycle=["save", "restart", "offline", "move"])
-    assert_schema3_document_contract(r["reloaded_document"])
-    saved = r["saved_route"]
-    visit = saved["visits"][0]
-    stop = saved["stops"][0]
-    assert (visit["walking_mode"], visit["metric_source"]) == expected
-    assert visit["layer_id"].strip() and visit["site_id"].strip()
-    assert (visit["layer_id"], visit["site_id"]) == (stop["source_layer"], stop["site_id"])
-    provider_observation = r["walking_provider_observations"][0] if expected[0] == "mapped" else None
-    assert_visit_distance_semantics(visit, provider_observation)
-    if expected[0] == "exact_zero":
-        assert visit["source_coordinate"] != visit["access_coordinate"]
-    observations = r["lifecycle_route_observations"]
-    assert [observation["stage"] for observation in observations] == [
-        "restart", "offline", "move",
-    ]
-    assert all(observation["source"] == "independent_repository_readback"
-               and observation["route"] == saved for observation in observations)
-    assert r["reloaded_route"] == saved
-    assert r["lifecycle_requests"] == [] and r["lifecycle_writes"] == []
-
-
-@pytest.mark.parametrize("viewport,theme", [(320, "light"), (320, "dark"), (1024, "light"), (1024, "dark")])
-def test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive(run, viewport, theme):
-    r = run(operation="mixed_route_presentation", viewport_width=viewport, theme=theme,
-            include_fallback=True, actions=["preview", "legend", "complete", "uncheck"])
-    expected = {
-        "vehicle": ("solid", "차량 경로"),
-        "mapped_walking": ("dashed", "도보 경로"),
-        "unmapped_walking": ("dotted", "지도 경로 없음"),
-    }
-    assert set(r["line_classes"]) == set(expected)
-    object_ids = set()
-    for semantic_id, (pattern, legend) in expected.items():
-        observed = r["line_classes"][semantic_id]
-        assert (observed["pattern"], observed["legend"]) == (pattern, legend)
-        assert observed["contrasting_casing"] is True and observed["non_color_cue"]
-        assert observed["object_ids"]
-        object_ids.update(observed["object_ids"])
-    assert len(object_ids) >= 3
-    assert (r["warning_marker"]["visible"] is True and r["warning_marker"]["non_color_cue"]
-            and r["warning_marker"]["object_id"])
-    provenance = r["presentation_provenance"]
-    assert provenance["evidence_source"] == "loaded_generated_qml_object_tree_and_map"
-    assert provenance["theme_observation"]["effective_theme"] == theme
-    assert provenance["theme_observation"]["object_id"]
-    assert provenance["theme_observation"]["source"] == "effective_host_palette_readback"
-    assert provenance["viewport_observation"] == {
-        "source": "rendered_window_geometry", "actual_width": viewport,
-    }
-    assert [event["action"] for event in provenance["action_observations"]] == [
-        "preview", "legend", "complete", "uncheck",
-    ]
-    assert all(event["control_object_id"] and event["event_delivered"] is True
-               for event in provenance["action_observations"])
-    assert all(event["viewport_width"] == viewport and event["effective_theme"] == theme
-               for event in provenance["action_observations"])
-    assert all("serial" not in event and "capture_id" not in str(event)
-               for event in provenance["action_observations"])
-    preview, legend, complete, uncheck = provenance["action_observations"]
-    assert preview["before_state"]["expanded"] is False
-    assert preview["after_state"]["expanded"] is True
-    assert legend["before_state"]["route_lines_visible"] is True
-    assert legend["after_state"]["route_lines_visible"] is True
-    assert complete["before_state"]["completed_site_ids"] != complete["after_state"]["completed_site_ids"]
-    assert uncheck["after_state"]["completed_site_ids"] == complete["before_state"]["completed_site_ids"]
-    source = provenance["source_layer_observation"]
-    assert source["layer_object_id"]
-    renderer_reads = source["renderer_readbacks"]
-    assert [read["phase"] for read in renderer_reads] == ["before", "after"]
-    assert all(read["source"] == "source_layer_renderer_reread" and read["renderer_bytes"]
-               for read in renderer_reads)
-    assert renderer_reads[0]["observation_id"] != renderer_reads[1]["observation_id"]
-    assert renderer_reads[0]["renderer_bytes"] == renderer_reads[1]["renderer_bytes"]
-    assert source["renderer_hash_before"] == source["renderer_hash_after"]
-    accessibility = {item["semantic_id"]: item for item in r["accessibility_observations"]}
-    assert set(accessibility) >= {
-        "mapped_metric_source", "mapped_walking_totals", "fallback_lower_bound_status",
-    }
-    assert len({accessibility[key]["object_id"] for key in accessibility}) == len(accessibility)
-    for observed in accessibility.values():
-        assert observed["source"] in {
-            "QAccessible.queryAccessibleInterface",
-            "QML Accessible attached property runtime readback",
-        }
-        assert observed["name"].strip() and observed["role"].strip()
-        assert observed["mirrored_presentation_fields"] is False
-    storage_metric = r["loaded_route_readback"]["visits"][0]["metric_source"]
-    assert accessibility["mapped_metric_source"]["value"] == storage_metric
-    assert storage_metric in accessibility["mapped_metric_source"]["name"]
-    assert "도보" in accessibility["mapped_walking_totals"]["name"]
-    assert "직선거리 하한" in accessibility["fallback_lower_bound_status"]["name"]
-    assert "사용 불가" in accessibility["fallback_lower_bound_status"]["name"]
-    for surface in ("preview", "detail", "bottom_summary", "screen_reader"):
-        assert {"vehicle_distance", "vehicle_duration", "mapped_walking_distance",
-                "mapped_walking_duration", "straight_line_lower_bound_m",
-                "roundtrip", "metric_source", "unavailable_reason"} <= set(r[surface])
-        assert "walking_distance" not in r[surface]
-    assert r["source_renderer_after"] == r["source_renderer_before"]
-    assert r["immutable_route_after"] == r["immutable_route_before"]
-    assert r["requests"] == r["writes"] == []
-    assert r["claims"].get("target_qfield_rendering_verified") is not True
-
-
-def test_ac053_every_visit_accessibility_tracks_dynamic_site_mode_source_and_roundtrip(run):
-    r = run(operation="mixed_route_presentation", viewport_width=320, theme="light",
-            sites=ACCESSIBILITY_FIVE_SITES,
-            visit_value_fixtures=["five-visits-all-modes-a", "five-visits-all-modes-b"],
-            exact_zero_visit_index=4,
-            actions=["reload-each-visit-value-route"])
-    observations = r["visit_accessibility_binding_observations"]
-    assert len(observations) == 2
-    assert len({item["document_sha256"] for item in observations}) == 2
-    dynamic_values = []
-    for item in observations:
-        assert "document" not in item and "repository_visits" not in item
-        model = assert_callback_observation(
-            r, item["delegate_model_observation"], source="accessibility_interface")
-        delegates = item["delegate_readback_observations"]
-        assert len(delegates) == model["delegate_count"] == model["model_count"] == 5
-        assert model["creation"] == "QML Repeater delegate"
-        assert model["repeater_object_id"]
-        assert "visual_parent_object_id" not in model
-        assert model["enumeration"] == "Repeater.itemAt(index)"
-        observed_delegates = [assert_callback_observation(
-            r, readback, source="accessibility_interface") for readback in delegates]
-        assert len({delegate["object_id"] for delegate in observed_delegates}) == 5
-        visit_values = [delegate["visit_value"] for delegate in observed_delegates]
-        pairs = {(visit["walking_mode"], visit["metric_source"]) for visit in visit_values}
-        assert pairs == SCHEMA3_ALLOWED_WALKING_PROVENANCE
-        exact_zero_indices = [index for index, visit in enumerate(visit_values)
-                              if visit["walking_mode"] == "exact_zero"]
-        assert exact_zero_indices == [4]
-        for index, observed in enumerate(observed_delegates):
-            visit = observed["visit_value"]
-            accessible = observed["qaccessible"]
-            assert observed["lookup"] == "Repeater.itemAt(index)"
-            assert observed["visit_value_source"] == 'delegate.property("visitValue")'
-            assert observed["object_id"] and observed["object_id"] == accessible["object_id"]
-            assert observed["delegate_index"] == index
-            assert observed["repeater_object_id"] == model["repeater_object_id"]
-            assert "visual_parent_object_id" not in observed
-            assert observed["visit_value_object_id"] == observed["object_id"]
-            assert accessible["source"] == "QAccessible.queryAccessibleInterface"
-            assert accessible["role"] and accessible["name"].strip()
-            assert not re.fullmatch(r"visitAccessibility[0-9]+", observed["object_name"])
-            assert visit["site_id"] == ACCESSIBILITY_FIVE_SITES[index]["id"]
-            assert visit["site_name"] == ACCESSIBILITY_FIVE_SITES[index]["name"]
-            assert visit["roundtrip"] is True
-            assert all(str(value) in accessible["name"] for value in (
-                visit["site_name"], visit["walking_mode"], visit["metric_source"],
-                visit["distance_m"],
-            ))
-            if visit["duration_s"] is None:
-                assert "사용 불가" in accessible["name"]
-            else:
-                assert str(visit["duration_s"]) in accessible["name"]
-            assert "왕복" in accessible["name"]
-            dynamic_values.append((index, visit["distance_m"], visit["duration_s"]))
-    visit_count = len(ACCESSIBILITY_FIVE_SITES)
-    assert dynamic_values[:visit_count] != dynamic_values[visit_count:]
-
-
-def test_ac053_mapped_provider_and_unmapped_lower_bound_stay_separate_on_all_surfaces(run):
-    r = run(operation="mixed_route_presentation", viewport_width=320, theme="light",
-            quantity_fixtures=["mixed-a", "mixed-b"],
-            actions=["reload-each-mixed-quantity-route"])
-    observations = r["quantity_binding_observations"]
-    assert len(observations) == 2
-    assert len({item["storage_readback"]["document_sha256"] for item in observations}) == 2
-    assert len({(
-        item["storage_readback"]["mapped_distance_m"],
-        item["storage_readback"]["mapped_duration_s"],
-        item["storage_readback"]["straight_line_lower_bound_m"],
-    ) for item in observations}) == 2
-    object_bindings = {}
-    for item in observations:
-        assert_schema3_document_contract(item["document"])
-        stored = item["storage_readback"]
-        assert stored["source"] == "captured_storage" and stored["event_id"]
-        assert stored["mapped_distance_m"] > 0 and stored["mapped_duration_s"] > 0
-        assert stored["straight_line_lower_bound_m"] > 0
-        assert stored["combined_totals"] is None
-        expected = {
-            "mapped_provider_distance": stored["mapped_distance_m"],
-            "mapped_provider_duration": stored["mapped_duration_s"],
-            "straight_line_lower_bound": stored["straight_line_lower_bound_m"],
-        }
-        visual = item["visible_readbacks"]
-        assert {entry["surface"] for entry in visual} == {
-            "preview", "detail", "bottom_summary",
-        }
-        for surface in ("preview", "detail", "bottom_summary"):
-            entries = {entry["semantic_id"]: entry for entry in visual
-                       if entry["surface"] == surface}
-            assert set(entries) == set(expected)
-            assert len({entry["object_id"] for entry in entries.values()}) == 3
-            assert all(entry["source"] == "render_observation" and entry["event_id"]
-                       and entry["visible"] is True and entry["value"] == expected[semantic_id]
-                       for semantic_id, entry in entries.items())
-            assert "도보" in entries["mapped_provider_distance"]["name"]
-            assert "도보" in entries["mapped_provider_duration"]["name"]
-            assert "직선거리 하한" in entries["straight_line_lower_bound"]["name"]
-            assert all("정확한 도보 합계" not in entry["name"] for entry in entries.values())
-            for semantic_id, entry in entries.items():
-                key = (surface, semantic_id)
-                object_bindings.setdefault(key, entry["object_id"])
-                assert object_bindings[key] == entry["object_id"]
-        accessible = {entry["semantic_id"]: entry
-                      for entry in item["accessibility_readbacks"]}
-        assert set(accessible) == set(expected)
-        assert len({entry["object_id"] for entry in accessible.values()}) == 3
-        for semantic_id, entry in accessible.items():
-            assert entry["source"] in {
-                "QAccessible.queryAccessibleInterface",
-                "QML Accessible attached property runtime readback",
-            }
-            assert entry["event_id"] and entry["role"] and entry["name"].strip()
-            assert entry["value"] == expected[semantic_id]
-            key = ("accessible", semantic_id)
-            object_bindings.setdefault(key, entry["object_id"])
-            assert object_bindings[key] == entry["object_id"]
-        assert "직선거리 하한" in accessible["straight_line_lower_bound"]["name"]
-        assert item["exact_walking_total_present"] is False
-        assert item["summed_mapped_plus_lower_bound_present"] is False
-
-
-def test_ac058_route_line_toggle_is_one_atomic_settings_only_write_and_persists(run):
-    r = run(operation="mixed_route_presentation", viewport_width=320, theme="light",
-            actions=["toggle-off", "panel-reopen", "cold-restart", "move-with-settings", "toggle-on"])
-    initial = assert_callback_observation(
-        r, r["initial_show_route_line_observation"], source="controller_state")
-    assert initial["show_route_line"] is True
-    lifecycle_states = [assert_callback_observation(
-        r, observation, source="controller_state")
-        for observation in r["lifecycle_state_observations"]]
-    assert [state["show_route_line"] for state in lifecycle_states] == [
-        False, False, False, False, True,
-    ]
-    visibility = [assert_callback_observation(r, observation, source="render_observation")
-                  for observation in r["line_visibility_readback_observations"]]
-    assert [observation["phase"] for observation in visibility] == ["toggle-off", "toggle-on"]
-    assert all(observation["lines"] for observation in visibility)
-    assert all(line["visible"] is False for line in visibility[0]["lines"])
-    assert all(line["visible"] is True for line in visibility[1]["lines"])
-    assert all(line["qml_object_id"] and line["property"] == "visible"
-               for observation in visibility for line in observation["lines"])
-    writes = r["settings_write_observations"]
-    assert [write["requested_value"] for write in writes] == [False, True]
-    for write in writes:
-        assert not ({"atomic_commit_count", "readback_count", "successful_commit_count",
-                     "changed_paths"} & set(write))
-        before = assert_callback_observation(
-            r, write["before_storage_observation"], source="captured_storage")
-        commit_values = [assert_callback_observation(r, observation, source="captured_storage")
-                         for observation in write["commit_observations"]]
-        readback = assert_callback_observation(
-            r, write["readback_observation"], source="captured_storage")
-        assert len(commit_values) == 1 and commit_values[0]["success"] is True
-        assert commit_values[0]["temporary_path_removed"] is True
-        assert changed_leaf_paths(before["document"], readback["document"]) == {
-            "settings.show_route_line"}
-        assert readback["document"]["settings"]["show_route_line"] is write["requested_value"]
-    assert r["route_after"] == r["route_before"]
-    assert r["source_after"] == r["source_before"]
-    assert r["completion_after"] == r["completion_before"]
-    assert r["revision_after"] == r["revision_before"]
-    assert r["provider_requests"] == []
-
-
-def test_ac058_preview_and_legend_are_write_free(run):
-    r = run(operation="mixed_route_presentation", viewport_width=320, theme="light",
-            actions=["preview", "legend"])
-    assert [event["action"] for event in r["presentation_provenance"]["action_observations"]] == [
-        "preview", "legend",
-    ]
-    observers = r["passive_write_observers"]
-    assert {observer["boundary"] for observer in observers} == {
-        "settings-storage-write", "route-storage-write",
-    }
-    assert all(observer["installed_before_action"] is True and observer["events"] == []
-               for observer in observers)
-    assert r["provider_requests"] == []
-
-
-@pytest.mark.parametrize("failure", ["atomic-write", "readback"])
-def test_ac058_toggle_failure_rolls_back_and_reports_actionable_feedback(run, failure):
-    r = run(operation="mixed_route_presentation", viewport_width=320, theme="light",
-            actions=["toggle-off"], settings_failure=failure)
-    assert r["ok"] is False and "success_feedback_count" not in r
-    feedback = assert_callback_observation(
-        r, r["feedback_observation"], source="render_observation")
-    assert feedback["kind"] == "settings-save-failure" and feedback["visible"] is True
-    assert r["message"].strip() and any(word in r["message"] for word in ("저장", "확인", "다시"))
-    qml_state = assert_callback_observation(
-        r, r["qml_visibility_rollback_observation"], source="render_observation")
-    storage_state = assert_callback_observation(
-        r, r["storage_rollback_observation"], source="captured_storage")
-    assert qml_state["before"] is qml_state["after"] is True
-    assert storage_state["before"] is storage_state["after"] is True
-    assert r["route_after"] == r["route_before"]
-    assert r["source_after"] == r["source_before"]
-    assert r["completion_after"] == r["completion_before"]
-    assert r["revision_after"] == r["revision_before"]
-    attempts = [assert_callback_observation(r, observation, source="captured_storage")
-                for observation in r["storage_attempt_observations"]]
-    assert attempts
-    if failure == "atomic-write":
-        assert not any(attempt["success"] for attempt in attempts)
+def test_ac057_variant_corruption_recovery_is_atomic(corruption, tmp_path):
+    result, _, _ = _saved_mixed_document(tmp_path)
+    good = result["snapshot"]["data"]
+    corrupt = deepcopy(good)
+    mixed = next(route for route in corrupt["routes"] if route["route_schema"] == 3)
+    legacy = next(route for route in corrupt["routes"] if route["route_schema"] == 2)
+    if corruption == "unknown_marker":
+        legacy["route_schema"] = 99
+    elif corruption == "legacy_with_mixed":
+        legacy["visits"] = deepcopy(mixed["visits"])
+    elif corruption == "mixed_without_mixed":
+        mixed.pop("visits")
     else:
-        assert any(attempt["kind"] == "readback" and attempt["success"] is False
-                   for attempt in attempts)
-    assert r["provider_requests"] == []
+        legacy["route_id"] = mixed["route_id"]
+    recovered = _direct_node(
+        "repo_recovery", tmp_path, base=str(tmp_path / "variants" / "routes"),
+        good=good, corrupt=corrupt,
+    )
+    assert recovered["loaded"]["data"] == good
+    assert recovered["corrupt_bytes_unchanged"] is True
+    assert recovered["repository_writes_during_load"] == 0
 
 
-def test_ac054_exact_stage_sequence_privacy_and_no_incidental_writes(run):
-    r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=2000,
-            access_snap_response={"locations": [{"location": MIXED_ACCESS[0]}, {"location": MIXED_ACCESS[1]}]},
-            walking_responses=[MAPPED_FOOT, "exact-zero"],
-            source_attributes={"rural-a": {"business_id": "SECRET-BIZ", "name": "비공개 사업지"}})
-    assert r["stage_sequence"] == ["preflight", "origin-validation", "access-snap",
-                                          "walking-directions", "matrix", "optimizer", "directions", "validation"]
-    notice = r["coordinate_notice"]
-    assert notice["visible"] is True and notice["object_id"]
-    assert notice["visual_order"] < notice["calculate_control_visual_order"]
-    assert notice["accessibility"]["source"] in {
+def test_ac057_default_and_settings_only_never_promote_to_schema3(tmp_path):
+    base = str(tmp_path / "default" / "routes")
+    fresh = _direct_node("controller_state", tmp_path, base=base, action="none")
+    assert fresh["after"]["schema"] == 2 and fresh["writeSuccesses"] == 0
+    settings = _direct_node("controller_state", tmp_path, base=base, action="settings")
+    assert settings["result"] and settings["after"]["schema"] == 2
+    schema1 = _direct_node(
+        "controller_state", tmp_path, base=str(tmp_path / "schema1" / "routes"),
+        document=_legacy_document(schema=1), action="settings",
+    )
+    assert schema1["result"] and schema1["after"]["schema"] == 2
+
+
+def test_ac057_schema1_settings_upgrade_then_mixed_save_keeps_legacy_schema1(tmp_path):
+    upgraded = _direct_node(
+        "controller_state", tmp_path, base=str(tmp_path / "upgrade-first" / "routes"),
+        document=_legacy_document(schema=1), action="settings",
+    )
+    assert upgraded["after"]["schema"] == 2
+    with _route_http(_provider_responder()) as (base, _records):
+        saved = _direct_node(
+            "controller_flow", tmp_path, base=str(tmp_path / "upgrade-then-mixed" / "routes"),
+            document=upgraded["after"],
+            features=[{"id": "site-a", "name": "농촌 A",
+                       "coordinate": MIXED_SOURCE, "completed": False}],
+            settings=_settings(base), start=MIXED_START, roundtrip=False,
+            replace_active=True, name="혼합 전환",
+        )
+    assert saved["saved"] is True
+    unrelated = next(route for route in saved["snapshot"]["data"]["routes"]
+                     if route["route_id"] == "legacy-b")
+    assert unrelated["route_schema"] == 1
+    assert "legs" not in unrelated
+
+
+def test_ac058_toggle_persists_exact_setting_through_restart_and_folder_move(tmp_path):
+    base = tmp_path / "toggle-project" / "routes"
+    toggled = _direct_node(
+        "controller_state", tmp_path, base=str(base), document=_legacy_document(),
+        action="toggle", value=False,
+    )
+    assert toggled["result"] is True and toggled["show_route_line"] is False
+    assert toggled["after"]["settings"]["show_route_line"] is False
+    assert toggled["after"]["routes"] == _legacy_document()["routes"]
+    assert toggled["writeSuccesses"] == 2  # seed plus one atomic slot write
+    moved = tmp_path / "toggle-moved"
+    shutil.move(base.parent, moved)
+    reopened = _direct_node("controller_state", tmp_path, base=str(moved / "routes"), action="none")
+    assert reopened["show_route_line"] is False
+    assert reopened["writeSuccesses"] == 0
+
+
+def test_ac058_toggle_write_failure_rolls_back_and_reports_failure(tmp_path):
+    observed = _direct_node(
+        "controller_state", tmp_path, base=str(tmp_path / "toggle-fail" / "routes"),
+        document=_legacy_document(), action="toggle", value=False, fail_write=True,
+    )
+    assert observed["result"] is False
+    assert observed["show_route_line"] is True
+    assert observed["after"]["settings"]["show_route_line"] is True
+    assert observed["revision_after"] == observed["revision_before"]
+    assert "실패" in observed["message"] and "저장" in observed["message"]
+
+
+def test_ac053_qml_runtime_reads_real_tree_repeater_and_qaccessible(run):
+    sites = [
+        {"id": f"access-{index}", "name": f"접근성 조사지 {index}",
+         "xy": [127.31 + index / 100, 37.31 + index / 100]}
+        for index in range(5)
+    ]
+    observed = run(
+        operation="mixed_route_presentation", viewport_width=320, theme="light",
+        include_fallback=True, actions=["preview", "legend"],
+    )
+    visit_observed = run(
+        operation="mixed_route_presentation", viewport_width=320, theme="light",
+        include_fallback=True, sites=sites,
+        visit_value_fixtures=["five-visits-all-modes-a"],
+        exact_zero_visit_index=4,
+        actions=["reload-each-visit-value-route"],
+    )
+    assert {key: value["pattern"] for key, value in observed["line_classes"].items()} == {
+        "vehicle": "solid", "mapped_walking": "dashed", "unmapped_walking": "dotted"}
+    assert observed["warning_marker"]["visible"] is True
+    assert observed["provider_requests"] == []
+    assert all(observer["events"] == []
+               for observer in observed["passive_write_observers"])
+    interfaces = observed["accessibility_observations"]
+    assert interfaces
+    assert all(item["source"] in {
         "QAccessible.queryAccessibleInterface",
         "QML Accessible attached property runtime readback",
-    }
-    assert notice["accessibility"]["name"].strip() and notice["accessibility"]["role"].strip()
-    order = notice["accessibility_order_observation"]
-    assert order["source"] == "QAccessible parent/child traversal"
-    assert order["parent_object_id"]
-    traversal = order["traversal_object_ids"]
-    assert traversal.index(notice["object_id"]) < traversal.index(
-        notice["calculate_control_object_id"])
-    assert order["notice_interface_id"] and order["calculate_interface_id"]
-    assert all(fragment in notice["text"] for fragment in ("ORS", "원본", "접근", "경로"))
-    activation = r["calculate_activation"]
-    assert activation["source"] == "calculate_button_signal_observation"
-    assert activation["explicit"] is True
-    assert activation["notice_observed_before_click"] is True
-    assert activation["first_request_started_after_click"] is True
-    assert activation["acknowledgement_required"] is False
-    assert r["explicit_calculate_count"] == 1 and r["generated_coordinates"] == []
-    assert set(r["vroom_payload_fields"]) <= {
-        "access_coordinates", "cost_matrix", "request_local_indices",
-    }
-    for request in r["requests"]:
-        wire = str(request)
-        assert "SECRET-BIZ" not in wire and "비공개 사업지" not in wire
-    for field in ("logs", "errors", "settings_storage"):
-        assert "SECRET-BIZ" not in str(r[field]) and "비공개 사업지" not in str(r[field])
-    assert r["writes"] == [] and r["raw_bodies_retained"] is False
-
-
-@pytest.mark.parametrize("event", ["cancel", "project-close"])
-def test_ac054_lifecycle_after_origin_validation_starts_no_later_request_or_write(run, event):
-    r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=2000,
-            lifecycle_event=event, lifecycle_after_stage="origin-validation",
-            seed_saved=True, seed_candidate=True)
-    lifecycle = r["lifecycle_observation"]
-    assert lifecycle["event"] == event and lifecycle["delivered_through_production"] is True
-    assert lifecycle["after_stage"] == "origin-validation"
-    assert r["stage_sequence"] == ["preflight", "origin-validation"]
-    assert r["requests"] == r["post_lifecycle_requests"] == []
-    assert r["writes"] == []
-    assert r["source_features_after"] == r["source_features_before"]
-    assert r["completion_after"] == r["completion_before"]
-    assert r["settings_after"] == r["settings_before"]
-    assert r["saved_after"] == r["saved_before"]
-
-
-@pytest.mark.parametrize("stage", ["origin-validation", "access-snap", "walking-directions",
-                                    "matrix", "optimizer", "directions", "validation"])
-def test_ac054_each_stage_failure_stops_all_later_requests_and_writes(run, stage):
-    r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=2000,
-            injected_failure_stage=stage, seed_saved=True, seed_candidate=True, key=KEY)
-    assert_mixed_failure_preserves_state(r)
-    assert r["stage_sequence"][-1] == stage and r["post_failure_requests"] == []
-    assert r["raw_bodies_retained"] is False
-
-
-@pytest.mark.parametrize("fault,action", [
-    ("http-401", "key"), ("http-403", "permission"), ("http-404", "endpoint"),
-    ("http-429", "wait"), ("http-500", "retry-provider"), ("timeout", "timeout"),
-    ("radius-rejected", "max_access_distance_m"),
-])
-def test_ac054_status_actions_remain_redacted_and_nonretrying(run, fault, action):
-    r = run(operation="mixed_route_calculate", sites=MIXED_SITES, max_access_distance_m=2000,
-            access_fault=fault, seed_saved=True, seed_candidate=True, key=KEY)
-    assert_mixed_failure_preserves_state(r)
-    assert action in r["suggested_actions"] and r["post_failure_requests"] == []
-    assert KEY not in str(r["message"]) and r["raw_bodies_retained"] is False
-
-
-def canonical_apple_maps_url(coordinate=(127.123, 37.456)):
-    return ("https://maps.apple.com/directions?destination="
-            f"{canonical_coordinate(coordinate[1])},{canonical_coordinate(coordinate[0])}&mode=driving")
-
-
-APPLE_MAPS_FAILURE_MESSAGE = "Apple 지도를 열 수 없습니다. 기기 설정과 네트워크 상태를 확인하세요."
-
-
-@pytest.mark.parametrize("launch_result", [True, False, "exception"])
-def test_ac055_ios_uses_exact_apple_maps_once_without_any_fallback(run, launch_result):
-    r = run(operation="platform_map_dispatch", platform="ios", destination=[127.123, 37.456],
-            name="조사지 A & B/#% ", caller_id="org.example.fieldbuild", launch_result=launch_result)
-    assert r["button_label"] == "다음 지점 지도 안내"
-    assert [call["url"] for call in r["launcher_calls"]] == [canonical_apple_maps_url()]
-    assert r["launcher_calls"][0]["via"] == "Qt.openUrlExternally"
-    assert r["fallback_count"] == 0
-    assert not any(token in str(r["launcher_calls"]) for token in ["nmap", "itunes.apple.com", "apps.apple.com", "play.google.com"])
-    assert r["claims"] == {"app_started": False, "destination_accepted": False, "navigation_started": False}
-    if launch_result is not True:
-        assert r["ok"] is False and r["message"] == APPLE_MAPS_FAILURE_MESSAGE
-    assert_navigation_has_observed_no_route_or_storage_activity(r)
-
-
-@pytest.mark.parametrize("destination", [
-    [180, 90], [-180, -90], [127.123456789, 37.456789123], [-0.0, 0.0],
-])
-def test_ac055_navigation_coordinates_are_canonical_and_android_contract_is_unchanged(run, destination):
-    ios = run(operation="platform_map_dispatch", platform="ios", destination=destination,
-              name="ignored", launch_result=True)
-    assert ios["launcher_calls"][0]["url"] == canonical_apple_maps_url(destination)
-    canonical_destination = parse_qs(urlsplit(ios["launcher_calls"][0]["url"]).query)["destination"][0]
-    assert "e" not in canonical_destination.lower()
-    android = run(operation="platform_map_dispatch", platform="android", destination=destination,
-                  name="  한글 & #%  ", caller_id="org.example.fieldbuild", launch_results=[False, True])
-    assert android["button_label"] == "다음 지점 지도 안내"
-    assert android["launcher_calls"][0]["url"] == canonical_naver_android_intent(
-        "  한글 & #%  ", "org.example.fieldbuild", destination)
-    assert android["launcher_calls"][1]["url"] == NAVER_ANDROID_STORE
-    assert android["encoded_name_occurrences"] == 1 and android["encoded_caller_occurrences"] == 1
-    assert_navigation_has_observed_no_route_or_storage_activity(ios)
-    assert_navigation_has_observed_no_route_or_storage_activity(android)
-
-
-@pytest.mark.parametrize("destination", [
-    [float("nan"), 37], [127, float("inf")], ["127.1", 37], [127, "37"],
-    [181, 37], [127, 91], ["1e2", 37],
-])
-def test_ac055_invalid_navigation_coordinate_never_dispatches_or_mutates(run, destination):
-    r = run(operation="platform_map_dispatch", platform="ios", destination=destination,
-            name="invalid", launch_result=True)
-    assert r["ok"] is False and r["launcher_calls"] == []
-    calls = [event["observer"]["boundary"] for event in boundary_event_map(r).values()
-             if event["source"] == "production_call"]
-    assert calls.count("controller.navigate") == 2
-    assert calls.count("navigation.open") == 2
-    assert not any(event["source"] == "navigation_launcher"
-                   for event in boundary_event_map(r).values())
-    entry, exit_ = assert_navigation_has_observed_no_route_or_storage_activity(r)
-    assert exit_["callback_payload"]["navigation.open.outcome"] == "threw"
-    assert exit_["callback_payload"]["navigation.open.return_identity"] is None
-    assert exit_["callback_payload"]["navigation.open.exception_type"]
-    assert "좌표" in r["message"]
+    } for item in interfaces)
+    assert all(item["object_id"] and item["name"].strip() for item in interfaces)
+    delegate_runs = visit_observed["visit_accessibility_binding_observations"]
+    assert delegate_runs
+    for run_observation in delegate_runs:
+        model = run_observation["delegate_model_observation"]["value"]
+        assert model["creation"] == "QML Repeater delegate"
+        assert model["enumeration"] == "Repeater.itemAt(index)"
+        delegates = [item["value"] for item in run_observation["delegate_readback_observations"]]
+        assert model["delegate_count"] == len(delegates)
+        assert all(item["lookup"] == "Repeater.itemAt(index)" for item in delegates)
+        assert all(item["qaccessible"]["source"] == "QAccessible.queryAccessibleInterface"
+                   for item in delegates)

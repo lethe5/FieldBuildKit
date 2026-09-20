@@ -1,7 +1,9 @@
-"""Draft callback-provenance/storage-compatibility correction verifier.
+"""DRAFT AC-SRP-049–058 direct-observation verifier (2026-09-21).
 
-AC-SRP-049–058 are approved requirements and M18–M21 remain NOT RUN. This draft verifies the
-corrected acceptance artifacts only; no application code is executed.
+Approved baseline plus approved iOS/QPB evidence-boundary correction verifier (approval 2026-09-18).
+
+The approved 2026-09-17 baseline and AC-SRP-042–045 correction remain preserved; no application
+code is executed.
 """
 import ast
 import importlib.util
@@ -21,7 +23,7 @@ spec = importlib.util.spec_from_file_location("srp_test_design", path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 coverage = set(re.findall(r"ac(\d{3})", path.read_text(encoding="utf-8-sig")))
-assert {f"{i:03d}" for i in range(1, 59)} <= coverage
+assert {f"{i:03d}" for i in range(1, 49)} <= coverage
 wire = module.vroom_response(include_arrivals=True)
 route = wire["routes"][0]
 arrivals = [step["arrival"] for step in route["steps"] if step["type"] == "job"]
@@ -38,7 +40,6 @@ assert invalid_arrivals["negative"][0] < 0
 assert not math.isfinite(invalid_arrivals["nonfinite"][0])
 assert module.PORTABLE_SETTINGS["backend"] == "ors-vroom"
 assert module.PORTABLE_SETTINGS["max_road_offset_m"] == 50
-assert module.PORTABLE_SETTINGS["max_access_distance_m"] == 2000
 assert "key" not in module.PORTABLE_SETTINGS
 assert module.HOSTED_ROUTING_BASE == "https://api.heigit.org/openrouteservice"
 assert module.HOSTED_OPTIMIZER_URL == "https://api.heigit.org/vroom/v0"
@@ -50,7 +51,6 @@ assert {"expressionText", "feature", "layer", "project"} <= set(evaluator["writa
 assert evaluator["evaluate_arities"] == [0, 1]
 assert evaluator["allow_dynamic_properties"] is False
 source = path.read_text(encoding="utf-8-sig")
-contract = path.with_name("HARNESS_CONTRACT.md").read_text(encoding="utf-8")
 assert 'operation="remaining"' not in source
 assert "remaining_recalculation_is_superseded" in source
 assert all(case in source for case in ["M01_project_dropdowns_layout", "M02_schema2_live_route",
@@ -64,11 +64,7 @@ assert all(case in source for case in ["M01_project_dropdowns_layout", "M02_sche
                                        "M14_qfield_six_geometry_labels",
                                        "M15_ios_light_dark_contrast_matrix",
                                        "M16_ios_header_spacing_and_tap_regions",
-                                       "M17_ios_local_date_name_lifecycle",
-                                       "M18_live_ors_mixed_route",
-                                       "M19_mixed_route_visual_accessibility",
-                                       "M20_ios_apple_maps_handoff",
-                                       "M21_android_naver_regression"])
+                                       "M17_ios_local_date_name_lifecycle"])
 assert module.canonical_naver_url("조사지 A & B/#?") == (
     "nmap://navigation?dlat=37.456&dlng=127.123&dname="
     + quote("조사지 A & B/#?", safe="") + "&appname=ch.opengis.qfield")
@@ -78,6 +74,7 @@ assert module.canonical_naver_android_intent("조사지 A & B/#?") == (
     + "&appname=ch.opengis.qfield#Intent;scheme=nmap;action=android.intent.action.VIEW;"
       "category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end")
 assert module.NAVER_ANDROID_STORE == "market://details?id=com.nhn.android.nmap"
+assert module.NAVER_IOS_STORE == "http://itunes.apple.com/app/id311867728?mt=8"
 for roundtrip, count in [(False, 3), (True, 4)]:
     response = module.schema2_directions_response(roundtrip=roundtrip)
     feature = response["features"][0]
@@ -118,10 +115,6 @@ for fault, _ in [
 legacy = module.schema2_legacy_document()
 assert legacy["schema"] == 1 and legacy["routes"][0]["revision"] == 7
 assert "legs" not in legacy["routes"][0]
-legacy2 = module.schema2_legacy_document(schema=2)
-assert legacy2["schema"] == 2 and len(legacy2["routes"][0]["legs"]) == 3
-assert sum(leg["distance_m"] for leg in legacy2["routes"][0]["legs"]) == legacy2["routes"][0]["distance_m"]
-assert sum(leg["duration_s"] for leg in legacy2["routes"][0]["legs"]) == legacy2["routes"][0]["duration_s"]
 assert [layer["layer_id"] for layer in module.PROJECT_LAYERS] == [
     "duplicate-a", module.SITE_LAYER_ID, "duplicate-b"]
 assert module.PROJECT_LAYERS[2]["fields"][-2:] == ["SECOND_ID", "SECOND_NAME"]
@@ -180,7 +173,7 @@ assert module.expected_site_label_expression(name_field_present=False) == (
 assert all(operation in source for operation in [
     'operation="candidate_name_save"', 'operation="followup_panel_ui"',
     'operation="settings_disclosure"', 'operation="settings_key_provenance"',
-    'operation="settings_snapshot_save"', 'operation="platform_map_dispatch"',
+    'operation="settings_snapshot_save"', 'operation="platform_naver_dispatch"',
     'operation="ordered_completion_checklist"', 'operation="generated_site_style"',
     'operation="route_name_text_input_proxy"', 'operation="final_floating_label_geometry"',
     'operation="generated_site_label_contract"', 'operation="builder_step7_route_credentials"',
@@ -245,404 +238,6 @@ assert all(forbidden not in source for forbidden in [
     'operation="generated_site_tabler_exclusion"',
 ])
 assert '"geom_to_geojson" not in expression' in source
-assert module.canonical_apple_maps_url() == (
-    "https://maps.apple.com/directions?destination=37.456,127.123&mode=driving"
-)
-assert module.MIXED_SITES[0]["xy"] == [127.1, 37.1]
-assert module.MIXED_ACCESS[0] == [127.1035, 37.1]
-assert module.MIXED_SITES[1]["xy"] != module.MIXED_ACCESS[1]
-assert 0 < module.geodesic_distance_m(module.MIXED_SITES[1]["xy"], module.MIXED_ACCESS[1]) <= 1
-assert module.MIXED_SITES[0]["xy"] != module.EXACT_ZERO_ACCESS
-assert 0 < module.geodesic_distance_m(module.MIXED_SITES[0]["xy"], module.EXACT_ZERO_ACCESS) <= 1
-assert module.SCHEMA3_ROUTE_REQUIRED_FIELDS == {
-    "vehicle_legs", "visits", "vehicle_totals", "walking_totals", "combined_totals",
-}
-assert module.SCHEMA3_VISIT_REQUIRED_FIELDS == {"layer_id", "site_id", "metric_source"}
-assert module.SCHEMA3_ALLOWED_WALKING_PROVENANCE == {
-    ("mapped", "ors-foot-hiking"),
-    ("exact_zero", "exact_zero"),
-    ("unmapped_estimate", "straight_line_lower_bound_m"),
-}
-assert module.APPLE_MAPS_FAILURE_MESSAGE == (
-    "Apple 지도를 열 수 없습니다. 기기 설정과 네트워크 상태를 확인하세요."
-)
-for legacy_schema in (1, 2):
-    heterogeneous = module.heterogeneous_legacy_document(legacy_schema)
-    assert heterogeneous["schema"] == legacy_schema and len(heterogeneous["routes"]) == 2
-    assert len({route["route_id"] for route in heterogeneous["routes"]}) == 2
-assert len(module.SCHEMA3_VISIT_CORRUPTIONS) == 20
-assert all(operation in source for operation in [
-    'operation="provider_http_failure"', 'operation="mixed_route_calculate"',
-    'operation="mixed_route_roundtrip"', 'operation="mixed_route_compatibility"',
-    'operation="mixed_route_presentation"', 'operation="platform_map_dispatch"',
-])
-assert 'import math' in source
-assert 'canonical_expected_url' not in source
-assert 'survey_route_mixed_driver.js' in source
-assert "MIXED_EVIDENCE_FIELDS" not in source
-assert all(token in source for token in [
-    '"production_provenance"', 'assert self_declared_flag not in provenance',
-    '"boundary_event_journal"', '"raw_observed_fields"', '"observations"',
-    '"parent_event_ids"',
-    '"controller.calculate"', '"backend.calculate"', '"repository.save"',
-    '"repository.load"', '"navigation.open"', '"qml.render_route"',
-    'document["schema"] == 3',
-    'assert_schema3_document_contract', 'seed_schema3_routes_with_production=2',
-    '"repaired_document"] is None',
-])
-ac050_source = inspect.getsource(module.test_ac050_single_ordered_access_snap_uses_originals_and_exact_radius)
-assert "nonzero_snapped_sources" in ac050_source
-assert 'if site["xy"] != access' in ac050_source
-assert 'for site in MIXED_SITES)' not in ac050_source
-ac053_source = inspect.getsource(module.test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive)
-assert all(token in ac053_source for token in [
-    '"contrasting_casing"', '"non_color_cue"', '"object_ids"',
-    '"presentation_provenance"', '"theme_observation"', '"action_observations"',
-    '"source_layer_observation"',
-])
-assert 'r["line_classes"] == {' not in ac053_source
-assert 'set(r["vroom_payload_fields"]) <=' in inspect.getsource(
-    module.test_ac054_exact_stage_sequence_privacy_and_no_incidental_writes)
-assert all(name in source for name in [
-    "test_ac049_valid_json_body_is_parsed_even_without_truthful_content_type",
-    "test_ac049_statusless_transport_failure_has_connection_action_without_http_status",
-    "test_ac052_every_schema3_route_rejects_required_field_omission",
-    "test_ac054_lifecycle_after_origin_validation_starts_no_later_request_or_write",
-    "test_ac050_origin_null_with_finite_snapped_distance_stops_before_access_snap",
-    "test_ac056_every_active_and_inactive_visit_corruption_rejects_whole_document",
-    "test_ac056_three_allowed_visit_provenance_pairs_roundtrip_exactly",
-    "test_ac052_selected_schema1_and_schema2_route_upgrade_atomically_replaces_identity",
-    "test_ac052_failed_schema1_and_schema2_upgrade_preserves_selected_route_and_bytes",
-    "test_ac053_every_visit_accessibility_tracks_dynamic_site_mode_source_and_roundtrip",
-    "test_ac053_mapped_provider_and_unmapped_lower_bound_stay_separate_on_all_surfaces",
-    "test_ac052_ac056_product_cold_start_panel_recovers_last_good_without_mutation",
-    "test_ac052_ac056_exact_zero_totals_stay_exact_and_separate",
-    "test_ac052_ac053_fallback_totals_stay_lower_bound_and_duration_unknown",
-    "test_ac057_no_file_default_open_is_schema2_in_memory_and_write_free",
-    "test_ac057_settings_or_default_only_save_never_promotes_beyond_schema2",
-    "test_ac057_untagged_homogeneous_schema3_reads_without_write_then_tags_next_write",
-    "test_ac057_marker_corruption_and_duplicates_fail_atomically",
-    "test_ac058_route_line_toggle_is_one_atomic_settings_only_write_and_persists",
-    "test_ac058_preview_and_legend_are_write_free",
-    "test_ac058_toggle_failure_rolls_back_and_reports_actionable_feedback",
-])
-assert all(token in contract for token in [
-    "content type is missing or misleading", "http_status=null",
-    "source_coordinate == access_coordinate", "immediately after origin validation",
-    "including inactive routes", "presentation_provenance", "computes field lineage",
-    "location=null", "source-layer rereads", "actual `QAccessible` parent/child traversal",
-    "explicit production recalculation plus save", "No metric-source/value literal",
-    "closed and separately sealed", "before any result dictionary is",
-    "`result_source`", "`bind_result`", "`capture_outputs`", "post-result replay",
-    "explicit causal links", "product cold start", "route_schema",
-    "non-identical source/access coordinates", "preceding valid route",
-    "three separate real lifecycle callbacks", "straight-line lower bounds",
-    "`ObservedState`", "callback-owned `callback_payload`", "pure post-seal projection",
-    "`originating_event_ids`", "`subprocess.Popen`", "different OS PID",
-    "actual Repeater delegates", "fixed `visitAccessibility0/1/2` objects are invalid",
-    "event-then-receipt mode", "`dict(result)`", "`controller.final_state`",
-    "AST extraction of result-assignment field names", "latest-event-by-source",
-    "child returns its own immutable artifact", "`Repeater.itemAt(index)`",
-    "Success-feedback visibility is not an AC-SRP-058 requirement",
-    "production `navigation.open`", "transient in-memory `captured_request`",
-    "current/latest-production/storage event variables",
-    "generic `observed_outputs`", "result-building `put`",
-    "raw request URL/query/body", "product code must not expose `navigationBoundary`",
-    "global `OUTPUT_FIELDS`", "generated `controller.output.*`", "synthetic `controller.observe`",
-    "`collect(**values)`", "line-visible-during-callback", "persisted provider URLs",
-    "calls the saved original", "pre-recorded `wrappedCall(\"navigation.open\")`",
-    "producer_entry_event_id", "original callable identity", "Dormant wrapper strings",
-    "event core", "hash-bound receipt", "operation-completion",
-])
-provenance_source = inspect.getsource(module.assert_mixed_boundary_event_lineage)
-assert all(token in provenance_source for token in [
-    '"boundary_event_journal"', '"event_id"', '"previous_event_sha256"',
-    '"parent_event_ids"', '"raw_observed_fields"', '"observations"',
-    '"seal_path"', '"finalized_at_monotonic_ns"',
-    '"result_construction_started_at_monotonic_ns"',
-    '"append_attempts_after_finalize"', '"capture_phase"] == "boundary_callback"',
-    '"causal_parent_observations"', '"hook_id"', '"registered_boundary_hooks"',
-    '"callback_owner"', '"callback_payload"', '"cause_id"',
-    '"file_created_at_monotonic_ns"',
-    '"write_mode"] == "event-then-receipt-jsonl-per-callback"',
-    '"flush_count"] == len(events) + len(receipts)', '"callback_boundary"',
-    '"observation_schema"', '"callback_io_receipts_sha256"',
-    '_assert_callback_io_receipts', '_journal_event_receipt_pairs',
-    '"operation_completed_at_monotonic_ns"', '"producer_entry_event_id"',
-    '_assert_wrapped_call_spans',
-    '"last_callback_finished_at_monotonic_ns"] == max(',
-    'assert set(raw) == set(schema)', 'projection_path == schema[raw_field]',
-    "_contains_forbidden_replay_key", "_lineage_from_boundary_events(events)",
-    "_assert_result_matches_boundary_lineage", "_assert_tampered_result_is_rejected",
-    "_assert_explicit_causal_origins", "_assert_tampered_causal_origins_are_rejected",
-    "MIXED_EVENT_REQUIRED_ANCESTOR_SOURCES.get",
-])
-driver_guard_source = inspect.getsource(module.assert_boundary_driver_has_no_result_replay)
-assert all(token in driver_guard_source for token in [
-    "ast.parse", "capture_outputs", "result.items()", "result.keys()",
-    "_iterates_completed_result(node.iter)", "output_bindings", "field_name_inference",
-    '"ObservedState"', '"production_parent_ids"', '"__setitem__"', '"update"',
-    '"journal_event"', '"declared_projection_paths"', '"latest_event_id"', '"cause_ids"',
-    '_references_name(argument, "result")', 'node.func.value.id == "ast"',
-    'node.func.attr in {"parse", "walk"}', '"controller.final_state"',
-    '"final_result[\'captured_request\']"', '"ast.parse(driver_path"', '"ast.walk(tree)"',
-    '"write" in journal_calls and "flush" in journal_calls',
-    'child.func.value.id == "journal_writer"', 'child.func.attr == "write"',
-    "_driver_integrity_violations(source)", '"observed_outputs"',
-    '"current_production_event_id"', '"current_storage_event_id"',
-    '"navigationBoundary"', '"visual_parent.itemAt(index)"',
-    '"OUTPUT_FIELDS"', '"controller.output."', '"controller.observe"', '"collect"',
-    '"productionCall"', '"wrappedEntry"', '"wrappedExit"',
-    '"STATE_CALLBACK_FIELDS"',
-])
-integrity_source = inspect.getsource(module._driver_integrity_violations)
-assert all(token in integrity_source for token in [
-    '"generic-observed-output"', '"put-after-result-assembly"',
-    '"completed-result-journaling"', '"lazy-schema-registration"',
-    '"callback-missing-explicit-cause-id"', '"journal-missing-explicit-cause-id"',
-    '"global-current-or-latest-event"', '"product-test-navigation-api"',
-    '"fabricated-visual-parent-delegate-path"',
-    '"global-output-schema"', '"generic-keyword-snapshot"',
-    '"nonconcrete-boundary-callback"', '"event-claims-post-serialization-time"',
-    '"synthetic-controller-observation"', '"manual-production-boundary"',
-    '"bulk-result-callback"', '"dormant-wrapper-source"',
-    '"missing-post-callback-receipt-writer"', '"unmeasured-event-core-io"',
-    '"receipt-before-callback-return"', '_assigned_name_calls', '"monotonic_ns"',
-    '"receipt-not-after-observer-return"', '"append_event_receipt"',
-])
-receipt_pair_source = inspect.getsource(module._journal_event_receipt_pairs)
-assert all(token in receipt_pair_source for token in [
-    'records[::2]', 'records[1::2]', '"event_io_receipt"',
-    '"event_line_sha256"', '_receipt_digest(receipt)',
-])
-wrapper_span_source = inspect.getsource(module._assert_wrapped_call_spans)
-assert all(token in wrapper_span_source for token in [
-    'MIXED_WRAPPED_CALL_FIELDS', '"original_callable_id"',
-    '"original_call_count"', 'after == before + 1', '"return_identity"',
-    '"exception_type"', 'entry["sequence"] < event["sequence"] < exit_["sequence"]',
-    'sorted(counts) == list(range(len(counts)))',
-])
-guard_test_source = inspect.getsource(
-    module.test_mixed_harness_source_guard_rejects_reviewer_p0_p1_patterns)
-assert "_driver_integrity_violations(snippet)" in guard_test_source
-assert "assert_boundary_driver_has_no_result_replay" in inspect.getsource(module.run)
-tamper_guard_source = inspect.getsource(module._assert_tampered_result_is_rejected)
-assert all(token in tamper_guard_source for token in [
-    "deepcopy(result)", 'tampered[field] = {"tampered_result_source": field}',
-    "pytest.raises(AssertionError)", "_assert_result_matches_boundary_lineage",
-])
-causal_tamper_source = inspect.getsource(module._assert_tampered_causal_origins_are_rejected)
-assert all(token in causal_tamper_source for token in [
-    "deepcopy(events)", 'event["source"] == "production_call"',
-    'tampered[target_index]["parent_event_ids"] = prior',
-    "pytest.raises(AssertionError)", "_assert_explicit_causal_origins",
-])
-provider_evidence = inspect.getsource(module.assert_actual_failed_provider_request)
-assert 'requests[0]["kind"] == "origin-validation"' in provider_evidence
-assert 'failed["request_summary"] == requests[failed["request_index"]]' in provider_evidence
-assert 'result["captured_request"]' in provider_evidence
-secret_evidence = inspect.getsource(module.assert_sensitive_provider_material_is_memory_only)
-assert all(token in secret_evidence for token in [
-    '"captured_request"', '"captured_requests"', '"sealed-journal"', '"detached-seal"',
-    '"evidence_files"', '"generated/storage/journal/seal/log/result-file:', '.rglob("*")',
-    '"authorization"', '"raw_provider_response"',
-    '"raw_request_url"', '"raw_request_query"', '"raw_request_body"',
-])
-assert "_assert_persisted_provider_urls_have_no_query_or_fragment" in secret_evidence
-secret_test_source = inspect.getsource(
-    module.test_ac049_secret_and_raw_wire_material_never_enters_sealed_evidence)
-assert all(token in secret_test_source for token in [
-    "RAW_PROVIDER_RESPONSE_MARKER", "RAW_REQUEST_QUERY_MARKER",
-    "RAW_REQUEST_FRAGMENT_MARKER",
-    '"server_url"', '"optimizer_url"', "assert_sensitive_provider_material_is_memory_only",
-])
-preflight_source = inspect.getsource(module.test_ac050_access_boundary_failures_stop_pipeline_and_preserve_last_good)
-assert '"controller_state_after_explicit_calculate"' in preflight_source
-assert '"derived_from_case_input"' in preflight_source
-presentation_source = inspect.getsource(module.test_ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive)
-assert all(token in presentation_source for token in [
-    '"before_state"', '"after_state"', '"rendered_window_geometry"',
-    '"source_layer_renderer_reread"', '"accessibility_observations"',
-    '"QAccessible.queryAccessibleInterface"', '"loaded_route_readback"',
-])
-assert '"before_capture_id"' not in presentation_source and '"after_capture_id"' not in presentation_source
-dynamic_visit_accessibility = inspect.getsource(
-    module.test_ac053_every_visit_accessibility_tracks_dynamic_site_mode_source_and_roundtrip)
-assert all(token in dynamic_visit_accessibility for token in [
-    'visit_value_fixtures=["five-visits-all-modes-a", "five-visits-all-modes-b"]',
-    'sites=ACCESSIBILITY_FIVE_SITES', 'exact_zero_visit_index=4',
-    '"visit_accessibility_binding_observations"',
-    '"delegate_model_observation"', '"QML Repeater delegate"',
-    '"delegate_readback_observations"', '"repeater_object_id"',
-    '"Repeater.itemAt(index)"', 'delegate.property("visitValue")',
-    '"visit_value_object_id"', '"visual_parent_object_id" not in observed',
-    '"qaccessible"', '"QAccessible.queryAccessibleInterface"', 'visitAccessibility[0-9]+',
-    'visit["site_id"] == ACCESSIBILITY_FIVE_SITES[index]["id"]',
-    'visit["roundtrip"] is True',
-    'SCHEMA3_ALLOWED_WALKING_PROVENANCE', '"왕복"',
-    'exact_zero_indices == [4]', "dynamic_values[:visit_count] != dynamic_values[visit_count:]",
-])
-assert 'sum(leg["distance_m"] for leg in visit["walking_legs"])' not in dynamic_visit_accessibility
-assert 'storage_readback_observation' not in dynamic_visit_accessibility
-assert 'assert_schema3_document_contract(item["document"])' not in dynamic_visit_accessibility
-notice_source = inspect.getsource(module.test_ac054_exact_stage_sequence_privacy_and_no_incidental_writes)
-assert "coordinate_notice_acknowledged" not in notice_source
-assert all(token in notice_source for token in [
-    '"visual_order"', '"accessibility_order_observation"',
-    '"QAccessible parent/child traversal"', '"calculate_button_signal_observation"',
-    '"acknowledgement_required"] is False',
-])
-assert "childItems" not in notice_source
-navigation_source = inspect.getsource(module.assert_navigation_has_observed_no_route_or_storage_activity)
-assert all(token in navigation_source for token in [
-    '"observer_installed_before_action"', '"routing-provider-request-log"',
-    '"route-storage-write-log"', '"events"] == []', '"navigation.open"',
-    '"controller.navigate"', '"navigation.open"', '"external-wrapper"',
-    '"wrapped_symbol"', 'MIXED_PRODUCTION_SOURCES["navigation"]', '"cause_id"',
-    '"navigation.open.phase"', '"navigation.open.original_call_count"',
-    '"navigation.open.outcome"', 'set(phases) == {"entry", "exit"}',
-])
-navigation_wrapper_guard = inspect.getsource(module.assert_product_navigation_is_instrumented_externally)
-assert all(token in navigation_wrapper_guard for token in [
-    '"Navigation.open"', '_wrapper_literal', '_assert_original_call_between_entry_and_exit',
-    'real|original', 'productionCall|wrappedCall',
-])
-product_navigation_guard = inspect.getsource(
-    module.test_ac055_navigation_observation_api_is_not_added_to_product_sources)
-assert all(token in product_navigation_guard for token in [
-    '"navigationBoundary" not in source', '"observationBoundary" not in source',
-    '"testObservation" not in source',
-])
-ac056_source = inspect.getsource(
-    module.test_ac056_every_active_and_inactive_visit_corruption_rejects_whole_document)
-assert all(token in ac056_source for token in [
-    'actions=["load-reject", "restart", "recover-last-good"]', '"last_good_after"',
-    '"defaulted_fields"', '"inferred_fields"', '"corrupted_route_was_active"',
-    '"visit_counts"] == [2, 2]', '"corrupted_visit_index"', '"corrupt_newest"] is True',
-    '"load_rejection_observation"', '"restart_observation"', '"recovery_observation"',
-    'recover["selected_route"] == seed["last_good_route"]',
-    'recover["selected_document_sha256"] != seed["corrupt_document_sha256"]',
-    "assert_lifecycle_observation_is_journal_event",
-])
-distance_source = inspect.getsource(module.assert_visit_distance_semantics)
-assert all(token in distance_source for token in [
-    "geodesic_distance_m", 'visit["access_offset_m"]', 'abs=0.01',
-    '0 < lower_bound <= 1.0', 'provider_observation["response"]',
-    'list(reversed(',
-])
-exact_roundtrip_source = inspect.getsource(
-    module.test_ac056_three_allowed_visit_provenance_pairs_roundtrip_exactly)
-assert 'visit["source_coordinate"] != visit["access_coordinate"]' in exact_roundtrip_source
-assert any(parameter.values[0].get("field") == "access_offset_m"
-           and parameter.values[0].get("walking_mode") == "exact_zero"
-           for parameter in module.SCHEMA3_VISIT_CORRUPTIONS)
-quantity_source = inspect.getsource(
-    module.test_ac053_mapped_provider_and_unmapped_lower_bound_stay_separate_on_all_surfaces)
-assert all(token in quantity_source for token in [
-    'quantity_fixtures=["mixed-a", "mixed-b"]', '"quantity_binding_observations"',
-    '"mapped_provider_distance"', '"mapped_provider_duration"',
-    '"straight_line_lower_bound"', '"visible_readbacks"', '"accessibility_readbacks"',
-    '"render_observation"', '"QAccessible.queryAccessibleInterface"',
-    '"exact_walking_total_present"] is False',
-    '"summed_mapped_plus_lower_bound_present"] is False',
-])
-upgrade_source = inspect.getsource(
-    module.test_ac052_selected_schema1_and_schema2_route_upgrade_atomically_replaces_identity)
-assert all(token in upgrade_source for token in [
-    'action="explicit-recalculate-and-save"', 'replacements == [r["saved_route"]]',
-    '"atomic_replace_observation"', '"commit_count"] == 1',
-    'assert_schema3_document_contract', '"route_schema"] == 3',
-    'if key != "route_schema"', '"listed_route_ids"', '"loaded_legacy_route"',
-])
-failed_upgrade_source = inspect.getsource(
-    module.test_ac052_failed_schema1_and_schema2_upgrade_preserves_selected_route_and_bytes)
-assert all(token in failed_upgrade_source for token in [
-    '"bytes_after"] == r["bytes_before"]', '"last_good_after"] == r["last_good_before"]',
-    '"successful_storage_commits"] == []', '"saved_document"] == legacy',
-])
-cold_start_source = inspect.getsource(
-    module.test_ac052_ac056_product_cold_start_panel_recovers_last_good_without_mutation)
-assert all(token in cold_start_source for token in [
-    'action="product-cold-start-open-panel"', '"seed_process_observation"',
-    '"cold_start_child_artifact_observation"', '"parent_child_verification_observation"',
-    'child["pid"] != seed_process["pid"]', '"process_boundary"] == "subprocess.Popen"',
-    '"sealed_callback_journal"', '"generated_project_manifest"',
-    '"generated_project_sha256"', '"entry_callback_event_ids"',
-    '"writer_closed"] is True', '"final_event_sha256"', '"final_record_sha256"',
-    '_assert_callback_io_receipts', '_journal_event_receipt_pairs',
-    '_assert_wrapped_call_spans',
-    '"qml.open_panel"', '"controller.create"', '"controller.reload"', '"repository.load"',
-    '"instrumentation": "external-wrapper"', '"entry" if field == "phase"',
-    'original_call_count', 'original_callable_id', 'reverse=True',
-    'inner["cause_id"] == outer["event_id"]',
-    '"corrupt_newest_bytes_after"] == r["corrupt_newest_bytes_before"]',
-    '"provider_requests"] == r["storage_writes_after_corruption"] == []',
-])
-callback_receipt_source = inspect.getsource(module._assert_callback_io_receipts)
-assert all(token in callback_receipt_source for token in [
-    '"event_line_sha256"', '"receipt_sha256"', '"write_returned_at_monotonic_ns"',
-    '"flush_returned_at_monotonic_ns"', '"line_visible_at_monotonic_ns"',
-    '"callback_finished_at_monotonic_ns"', '"line_available_during_callback"',
-    'receipt["visible_line_count"] == event["sequence"] + 1',
-])
-assert '"entry_path"' not in cold_start_source
-schema_boundary_source = inspect.getsource(
-    module.test_ac057_settings_or_default_only_save_never_promotes_beyond_schema2)
-assert all(token in schema_boundary_source for token in [
-    '"settings-only-save"', '"default-start-only-save"', '"schema"] == 2',
-    '"route_schema" not in route',
-    '"successful_storage_commits"] == 1', '"readback_document"',
-])
-marker_failure_source = inspect.getsource(
-    module.test_ac057_marker_corruption_and_duplicates_fail_atomically)
-assert all(token in marker_failure_source for token in [
-    '"unknown-route-schema"', '"legacy-marker-with-mixed-fields"',
-    '"mixed-marker-with-legacy-fields"', '"duplicate-route-identity"',
-    '"legacy-variant-corruption"', '"mixed-variant-corruption"',
-    '"bytes_after"] == r["bytes_before"]', '"last_good_after"] == r["last_good_before"]',
-])
-toggle_source = inspect.getsource(
-    module.test_ac058_route_line_toggle_is_one_atomic_settings_only_write_and_persists)
-assert all(token in toggle_source for token in [
-    '"toggle-off"', '"panel-reopen"', '"cold-restart"', '"move-with-settings"',
-    '"toggle-on"', '"line_visibility_readback_observations"',
-    '"before_storage_observation"', '"commit_observations"', '"readback_observation"',
-    'changed_leaf_paths(before["document"], readback["document"])',
-    '"settings.show_route_line"',
-    '"route_after"] == r["route_before"]', '"revision_after"] == r["revision_before"]',
-])
-assert all(token not in toggle_source for token in [
-    'write["atomic_commit_count"]', 'write["readback_count"]',
-    'write["successful_commit_count"]', 'write["changed_paths"]',
-    'write["feedback_observation"]', 'settings-save-success',
-])
-toggle_failure_source = inspect.getsource(
-    module.test_ac058_toggle_failure_rolls_back_and_reports_actionable_feedback)
-assert all(token in toggle_failure_source for token in [
-    '"success_feedback_count" not in r', '"feedback_observation"',
-    '"qml_visibility_rollback_observation"', '"storage_rollback_observation"',
-    '"storage_attempt_observations"', 'attempt["kind"] == "readback"',
-])
-preview_source = inspect.getsource(module.test_ac058_preview_and_legend_are_write_free)
-assert all(token in preview_source for token in [
-    '"passive_write_observers"', '"installed_before_action"] is True',
-    'observer["events"] == []',
-])
-apple_source = inspect.getsource(module.test_ac055_ios_uses_exact_apple_maps_once_without_any_fallback)
-assert 'r["message"] == APPLE_MAPS_FAILURE_MESSAGE' in apple_source
-invalid_navigation_source = inspect.getsource(
-    module.test_ac055_invalid_navigation_coordinate_never_dispatches_or_mutates)
-assert all(token in invalid_navigation_source for token in [
-    'r["launcher_calls"] == []', 'event["source"] == "navigation_launcher"',
-    "boundary_event_map(r).values()",
-])
-assert 'assert "평문" in consent' not in source
-assert 'fresh_project=True, seed_saved=True' not in source
-assert source.count('seed_fixture_settings=False') == 2
-assert 'must not install any synthetic endpoint setting (including `vroom.invalid`)' in contract
-assert '{"select": [0, 13]}' in source
-assert "\"ios\", canonical_naver_url" not in source
-assert "NAVER_IOS_STORE" not in source
 assert all(token in source for token in ['"centroid" in expression', '"transform" in expression',
                                          '"x(" in expression', '"y(" in expression'])
 for kind, center in module.CENTROIDS.items():
@@ -674,6 +269,41 @@ for fmt in ["SHP", "ZIP", "GPKG"]:
             except FixtureChecked:
                 count += 1
 assert count == 18
-print("Design checks: DRAFT callback-provenance/storage-compatibility correction is internally consistent; "
-      "approved AC001-058/QPB149-150 history and M01-M21 NOT RUN boundaries are preserved. "
-      "No application tests executed.")
+print("Design checks: approved AC001-045 history preserved; approved AC046-048/QPB149-150 correction "
+      "uses bounded structure/controller/builder/symbol boundaries; superseded operations are absent; "
+      "M01-M17 remain NOT RUN. No application tests executed.")
+
+# DRAFT AC-SRP-049–058 direct-observation design checks.
+test_source = path.read_text(encoding="utf-8-sig")
+coverage = set(re.findall(r"ac(\d{3})", test_source))
+assert {f"{i:03d}" for i in range(1, 59)} <= coverage
+for required in (
+    "_direct_node", "_route_http", "_provider_responder",
+    "test_ac049_http_failure_preserves_actual_stage_status_and_stops",
+    "test_ac050_single_batched_snap_uses_original_coordinates_and_exact_radius",
+    "test_ac051_actual_backend_emits_roundtrip_walking_contract",
+    "test_ac052_ac057_production_save_roundtrips_schema3_and_preserves_legacy",
+    "test_ac053_qml_runtime_reads_real_tree_repeater_and_qaccessible",
+    "test_ac054_actual_http_sequence_and_privacy_boundary",
+    "test_ac055_navigation_open_direct_spy",
+    "test_ac056_corrupt_visit_recovery_preserves_bytes_and_last_good",
+    "test_ac057_variant_corruption_recovery_is_atomic",
+    "test_ac058_toggle_persists_exact_setting_through_restart_and_folder_move",
+):
+    assert required in test_source
+assert all(name in test_source for name in (
+    "M18_live_ors_mixed_route", "M19_mixed_route_visual_accessibility",
+    "M20_ios_apple_maps_handoff", "M21_android_naver_regression",
+))
+assert "ThreadingHTTPServer" in test_source
+assert 'fs.readFileSync(input.modules[name],"utf8")' in test_source
+assert "repository.checksum(payload)" in test_source
+assert "navigation.open(stop,opener" in test_source
+assert "QAccessible.queryAccessibleInterface" in test_source
+assert "Repeater.itemAt(index)" in test_source
+for production_name in ("backend.js", "controller.js", "repository.js", "navigation.js"):
+    production = path.parents[3] / "qfield_builder" / "qfield_routes" / production_name
+    production_source = production.read_text(encoding="utf-8")
+    assert "SRP_DIRECT_SYNTHETIC_SECRET" not in production_source
+    assert not re.search(r"\b(?:testOnly|acceptanceOnly)\b", production_source)
+print("survey route AC049-058 direct-observation design verified")

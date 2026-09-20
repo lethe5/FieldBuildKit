@@ -1,84 +1,7 @@
-# Survey Route Planner — DRAFT callback-provenance/storage-compatibility correction
+# Survey Route Planner — DRAFT AC-SRP-049–058 direct-observation traceability
 
-> **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Approved requirements and prior
-> acceptance approvals remain preserved. The current correction strengthens AC-SRP-049–056
-> observation integrity and adds approved AC-SRP-057–058 storage/toggle coverage.
-
-| Corrected artifact issue | Controlling authority | Draft corrected evidence |
-| --- | --- | --- |
-| Mixed operations passed through a canned unit driver, adapter payload replacement and circular formatter output. | D-SRP-049–056; FR-SRP-047–053; HARNESS production-path rule | All six operations require runtime-observed production calls/source hashes; no unit mixed driver, postprocessed fields, copied case results or production expected URL. |
-| Retained calculations omitted access-snap/default access distance and still described new schema 2. | D-SRP-050/053; FR-SRP-048/051 | `max_access_distance_m=2000`, mandatory snap request and schema-3 new save; schema 1/2 read-only; future=99. |
-| AC032 counted access markers as duplicate start markers. | D-SRP-050/054; retained AC-SRP-032 | Filter by semantic role and require exactly one `start_marker`; access/warning overlays remain distinct. |
-| The retained passive-toggle correction prohibited every settings write, conflicting with persistence. | D-SRP-059; FR-SRP-056; AC-SRP-058 | Exactly one settings-only atomic write/readback per changed value; zero route/source/completion/revision/provider mutation; reopen/restart/move persistence and failure rollback. |
-| Retained AC039 clicked the old NAVER-specific label; AC042 edited without clearing the new date default. | D-SRP-048/056; FR-SRP-046/053 | Platform-neutral action through current dispatch; select/delete the local-date default before the edit sequence. |
-| AC013 fresh/blank cases seeded custom endpoint state; AC019 demanded plaintext wording in the short consent label. | D-SRP-015/045/050; AC-SRP-013/019/045 | Truly fresh fixture; plaintext semantics remain asserted in exact warning copy while consent remains exact `위 내용에 동의합니다`. |
-| AC050 forbade the source text even when exact-zero made source and access identical; AC053 exact equality omitted casing fields it then read; AC054 applied set-subset syntax to a JSON list. | D-SRP-050–051/054–055; AC-SRP-050/053/054 | Exclude only nonzero snapped sources while requiring the exact access sequence; assert three observed classes field-by-field with casing/non-color evidence; convert the observed payload-field list to a test-owned set. |
-| Approved statusless/JSON/lifecycle/schema-3 validation branches were not executable. | D-SRP-049/052–053/055; FR-SRP-047/051–052; AC-SRP-049/052/054 | Missing/misleading content-type JSON, status-0/network connection action, post-origin cancel/close quiescence and every-route schema-3 omission rejection are explicit RED cases. |
-| Empty provenance lists and the prior journal could still be synthesized by `capture_outputs` after result assembly, using result iteration and field-name classification. | D-SRP-049–059; FR-SRP-047–056; AC-SRP-049–058 | Boundary hooks publish raw observations during execution and seal before result construction. AST source inspection rejects `capture_outputs`, result iteration/classification, `output_bindings`, `result_source` and `bind_result`; a deliberate returned-result tamper must fail lineage consistency. Explicit causal parents, not hash order or self-declared flags, determine ancestry. |
-| The cycle-3 journal still emitted every result mutation through a final `dict(result)`/`controller.final_state`, copied `captured_request` after sealing, AST-extracted one projection superset for every hook, selected parents by latest source and bulk-wrote JSONL at run end. Cold start returned parent-owned flags, AC053 rediscovered/recomputed values from repository visits, invalid coordinates conflated the production navigation boundary with the external opener, and AC058 over-required success feedback. | D-SRP-049–059; FR-SRP-049–056; AC-SRP-052/053/055/056/058 | Each concrete callback declares its own schema and append-flushes one JSONL record before return; sealing precedes pure projection and source/lineage gates reject every completed-result path. Parents are explicit triggering event IDs. A child subprocess returns its own sealed journal/PID/generated-project hash/entry callbacks for parent verification. AC053 reads exactly five `Repeater.itemAt(index)` delegates' same-object `visitValue` and `QAccessible`, with exact-zero at index 4 and no repository recomputation. Invalid coordinates observe production `navigation.open` but zero external launchers. AC058 keeps failure feedback only. |
-| Reviewer P0/P1 paths could still leak raw wire secrets, lazily register schemas, parent callbacks through mutable global/latest event state, add a product `navigationBoundary`, and fabricate a `visual_parent.itemAt` delegate path. | D-SRP-049–059; FR-SRP-047–056; NFR-SRP-007–009; AC-SRP-049–058 | Scan JSONL/seal/files/ordinary result and log evidence for the exact synthetic key, Authorization material, raw response/body and request URL/query/body; only an unjournaled transient in-memory request capture may be asserted. Freeze exact hook schemas before start, append/flush inside the callback, pass one explicit `cause_id`, and reject generic `observed_outputs`/result `put`/completed-result journaling/global latest state. Harness wrappers observe imported `controller.navigate` and `navigation.open`; product observation APIs are forbidden. |
-| Cycle-4 attempt 1 could still manufacture every output through global `OUTPUT_FIELDS` → `controller.output.*`, accept synthetic `controller.observe`, pre-record a named `navigation.open`/cold-start event without wrapping the imported function, timestamp append/flush before either IO call, and redact only a complete query URL while leaving marker substrings or query-bearing settings elsewhere. | D-SRP-049/052–053/056; FR-SRP-047/051–053; NFR-SRP-007; AC-SRP-049/052/054/055 | Source and runtime guards reject global/generated output schemas, generic `collect(**values)`/assembled keyword journaling and every `controller.output.*` or `controller.observe` journal root. Sealed line-hash receipts prove strict write-return → flush-return → line-visible → callback-finished ordering in parent and cold-start child. Exact key/Auth/raw-response/query/fragment markers are scanned in all disposable generated project/storage/journal/seal/log/result files; persisted provider URLs have no query/fragment. Navigation and four cold-start entry boundaries require original-invoking entry/exit wrappers; invalid coordinates show a real `Navigation.open` entry/throw with zero launchers. No product seam is allowed. |
-| Cycle-4 attempt 2 could still emit a fresh `controller.calculate` after an action solely to parent a bulk callback that received the already assembled result, satisfy cold-start source checks with dormant wrapper strings while manually marking one component creation, and put impossible post-write/flush/callback-finish timestamps in the event line before serializing it. | D-SRP-049/052–053/056; FR-SRP-047/051–053; AC-SRP-049–058 | Every returned field binds exactly once at a concrete one-field observer whose direct parent is a pre-existing production-wrapper entry and whose receipt precedes that invocation's exit. Wrapper pairs prove saved-original identity, one counter increment, return/exception and nested ordering; direct `productionCall`/`wrappedEntry`/`wrappedExit`, bulk result callbacks and dormant cold-start wrapper strings fail. JSONL alternates a timestamp-safe event core with the next hash-bound post-IO/callback receipt, and the seal authenticates both record types. |
-| Schema-3 visit tests checked pair labels but not their approved distance meanings; legacy upgrade checked neither valid schema 2 replacement nor failure atomicity; corruption actions were only strings and treated recovery as another rejection. | D-SRP-027/051/053/057; FR-SRP-049/051/054; AC-SRP-052/056 | Active/inactive × identity/pair/distance corruptions include exact-zero measured-offset corruption. Load rejection, restart and last-good recovery are distinct callback/journal events; recovery selects the preceding valid route after corrupt-newest rejection without mutating corrupt bytes or writing. Mapped/provider, non-identical sub-meter exact-zero and unmapped/geodesic semantics exact-roundtrip; schema1/2 replacement/failure remains atomic. |
-| Metric-source accessibility used a fixed source literal, walking surfaces did not prove mapped and lower-bound quantities stayed separate, and notice order came from QML object-tree DFS. | D-SRP-054/055; FR-SRP-050/052; AC-SRP-053/054 | Two changed exact-five-visit documents expose every delegate's direct `visitValue` and same-object `QAccessible` site/mode/source/왕복/distance/time, including exact-zero at index 4. Separate values bind mapped provider distance/time and straight-line lower-bound to distinct visible/QAccessible objects without exact-total summing. Notice precedes calculate in real `QAccessible` parent/child traversal. |
-| Harness-only recovery could pass without normal product startup; one accessibility object omitted per-visit context; Apple failure asserted only a substring. | FR-SRP-008/049/051/053; AC-SRP-052/053/055/056 | Generated RoutePanel/controller cold start reaches last-good through normal reload with unchanged bytes; every mapped/exact-zero/unmapped visit exposes dynamic site/mode/source/왕복/metrics; iOS false/exception matches the exact Korean message. |
-| Empty/settings-only schema boundaries, mixed+legacy preservation and marker validity had no executable coverage. | D-SRP-058; FR-SRP-055; AC-SRP-057 | Schema-2 default/settings boundary, selected same-ID tagged upgrade, exact unrelated tagged legacy preservation/list/load, untagged compatibility/next-write tagging, duplicate/corruption/contradiction atomic failure. |
-
-Current retry-2 DRAFT verification: compilation/design verifier passed; focused AC049–056 collection
-found **172/530** cases. A loopback-enabled four-case reviewer-finding slice produced the expected
-**4 failed**: three detect the missing pre-result journal seal and one detects the unsupported dynamic
-mixed-quantity presentation action. Manual selection produced **21 skipped, 509 deselected**;
-acceptance-only `git diff --check` passed. M01–M21 remain NOT RUN.
-
-Current correction-cycle-3 DRAFT verification: design verifier passed AC001–058/QPB149–150 and
-collection found **555** cases. The loopback-enabled decisive selector produced the expected
-**31 failed, 524 deselected**: existing returned results are rejected by the source verifier because
-the current driver defines forbidden `capture_outputs`, while new schema-boundary/marker/cold-start/
-accessibility/toggle actions are absent or unsupported. Manual selection produced **21 skipped,
-534 deselected**; `git diff --check` passed. M01–M21 remain NOT RUN.
-
-Current correction-cycle-3 retry-1 DRAFT verification: Python compilation and the design verifier
-passed; collection remains **555** cases. The loopback-enabled cold-start/dynamic-accessibility/
-toggle selector produced the expected **4 failed, 550 deselected** at `--maxfail=4`: three are
-rejected by the new wholesale-parent/result-mutation source guard and the five-visit case exposes
-the current fixed-size presentation path. Manual M01–M21 selection produced **21 skipped,
-534 deselected**; acceptance-only `git diff --check` passed. M01–M21 remain NOT RUN.
-
-Current correction-cycle-3 retry-2 DRAFT verification: Python compilation/design verifier passed
-and collection remains **555** cases. After an environment-only loopback-denied probe, the
-loopback-enabled representative selector produced the expected **5 failed, 545 deselected** at
-`--maxfail=5`: four reject the current AST-derived shared projection/completed-result path and one
-exposes the current fixed delegate list with five visits. Manual selection produced **21 skipped,
-534 deselected**; acceptance-only `git diff --check` passed. M01–M21 remain NOT RUN.
-
-Current correction-cycle-4 DRAFT verification: Python compilation/design verifier passed and
-collection found **566** cases. The source-guard self-check produced **8 passed, 558 deselected**.
-The targeted current-implementation selector produced the expected **2 failed, 564 deselected**:
-the driver exposes the reviewer P0/P1 generic/lazy/global/visual-parent patterns and product sources
-still expose `navigationBoundary`. Manual selection produced **21 skipped, 545 deselected**;
-acceptance-only `git diff --check` passed. M01–M21 remain NOT RUN.
-
-Current correction-cycle-4 retry-1 DRAFT verification: Python compilation/design verifier passed
-and collection found **571** cases. The expanded source-guard self-check produced **13 passed, 558
-deselected**. The current-implementation gate produced the expected **1 failed, 1 passed, 569
-deselected**: the acceptance driver is rejected for global/generated output schemas, synthetic
-controller roots, generic keyword/result observation, non-concrete journaling callbacks and
-precomputed IO timing; the product-source no-navigation-seam check passes. Manual selection
-produced **21 skipped, 550 deselected**; acceptance-only `git diff --check` passed. M01–M21 remain
-NOT RUN.
-
-Current correction-cycle-4 retry-2 DRAFT verification: Python compilation/design verifier passed
-and collection found **577** cases. The source-guard self-check produced **19 passed, 558
-deselected**. The current-implementation gate produced the expected **1 failed, 1 passed, 575
-deselected**: the driver is rejected for bulk assembled-result callbacks, direct/post-hoc production
-markers, dormant cold-start wrapper strings, a missing post-callback receipt writer and event-core
-claims about future IO/callback times; the product-source no-navigation-seam check passes. Manual
-selection produced **21 skipped, 556
-deselected**. M01–M21 remain NOT RUN.
-
-> **APPROVED TEST DESIGN (approval 2026-09-18).** AC-SRP-049–055 and mappings for D-SRP-049–056,
-> FR-SRP-047–053 and NFR-SRP-007–009 are additive to the preserved approved history.
-> M18–M21 are NOT RUN and cannot be satisfied by automated fixtures.
+> Current AC-SRP-049–058 status: **DRAFT TEST DESIGN (2026-09-21)**.
+> The approved AC-SRP-001–048 mappings below remain preserved and are not reopened.
 
 > **APPROVED TEST DESIGN — supersession reconciliation (approval 2026-09-17).**
 > This approved reconciliation aligns retained AC-SRP-019/022/024/031 executable expectations with approved
@@ -117,7 +40,7 @@ test asks for the removed remaining-route calculation.
 | AC-SRP-004 | `ac004_start_and_return`, `ac004_missing_gps`, `ac008_offline_restart_relocation` | M02/M03; real GNSS, map interaction and moved default |
 | AC-SRP-005 | `ac005_road_cost_request` (time/distance) | M02; live `ors-vroom` feasibility, no optimum guarantee |
 | AC-SRP-006 | `ac006_failures_preserve_saved` (17 faults), `ac006_ac013_unknown_backend_rejected_before_request`, `ac002_selection[0]` | M02/M03; real connectivity failures |
-| AC-SRP-007 | `ac007_result_roundtrip` (raw VROOM relative arrivals supplied/absent; schema-3 mandatory vehicle legs/visits/separate totals plus ordered from/to IDs, metrics, WGS84 leg geometry and sequence), `ac007_invalid_eta_rejected` (ISO/partial/negative/non-finite) | M02/M05; compare native relative ETA display and road overlay |
+| AC-SRP-007 | `ac007_result_roundtrip` (raw VROOM relative arrivals supplied/absent; schema-2 ordered from/to IDs, metrics, WGS84 leg geometry and sequence), `ac007_invalid_eta_rejected` (ISO/partial/negative/non-finite) | M02/M05; compare native relative ETA display and road overlay |
 | AC-SRP-008 | `ac008_offline_restart_relocation` (routes, stable layer-ID settings, default route-line preference, key cleared) | M03; native process restart and moved folder |
 | AC-SRP-009 | `ac009_storage_recovery` (5 faults) | M03; chosen native file API/atomicity proof |
 | AC-SRP-010 | `ac003_ac010_scope_mapping`, `ac010_completion` (ordered `0` then `1` persistence), `ac010_completion_write_failure_preserves_state`, `ac010_ac011_ac027_all_complete_uses_saved_full_route`; later-row blocking is independently covered by AC040 | M04; actual layer field refresh, inline help and route-local UI |
@@ -135,21 +58,21 @@ test asks for the removed remaining-route calculation.
 | AC-SRP-022 | `ac022_ac024_labels_guidance_and_conditional_controls` (2 widths × 3 modes, D-SRP-037 `계산 대상`, D-SRP-043 `저장 경로 불러오기`, explicit all scope), `ac022_stale_target_is_cleared_and_blocks_target_start` | M01/M02; native feature-model refresh and touch/keyboard controls |
 | AC-SRP-023 | `ac023_storage_feedback_names_exact_committed_relative_path` (2), `ac023_storage_failure_has_no_success_or_secret_feedback` (2) | M03; actual QField FileUtils path and accessible project folder |
 | AC-SRP-024 | `ac022_ac024_labels_guidance_and_conditional_controls` (`저장 경로 불러오기` dropdown; editable field remains `저장할 경로 이름`) | M01/M04; native wrapping/readability |
-| AC-SRP-025 | `ac025_exact_encoded_android_intent_and_honest_qt_true` (2 caller IDs), `ac025_mobile_fallback_and_all_refused` (retained Android intent/store only under D-SRP-056), `ac025_non_mobile_has_actionable_error_without_install_dispatch`, retained `ac012_road_and_naver` | Android remains M05/M21; superseded iOS provider/fallback is covered by AC-SRP-055/M20 |
-| AC-SRP-026 | `ac011_ac026_remaining_recalculation_is_superseded`, `ac026_ac035_new_calculation_schema3_complete_immutable_legs_roundtrip` (open/roundtrip vehicle legs plus exact-zero visits), `ac026_invalid_schema2_leg_preserves_existing_route` (retained raw ORS fixture), `ac026_provider_total_tolerance` | M02/M03; native QField storage roundtrip and UI control absence |
+| AC-SRP-025 | `ac025_exact_encoded_android_intent_and_honest_qt_true` (2 caller IDs), `ac025_mobile_fallback_and_all_refused` (exact Android intent/iOS scheme and stores), `ac025_non_mobile_has_actionable_error_without_install_dispatch`, retained `ac012_road_and_naver` | M05 separately on Android/iOS; actual handoff, destination acceptance and guidance |
+| AC-SRP-026 | `ac011_ac026_remaining_recalculation_is_superseded`, `ac026_ac035_schema2_complete_immutable_legs_roundtrip` (open/roundtrip), `ac026_invalid_schema2_leg_preserves_existing_route` (7 raw route-level/top-level fault documents with exact provenance and no segment-level way_points), `ac026_provider_total_tolerance` (4 boundaries) | M02/M03; native QField storage roundtrip and UI control absence |
 | AC-SRP-027 | `ac010_ac011_ac027_all_complete_uses_saved_full_route`, `ac027_ordered_completion_then_uncheck_creates_out_of_order_gap_and_roundtrip_return` (blocked later-row attempt, then ordered completion and uncheck-created gap; mapped/local; raw intermediate-vertex directions and committed-route provenance), `ac027_completion_overlay_is_blue_accessible_nonpersistent_and_rederived` (3 geometries × mapped/local), `ac027_mapped_write_failure_preserves_overlay_metrics_and_source`, `ac027_ac028_progression_survives_restart_recovery_offline_move` | M04; actual map rendering, source writes and recovery |
-| AC-SRP-028 | `ac028_metric_formatting_and_bottom_bar` (4 ceil-minute edges), `ac028_route_line_toggle_scope_persistence_move_and_zero_api` (project-scoped persistence through reopen/restart/move, one settings-only write, zero route/revision/provider change), `ac027_ac028_progression_survives_restart_recovery_offline_move` | AC058 is final toggle-write authority; M03/M04 native overlay visibility |
-| AC-SRP-029 | `ac029_legacy_schema1_load_is_offline_nonmutating_and_unavailable`, `ac029_explicit_full_recalculation_is_only_schema3_upgrade`, `ac029_future_schema_is_preserved_and_rejected` (schema 99) | M03/M06; real legacy bytes under QField storage API |
+| AC-SRP-028 | `ac028_metric_formatting_and_bottom_bar` (4 ceil-minute edges), `ac028_route_line_toggle_scope_persistence_move_and_zero_api`, `ac027_ac028_progression_survives_restart_recovery_offline_move` | M03/M04; native device-local setting and overlay visibility |
+| AC-SRP-029 | `ac029_legacy_schema1_load_is_offline_nonmutating_and_unavailable`, `ac029_explicit_full_recalculation_is_only_schema2_upgrade`, `ac029_future_schema_is_preserved_and_rejected` | M03/M06; real legacy bytes under QField storage API |
 | AC-SRP-030 | `ac018_ac030_regression_portability`, `ac013_ac030_no_network_or_secrets` plus AC002/003/008/009/013–019/021–029 rows above | M01–M06; full native regression and redacted device evidence |
 | AC-SRP-031 | `ac031_six_selectors_use_ors_floating_labels_without_collision` (historical six-control subset, 2 widths × empty/value/focus/error; D-SRP-037 shortened labels; distinct loaded-QML object IDs, geometry, style and accessibility; separate-row check scoped to these control labels) | AC043 is final authority for all eight controls; M01 covers native touch/keyboard focus, screen-reader name and device clipping |
-| AC-SRP-032 | `ac032_map_start_marker_is_exact_fixed_and_replaced_not_duplicated`; `ac032_map_start_marker_survives_panel_and_calculation_events` (semantic-role filtering keeps one start marker while access markers may appear); lifecycle/remove/failure tests retain full canvas enumeration and write capture | M02; actual QField map item, project-close lifecycle and visual distinction |
+| AC-SRP-032 | `ac032_map_start_marker_is_exact_fixed_and_replaced_not_duplicated`; `ac032_map_start_marker_survives_panel_and_calculation_events` (3); `ac032_map_start_marker_removed_at_lifecycle_end` (4); `ac032_map_start_transform_failure_preserves_previous_marker_and_start` (full canvas enumeration and actual provider/storage write capture) | M02; actual QField map item, project-close lifecycle and visual distinction |
 | AC-SRP-033 | `ac033_target_candidates_match_preflight_before_required_validation` (3 scopes × 0/1/3); `ac033_candidate_refresh_preserves_valid_id_and_clears_stale_after_changes` (separate model/preflight capture IDs and submitted order) | M01; actual QField selection/schema/completion events |
 | AC-SRP-034 | `ac034_selection_guidance_is_selected_only_and_leaves_no_gap` (2 widths × 3 scopes × 0/1/3; visible row coordinates and hidden-item layout absence) | M01; native rendered placement and device accessibility |
 | AC-SRP-035 | `ac026_ac035_schema2_complete_immutable_legs_roundtrip` (open/roundtrip documented ORS slices); `ac035_provider_contract_defects_are_actionable_and_preserve_last_good` (11 raw defects); `ac035_valid_provider_response_forced_client_failure_is_distinct_and_preserves_last_good`; `ac035_six_geometry_families_accept_real_ors_contract_from_approved_representative` (6 real materialized source→generated GPKG/QGS paths) | M02 plus M07 Point, M08 LineString, M09 Polygon; actual QField/live ORS results remain unperformed |
-| AC-SRP-036 | `ac036_name_entry_and_changes_save_existing_candidate_without_recalculation`; recoverable retries; `ac036_only_real_input_or_revision_change_blocks_stale_candidate` (actual calculation input); `ac036_route_line_toggle_settings_write_does_not_stale_candidate` | AC058 is final settings-write authority; M10 native QField focus/input and file-failure retry |
+| AC-SRP-036 | `ac036_name_entry_and_changes_save_existing_candidate_without_recalculation`; `ac036_recoverable_save_failure_preserves_candidate_for_corrected_retry` (3); `ac036_only_real_input_or_revision_change_blocks_stale_candidate` (2) | M10; native QField focus/input and file-failure retry |
 | AC-SRP-037 | `ac037_seven_controls_share_rendered_outlined_floating_label_contract` (2 widths × 5 states; raw loaded-QML rectangles/style/accessibility) | M10; native touch/keyboard/screen reader and clipping |
 | AC-SRP-038 | `ac038_api_settings_initially_collapsed_and_toggle_is_passive`; `ac038_key_provenance_and_session_lifetime_are_observed_from_generated_project` (2); `ac038_settings_save_reports_actual_slot_and_excludes_key_and_objective`; `ac038_failed_settings_save_preserves_last_good_and_session_key` | M10; native session lifecycle/FileUtils/accessibility |
-| AC-SRP-039 | `ac039_platform_specific_official_primary_dispatch` and `ac039_official_install_fallback_once_and_no_inferred_web_url` (Android only, platform-neutral visible label, current `platform_map_dispatch`) | M21; iOS is superseded by AC055/M20 |
+| AC-SRP-039 | `ac039_platform_specific_official_primary_dispatch` (Android/iOS); `ac039_official_install_fallback_once_and_no_inferred_web_url` (Android/iOS) | M10; actual-device app/store handoff remains NOT RUN |
 | AC-SRP-040 | `ac040_only_next_in_order_is_checkable_and_blocked_attempt_is_nonmutating` (mapped/local); `ac040_uncheck_gap_and_external_out_of_order_true_keep_full_remaining_contract` (mapped/local); retained AC027 write-failure preservation | M10; native row focus/reason and external layer refresh |
 | AC-SRP-041 | `ac041_generated_site_labels_use_configured_name_and_white_halo` (Point/LineString/Polygon); `ac041_generated_polygon_uses_non_gray_accent_distinct_from_route_states` | M10; automated render observations are generated/headless configuration proxies only; native QField label/halo rendering and collision handling remain NOT RUN |
 | AC-SRP-042 | `ac042_touch_equivalent_text_input_uses_real_editable_qml_control_without_recalculation` (body + label/notch window taps, immediate focus/caret, zero recovery calls, post-focus IME edits, trim save, candidate/revision/request invariant) | M11 Android and M12 iOS separately; actual OS soft-keyboard opening remains NOT RUN |
@@ -159,16 +82,6 @@ test asks for the removed remaining-route calculation.
 | AC-SRP-046 | `ac046_theme_structure_uses_host_palette_and_semantic_roles_only` | M15 is authoritative for pixels, thresholds, non-color cues and passive theme-switch state; NOT RUN |
 | AC-SRP-047 | `ac047_header_and_first_control_are_distinct_ordered_structures_only` | M16 is authoritative for painted 8 dp clearance, clipping and tap regions; NOT RUN |
 | AC-SRP-048 | `ac048_controller_local_date_save_roundtrip_and_next_success_reset` (3 injected timezone/locale boundaries); retained `ac042_touch_equivalent_text_input_uses_real_editable_qml_control_without_recalculation` | M17 is authoritative for iOS caret/soft keyboard and device presentation; NOT RUN |
-| AC-SRP-049 | `ac049_secret_and_raw_wire_material_never_enters_sealed_evidence`; `ac049_provider_http_failure_preserves_stage_status_and_safe_json_detail` (5 stages); `ac049_unsafe_or_unusable_provider_body_has_no_detail` (9 unsafe/unusable bodies); `ac049_plain_text_is_bounded_and_success_body_never_enters_error_ui`; `ac049_valid_json_body_is_parsed_even_without_truthful_content_type` (missing/text/binary content type); `ac049_statusless_transport_failure_has_connection_action_without_http_status` (status-0/network); `ac049_404_meaning_comes_only_from_provider_content` (explicit endpoint/no-result/generic) | M18; live provider response behavior remains NOT RUN |
-| AC-SRP-050 | `ac050_single_ordered_access_snap_uses_originals_and_exact_radius` (0.35/2/5 km); `ac050_access_boundary_failures_stop_pipeline_and_preserve_last_good` (null/batch/radius/origin); `ac050_origin_null_with_finite_snapped_distance_stops_before_access_snap` | M18; live ORS snap/routing coverage remains NOT RUN |
-| AC-SRP-051 | `ac051_mapped_zero_and_open_last_visits_are_out_and_back`; `ac051_explicit_no_path_requires_ack_and_keeps_duration_unknown`; `ac051_transient_or_invalid_walking_failure_is_never_downgraded` (4) | M18; live foot-hiking/no-path classification remains NOT RUN |
-| AC-SRP-052 | `ac052_schema3_exact_roundtrip_recovery_move_and_completion_are_offline` (mapped/fallback); `ac052_ac056_exact_zero_totals_stay_exact_and_separate`; `ac052_ac053_fallback_totals_stay_lower_bound_and_duration_unknown`; `ac052_every_schema3_route_rejects_required_field_omission`; `ac052_ac056_legacy_load_and_future_rejection_preserve_bytes`; heterogeneous `ac052_selected_schema1_and_schema2_route_upgrade_atomically_replaces_identity`; atomic failure counterpart; `ac052_ac056_product_cold_start_panel_recovers_last_good_without_mutation` (child-owned sealed journal/PID/generated-project manifest hash/entry callback IDs, parent verification) | M03/M18; target QField native file/recovery behavior remains NOT RUN |
-| AC-SRP-053 | `ac053_mixed_route_visual_accessibility_proxy_is_distinct_and_passive` (2 widths × 2 themes); `ac053_every_visit_accessibility_tracks_dynamic_site_mode_source_and_roundtrip` (two changing exact-five-visit documents, actual `Repeater.itemAt(index)` delegate collection, same-delegate `visitValue` + `QAccessible`, exact-zero index 4, no repository recomputation); `ac053_mapped_provider_and_unmapped_lower_bound_stay_separate_on_all_surfaces`; separate exact-zero/fallback total tests | M19 authoritative native render/grayscale/screen-reader gate; NOT RUN |
-| AC-SRP-054 | `ac054_exact_stage_sequence_privacy_and_no_incidental_writes` (actual visual order, QAccessible parent/child traversal order and explicit click observation); `ac054_lifecycle_after_origin_validation_starts_no_later_request_or_write` (cancel/project close); `ac054_each_stage_failure_stops_all_later_requests_and_writes` (7 stages); `ac054_status_actions_remain_redacted_and_nonretrying` (401/403/404/429/5xx/timeout/radius); AC049/050/051 fail-fast matrices | M18; redacted live-provider confirmation remains NOT RUN |
-| AC-SRP-055 | `ac055_navigation_observation_api_is_not_added_to_product_sources`; `ac055_ios_uses_exact_apple_maps_once_without_any_fallback` (true/false/exception); `ac055_navigation_coordinates_are_canonical_and_android_contract_is_unchanged` (4 boundaries); `ac055_invalid_navigation_coordinate_never_dispatches_or_mutates` (7 invalid inputs reach separately wrapped `controller.navigate` and production `navigation.open`, then zero external launcher calls); retained Android-only AC039 tests; all use installed routing/storage observers | M20 iOS and M21 Android handoff; NOT RUN |
-| AC-SRP-056 | `ac056_every_active_and_inactive_visit_corruption_rejects_whole_document` (2 route states × 2 visit positions × 20 identity/pair/distance corruptions; distinct load-reject, restart and successful last-good-recovery callbacks); `ac056_three_allowed_visit_provenance_pairs_roundtrip_exactly` (3 with provider/non-identical exact-zero/geodesic semantic oracles); retained schema-1/2 compatibility in `ac052_ac056_legacy_load_and_future_rejection_preserve_bytes` | M18 native file/recovery remains NOT RUN |
-| AC-SRP-057 | `ac057_no_file_default_open_is_schema2_in_memory_and_write_free`; `ac057_settings_or_default_only_save_never_promotes_beyond_schema2` (fresh/schema 1 × settings/default-start); heterogeneous selected-upgrade test (schema 1/2 with exact unrelated preservation/list/load); `ac057_untagged_homogeneous_schema3_reads_without_write_then_tags_next_write`; `ac057_marker_corruption_and_duplicates_fail_atomically` (mixed/legacy corruption plus 4 marker/identity faults × load/commit) | M03 native file/restart/move behavior remains NOT RUN |
-| AC-SRP-058 | `ac058_route_line_toggle_is_one_atomic_settings_only_write_and_persists` (test-derived storage diff/commit/readback and actual QML visibility; no success-feedback assertion); `ac058_preview_and_legend_are_write_free` (installed observer logs); `ac058_toggle_failure_rolls_back_and_reports_actionable_feedback` (required failure feedback plus storage/QML callback evidence) | M03/M19 native QField persistence/rendering remains NOT RUN |
 | AC-QPB-149 | `ac_qpb149_direct_builder_credential_states_and_secret_boundaries` (five independent builder/credential-store states; parsed QGS and encrypted-store readback) | Exact copy is shared with retained AC045 UI seam; no QML/local-socket route-panel harness |
 | AC-QPB-150 | `ac_qpb150_symbol_router_excludes_canonical_site_directly`; `ac_qpb150_generated_qgs_keeps_site_base_symbol_after_rename_and_relocation` (Point/MultiPoint) | Existing AC-QPB-100/101 and AC-SRP-030/041/044 regressions retain fallback and unaffected polygon/line/Type4/data behavior; target rendering is user-observed |
 
@@ -198,17 +111,6 @@ test asks for the removed remaining-route calculation.
 | D-SRP-046; FR-SRP-044; D-UI-SRP-011 | AC-SRP-046 static semantic-theme structure; authoritative M15 |
 | D-SRP-047; FR-SRP-045; D-UI-SRP-012 | AC-SRP-047 static header/control separation; authoritative M16 |
 | D-SRP-048; FR-SRP-046; D-UI-SRP-013 | AC-SRP-048 controller clock/save/load/reset boundary + retained AC042 wiring; authoritative M17 |
-| D-SRP-049; FR-SRP-047 | AC-SRP-049 bounded stage/status/detail/redaction, content-type-independent JSON and statusless connection-action tests; AC-SRP-054 fail-fast privacy; M18 |
-| D-SRP-050; FR-SRP-048 | AC-SRP-050 ordered single-batch snap/radius/source preservation and boundary failures; AC-SRP-054 sequence/privacy; M18 |
-| D-SRP-051; FR-SRP-049 | AC-SRP-051 mapped/zero/no-path/transient out-and-back tests; AC-SRP-052 schema roundtrip; M18 |
-| D-SRP-052; FR-SRP-052 | AC-SRP-049–051 fail-fast preservation plus AC-SRP-054 exact stage sequence; M18 |
-| D-SRP-053; FR-SRP-051 | AC-SRP-052 schema-3 totals/provenance/recovery, separate exact-zero/fallback totals, every-route required-field omission rejection, schema-1/2 compatibility, explicit same-identity replacement/failure preservation and product-reachable cold-start recovery; M03/M18 |
-| D-SRP-054; FR-SRP-050 | AC-SRP-053 generated presentation/accessibility proxy with real theme/action/source observations, every visit's dynamic site/mode/source/왕복/metrics, and separate mapped provider vs straight-line-lower-bound visible/QAccessible quantities; M19 authoritative device gate |
-| D-SRP-055; FR-SRP-052 | AC-SRP-054 notice/request-shape/privacy/no-write test with real QAccessible order, post-origin cancel/project-close quiescence and all injected failure boundaries; M18 |
-| D-SRP-056; FR-SRP-053 | AC-SRP-055 exact iOS Apple Maps/no-fallback, canonical-coordinate and unchanged Android tests; M20–M21 |
-| D-SRP-057; FR-SRP-054 | AC-SRP-056 active/inactive identity/pair/distance corruption rejection including exact-zero offset, distinct load/restart/last-good recovery callbacks, provider/non-identical exact-zero/geodesic three-pair semantic roundtrip and schema-1/2 compatibility; M18 |
-| D-SRP-058; FR-SRP-055 | AC-SRP-057 schema-2 empty/settings boundary, tagged heterogeneous upgrade/preservation/list/load, untagged compatibility/next-write marker and atomic invalid-marker/duplicate failure; M03 |
-| D-SRP-059; FR-SRP-056 | AC-SRP-058 one settings-only atomic write/readback per toggle, reopen/restart/move persistence, preview/legend zero-write and failure rollback; M03/M19 |
 | D-101; FR-QPB-144; NFR-QPB-084 | AC-QPB-149 five-state direct builder/QGS/encrypted-store boundary |
 | D-102; FR-QPB-145; NFR-QPB-084 | AC-QPB-150 direct symbol routing + generated-QGS rename/relocation; existing fallback/regression coverage reused |
 | NFR-SRP-001 | AC-SRP-022/024 320px proxy plus M01 touch/keyboard |
@@ -217,9 +119,6 @@ test asks for the removed remaining-route calculation.
 | NFR-SRP-004 | AC-SRP-037–038/040–041 320px/render/accessibility proxies plus M10 native verification |
 | NFR-SRP-005 | AC-SRP-042–044 explicitly bounded automatic proxies plus M11–M14 NOT RUN device evidence |
 | NFR-SRP-006 | AC-SRP-046/047 structural checks and AC-SRP-048 controller boundary plus M15–M17 NOT RUN authoritative iOS evidence |
-| NFR-SRP-007 | AC-SRP-049 64/320/512 limits, normalization, all-or-nothing redaction and no raw-body retention; M18 |
-| NFR-SRP-008 | AC-SRP-050 exact configured radius/single batch/no probes plus AC-SRP-054 sequence and privacy; M18 |
-| NFR-SRP-009 | AC-SRP-053 every-visit automatic structural/accessibility proxy plus authoritative M19 device evidence |
 
 ## Approved supersession reconciliation (2026-09-17; preserved)
 
@@ -399,3 +298,33 @@ adapter's containment-derived clipping and global validation-rectangle fields ar
 not accepted evidence; AC043's live per-control observations retain final authority. No application,
 adapter/driver, unit-test, specification or UI-guidance change is required. This reconciliation is
 **APPROVED TEST DESIGN (approval 2026-09-17)**.
+
+## DRAFT AC-SRP-049–058 traceability redesign (2026-09-21)
+
+Harness contract: survey_route_planner/HARNESS_CONTRACT.md, section
+“DRAFT AC-SRP-049–058 direct-observation redesign”.
+
+| Criterion | Direct automated evidence | Remaining manual evidence |
+| --- | --- | --- |
+| AC-SRP-049 | ac049 HTTP failure and unsafe-body tests over actual localhost traffic | M18 live-provider wording/status |
+| AC-SRP-050 | ac050 single-batch/radius and null/batch-stop tests; actual HTTP bodies and source/result comparison | M18 live rural snap/source inspection |
+| AC-SRP-051 | ac051 mapped/exact-zero/unmapped and malformed-walking tests | M18 live mapped/no-path behavior |
+| AC-SRP-052 | ac052/ac057 production-save roundtrip; real slot files, separate-process reopen and moved folder | M03 target-QField offline/recovery |
+| AC-SRP-053 | ac053 QML runtime object-tree/Repeater/QAccessible test | M19 pixels, contrast, interaction and screen reader |
+| AC-SRP-054 | ac054 actual HTTP sequence/privacy test and file-wide secret scan | M18 live consent/provider boundary |
+| AC-SRP-055 | ac055 navigation.open direct-spy and coordinate tests | M20 iOS and M21 Android handoff |
+| AC-SRP-056 | ac056 corrupt-visit recovery over production-saved active/inactive schema-3 data | M03 target-QField recovery |
+| AC-SRP-057 | ac057 variant-corruption and schema-boundary tests plus AC052 selected replacement/legacy preservation | M03 list/load compatibility |
+| AC-SRP-058 | ac058 restart/move and write-failure tests plus passive QML assertion | M03 persistence and M19 visual behavior |
+
+| Requirement group | Criteria |
+| --- | --- |
+| D-SRP-049 / FR-SRP-047 / NFR-SRP-007 | AC049, AC054 |
+| D-SRP-050–052 / FR-SRP-048–049,052 | AC050–051, AC054 |
+| D-SRP-053–055 / FR-SRP-050–052 / NFR-SRP-008–009 | AC052–054 |
+| D-SRP-056 / FR-SRP-053 | AC055 |
+| D-SRP-057 / FR-SRP-054 | AC056 |
+| D-SRP-058–059 / FR-SRP-055–056 | AC057–058 |
+
+M01–M21 remain **NOT RUN**. Automated success never substitutes for native QField, live ORS,
+Apple Maps or NAVER device verification.

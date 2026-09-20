@@ -1,161 +1,7 @@
-# Survey Route Planner — DRAFT callback-provenance/storage-compatibility correction
+# Survey Route Planner — DRAFT AC-SRP-049–058 direct-observation redesign
 
-> **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Approved product requirements and prior
-> acceptance approvals are preserved. This correction cycle closes the remaining reviewer blockers,
-> adds approved AC-SRP-057–058, and repairs conformance coverage without weakening earlier criteria.
-
-## Draft correction scope (2026-09-18)
-
-- AC-SRP-049–056 operations must execute the generated QML control and applicable production
-  `controller.js`, `backend.js`, `repository.js` and `navigation.js` paths. Runtime call/source-hash
-  provenance is required. `tests/unit/survey_route_mixed_driver.js`, canned result dictionaries,
-  copied expected payloads, adapter-added field sets/comparison wrappers and production-computed
-  expected URLs are rejected.
-- The acceptance module imports `math` for its independent geodesic oracle; production may not
-  mutate `builtins` to repair a test artifact.
-- Retained expectations now include project-local `max_access_distance_m=2000`, the mandatory
-  access-snap request, schema-3 output for every explicit new calculation/save, schema 1/2 read-only
-  compatibility, and unknown-future schema 99. Access markers are distinct from AC032's sole start
-  marker and therefore do not violate its exactly-one-start-marker rule.
-- D-SRP-055's historical passive-toggle reading is superseded by approved D-SRP-059/AC-SRP-058:
-  the toggle issues no provider or route/source/completion write and does not increment revision or
-  stale a candidate, but an actual value change performs one settings-only atomic write/readback and
-  persists across sessions. D-SRP-056 makes the visible action label
-  `다음 지점 지도 안내`; retained Android dispatch uses the current operation.
-- AC042 clears the exact 13-character approved local-date default before its text-edit sequence. AC019 checks plaintext
-  meaning in the warning copy, not in the intentionally short consent label. Fresh/blank AC013
-  fixtures pass `seed_fixture_settings=False`; the driver may not seed `vroom.invalid` or any other
-  synthetic endpoint before opening the generated project.
-- Attempt 2 corrects three executable defects without changing requirements: AC050 excludes only
-  nonzero snapped source coordinates from vehicle payloads and permits its exact-zero source/access
-  equality; AC053 checks all three observed patterns/legends/casings/non-color cues without an
-  internally contradictory exact dictionary; AC054 converts the observed payload-field list to a
-  test-owned set before subset comparison. It also adds the previously missing approved cases for
-  statusless connection failures, valid JSON under missing/misleading content type, cancel/project
-  close immediately after origin validation, every-route schema-3 required fields and malformed
-  omission rejection.
-- Correction-cycle-2 retry 1 rejects empty self-declared provenance and adapter operation tables.
-  Every mixed output is tied to a unique raw observation in a hash-chained boundary-event journal;
-  the executable test independently validates event IDs/hashes/parents and computes field lineage.
-  Provider request logs retain origin validation and the failed request's bounded identity/hash;
-  raw request URL/query/body and Authorization data are available only in an explicit transient
-  in-memory capture used by the immediate assertion and are never journaled or persisted. Batch-limit
-  preflight comes from observed controller state; an origin response with `location=null` fails even
-  when `snapped_distance` is finite.
-- Presentation evidence uses actual effective viewport/theme, semantic before/after object state,
-  two independent renderer rereads, and runtime `QAccessible`/QML `Accessible` observations. A
-  changing serial/hash or a `screenReaderFields` mirror is not evidence. Navigation's zero request/
-  write result comes from installed observers and independent state/revision rereads.
-- AC-SRP-056 covers every missing/blank visit identity/provenance field, stop mismatch, unknown
-  mode/source, all six invalid cross-pairs and four mode-distance corruptions in both active and
-  inactive production-saved routes. Load and recovery reject the entire document without
-  repair/default/inference. The three allowed pairs enforce geodesic lower-bound, exact-zero and
-  captured provider semantics across restart/offline/folder move. Schema 1/2 remain read-only until
-  explicit recalculation+save atomically replaces the selected route identity with schema 3; both
-  calculation and commit failure preserve old bytes/route/last-good state.
-- D-SRP-055/AC-SRP-054 require an actual coordinate-sharing notice before the explicit calculate
-  signal in visual order and actual `QAccessible` parent/child traversal order. QML `childItems` DFS
-  is not evidence. They do not approve a separate notice acknowledgement; the existing
-  fallback-save acknowledgement remains distinct.
-- AC-SRP-053 cycles three otherwise-valid stored visit variants through the production QML object
-  and compares its runtime accessible metric-source value to independent repository readback. The
-  test contains no source-value literal oracle.
-- Correction-cycle-2 retry 2 seals and closes the boundary journal before result materialization,
-  checks callback/finalization monotonic timing and a detached seal, rejects `result_source`,
-  `bind_result`, implicit predecessor causality and post-result field-name replay, and resolves every
-  consumed output only from bindings already present in actual callback events. Explicit causal
-  parent links, not hash-chain order, determine ancestry.
-- The exact-zero valid fixture now uses non-identical coordinates 0–1 m apart and preserves the
-  measured geodesic as `access_offset_m` while both walking legs remain zero/null; a separate offset
-  corruption must reject. Presentation reloads two mixed routes with changed values and requires
-  mapped provider distance/time and straight-line lower-bound to remain separate on visible and
-  runtime-accessibility surfaces, never summed or labeled as an exact walking total.
-- AC056 corruption now observes three distinct repository/controller lifecycle callbacks—load
-  rejection, restart and last-good recovery—with unique journal event/callback/boundary IDs. Recovery
-  selects the preceding valid document after the corrupt newest one is rejected, without modifying
-  corrupt bytes or issuing provider/storage writes; action strings alone are insufficient.
-- Correction cycle 3 removes the final replay loophole: real boundary hooks emit observations during
-  execution, the journal seals before result construction, and both a deliberate result tamper and
-  AST inspection of the actual driver must reject `capture_outputs`, result iteration, field-name
-  classification, `output_bindings`, `result_source` and `bind_result`. Explicit causal parents are
-  checked by observation source rather than inferred from a returned field name or hash predecessor.
-- Cold-start recovery is now a separate product-reachability test: corrupt the newest slot, destroy
-  the seed session, create the generated RoutePanel normally, and observe Component.onCompleted →
-  controller creation/reload → repository load selecting the prior good route without changing either
-  slot or issuing provider/write activity. A direct harness-only `recoverLastGood` call cannot pass.
-- AC-SRP-057 covers schema-2 no-file/default state, schema-2 maximum for settings-only writes,
-  explicit mixed-save `route_schema` markers, same-ID selected replacement, exact unrelated legacy
-  preservation/list/load, untagged homogeneous schema-3 read compatibility plus next-write tagging,
-  and atomic rejection of corruption, duplicate IDs and marker/content contradictions.
-- AC-SRP-058 supersedes the old settings-write-zero interpretation for an actual route-line value
-  change. Toggle performs exactly one atomic settings-only write/readback and persists through panel
-  reopen, cold restart and settings-accompanied move; route/source/completion/revision/provider state
-  stays unchanged. Preview/legend remain zero-write and failure rolls back with actionable feedback.
-- Every visit—not one reused metric-source example—has dynamic runtime accessibility for site,
-  mode, source, 왕복 and distance/time, including exact-zero. Exact-zero and fallback totals remain
-  separate decisive tests. iOS false/exception requires the exact FR-SRP-053 Korean message.
-- Correction-cycle-3 retry 1 rejects `ObservedState` and any `__setitem__`/`update` result journaling,
-  completed `dict(result)`/`controller.final_state` capture, post-seal `captured_request`, AST result-
-  assignment extraction, a projection superset reused across hooks and latest-by-source parents.
-  Each concrete callback predeclares only its payload schema, appends and flushes its JSONL record
-  during the callback, and passes triggering event IDs explicitly. The journal closes after the last
-  callback and before pure projection; end-of-run bulk JSONL is rejected. The executable verifier
-  tampers with both a returned value and causal parents, and the source guard rejects the current
-  completed-result mutation journal.
-- Cold-start evidence crosses a real `subprocess.Popen`/OS-PID boundary. The child returns its own
-  sealed callback journal, PID, canonical generated-project manifest/hash and entry-callback IDs;
-  the parent embeds and verifies that artifact. A fixed `entry_path`, UUID or loaded flag is not
-  evidence. Toggle commit/readback counts and changed paths are derived from storage callbacks, and
-  off/on visibility from actual QML properties. Only failure feedback is required by AC058.
-- AC053 uses two changing documents with exactly five visits. It collects actual Repeater delegates
-  through `Repeater.itemAt(index)`, reads each returned delegate's `visitValue` and its `QAccessible`
-  interface directly, never recomputes accessibility from repository visits, fixes exact-zero at
-  index 4 and rejects the fixed `visitAccessibility0/1/2` implementation.
-- Correction cycle 4 closes the remaining security/evidence gaps without changing a product
-  criterion. Tests scan the sealed JSONL/seal, ordinary returned result/log evidence and named
-  evidence files for the exact synthetic key, Authorization value/header, raw provider
-  response/body and raw request URL/query/body. The transient in-memory captured request is the
-  only exception and is excluded from lineage projection. Hook schemas and exact callback payload
-  keys are frozen before operation start; the JSONL record is appended and flushed inside the
-  callback. Every non-root callback receives an explicit `cause_id` from its trigger and emits that
-  exact ID as its only parent; global current/latest event state and latest-by-source selection fail.
-- The source verifier now gives stable failures for generic `observed_outputs`, result-building
-  `put`, completed-result journaling, lazy schema registration, missing callback `cause_id`, global
-  event pointers, product `navigationBoundary`/observation APIs and fabricated visual-parent
-  delegate paths. Navigation evidence must wrap the imported production `controller.navigate` and
-  `navigation.open` functions separately from the launcher; invalid coordinates still invoke the
-  latter but invoke no external launcher.
-- Correction-cycle-4 retry 1 closes the remaining synthetic-evidence routes. The source/runtime
-  guards reject global `OUTPUT_FIELDS`, generated `controller.output.*` schemas or journal fields,
-  synthetic `controller.observe`, `collect(**values)` and any generic dispatcher that journals an
-  assembled keyword snapshot; fixed, concrete named callbacks are required. The seal carries a
-  line-hash-bound IO receipt per event, with strict write-return → flush-return → line-visible →
-  callback-finished ordering, and the independent cold-start child meets the same check. The
-  secrecy oracle scans every disposable generated project/storage/journal/seal/log/result file for
-  the exact key/Authorization/raw-response/query/fragment markers and rejects persisted provider
-  URLs with a query or fragment. Navigation evidence is an entry/exit wrapper around the actual
-  imported `Navigation.open`, calls the saved original between those events, and records invalid
-  coordinate entry/throw with zero launchers. Cold-start `qml.open_panel`, `controller.create`,
-  `controller.reload` and `repository.load` entry IDs likewise come from original-invoking wrappers,
-  not manual named markers. No product observation seam is introduced.
-- Correction-cycle-4 retry 2 makes production causality executable. Every projected field is bound
-  once at a concrete one-field observer callback whose direct parent is the already-open entry of
-  the saved-original wrapper that produced it; its callback finishes before the matching wrapper
-  exit. Source/runtime guards reject post-action or duplicate `boundary.productionCall` markers,
-  assembled-result callbacks and result fields sharing a bulk observation. Each wrapper pair carries
-  one invocation ID, original callable identity, exact before/after call counter and real return or
-  exception. Cold-start wrappers are executable and nested in product order, not dormant strings or
-  four manual markers around one `component.create`. Journal lines alternate event core then
-  hash-bound IO receipt. Event cores make no impossible appended/flushed/finished claim; the next
-  receipt records actual event write-return, flush-return, visibility and callback-return times,
-  and the seal authenticates both line kinds and their counts/hashes.
-
-The correction is intentionally RED before implementation. M01–M21 remain NOT RUN and no automated
-provenance check is native-QField, live-provider or device evidence.
-
-> **APPROVED TEST DESIGN (approval 2026-09-18).** This additive slice covers approved D-SRP-049–056,
-> FR-SRP-047–053, NFR-SRP-007–009 and AC-SRP-049–055. It preserves all approved acceptance
-> history below. M18–M21 are explicitly NOT RUN.
+> Current AC-SRP-049–058 status: **DRAFT TEST DESIGN (2026-09-21)**.
+> The approved AC-SRP-001–048 history below remains preserved and is not reopened.
 
 > **APPROVED TEST DESIGN — supersession reconciliation (approval 2026-09-17).**
 > This approved reconciliation aligns retained AC-SRP-019/022/024/031 executable expectations with the already
@@ -249,296 +95,6 @@ and review. Do not report skips as covered runtime behavior. Fourteen manual pla
 No real network requests or purchased keys are needed for this stage. All secret fixtures are
 synthetic and may appear only in the already-approved generated-project-variable exception or
 intercepted `Authorization` header.
-
-## 2026-09-18 mixed-access and Apple Maps design — APPROVED TEST DESIGN
-
-The smallest coherent extension reuses `run_survey_route_acceptance` and adds six operations defined
-in the harness contract. External HTTP, launcher and storage faults remain injectable boundaries;
-ordering, sanitization, fallback classification, schema-3 construction, totals, remaining state and
-UI presentation must come from production. No new dependency or test-only provider is introduced.
-
-- AC-SRP-049 injects non-2xx at all five stages. Safe JSON scalar code/message and plain text are
-  bounded and normalized. Empty, HTML/markup, malformed JSON, Authorization/credential-like text,
-  key-bearing URLs/bodies and huge bodies must produce zero detail. Explicit provider content alone
-  may distinguish no-result from endpoint unavailable. Every failure proves zero retry/write/state
-  change; a 2xx marker proves success bodies never enter error UI. Syntactically valid JSON is parsed
-  before fallback even with missing or misleading content type. Status-0/network failures retain no
-  HTTP status, never display HTTP 0 and provide an actionable connection check.
-- AC-SRP-050 captures exactly one ordered `/v2/snap/driving-car/json` request at 350/2000/5000 m,
-  its 1:1 point/null mapping, access-only vehicle payloads and byte-stable source data. Null,
-  documented batch overflow, radius rejection/cap and non-routable origin are fail-fast cases with
-  no generated probes, radius shrink, origin snap/walk or downstream work.
-- AC-SRP-051 covers mapped `foot-hiking` out-and-back (including the open-route last stop), exact
-  zero with no foot request, explicit no-path geodesic lower-bound/null duration/save acknowledgement,
-  and HTTP/timeout/malformed/metric-mismatch failures that must never become fallback.
-- AC-SRP-052 independently reopens schema 3 with exact vehicle legs, visits, provenance and separate
-  totals across restart/recovery/offline/folder move and complete→uncheck. Every route, including an
-  inactive second route, requires vehicle legs, visits and all three total groups; omitting any one
-  rejects the complete schema-3 document without repair or write. Schema 1/2 loads are byte-preserving
-  and request/write-free; future schema rejection preserves bytes. Separately, valid selected schema
-  1 and schema 2 routes upgrade only after explicit recalculation+save, atomically replace the same
-  route identity with one schema-3 route while preserving every unrelated legacy variant, and
-  preserve bytes/route/last-good on calculation or save failure. A separate cold-start case reaches
-  last-good selection through generated RoutePanel/controller normal reload rather than a direct
-  repository recovery helper.
-- AC-SRP-053 inspects distinct solid/dashed/dotted+casing patterns, text legend, warning marker and
-  separate vehicle/walking accessible values at 320/wide and light/dark. This is only an automatic
-  structure/state proxy; the harness must expose actual loaded object IDs, effective theme,
-  window-delivered preview/legend/complete/uncheck observations and source-layer renderer captures.
-  Two changed three-mode documents require each visit's runtime accessibility to follow independently
-  reread site/mode/source/out-and-back and distance/time values, including exact-zero, without a
-  source-value literal oracle.
-  M19 is authoritative for pixels, grayscale and screen reader behavior.
-- AC-SRP-054 captures the exact stage sequence and fail-fast boundary. It proves notice-before-explicit
-  calculate, no names/attributes/business IDs in ORS/VROOM, request-local indices only, no generated
-  coordinates/radius changes/raw-body retention and no writes from preview/legend/toggle/cancel.
-  Cancel and project close delivered immediately after origin validation start no access-snap or
-  later request and perform no source/completion/settings/route write. Notice order is captured from
-  real `QAccessible` parent/child traversal, not QML object-tree DFS.
-- AC-SRP-055 supersedes only retained iOS NAVER/App Store expectations. iOS launches the exact Apple
-  Maps HTTPS directions URL once with no name or fallback, including false/exception outcomes.
-  Android keeps its exact package-bound NAVER intent, one-time UTF-8 encoding and Google Play fallback.
-  Boundary/rounding/negative-zero inputs canonicalize; invalid type/nonfinite/range/exponent-inducing
-  inputs still cross the observed production `navigation.open` function boundary but dispatch zero
-  external launchers; rejection inside `checkedCoordinate` does not require an opener call.
-  False/exception returns the exact FR-SRP-053 Korean failure copy.
-  Both platforms retain OS-request-only success claims and zero writes.
-- AC-SRP-056 mutates one visit at a time in each active/inactive route of a production-saved
-  two-route schema-3 document. The matrix includes missing/blank `layer_id`, `site_id`,
-  `metric_source`, stop mismatch, unknown mode/source and all disallowed known-mode/source
-  cross-pairs, plus mapped return, exact-zero leg/offset and unmapped offset/leg distance mismatches.
-  Corrupt-newest load rejects, restart is separately observed, and last-good recovery selects the
-  preceding valid document without repairing the corruption. Separate mapped, exact-zero and
-  unmapped fixtures prove provider-derived, measured non-identical ≤1 m offset with zero/null legs,
-  and geodesic-lower-bound semantics plus exact restart/offline/move roundtrips. Schema 1/2
-  compatibility remains byte-preserving and request/write-free.
-- AC-SRP-057 opens no-file/default state as schema 2 in memory with no write and keeps fresh/schema-1
-  settings-only and default-start-only writes at schema 2. Explicit mixed save replaces only the selected same-ID route with
-  tagged schema 3, retains unrelated exact legacy fields under `route_schema: 1|2`, and proves those
-  variants remain listed/loadable. Untagged homogeneous schema 3 is read without write and tagged on
-  its next normal write. Unknown/contradictory markers, invalid variants and duplicate identity fail
-  load/commit atomically with bytes, selection and last-good unchanged.
-- AC-SRP-058 toggles default-on→off and off→on through the actual panel. Each changed value has one
-  settings-only atomic commit and one readback; three line classes follow the value while route,
-  source, completion, revision and provider requests remain unchanged. Off survives reopen, cold
-  restart and folder move with settings. Preview/legend are write-free and injected write/readback
-  failures roll back both displayed and persisted preference with actionable failure feedback.
-  AC-SRP-058 does not require visible success feedback.
-
-## User-run additions — NOT RUN
-
-| ID | Procedure | Criteria |
-| --- | --- | --- |
-| M18 | In a disposable project, acknowledge coordinate sharing and calculate against live configured ORS with one routable site and one rural site more than 350 m but within 2 km of `driving-car`. Record redacted request-stage evidence, returned access points, mapped/no-path outcome and compare source geometry before/after. Do not expose a key or raw body. | 049–052,054; NFR-007–008 |
-| M19 | On target QField at 320 px and wide widths over light/dark and grayscale basemaps, inspect vehicle solid, mapped-walk dashed and unmapped dotted+casing lines, legend, warning, separate totals, toggle/completion and every visit's site/mode/source/왕복 screen-reader output including exact-zero. Record OS/QField/device versions and screenshots/interactions. | 053,058; NFR-009 |
-| M20 | On target iOS QField, tap `다음 지점 지도 안내` for the stored next stop. Verify Apple Maps shows that exact destination in driving-directions mode; repeat a launcher refusal/unavailable condition and verify no NAVER/App Store/web fallback. | 055 |
-| M21 | On target Android QField, re-run the existing NAVER installed/unavailable cases and verify exact destination, package-bound dispatch and Google Play fallback are unchanged. | 055; retained 039 |
-
-Automated collection/design checks cannot convert M18–M21, live ORS availability, native drawing,
-accessibility, launcher handoff, destination acceptance or guidance start into PASS.
-
-### Pre-approval verification record (2026-09-18; preserved)
-
-Working directory `/Users/tory/vibe_coding/fieldbuild_standalone`; no Git-mutating command, live
-network, device operation, application edit, unit-test edit or requirement edit was performed.
-
-- `.venv/bin/python -c 'import fiona; print(fiona.__version__)'`: **1.10.1**, exit 0.
-- Focused collection with `.venv/bin/pytest --collect-only -q` and
-  `-k 'ac049 or ac050 or ac051 or ac052 or ac053 or ac054 or ac055'`:
-  **68/426 collected, 358 deselected**, exit 0.
-- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile tests/acceptance/survey_route_planner/test_survey_route_planner.py tests/acceptance/survey_route_planner/verify_design.py`: exit 0.
-- Manual selector `-k 'M18 or M19 or M20 or M21'` under `.venv`: **4 skipped,
-  422 deselected**, exit 0;
-  all four are explicitly NOT RUN.
-- The focused executable slice under `.venv` completed RED with **68 failed, 358 deselected**, exit 1.
-  Representative failures report `unsupported provider_http_failure` and
-  `unsupported platform_map_dispatch`; the newly contracted mixed-access/schema/presentation
-  operations are not implemented. Tests and expectations were not weakened.
-- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python tests/acceptance/survey_route_planner/verify_design.py`:
-  exit 0; approved AC001–048/QPB149–150 history, AC049–055 coverage and M01–M21 NOT RUN
-  boundaries are preserved. No application tests were executed.
-- `git diff --check -- <five changed acceptance files>`: exit 0, no output.
-
-### Attempt-2 draft verification record (2026-09-18)
-
-Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Only the five allowed acceptance
-artifacts changed. No application/unit-driver/specification file or Git state was modified.
-
-- Design verifier: exit 0; all AC001–055/QPB149–150 history, M01–M21 NOT RUN boundaries, the three
-  corrected assertions and four new approved-contract groups are internally consistent.
-- Focused required-mode selector `ac049 or ac050 or ac051 or ac052 or ac053 or ac054`: **50 passed,
-  16 failed, 372 deselected**, exit 1, in 55.19 s after allowing the existing local QML test server
-  to bind loopback. The 16 intentional RED cases are valid JSON with missing/misleading content type
-  (3), status-0/network without synthesized HTTP status (2), inactive-route schema-3 required-field
-  omission (5), real presentation non-color/provenance observations (4), and post-origin
-  cancel/project-close quiescence observations (2).
-- Retained schema selector `ac007 or ac026 or ac029`: **21 passed, 2 failed, 415 deselected**, exit 1,
-  in 17.91 s. Both RED cases are AC007's missing independently reopened schema-3 document evidence;
-  the retained AC026/029 schema-3 and compatibility cases pass the strengthened required-field check.
-- The first sandboxed focused run produced **66 failed, 372 deselected** solely because loopback bind
-  was denied (`PermissionError: [Errno 1]`); it is an environment result, not the authoritative
-  conformance run above.
-- Acceptance-only `git diff --check` over the five changed files: exit 0, no output.
-
-### Correction-cycle-2 DRAFT verification record (2026-09-18)
-
-Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Only the five allowed acceptance
-artifacts changed. No application, unit driver, approved specification or Git state was modified.
-
-- Focused collection (`ac049` through `ac056`): **144/502 collected, 358 deselected**, exit 0.
-- Design verifier: exit 0; AC001–056/QPB149–150 presence, 15 visit-corruption definitions,
-  operation-specific evidence lineage, unfiltered failure requests, origin-null/preflight guards,
-  semantic presentation/accessibility evidence, observed navigation inactivity and M01–M21
-  boundaries are internally consistent. It executes no application behavior.
-- Authoritative focused run with local loopback enabled: **53 passed, 91 failed, 358 deselected**,
-  exit 1, in 125.41 s. The intentional RED groups are provider provenance/unfiltered failure logs
-  (7), production preflight (1), null-origin rejection (1), AC056 corrupt active/inactive visit
-  load+recovery support across both visit positions (60), three allowed-pair lifecycle evidence/save acknowledgement (3),
-  presentation viewport/theme/semantic-state/renderer/accessibility evidence (4), coordinate-notice
-  and calculate activation provenance (1), and navigation request/write observers (14).
-- The three allowed AC056 pair cases independently reproduced **3 failed, 469 deselected**, exit 1,
-  in 3.46 s: mapped lacks evidence lineage, exact-zero lacks independent lifecycle readbacks, and
-  explicit no-path is not acknowledged through the contracted production action.
-- An earlier pre-expansion sandboxed 114-case probe failed solely because the local QML harness
-  could not bind `127.0.0.1` (`PermissionError: [Errno 1]`); it is not the authoritative conformance
-  result.
-- Manual selector: **21 skipped, 481 deselected**, exit 0. M01–M21 remain NOT RUN; no native QField,
-  live ORS, screen-reader, iOS Apple Maps or Android NAVER result is inferred.
-- Acceptance-only `git diff --check` over the five changed files: exit 0, no output.
-
-### Correction-cycle-2 retry-1 DRAFT verification record (2026-09-18)
-
-Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** This retry changed only the same
-five allowed acceptance artifacts. It did not modify application code, unit driver/tests, approved
-specification, Git state or M01–M21 results.
-
-- Design verifier: exit 0; it now rejects operation/field-origin tables and empty anti-hardcoding
-  declarations, validates raw-field/output bindings in the boundary-event hash chain, requires 19
-  visit corruption definitions, valid schema-1/2 atomic upgrade/failure cases, dynamic QML
-  metric-source accessibility and real QAccessible traversal order.
-- Focused collection (`ac049` through `ac056`): **167/525 collected, 358 deselected**, exit 0.
-- The first 11-case required-mode probe was **11 failed, 514 deselected**, exit 1, because the
-  sandbox denied the harness's `127.0.0.1` bind. That is an environment result, not conformance.
-- The authoritative loopback-enabled rerun was **11 failed, 514 deselected**, exit 1, in 8.27 s:
-  ten cases fail on the intentionally missing immutable `boundary_event_journal`, and the dynamic
-  accessibility case fails because `reload-each-valid-route` is not implemented. This is the
-  expected implementation RED, not a product PASS.
-- One explicit unmapped `access_offset_m` distance-corruption case independently failed, exit 1, in
-  1.71 s because the current harness does not recognize `metric_distance_mismatch`; the expectation
-  was not weakened.
-- Acceptance-only `git diff --check` over the five changed files: exit 0, no output.
-
-### Correction-cycle-2 retry-2 DRAFT verification record (2026-09-19)
-
-Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** This retry changed only the same
-five allowed acceptance artifacts. It did not modify application code, unit driver/tests, approved
-specification, Git state or M01–M21 results.
-
-- Python compilation and the design verifier: exit 0. The verifier now requires journal close/seal
-  before result materialization, callback timing and explicit causal links, result-replay rejection,
-  20 visit corruption definitions, non-identical sub-meter exact-zero offset semantics, dynamic
-  separate walking quantities and distinct corruption lifecycle callbacks.
-- Focused collection (`ac049` through `ac056`): **172/530 collected, 358 deselected**, exit 0.
-- The first four-case probe was **4 failed**, exit 1, solely because the sandbox denied the local
-  QML harness's `127.0.0.1` bind; it is not the authoritative conformance result.
-- The authoritative loopback-enabled rerun was **4 failed**, exit 1, in 4.41 s. Provider, exact-zero
-  and corruption representatives fail at the intentionally missing journal `seal_path`; the new
-  presentation case fails because `reload-each-mixed-quantity-route` is unsupported. These are the
-  expected implementation RED boundaries, not product PASS.
-- Manual selector: **21 skipped, 509 deselected**, exit 0. M01–M21 remain NOT RUN; no native QField,
-  live ORS, screen-reader, iOS Apple Maps or Android NAVER result is inferred.
-- Acceptance-only `git diff --check` over the five changed files: exit 0, no output.
-
-M01–M21 remain **NOT RUN**. No automated journal, QML, accessibility, local transport or storage
-fixture establishes live ORS, native QField, screen-reader, iOS Apple Maps or Android NAVER PASS.
-
-### Correction cycle 3 DRAFT verification record (2026-09-19)
-
-Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Only the five allowed acceptance
-artifacts changed. Application/QML/JS, unit tests, approved specification and Git state were not
-modified by the test-designer.
-
-- Python compilation and design verifier: exit 0; the verifier covers AC001–058/QPB149–150,
-  hook-before-result provenance/source inspection/tamper detection, product cold-start recovery,
-  tagged heterogeneous storage, every-visit accessibility, exact Apple failure copy and AC058.
-- Collection: **555 cases**, exit 0.
-- Focused collection: **31/555 selected, 524 deselected**, exit 0.
-- Focused loopback-enabled selector for final blockers and AC057–058: **31 failed, 524 deselected**,
-  exit 1, 27.43 s. Existing result-producing cases are stopped by the AST guard at the current
-  forbidden `capture_outputs`; new default/marker/cold-start/accessibility/toggle actions are absent
-  or unsupported. This is the intended implementation RED, not product or device PASS.
-- Manual boundary selector: **21 skipped, 534 deselected**, exit 0. M01–M21 remain NOT RUN.
-- Acceptance-only `git diff --check` over the five files: exit 0, no output.
-
-Ponytail kept this cycle to existing operations and the five approved artifacts: no new dependency,
-helper module or test-only product API was added.
-
-### Correction-cycle-3 retry-2 DRAFT verification record (2026-09-20)
-
-Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** This retry changed only the same
-five allowed acceptance artifacts. It did not modify application/QML/JS, unit tests, the approved
-specification or Git state.
-
-- Python compilation and the design verifier: exit 0. The verifier now rejects completed-result
-  capture/rejournal, shared AST-derived schemas, latest-by-source parents and end-of-run JSONL;
-  requires callback append+flush, a child-owned cold-start artifact, direct five-delegate
-  `itemAt`/`visitValue`/`QAccessible` evidence, the invalid-coordinate production navigation
-  boundary and no AC058 success-feedback assertion.
-- Collection: **555 cases**, exit 0.
-- The first five-failure probe was environment-only: **5 failed, 545 deselected**, exit 1, because
-  the sandbox denied the harness's `127.0.0.1` bind. It is not the conformance result.
-- The loopback-enabled representative rerun was the expected RED: **5 failed, 545 deselected** at
-  `--maxfail=5`, exit 1, in 6.31 s. Four cases are rejected by the current forbidden
-  `declared_projection_paths` completed-result source path; the five-visit case reaches the current
-  fixed delegate list and fails with `IndexError`. This is implementation RED, not product PASS.
-- Manual selector: **21 skipped, 534 deselected**, exit 0. M01–M21 remain NOT RUN.
-- Acceptance-only `git diff --check` over the five files: exit 0, no output.
-
-Ponytail kept the correction within the existing operations and five artifacts; no dependency,
-helper module or new product seam was added.
-
-### Correction cycle 4 DRAFT verification record (2026-09-20)
-
-Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Only the same five acceptance
-artifacts changed. Application/QML/JS, unit tests, the approved specification and Git state were
-not modified by the test-designer.
-
-- Python compilation and design verifier: exit 0. The verifier covers the sealed-evidence secret/
-  raw-wire scan, predeclared exact hook schemas, in-callback append/flush, explicit `cause_id`, all
-  reviewer P0/P1 source patterns, imported navigation wrappers and actual Repeater delegate access.
-- Collection: **566 cases**, exit 0.
-- Static-guard self-check: **8 passed, 558 deselected**, exit 0.
-- Targeted current-implementation result: expected **2 failed, 564 deselected**, exit 1. The current
-  driver is rejected for lazy/generic result observation, mutable global causality and fabricated
-  visual-parent delegate evidence; current product sources are independently rejected for the
-  test-only `navigationBoundary` API. This is implementation RED, not product/device PASS.
-- Manual selector: **21 skipped, 545 deselected**, exit 0. M01–M21 remain NOT RUN.
-- Acceptance-only `git diff --check` over the five files: exit 0, no output.
-
-Ponytail kept the correction in the existing five artifacts with standard-library AST/JSON/file
-checks; no dependency, helper module or new product seam was added.
-
-### Correction-cycle-4 retry-1 DRAFT verification record (2026-09-20)
-
-Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Only the same five acceptance
-artifacts changed. Application/QML/JS, unit tests, the approved specification and Git state were
-not modified by the test-designer.
-
-- Python compilation and design verifier: exit 0. The verifier covers synthetic output-schema
-  rejection, sealed callback IO receipts, exhaustive disposable-file secrecy scanning, imported
-  navigation entry/exit wrappers and original-invoking cold-start entry wrappers.
-- Collection: **571 cases**, exit 0.
-- Static-guard self-check: **13 passed, 558 deselected**, exit 0.
-- Current-implementation guard: expected **1 failed, 1 passed, 569 deselected**, exit 1. The
-  acceptance driver is rejected for global/generated output schemas, synthetic controller roots,
-  generic keyword/result observation, non-concrete journaling callbacks and precomputed journal
-  timing. The independent no-product-navigation-seam check passes. This is implementation RED,
-  not product/device PASS.
-- Manual selector: **21 skipped, 550 deselected**, exit 0. M01–M21 remain NOT RUN.
-- Acceptance-only `git diff --check` over the five files: exit 0, no output.
-
-Ponytail kept the retry in the same five artifacts using standard-library AST/JSON/path checks; no
-dependency, helper module or product observation seam was added.
 
 ## Fixtures and independent oracles
 
@@ -659,27 +215,18 @@ dependency, helper module or product observation seam was added.
   capture IDs prevent reuse of the rendered model as preflight evidence. Population precedes
   required validation. A transition sequence covers QField selection, completion, scope and
   ID/name mapping refresh, valid-ID preservation, stale-ID clear and `이름 · ID` disambiguation.
-- Android NAVER uses an independently percent-encoded package-bound `/navigation` intent with
-  required `appname`; false dispatch makes one Google Play fallback call and true reports only OS
-  request acceptance. D-SRP-056 supersedes the former iOS `nmap`/App Store oracle: iOS uses the
-  independent Apple Maps URL/no-fallback oracle in AC055. Native handoff remains M20/M21.
-- The retained three-stop ORS fixture has open three legs and roundtrip four. A new calculation saves
-  schema 3 with vehicle legs and exact-zero walking visits; schema 2 is read-only compatibility. The raw ORS feature has one
+- Naver uses independently percent-encoded platform-specific `/navigation` oracles with required
+  `appname`: the official package-bound Android intent and iOS `nmap` scheme. Android and iOS false
+  dispatches each make exactly one package/App Store fallback call;
+  true reports only OS request acceptance. Desktop/all-refused paths are actionable errors. Native
+  destination acceptance and guidance remain M05 device evidence.
+- Schema 2 uses three stops: open stores three legs and roundtrip four. The raw ORS feature has one
   route-level `properties.way_points` array with intermediate road vertices; segments deliberately
   lack `way_points` and contain only per-leg metrics/steps. Consecutive top-level index pairs slice
   exact inclusive leg LineStrings. Canonical totals are leg sums;
   provider deltas at exactly `max(1 unit, 0.5%)` pass and deltas beyond it fail. Missing, reordered,
   negative/non-finite, non-WGS84 or count-mismatched legs preserve the old route. Completion,
   uncheck, toggle and load leave schema/revision/full legs/totals/geometry byte-equivalent.
-- The two-site mixed fixture deliberately combines one nonzero snapped access point with one
-  exact-zero visit whose source and access coordinates are distinct but no more than 1 m apart.
-  Downstream vehicle captures must use the returned access sequence; both source coordinates are
-  absent when they differ from access. Separate roundtrip evidence preserves the measured nonzero
-  exact-zero `access_offset_m` while keeping both walking legs at zero distance/time and null geometry.
-- Schema-3 validation is document-wide. A production-seeded two-route document is faulted only at
-  the storage boundary by removing each required mixed-route field from the inactive second route.
-  Production load must reject it without repair, request or write. This is separate from unchanged
-  schema-1/2 compatibility and unknown-future preservation.
 - Provider negatives are raw optimizer missing/duplicate/unknown/unassigned order and raw directions
   missing/duplicate/out-of-range top-level waypoint index, missing segment, invalid top-level
   geometry, invalid metric and total-tolerance breach. Each returns a provider-response category and
@@ -716,13 +263,12 @@ dependency, helper module or product observation seam was added.
   opaque outline. Check and `완료` text accompany color, source renderer/data remain unchanged, and
   restart/load rederive the non-persistent overlay.
 - Metric controls cover 0, 1, 3599 and 3601 seconds, ceil-minute formatting, 1.23 km and exact active/
-  no-route bottom bars. Route-line toggle leaves completion overlays/full geometry/source renderer
-  unchanged: no provider request, route write or revision change. An actual value change performs one
-  atomic settings-only write/readback, remains project-scoped through panel/session reconstruction and
-  folder move with settings, while an unrelated project retains default-on.
+  no-route bottom bars. A default-on route-line preference applies to all routes in one project,
+  leaves completion overlays/full geometry/source renderer unchanged, persists across switch/reopen/
+  restart/settings-bearing move, and does not affect a separate project's default.
 - A schema-1 route keeps line, totals, stops and bytes unchanged offline, shows enhanced remaining
   values as `사용 불가`, infers no legs and explains the one explicit full calculate/save upgrade.
-  That explicit action alone may write schema 3 with a higher revision. Unknown future schema is preserved
+  That explicit action alone may write schema 2 with a higher revision. Future schema is preserved
   and rejected without request or write.
 - Regression: four survey types × no reference/fictional reference; retain UUID/relations and
   non-site geometries, execute report and identification paths after relocation, enforce no
@@ -745,9 +291,11 @@ dependency, helper module or product observation seam was added.
   Manual and consented-project keys are separate build/session fixtures with independent `.qgs`
   readback. Two actual saves must expose both A/B relative paths and independently decoded settings;
   synthetic key and objective are excluded. A commit fault preserves last-good bytes and the in-memory key.
-- Retained AC-SRP-039 now covers Android only and invokes the platform-neutral action label through
-  `platform_map_dispatch`. Its independent oracle is the package-bound intent plus Google Play
-  fallback. The former iOS `nmap`/App Store expectation is superseded by AC055/M20.
+- AC-SRP-039 constructs exact official URL oracles in the test: Android package-bound intent, iOS
+  `nmap://navigation`, Google Play `market://details?id=com.nhn.android.nmap`, and App Store
+  `http://itunes.apple.com/app/id311867728?mt=8`. Korean/special-character destination and appname
+  are encoded independently. Current official guidance supplies no navigation web URL for this
+  native fixture, so inferred `map.naver.com` dispatch is forbidden. Actual handoff remains M10.
 - AC-SRP-040 uses a three-stop schema-2 fixture. It compares complete state snapshots around blocked
   later-row attempts, then observes one-at-a-time enabling. Fully completed→uncheck and external
   `[false,true,false]` create a visible `순서 밖 완료` gap with the original full remaining line;
@@ -832,7 +380,6 @@ dependency, helper module or product observation seam was added.
 | D-SRP-036–041 follow-up | Generated-asset/contract gates cover name-only save, rendered labels/disclosure, key provenance and snapshot exclusion, exact URL dispatch, ordered checklist state and generated styling. Native QField accessibility/rendering, atomic file behavior and mobile handoff remain M10. |
 | D-SRP-042–045 follow-up | Loaded-control and generated-artifact proxies cover editable/input-method wiring, exact eight-control geometry, six-family QGS/GPKG labeling configuration and Step 7 copy/secret boundaries. Android/iOS soft keyboards and actual QField layout/map rendering remain M11–M14. |
 | D-SRP-046–048 follow-up | Static structure plus controller/state checks cover only stable automatic invariants. Actual iOS/QField pixels, taps, theme behavior and soft keyboard are authoritative M15–M17 evidence. |
-| D-SRP-049–059 mixed/storage follow-up | Hook-time provenance, product cold-start recovery, tagged heterogeneous storage, every-visit dynamic accessibility, exact Apple failure copy and settings-only toggle persistence are automated gates. Live ORS and native QField file/render/accessibility/launcher behavior remain M03 and M18–M21. |
 | D-101/102 integrated builder follow-up | Direct builder/credential and symbol-router/generated-QGS boundaries cover independent key destinations and canonical-site exclusion without QML/local-socket harnesses. |
 
 A complete per-criterion map means tests/design are present; it does not mean every criterion has
@@ -848,15 +395,15 @@ operation per AGENTS.md; automated sidecar checks never substitute for this evid
 | Case | Steps and expected result | AC |
 | --- | --- | --- |
 | M01 | On iOS and Android, move/open the generated folder and inspect the actual project layer dropdown order, duplicate-label disambiguation, `조사지` default and provider-order field lists. Rename/remove a disposable field/layer, reopen and verify refresh, fallback or blank blocking. At 320px-class and wide devices verify all six in-control floating labels in empty/value/focus/error states, selected-only guidance/count, no hidden gap, exact target `이름 · ID`, wrapping, touch and keyboard access. | 001–003,013,020–024,031,033–034; NFR-001 |
-| M02 | Build one consented and one declined project using only a synthetic key and redact evidence. Verify device key sourcing, GPS/map/target/saved start and a small real `ors-vroom` open and roundtrip route. Capture the map center marker separately from access markers and verify its lifecycle. Reopen the new schema-3 route and compare route-level-waypoint vehicle legs plus visits/totals. Finish/unfinish stops and verify zero provider traffic; no `남은 지점 계산` control exists. | 004–007,013,017,019,022–023,026,032,035; NFR-003 |
-| M03 | Save mixed and legacy routes plus default start, confirm feedback points to actual accessible project-relative settings/route files, turn route line off, switch/list/load every variant, reopen panel, terminate/restart offline, then move the whole folder with settings and repeat. Preference, route markers/legacy fields, full route, completion overlay and progression remain identical; corrupt newest only in a disposable copy and verify normal panel cold-start last-good recovery. | 008–009,013,023,026–029,052,057–058; NFR-003 |
+| M02 | Build one consented and one declined project using only a synthetic key and redact evidence. Verify device key sourcing, GPS/map/target/saved start and a small real `ors-vroom` open and roundtrip route. Capture the map center marker, pan/zoom, recapture, collapse/reopen, calculate success/failure and every removal lifecycle. Reopen schema 2 and compare every route-level-waypoint slice/total/full line. Finish/unfinish stops and verify zero provider traffic; no `남은 지점 계산` control exists. | 004–007,013,017,019,022–023,026,032,035; NFR-003 |
+| M03 | Save two routes and default start, confirm feedback points to actual accessible project-relative settings/route files, turn route line off, switch routes, reopen panel, terminate/restart offline, then move the whole folder with settings and repeat. Preference, full route, completion overlay and progression remain identical; use only a disposable copy for corruption/recovery. | 008–009,013,023,026–029; NFR-003 |
 | M04 | For mapped Boolean and route-local completion, attempt a later target and verify it is blocked, complete point/line/polygon targets in order, then create a gap by unchecking or externally changing the source Boolean. Verify Blue 800 opacity/fill, check and `완료`/`순서 밖 완료` text, visit context, trimmed line, km/time/bottom bar and roundtrip return. Force a disposable write failure and verify every visual/metric/source value stays unchanged. | 010–011,024,027–028,040; NFR-002–004 |
-| M05 | Retained Android NAVER baseline only: invoke a Korean/special-character target, verify exact destination, then repeat unavailable/all-refused Google Play fallback. Record that Qt true proves only OS request acceptance. iOS NAVER/App Store steps are superseded; current iOS/Android handoff gates are M20/M21. | 012–013,025 |
+| M05 | Separately on Android and iOS with Naver installed, invoke a Korean/special-character target, verify exact destination and begin guidance manually. Repeat without/disabled app handler to verify package/App Store fallback and all-refused error. Record that Qt true proves only OS request acceptance; it is not handoff/destination/guidance proof. | 012–013,025 |
 | M06 | Desktop direct point/line/polygon drawing, invalid finish and two named sites; upload all six types. Open moved outputs on both device platforms, inspect each geometry/style/form. Existing polygons, UUID relations, observation/plot/community and report/identification remain functional; report non-point rows have no centroid-derived coordinates. Run the schema-1 unavailable/read-only case on a disposable legacy copy. | 014–018,029–030 |
 | M07 | In actual QField, create/select a disposable Point 조사지, calculate a small real ORS open route and inspect the target ID/order, one route-level-waypoint leg, road line and saved/reopened values. Record redacted request/response evidence and mark PASS only after performing it. | 017,030,035 |
 | M08 | Repeat M07 with an asymmetric LineString whose approved centroid differs from its first vertex and bounding-box center. Verify the representative sent, ORS acceptance and reopened leg; automated QML evidence does not substitute for this result. | 017,030,035 |
 | M09 | Repeat M07 with an asymmetric Polygon whose approved centroid differs from its first vertex and bounding-box center. Verify the source renderer/geometry remains unchanged. | 017,030,035 |
-| M10 | On actual QField Android and iOS, verify the seven labels and initially collapsed settings disclosure at 320px class width with keyboard/touch/screen reader; confirm manual/project key provenance and A/B feedback without exposing a key. Save a calculated candidate after name-only edits and recoverable failure. Exercise ordered completion/gap display, light/dark polygon and name-halo rendering. Navigation handoff is now owned by M20/M21. | 036–041; NFR-004 |
+| M10 | On actual QField Android and iOS, verify the seven labels and initially collapsed settings disclosure at 320px class width with keyboard/touch/screen reader; confirm manual/project key provenance and A/B feedback without exposing a key. Save a calculated candidate after name-only edits and recoverable failure. Exercise ordered completion/gap display, light/dark polygon and name-halo rendering, then separately verify Android package intent and iOS nmap handoff/store fallback. Record each platform result; automated URL/QML checks do not substitute. | 036–041; NFR-004 |
 | M11 | On supported Android with no external keyboard and OS soft keyboard enabled, tap the actual `저장할 경로 이름` body. Record QField/app/OS versions and redacted evidence for caret/focus, soft keyboard, Korean/Latin input, selection, deletion, correction, trim save, zero recalculation and unchanged candidate/revision. Automated QML input events do not substitute. | 042; NFR-005 |
 | M12 | Repeat M11 separately on supported iOS. Do not reuse the Android verdict. Record any OS-level keyboard suppression condition separately from an app failure. | 042; NFR-005 |
 | M13 | In target QField at 320px class and a wide viewport, capture empty/value/focus/disabled/error screenshots and interaction/accessibility review for all eight exact controls. Confirm every label/notch center crosses the visible top outline, `저장 경로 불러오기` has no separate label row, and there is no collision, clipping or horizontal scroll. | 043; NFR-005 |
@@ -981,3 +528,73 @@ and unaffected-behavior regressions. `builder_step7_route_credentials` becomes t
   are absent, bounded replacement seams are present, and M01–M17 remain NOT RUN.
 - Manual selector → **17 skipped, 340 deselected**, exit 0. No iOS/QField/device PASS is claimed.
 - Acceptance-only `git diff --check` over the five changed files: exit 0, no output.
+
+## DRAFT AC-SRP-049–058 direct-observation redesign (2026-09-21)
+
+### Automated design
+
+- AC049 sends real production HTTP through a localhost recorder. Matrix, optimizer and directions
+  non-2xx tests assert stage/status, bounded safe scalar normalization, redaction and immediate
+  stop. Empty, HTML, malformed and credential-like bodies expose no detail.
+- AC050–051 call backend.calculate directly. Recorded bodies prove one ordered source-coordinate
+  snap and exact radius; returned values prove mapped, exact-zero and explicit no-foot-path
+  out-and-back visits. Null/batch/origin/radius and malformed/transient walking failures prove no
+  downstream requests or writes.
+- AC052, AC056 and AC057 use production controller/repository calls and real A/B slot files.
+  Production save creates schema 3, retains unrelated tagged legacy routes and exact visit
+  provenance/totals. Separate-process restart, offline reopen, folder move, byte-preserving
+  last-good recovery, every required visit field/mode-source pair, variant markers and duplicate
+  identities are checked without repair or read-time writes.
+- AC053 executes generated QML. It reads real line objects, warning marker, passive actions,
+  every Repeater delegate and its QAccessible name/role. Device pixels, contrast and target-QField
+  interaction remain M19.
+- AC054 asserts the actual localhost request sequence and payload separation. ORS receives only
+  coordinates/geometry requests; VROOM receives access/cost/local integer IDs. Synthetic
+  credentials may exist in the in-memory HTTP header record but never in UI/error/log/storage or
+  any disposable file.
+- AC055 calls navigation.open directly. The opener spy is the sole OS boundary and records exact
+  Apple/NAVER/store URLs, counts, normalization, refusal/exception errors and honest status.
+- AC058 calls the real controller and repository over real files. Toggle success performs one
+  settings slot write, changes only the preference/three line visibilities, and survives panel
+  reopen, separate-process restart and folder move. Write/readback failure rolls back and reports
+  failure; preview/legend are passive.
+
+The focused automated slice is expected to be RED until application behavior satisfies every
+assertion. Passing localhost, Node or desktop-QML cases do not turn M18–M21 into PASS.
+
+### Manual cases (unchanged; all NOT RUN)
+
+| ID | User-run verification | Criteria |
+| --- | --- | --- |
+| M18 | In a disposable project, acknowledge coordinate sharing and calculate against live configured ORS with one routable site and one rural site more than 350 m but within 2 km of driving-car. Record redacted request-stage evidence, returned access points, mapped/no-path outcome and compare source geometry before/after. Do not expose a key or raw body. | 049–052,054; NFR-007–008 |
+| M19 | On target QField at 320 px and wide widths over light/dark and grayscale basemaps, inspect vehicle solid, mapped-walk dashed and unmapped dotted+casing lines, legend, warning, separate totals, toggle/completion and every visit's site/mode/source/왕복 screen-reader output including exact-zero. Record OS/QField/device versions and screenshots/interactions. | 053,058; NFR-009 |
+| M20 | On target iOS QField, tap 다음 지점 지도 안내 for the stored next stop. Verify Apple Maps shows that exact destination in driving-directions mode; repeat a launcher refusal/unavailable condition and verify no NAVER/App Store/web fallback. | 055 |
+| M21 | On target Android QField, re-run the existing NAVER installed/unavailable cases and verify exact destination, package-bound dispatch and Google Play fallback are unchanged. | 055; retained 039 |
+
+### DRAFT verification record (2026-09-21)
+
+Repository: /Users/tory/vibe_coding/fieldbuild_standalone. Only the five acceptance artifacts were
+edited by this role. No application, unit-test or specification file was edited; no Git mutation,
+commit, live provider call or device operation was performed.
+
+- Collection: .venv/bin/python -m pytest
+  tests/acceptance/survey_route_planner/test_survey_route_planner.py --collect-only -q
+  -p no:cacheprovider → **404 collected**, exit 0.
+- Design verifier: PYTHONDONTWRITEBYTECODE=1 .venv/bin/python
+  tests/acceptance/survey_route_planner/verify_design.py → both baseline and AC049–058 checks
+  passed, exit 0.
+- Focused AC049–058 run: PYTHONDONTWRITEBYTECODE=1 QT_QPA_PLATFORM=offscreen
+  .venv/bin/python -m pytest tests/acceptance/survey_route_planner/test_survey_route_planner.py
+  -q -p no:cacheprovider --tb=short
+  -k 'ac049 or ac050 or ac051 or ac052 or ac053 or ac054 or ac055 or ac056 or ac057 or ac058'
+  → **42 passed, 1 failed, 361 deselected**, exit 1, 22.18 s.
+- The single intended current-implementation RED is
+  test_ac057_schema1_settings_upgrade_then_mixed_save_keeps_legacy_schema1: after a schema-1
+  document receives a settings-only schema-2 upgrade, the subsequent explicit mixed save returns
+  false instead of committing schema 3 while retaining the unrelated route as route_schema 1.
+  This is product behavior, not a journal/harness failure.
+- Manual selector: **21 skipped, 383 deselected**, exit 0. M01–M21 remain NOT RUN.
+- git diff --check over the five acceptance artifacts: exit 0, no output.
+
+The managed sandbox initially denied localhost bind with PermissionError. The authoritative focused
+run above used the approved localhost permission and exercised only 127.0.0.1 disposable servers.
