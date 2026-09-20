@@ -348,6 +348,9 @@ assert all(token in contract for token in [
     "current/latest-production/storage event variables",
     "generic `observed_outputs`", "result-building `put`",
     "raw request URL/query/body", "product code must not expose `navigationBoundary`",
+    "global `OUTPUT_FIELDS`", "generated `controller.output.*`", "synthetic `controller.observe`",
+    "`collect(**values)`", "line-visible-during-callback", "persisted provider URLs",
+    "calls the saved original", "pre-recorded `wrappedCall(\"navigation.open\")`",
 ])
 provenance_source = inspect.getsource(module.assert_mixed_boundary_event_lineage)
 assert all(token in provenance_source for token in [
@@ -357,10 +360,10 @@ assert all(token in provenance_source for token in [
     '"result_construction_started_at_monotonic_ns"',
     '"append_attempts_after_finalize"', '"capture_phase"] == "boundary_callback"',
     '"causal_parent_observations"', '"hook_id"', '"registered_boundary_hooks"',
-    '"callback_owner"', '"callback_payload"', '"event_appended_at_monotonic_ns"',
-    '"event_flushed_at_monotonic_ns"', '"cause_id"',
+    '"callback_owner"', '"callback_payload"', '"cause_id"',
     '"file_created_at_monotonic_ns"', '"write_mode"] == "append-and-flush-per-callback"',
     '"flush_count"] == len(events)', '"callback_boundary"', '"observation_schema"',
+    '"callback_io_receipts"', '_assert_callback_io_receipts',
     '"last_callback_finished_at_monotonic_ns"] == max(',
     'assert set(raw) == set(schema)', 'projection_path == schema[raw_field]',
     "_contains_forbidden_replay_key", "_lineage_from_boundary_events(events)",
@@ -382,6 +385,7 @@ assert all(token in driver_guard_source for token in [
     "_driver_integrity_violations(source)", '"observed_outputs"',
     '"current_production_event_id"', '"current_storage_event_id"',
     '"navigationBoundary"', '"visual_parent.itemAt(index)"',
+    '"OUTPUT_FIELDS"', '"controller.output."', '"controller.observe"', '"collect"',
 ])
 integrity_source = inspect.getsource(module._driver_integrity_violations)
 assert all(token in integrity_source for token in [
@@ -390,6 +394,9 @@ assert all(token in integrity_source for token in [
     '"callback-missing-explicit-cause-id"', '"journal-missing-explicit-cause-id"',
     '"global-current-or-latest-event"', '"product-test-navigation-api"',
     '"fabricated-visual-parent-delegate-path"',
+    '"global-output-schema"', '"generic-keyword-snapshot"',
+    '"nonconcrete-boundary-callback"', '"precomputed-journal-timestamps"',
+    '"synthetic-controller-observation"',
 ])
 guard_test_source = inspect.getsource(
     module.test_mixed_harness_source_guard_rejects_reviewer_p0_p1_patterns)
@@ -413,14 +420,16 @@ assert 'result["captured_request"]' in provider_evidence
 secret_evidence = inspect.getsource(module.assert_sensitive_provider_material_is_memory_only)
 assert all(token in secret_evidence for token in [
     '"captured_request"', '"captured_requests"', '"sealed-journal"', '"detached-seal"',
-    '"evidence_files"', '"project-file"', '.rglob("*")',
+    '"evidence_files"', '"generated/storage/journal/seal/log/result-file:', '.rglob("*")',
     '"authorization"', '"raw_provider_response"',
     '"raw_request_url"', '"raw_request_query"', '"raw_request_body"',
 ])
+assert "_assert_persisted_provider_urls_have_no_query_or_fragment" in secret_evidence
 secret_test_source = inspect.getsource(
     module.test_ac049_secret_and_raw_wire_material_never_enters_sealed_evidence)
 assert all(token in secret_test_source for token in [
     "RAW_PROVIDER_RESPONSE_MARKER", "RAW_REQUEST_QUERY_MARKER",
+    "RAW_REQUEST_FRAGMENT_MARKER",
     '"server_url"', '"optimizer_url"', "assert_sensitive_provider_material_is_memory_only",
 ])
 preflight_source = inspect.getsource(module.test_ac050_access_boundary_failures_stop_pipeline_and_preserve_last_good)
@@ -465,7 +474,14 @@ assert all(token in navigation_source for token in [
     '"observer_installed_before_action"', '"routing-provider-request-log"',
     '"route-storage-write-log"', '"events"] == []', '"navigation.open"',
     '"controller.navigate"', '"navigation.open"', '"external-wrapper"',
-    '"wrapped_symbol"', 'MIXED_PRODUCTION_SOURCES[component]', '"cause_id"',
+    '"wrapped_symbol"', 'MIXED_PRODUCTION_SOURCES["navigation"]', '"cause_id"',
+    '"navigation.open.phase"', '"navigation.open.launcher_count"',
+    '"navigation.open.outcome"', 'set(phases) == {"entry", "exit"}',
+])
+navigation_wrapper_guard = inspect.getsource(module.assert_product_navigation_is_instrumented_externally)
+assert all(token in navigation_wrapper_guard for token in [
+    '"Navigation.open"', '_wrapper_literal', '_assert_original_call_between_entry_and_exit',
+    'real|original', 'productionCall|wrappedCall',
 ])
 product_navigation_guard = inspect.getsource(
     module.test_ac055_navigation_observation_api_is_not_added_to_product_sources)
@@ -529,9 +545,19 @@ assert all(token in cold_start_source for token in [
     '"sealed_callback_journal"', '"generated_project_manifest"',
     '"generated_project_sha256"', '"entry_callback_event_ids"',
     '"writer_closed"] is True', '"final_event_sha256"', 'list(range(len(child_events)))',
+    '_assert_callback_io_receipts',
     '"qml.open_panel"', '"controller.create"', '"controller.reload"', '"repository.load"',
+    '"instrumentation": "external-wrapper"', 'f"{boundary}.phase": "entry"',
+    'f"{boundary}.phase": "exit"', 'f"{boundary}.outcome": "returned"',
     '"corrupt_newest_bytes_after"] == r["corrupt_newest_bytes_before"]',
     '"provider_requests"] == r["storage_writes_after_corruption"] == []',
+])
+callback_receipt_source = inspect.getsource(module._assert_callback_io_receipts)
+assert all(token in callback_receipt_source for token in [
+    '"line_sha256"', '"write_returned_at_monotonic_ns"',
+    '"flush_returned_at_monotonic_ns"', '"line_visible_at_monotonic_ns"',
+    '"callback_finished_at_monotonic_ns"', '"line_available_during_callback"',
+    'receipt["visible_line_count"] == event["sequence"] + 1',
 ])
 assert '"entry_path"' not in cold_start_source
 schema_boundary_source = inspect.getsource(

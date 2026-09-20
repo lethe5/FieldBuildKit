@@ -125,6 +125,19 @@
   delegate paths. Navigation evidence must wrap the imported production `controller.navigate` and
   `navigation.open` functions separately from the launcher; invalid coordinates still invoke the
   latter but invoke no external launcher.
+- Correction-cycle-4 retry 1 closes the remaining synthetic-evidence routes. The source/runtime
+  guards reject global `OUTPUT_FIELDS`, generated `controller.output.*` schemas or journal fields,
+  synthetic `controller.observe`, `collect(**values)` and any generic dispatcher that journals an
+  assembled keyword snapshot; fixed, concrete named callbacks are required. The seal carries a
+  line-hash-bound IO receipt per event, with strict write-return → flush-return → line-visible →
+  callback-finished ordering, and the independent cold-start child meets the same check. The
+  secrecy oracle scans every disposable generated project/storage/journal/seal/log/result file for
+  the exact key/Authorization/raw-response/query/fragment markers and rejects persisted provider
+  URLs with a query or fragment. Navigation evidence is an entry/exit wrapper around the actual
+  imported `Navigation.open`, calls the saved original between those events, and records invalid
+  coordinate entry/throw with zero launchers. Cold-start `qml.open_panel`, `controller.create`,
+  `controller.reload` and `repository.load` entry IDs likewise come from original-invoking wrappers,
+  not manual named markers. No product observation seam is introduced.
 
 The correction is intentionally RED before implementation. M01–M21 remain NOT RUN and no automated
 provenance check is native-QField, live-provider or device evidence.
@@ -493,6 +506,28 @@ not modified by the test-designer.
 
 Ponytail kept the correction in the existing five artifacts with standard-library AST/JSON/file
 checks; no dependency, helper module or new product seam was added.
+
+### Correction-cycle-4 retry-1 DRAFT verification record (2026-09-20)
+
+Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Only the same five acceptance
+artifacts changed. Application/QML/JS, unit tests, the approved specification and Git state were
+not modified by the test-designer.
+
+- Python compilation and design verifier: exit 0. The verifier covers synthetic output-schema
+  rejection, sealed callback IO receipts, exhaustive disposable-file secrecy scanning, imported
+  navigation entry/exit wrappers and original-invoking cold-start entry wrappers.
+- Collection: **571 cases**, exit 0.
+- Static-guard self-check: **13 passed, 558 deselected**, exit 0.
+- Current-implementation guard: expected **1 failed, 1 passed, 569 deselected**, exit 1. The
+  acceptance driver is rejected for global/generated output schemas, synthetic controller roots,
+  generic keyword/result observation, non-concrete journaling callbacks and precomputed journal
+  timing. The independent no-product-navigation-seam check passes. This is implementation RED,
+  not product/device PASS.
+- Manual selector: **21 skipped, 550 deselected**, exit 0. M01–M21 remain NOT RUN.
+- Acceptance-only `git diff --check` over the five files: exit 0, no output.
+
+Ponytail kept the retry in the same five artifacts using standard-library AST/JSON/path checks; no
+dependency, helper module or product observation seam was added.
 
 ## Fixtures and independent oracles
 
