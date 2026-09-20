@@ -93,17 +93,22 @@
   mode, source, 왕복 and distance/time, including exact-zero. Exact-zero and fallback totals remain
   separate decisive tests. iOS false/exception requires the exact FR-SRP-053 Korean message.
 - Correction-cycle-3 retry 1 rejects `ObservedState` and any `__setitem__`/`update` result journaling,
-  as well as helpers that assign every earlier production event as a causal parent. Registered hooks
-  identify and hash the concrete callback implementation and predeclared projection paths; raw callback payloads
-  are appended before a pure post-seal projection. The executable verifier tampers with both a
-  returned value and causal parents, and the source guard rejects the current mutation journal.
-- Cold-start evidence crosses a real `subprocess.Popen`/OS-PID boundary and independently reopens
-  and hashes the generated RoutePanel; UUIDs and loaded flags are not evidence. Toggle commit/readback
-  counts and changed paths are derived by the test from actual storage callback payloads, feedback
-  from its rendered object, and off/on visibility from actual QML object properties after each action.
-- AC053 uses two changing documents with at least five visits. Runtime QML Repeater/QAccessible
-  delegates cover every site/mode/source/out-and-back value, place exact-zero after index 3, and
-  reject the fixed `visitAccessibility0/1/2` implementation.
+  completed `dict(result)`/`controller.final_state` capture, post-seal `captured_request`, AST result-
+  assignment extraction, a projection superset reused across hooks and latest-by-source parents.
+  Each concrete callback predeclares only its payload schema, appends and flushes its JSONL record
+  during the callback, and passes triggering event IDs explicitly. The journal closes after the last
+  callback and before pure projection; end-of-run bulk JSONL is rejected. The executable verifier
+  tampers with both a returned value and causal parents, and the source guard rejects the current
+  completed-result mutation journal.
+- Cold-start evidence crosses a real `subprocess.Popen`/OS-PID boundary. The child returns its own
+  sealed callback journal, PID, canonical generated-project manifest/hash and entry-callback IDs;
+  the parent embeds and verifies that artifact. A fixed `entry_path`, UUID or loaded flag is not
+  evidence. Toggle commit/readback counts and changed paths are derived from storage callbacks, and
+  off/on visibility from actual QML properties. Only failure feedback is required by AC058.
+- AC053 uses two changing documents with exactly five visits. It collects actual Repeater delegates
+  through the visual parent's `itemAt(index)`, reads each `delegate.visitValue` and its `QAccessible`
+  interface directly, never recomputes accessibility from repository visits, fixes exact-zero at
+  index 4 and rejects the fixed `visitAccessibility0/1/2` implementation.
 
 The correction is intentionally RED before implementation. M01–M21 remain NOT RUN and no automated
 provenance check is native-QField, live-provider or device evidence.
@@ -254,7 +259,9 @@ UI presentation must come from production. No new dependency or test-only provid
   Maps HTTPS directions URL once with no name or fallback, including false/exception outcomes.
   Android keeps its exact package-bound NAVER intent, one-time UTF-8 encoding and Google Play fallback.
   Boundary/rounding/negative-zero inputs canonicalize; invalid type/nonfinite/range/exponent-inducing
-  inputs dispatch zero launchers. False/exception returns the exact FR-SRP-053 Korean failure copy.
+  inputs still cross the observed production `navigation.open` function boundary but dispatch zero
+  external launchers; rejection inside `checkedCoordinate` does not require an opener call.
+  False/exception returns the exact FR-SRP-053 Korean failure copy.
   Both platforms retain OS-request-only success claims and zero writes.
 - AC-SRP-056 mutates one visit at a time in each active/inactive route of a production-saved
   two-route schema-3 document. The matrix includes missing/blank `layer_id`, `site_id`,
@@ -275,7 +282,8 @@ UI presentation must come from production. No new dependency or test-only provid
   settings-only atomic commit and one readback; three line classes follow the value while route,
   source, completion, revision and provider requests remain unchanged. Off survives reopen, cold
   restart and folder move with settings. Preview/legend are write-free and injected write/readback
-  failures roll back both displayed and persisted preference with actionable non-success feedback.
+  failures roll back both displayed and persisted preference with actionable failure feedback.
+  AC-SRP-058 does not require visible success feedback.
 
 ## User-run additions — NOT RUN
 
@@ -424,6 +432,30 @@ modified by the test-designer.
 
 Ponytail kept this cycle to existing operations and the five approved artifacts: no new dependency,
 helper module or test-only product API was added.
+
+### Correction-cycle-3 retry-2 DRAFT verification record (2026-09-20)
+
+Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** This retry changed only the same
+five allowed acceptance artifacts. It did not modify application/QML/JS, unit tests, the approved
+specification or Git state.
+
+- Python compilation and the design verifier: exit 0. The verifier now rejects completed-result
+  capture/rejournal, shared AST-derived schemas, latest-by-source parents and end-of-run JSONL;
+  requires callback append+flush, a child-owned cold-start artifact, direct five-delegate
+  `itemAt`/`visitValue`/`QAccessible` evidence, the invalid-coordinate production navigation
+  boundary and no AC058 success-feedback assertion.
+- Collection: **555 cases**, exit 0.
+- The first five-failure probe was environment-only: **5 failed, 545 deselected**, exit 1, because
+  the sandbox denied the harness's `127.0.0.1` bind. It is not the conformance result.
+- The loopback-enabled representative rerun was the expected RED: **5 failed, 545 deselected** at
+  `--maxfail=5`, exit 1, in 6.31 s. Four cases are rejected by the current forbidden
+  `declared_projection_paths` completed-result source path; the five-visit case reaches the current
+  fixed delegate list and fails with `IndexError`. This is implementation RED, not product PASS.
+- Manual selector: **21 skipped, 534 deselected**, exit 0. M01–M21 remain NOT RUN.
+- Acceptance-only `git diff --check` over the five files: exit 0, no output.
+
+Ponytail kept the correction within the existing operations and five artifacts; no dependency,
+helper module or new product seam was added.
 
 ## Fixtures and independent oracles
 

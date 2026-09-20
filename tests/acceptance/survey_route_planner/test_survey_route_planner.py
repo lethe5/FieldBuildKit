@@ -94,7 +94,7 @@ MIXED_EVIDENCE_SOURCES = {
     "loaded_artifact", "accessibility_interface", "source_layer_reread", "signal_delivery",
     "navigation_launcher", "render_observation",
 }
-MIXED_UNJOURNALED_FIELDS = {"production_provenance", "captured_request"}
+MIXED_UNJOURNALED_FIELDS = {"production_provenance"}
 MIXED_RAW_FIELD_ROOTS = {
     "controller", "backend", "repository", "navigation", "qml", "transport", "storage",
     "accessibility", "renderer", "launcher", "signal", "artifact",
@@ -187,8 +187,12 @@ def _contains_call(node, names):
                for child in ast.walk(node))
 
 
+def _references_name(node, name):
+    return any(isinstance(child, ast.Name) and child.id == name for child in ast.walk(node))
+
+
 def assert_boundary_driver_has_no_result_replay(driver_path):
-    """Reject result-mutation journals and post-hoc result walking/classification."""
+    """Reject completed-result capture and end-of-run journal/projection synthesis."""
     path = Path(driver_path)
     if not path.is_absolute():
         path = Path(__file__).parents[3] / path
@@ -197,7 +201,8 @@ def assert_boundary_driver_has_no_result_replay(driver_path):
     tree = ast.parse(source)
     forbidden_symbols = {
         "capture_outputs", "bind_result", "result_source", "classify_result_fields",
-        "ObservedState", "production_parent_ids",
+        "ObservedState", "production_parent_ids", "declared_projection_paths",
+        "latest_event_id", "cause_ids",
     }
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef):
@@ -209,14 +214,45 @@ def assert_boundary_driver_has_no_result_replay(driver_path):
         if isinstance(node, ast.Call):
             called = _called_name(node)
             assert called not in forbidden_symbols
+            assert not (isinstance(node.func, ast.Attribute)
+                        and isinstance(node.func.value, ast.Name)
+                        and node.func.value.id == "ast" and node.func.attr in {"parse", "walk"})
         if isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
             assert not _iterates_completed_result(node.iter)
     assert not any(token in source for token in (
         "capture_outputs(", "result.items()", "result.keys()", "for field in result",
         "for key in result", "output_bindings", "field_name_inference",
         "class ObservedState", "result=ObservedState", "result = ObservedState",
-        "production_parent_ids(",
+        "production_parent_ids(", "dict(result)", "controller.final_state",
+        "final_result['captured_request']", 'final_result["captured_request"]',
+        "declared_projection_paths(", "latest_event_id(", "cause_ids(",
+        "ast.parse(driver_path", "ast.walk(tree)",
+        "''.join(json.dumps(event", '"".join(json.dumps(event',
     ))
+    journal_functions = [node for node in tree.body
+                         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                         and node.name in {"journal_event", "append_boundary_event"}]
+    assert len(journal_functions) == 1
+    main_function = next(node for node in tree.body
+                         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                         and node.name == "main")
+    assert not any(isinstance(node, ast.Call)
+                   and any(_references_name(argument, "result")
+                           for argument in (*node.args,
+                                            *(keyword.value for keyword in node.keywords)))
+                   for node in ast.walk(main_function))
+    journal_function = journal_functions[0]
+    journal_calls = [_called_name(node) for node in ast.walk(journal_function)
+                     if isinstance(node, ast.Call)]
+    assert "write" in journal_calls and "flush" in journal_calls
+    for node in tree.body:
+        if node is journal_function:
+            continue
+        assert not any(isinstance(child, ast.Call)
+                       and isinstance(child.func, ast.Attribute)
+                       and isinstance(child.func.value, ast.Name)
+                       and child.func.value.id == "journal_writer"
+                       and child.func.attr == "write" for child in ast.walk(node))
 
 
 def _lineage_from_boundary_events(events):
@@ -298,11 +334,17 @@ def assert_mixed_boundary_event_lineage(result):
     assert len({event["callback_id"] for event in events}) == len(events)
     assert journal["finalized"] is True and journal["writer_closed"] is True
     assert journal["opened_at_monotonic_ns"] < journal["finalized_at_monotonic_ns"]
+    assert journal["file_created_at_monotonic_ns"] <= journal["operation_started_at_monotonic_ns"]
     assert journal["hooks_installed_at_monotonic_ns"] < journal["operation_started_at_monotonic_ns"]
     assert (journal["finalized_at_monotonic_ns"]
             < journal["result_construction_started_at_monotonic_ns"])
+    assert journal["last_callback_finished_at_monotonic_ns"] == max(
+        event["callback_finished_at_monotonic_ns"] for event in events)
+    assert journal["last_callback_finished_at_monotonic_ns"] < journal["finalized_at_monotonic_ns"]
     assert journal["event_count"] == len(events)
     assert journal["byte_length"] == len(journal_bytes)
+    assert journal["write_mode"] == "append-and-flush-per-callback"
+    assert journal["flush_count"] == len(events)
     assert journal["append_attempts_after_finalize"] == []
     assert seal == {
         "run_id": journal["run_id"],
@@ -312,6 +354,9 @@ def assert_mixed_boundary_event_lineage(result):
         "final_event_sha256": events[-1]["event_sha256"],
         "finalized_at_monotonic_ns": journal["finalized_at_monotonic_ns"],
         "hook_registry_sha256": journal["hook_registry_sha256"],
+        "flush_count": len(events),
+        "last_callback_finished_at_monotonic_ns": journal[
+            "last_callback_finished_at_monotonic_ns"],
     }
     assert not _contains_forbidden_replay_key(events)
     assert not _contains_forbidden_replay_key(provenance)
@@ -330,11 +375,19 @@ def assert_mixed_boundary_event_lineage(result):
     hook_ids = {hook["hook_id"] for hook in registered_hooks}
     assert hook_ids and len(hook_ids) == len(registered_hooks)
     assert all(set(hook) == {"hook_id", "implementation_path", "implementation_sha256",
-                             "implementation_symbol", "registered_projection_paths"}
+                             "implementation_symbol", "callback_boundary",
+                             "observation_schema"}
                and hook["implementation_symbol"].strip()
                and not hook["implementation_symbol"].startswith(
                    ("ObservedState.", "dict.", "result."))
+               and hook["callback_boundary"].strip()
+               and isinstance(hook["observation_schema"], dict)
+               and hook["observation_schema"]
                for hook in registered_hooks)
+    assert len({(hook["implementation_symbol"], hook["callback_boundary"])
+                for hook in registered_hooks}) == len(registered_hooks)
+    assert len({json.dumps(hook["observation_schema"], sort_keys=True)
+                for hook in registered_hooks}) > 1
     root = Path(__file__).parents[3]
     for hook in registered_hooks:
         implementation = Path(hook["implementation_path"])
@@ -376,7 +429,7 @@ def assert_mixed_boundary_event_lineage(result):
         )
         observer = event["observer"]
         assert observer["production_source"] in production_paths
-        assert observer["boundary"].strip()
+        assert observer["boundary"] == hook_by_id[event["hook_id"]]["callback_boundary"]
         assert "case" not in observer["boundary"].lower()
         owner = event["callback_owner"]
         assert owner == {
@@ -388,6 +441,8 @@ def assert_mixed_boundary_event_lineage(result):
         raw = event["raw_observed_fields"]
         callback_payload = event["callback_payload"]
         assert isinstance(raw, dict) and raw == callback_payload
+        schema = hook_by_id[event["hook_id"]]["observation_schema"]
+        assert set(raw) == set(schema)
         observations = event["observations"]
         assert isinstance(observations, list)
         assert len({item["observation_id"] for item in observations}) == len(observations)
@@ -401,10 +456,9 @@ def assert_mixed_boundary_event_lineage(result):
             assert raw_field.startswith(observer["boundary"] + ".")
             assert not raw_field.lower().startswith(("result.", "case.", "fixture.", "expected."))
             projection_path = observation["projection_path"]
+            assert projection_path == schema[raw_field]
             if projection_path is not None:
                 assert projection_path not in MIXED_UNJOURNALED_FIELDS
-                assert projection_path in hook_by_id[event["hook_id"]][
-                    "registered_projection_paths"]
         event_sequences[event["event_id"]] = event["sequence"]
         event_by_id[event["event_id"]] = event
         callback_by_event_id[event["event_id"]] = event["callback_id"]
@@ -3175,6 +3229,12 @@ def assert_actual_failed_provider_request(result, stage, status):
 
 
 def assert_navigation_has_observed_no_route_or_storage_activity(result):
+    events = boundary_event_map(result).values()
+    navigation_open = [event for event in events
+                       if event["source"] == "production_call"
+                       and event["observer"]["boundary"] == "navigation.open"]
+    assert len(navigation_open) == 1
+    assert navigation_open[0]["observer"]["production_source"] == MIXED_PRODUCTION_SOURCES["navigation"]
     for field, kind in (("request_observation", "routing-provider-request-log"),
                         ("write_observation", "route-storage-write-log")):
         observed = result[field]
@@ -3567,27 +3627,62 @@ def test_ac052_ac056_product_cold_start_panel_recovers_last_good_without_mutatio
     lifecycle = r["product_cold_start_observation"]
     seed_process = assert_callback_observation(
         r, lifecycle["seed_process_observation"], source="loaded_artifact")
-    cold_process = assert_callback_observation(
-        r, lifecycle["cold_start_process_observation"], source="loaded_artifact")
+    child_artifact = assert_callback_observation(
+        r, lifecycle["cold_start_child_artifact_observation"], source="loaded_artifact")
+    child = child_artifact["payload"]
+    artifact_bytes = json.dumps(child, ensure_ascii=False, sort_keys=True,
+                                separators=(",", ":")).encode()
+    assert child_artifact["sha256"] == hashlib.sha256(artifact_bytes).hexdigest()
+    verification = assert_callback_observation(
+        r, lifecycle["parent_child_verification_observation"], source="loaded_artifact")
+    assert verification == {
+        "child_pid": child["pid"], "child_artifact_sha256": child_artifact["sha256"],
+        "child_journal_sha256": child["sealed_callback_journal"]["sha256"],
+        "generated_project_sha256": child["generated_project_sha256"],
+        "verified": True,
+    }
     assert isinstance(seed_process["pid"], int) and seed_process["pid"] > 0
-    assert isinstance(cold_process["pid"], int) and cold_process["pid"] > 0
-    assert cold_process["pid"] != seed_process["pid"]
-    assert cold_process["parent_pid"] == seed_process["pid"]
-    assert cold_process["process_boundary"] == "subprocess.Popen"
-    assert cold_process["returncode"] == 0
-    assert cold_process["reopened_project_dir"] == str(Path(r["project_dir"]).resolve())
-    reopened_panel = Path(cold_process["reopened_route_panel_path"])
-    assert reopened_panel.is_file() and reopened_panel.is_relative_to(Path(r["project_dir"]).resolve())
-    assert cold_process["reopened_route_panel_sha256"] == hashlib.sha256(
-        reopened_panel.read_bytes()).hexdigest()
-    assert cold_process["entry_path"] == [
-        "RoutePanel.Component.onCompleted", "Controller.create", "Controller.reload", "Repository.load",
-    ]
+    assert isinstance(child["pid"], int) and child["pid"] > 0
+    assert child["pid"] != seed_process["pid"]
+    assert child["parent_pid"] == seed_process["pid"]
+    assert child["process_boundary"] == "subprocess.Popen" and child["returncode"] == 0
+    assert child["reopened_project_dir"] == str(Path(r["project_dir"]).resolve())
+    manifest = child["generated_project_manifest"]
+    assert manifest and any(item["relative_path"] == "qfield_routes/RoutePanel.qml"
+                            for item in manifest)
+    assert [item["relative_path"] for item in manifest] == sorted(
+        item["relative_path"] for item in manifest)
+    manifest_bytes = json.dumps(manifest, ensure_ascii=False, sort_keys=True,
+                                separators=(",", ":")).encode()
+    assert child["generated_project_sha256"] == hashlib.sha256(manifest_bytes).hexdigest()
+    for item in manifest:
+        artifact_path = Path(r["project_dir"]) / item["relative_path"]
+        assert artifact_path.is_file()
+        assert item["sha256"] == hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+    child_journal = child["sealed_callback_journal"]
+    assert child_journal["finalized"] is True and child_journal["writer_closed"] is True
+    child_bytes = Path(child_journal["path"]).read_bytes()
+    assert child_journal["sha256"] == hashlib.sha256(child_bytes).hexdigest()
+    child_seal = json.loads(Path(child_journal["seal_path"]).read_text(encoding="utf-8"))
+    assert child_seal["journal_sha256"] == child_journal["sha256"]
+    child_events = [json.loads(line) for line in child_bytes.decode().splitlines() if line]
+    assert child_events and child_seal["event_count"] == child_journal["event_count"] == len(child_events)
+    assert child_seal["byte_length"] == child_journal["byte_length"] == len(child_bytes)
+    assert child_seal["final_event_sha256"] == child_events[-1]["event_sha256"]
+    assert [event["sequence"] for event in child_events] == list(range(len(child_events)))
+    child_by_id = {event["event_id"]: event for event in child_events}
+    entry_events = [child_by_id[event_id] for event_id in child["entry_callback_event_ids"]]
+    assert all(event["process_id"] == child["pid"] for event in child_events)
+    assert [event["sequence"] for event in entry_events] == sorted(
+        event["sequence"] for event in entry_events)
+    assert {event["observer"]["boundary"] for event in entry_events} >= {
+        "qml.open_panel", "controller.create", "controller.reload", "repository.load",
+    }
     assert {"qml.open_panel", "controller.create", "controller.reload", "repository.load"} <= (
         observed_production_calls(r))
-    assert cold_process["selected_route"] == r["last_good_route_before_corruption"]
-    assert cold_process["selected_document_sha256"] == r["last_good_document_sha256"]
-    assert cold_process["selected_document_sha256"] != r["corrupt_newest_document_sha256"]
+    assert child["selected_route"] == r["last_good_route_before_corruption"]
+    assert child["selected_document_sha256"] == r["last_good_document_sha256"]
+    assert child["selected_document_sha256"] != r["corrupt_newest_document_sha256"]
     assert r["corrupt_newest_bytes_after"] == r["corrupt_newest_bytes_before"]
     assert r["last_good_bytes_after"] == r["last_good_bytes_before"]
     assert r["provider_requests"] == r["storage_writes_after_corruption"] == []
@@ -3788,50 +3883,48 @@ def test_ac053_every_visit_accessibility_tracks_dynamic_site_mode_source_and_rou
     assert len(observations) == 2
     assert len({item["document_sha256"] for item in observations}) == 2
     dynamic_values = []
-    stable_objects = {}
     for item in observations:
         assert_schema3_document_contract(item["document"])
-        stored = assert_callback_observation(
-            r, item["storage_readback_observation"], source="captured_storage")
         model = assert_callback_observation(
             r, item["delegate_model_observation"], source="accessibility_interface")
-        accessible = item["accessibility_readback_observations"]
-        assert len(stored) == len(accessible) == model["delegate_count"]
-        assert len(stored) >= 5 and model["model_count"] == len(stored)
+        delegates = item["delegate_readback_observations"]
+        assert len(delegates) == model["delegate_count"] == model["model_count"] == 5
         assert model["creation"] == "QML Repeater delegate"
-        assert model["repeater_object_id"]
-        pairs = {(visit["walking_mode"], visit["metric_source"]) for visit in stored}
+        assert model["visual_parent_object_id"] and model["repeater_object_id"]
+        assert model["enumeration"] == "visual_parent.itemAt(index)"
+        observed_delegates = [assert_callback_observation(
+            r, readback, source="accessibility_interface") for readback in delegates]
+        assert len({delegate["object_id"] for delegate in observed_delegates}) == 5
+        visit_values = [delegate["visit_value"] for delegate in observed_delegates]
+        pairs = {(visit["walking_mode"], visit["metric_source"]) for visit in visit_values}
         assert pairs == SCHEMA3_ALLOWED_WALKING_PROVENANCE
-        exact_zero_indices = [index for index, visit in enumerate(stored)
+        exact_zero_indices = [index for index, visit in enumerate(visit_values)
                               if visit["walking_mode"] == "exact_zero"]
-        assert exact_zero_indices and max(exact_zero_indices) > 3
-        for index, (visit, readback) in enumerate(zip(stored, accessible)):
-            observed = assert_callback_observation(r, readback, source="accessibility_interface")
-            assert observed["source"] in {
-                "QAccessible.queryAccessibleInterface",
-                "QML Accessible attached property runtime readback",
-            }
-            assert observed["object_id"] and observed["role"]
+        assert exact_zero_indices == [4]
+        for index, observed in enumerate(observed_delegates):
+            visit = observed["visit_value"]
+            accessible = observed["qaccessible"]
+            assert observed["lookup"] == "visual_parent.itemAt(index)"
+            assert observed["visit_value_source"] == 'delegate.property("visitValue")'
+            assert observed["object_id"] and observed["object_id"] == accessible["object_id"]
             assert observed["delegate_index"] == index
-            assert observed["repeater_object_id"] == model["repeater_object_id"]
-            assert observed["created_dynamically"] is True
+            assert observed["visual_parent_object_id"] == model["visual_parent_object_id"]
+            assert accessible["source"] == "QAccessible.queryAccessibleInterface"
+            assert accessible["role"] and accessible["name"].strip()
             assert not re.fullmatch(r"visitAccessibility[0-9]+", observed["object_name"])
-            expected_distance = sum(leg["distance_m"] for leg in visit["walking_legs"])
-            durations = [leg["duration_s"] for leg in visit["walking_legs"]]
-            expected_duration = None if None in durations else sum(durations)
-            assert observed["value"] == {
-                "site_id": visit["site_id"], "site_name": visit["site_name"],
-                "walking_mode": visit["walking_mode"], "metric_source": visit["metric_source"],
-                "roundtrip": True, "distance_m": expected_distance,
-                "duration_s": expected_duration,
-            }
-            assert all(str(value) in observed["name"] for value in (
+            assert visit["site_id"] == ACCESSIBILITY_FIVE_SITES[index]["id"]
+            assert visit["site_name"] == ACCESSIBILITY_FIVE_SITES[index]["name"]
+            assert visit["roundtrip"] is True
+            assert all(str(value) in accessible["name"] for value in (
                 visit["site_name"], visit["walking_mode"], visit["metric_source"],
+                visit["distance_m"],
             ))
-            assert "왕복" in observed["name"]
-            stable_objects.setdefault(index, observed["object_id"])
-            assert stable_objects[index] == observed["object_id"]
-            dynamic_values.append((index, expected_distance, expected_duration))
+            if visit["duration_s"] is None:
+                assert "사용 불가" in accessible["name"]
+            else:
+                assert str(visit["duration_s"]) in accessible["name"]
+            assert "왕복" in accessible["name"]
+            dynamic_values.append((index, visit["distance_m"], visit["duration_s"]))
     visit_count = len(ACCESSIBILITY_FIVE_SITES)
     assert dynamic_values[:visit_count] != dynamic_values[visit_count:]
 
@@ -3931,14 +4024,11 @@ def test_ac058_route_line_toggle_is_one_atomic_settings_only_write_and_persists(
                          for observation in write["commit_observations"]]
         readback = assert_callback_observation(
             r, write["readback_observation"], source="captured_storage")
-        feedback = assert_callback_observation(
-            r, write["feedback_observation"], source="render_observation")
         assert len(commit_values) == 1 and commit_values[0]["success"] is True
         assert commit_values[0]["temporary_path_removed"] is True
         assert changed_leaf_paths(before["document"], readback["document"]) == {
             "settings.show_route_line"}
         assert readback["document"]["settings"]["show_route_line"] is write["requested_value"]
-        assert feedback["kind"] == "settings-save-success" and feedback["visible"] is True
     assert r["route_after"] == r["route_before"]
     assert r["source_after"] == r["source_before"]
     assert r["completion_after"] == r["completion_before"]
@@ -4123,5 +4213,7 @@ def test_ac055_invalid_navigation_coordinate_never_dispatches_or_mutates(run, de
     r = run(operation="platform_map_dispatch", platform="ios", destination=destination,
             name="invalid", launch_result=True)
     assert r["ok"] is False and r["launcher_calls"] == []
+    assert not any(event["source"] == "navigation_launcher"
+                   for event in boundary_event_map(r).values())
     assert_navigation_has_observed_no_route_or_storage_activity(r)
     assert "좌표" in r["message"]

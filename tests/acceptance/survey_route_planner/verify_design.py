@@ -332,14 +332,19 @@ assert all(token in contract for token in [
     "including inactive routes", "presentation_provenance", "computes field lineage",
     "location=null", "source-layer rereads", "actual `QAccessible` parent/child traversal",
     "explicit production recalculation plus save", "No metric-source/value literal",
-    "closed and separately sealed", "before any result dictionary is constructed",
+    "closed and separately sealed", "before any result dictionary is",
     "`result_source`", "`bind_result`", "`capture_outputs`", "post-result replay",
     "explicit causal links", "product cold start", "route_schema",
     "non-identical source/access coordinates", "preceding valid route",
     "three separate real lifecycle callbacks", "straight-line lower bounds",
     "`ObservedState`", "callback-owned `callback_payload`", "pure post-seal projection",
     "`originating_event_ids`", "`subprocess.Popen`", "different OS PID",
-    "QML Repeater/QAccessible", "Fixed `visitAccessibility0/1/2` objects are invalid",
+    "actual Repeater delegates", "fixed `visitAccessibility0/1/2` objects are invalid",
+    "append-and-flush mode", "`dict(result)`", "`controller.final_state`",
+    "AST extraction of result-assignment field names", "latest-event-by-source",
+    "child returns its own immutable artifact", "visual parent's `itemAt(index)`",
+    "Success-feedback visibility is not an AC-SRP-058 requirement",
+    "production `navigation.open` function boundary",
 ])
 provenance_source = inspect.getsource(module.assert_mixed_boundary_event_lineage)
 assert all(token in provenance_source for token in [
@@ -350,6 +355,10 @@ assert all(token in provenance_source for token in [
     '"append_attempts_after_finalize"', '"capture_phase"] == "boundary_callback"',
     '"causal_parent_observations"', '"hook_id"', '"registered_boundary_hooks"',
     '"callback_owner"', '"callback_payload"', '"event_appended_at_monotonic_ns"',
+    '"file_created_at_monotonic_ns"', '"write_mode"] == "append-and-flush-per-callback"',
+    '"flush_count"] == len(events)', '"callback_boundary"', '"observation_schema"',
+    '"last_callback_finished_at_monotonic_ns"] == max(',
+    'assert set(raw) == set(schema)', 'projection_path == schema[raw_field]',
     "_contains_forbidden_replay_key", "_lineage_from_boundary_events(events)",
     "_assert_result_matches_boundary_lineage", "_assert_tampered_result_is_rejected",
     "_assert_explicit_causal_origins", "_assert_tampered_causal_origins_are_rejected",
@@ -360,7 +369,12 @@ assert all(token in driver_guard_source for token in [
     "ast.parse", "capture_outputs", "result.items()", "result.keys()",
     "_iterates_completed_result(node.iter)", "output_bindings", "field_name_inference",
     '"ObservedState"', '"production_parent_ids"', '"__setitem__"', '"update"',
-    '"journal_event"',
+    '"journal_event"', '"declared_projection_paths"', '"latest_event_id"', '"cause_ids"',
+    '_references_name(argument, "result")', 'node.func.value.id == "ast"',
+    'node.func.attr in {"parse", "walk"}', '"controller.final_state"',
+    '"final_result[\'captured_request\']"', '"ast.parse(driver_path"', '"ast.walk(tree)"',
+    '"write" in journal_calls and "flush" in journal_calls',
+    'child.func.value.id == "journal_writer"', 'child.func.attr == "write"',
 ])
 assert "assert_boundary_driver_has_no_result_replay" in inspect.getsource(module.run)
 tamper_guard_source = inspect.getsource(module._assert_tampered_result_is_rejected)
@@ -392,14 +406,18 @@ dynamic_visit_accessibility = inspect.getsource(
 assert all(token in dynamic_visit_accessibility for token in [
     'visit_value_fixtures=["five-visits-all-modes-a", "five-visits-all-modes-b"]',
     'sites=ACCESSIBILITY_FIVE_SITES', 'exact_zero_visit_index=4',
-    '"visit_accessibility_binding_observations"', '"captured_storage"',
+    '"visit_accessibility_binding_observations"',
     '"delegate_model_observation"', '"QML Repeater delegate"',
-    '"created_dynamically"] is True', 'visitAccessibility[0-9]+',
-    '"site_id": visit["site_id"]', '"walking_mode": visit["walking_mode"]',
-    '"metric_source": visit["metric_source"]', '"roundtrip": True',
+    '"delegate_readback_observations"', '"visual_parent_object_id"',
+    '"visual_parent.itemAt(index)"', 'delegate.property("visitValue")',
+    '"qaccessible"', '"QAccessible.queryAccessibleInterface"', 'visitAccessibility[0-9]+',
+    'visit["site_id"] == ACCESSIBILITY_FIVE_SITES[index]["id"]',
+    'visit["roundtrip"] is True',
     'SCHEMA3_ALLOWED_WALKING_PROVENANCE', '"왕복"',
-    'max(exact_zero_indices) > 3', "dynamic_values[:visit_count] != dynamic_values[visit_count:]",
+    'exact_zero_indices == [4]', "dynamic_values[:visit_count] != dynamic_values[visit_count:]",
 ])
+assert 'sum(leg["distance_m"] for leg in visit["walking_legs"])' not in dynamic_visit_accessibility
+assert 'storage_readback_observation' not in dynamic_visit_accessibility
 notice_source = inspect.getsource(module.test_ac054_exact_stage_sequence_privacy_and_no_incidental_writes)
 assert "coordinate_notice_acknowledged" not in notice_source
 assert all(token in notice_source for token in [
@@ -411,7 +429,8 @@ assert "childItems" not in notice_source
 navigation_source = inspect.getsource(module.assert_navigation_has_observed_no_route_or_storage_activity)
 assert all(token in navigation_source for token in [
     '"observer_installed_before_action"', '"routing-provider-request-log"',
-    '"route-storage-write-log"', '"events"] == []',
+    '"route-storage-write-log"', '"events"] == []', '"navigation.open"',
+    'MIXED_PRODUCTION_SOURCES["navigation"]',
 ])
 ac056_source = inspect.getsource(
     module.test_ac056_every_active_and_inactive_visit_corruption_rejects_whole_document)
@@ -464,13 +483,16 @@ cold_start_source = inspect.getsource(
     module.test_ac052_ac056_product_cold_start_panel_recovers_last_good_without_mutation)
 assert all(token in cold_start_source for token in [
     'action="product-cold-start-open-panel"', '"seed_process_observation"',
-    '"cold_start_process_observation"', '"pid"] != seed_process["pid"]',
-    '"process_boundary"] == "subprocess.Popen"', '"reopened_route_panel_sha256"',
-    '"RoutePanel.Component.onCompleted"', '"Controller.create"', '"Controller.reload"',
-    '"Repository.load"', '"qml.open_panel"', '"controller.create"', '"controller.reload"',
+    '"cold_start_child_artifact_observation"', '"parent_child_verification_observation"',
+    'child["pid"] != seed_process["pid"]', '"process_boundary"] == "subprocess.Popen"',
+    '"sealed_callback_journal"', '"generated_project_manifest"',
+    '"generated_project_sha256"', '"entry_callback_event_ids"',
+    '"writer_closed"] is True', '"final_event_sha256"', 'list(range(len(child_events)))',
+    '"qml.open_panel"', '"controller.create"', '"controller.reload"', '"repository.load"',
     '"corrupt_newest_bytes_after"] == r["corrupt_newest_bytes_before"]',
     '"provider_requests"] == r["storage_writes_after_corruption"] == []',
 ])
+assert '"entry_path"' not in cold_start_source
 schema_boundary_source = inspect.getsource(
     module.test_ac057_settings_or_default_only_save_never_promotes_beyond_schema2)
 assert all(token in schema_boundary_source for token in [
@@ -493,12 +515,13 @@ assert all(token in toggle_source for token in [
     '"toggle-on"', '"line_visibility_readback_observations"',
     '"before_storage_observation"', '"commit_observations"', '"readback_observation"',
     'changed_leaf_paths(before["document"], readback["document"])',
-    '"settings.show_route_line"', '"feedback_observation"',
+    '"settings.show_route_line"',
     '"route_after"] == r["route_before"]', '"revision_after"] == r["revision_before"]',
 ])
 assert all(token not in toggle_source for token in [
     'write["atomic_commit_count"]', 'write["readback_count"]',
     'write["successful_commit_count"]', 'write["changed_paths"]',
+    'write["feedback_observation"]', 'settings-save-success',
 ])
 toggle_failure_source = inspect.getsource(
     module.test_ac058_toggle_failure_rolls_back_and_reports_actionable_feedback)
@@ -514,6 +537,12 @@ assert all(token in preview_source for token in [
 ])
 apple_source = inspect.getsource(module.test_ac055_ios_uses_exact_apple_maps_once_without_any_fallback)
 assert 'r["message"] == APPLE_MAPS_FAILURE_MESSAGE' in apple_source
+invalid_navigation_source = inspect.getsource(
+    module.test_ac055_invalid_navigation_coordinate_never_dispatches_or_mutates)
+assert all(token in invalid_navigation_source for token in [
+    'r["launcher_calls"] == []', 'event["source"] == "navigation_launcher"',
+    "boundary_event_map(r).values()",
+])
 assert 'assert "평문" in consent' not in source
 assert 'fresh_project=True, seed_saved=True' not in source
 assert source.count('seed_fixture_settings=False') == 2
