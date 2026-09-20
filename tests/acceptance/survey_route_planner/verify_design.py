@@ -342,9 +342,12 @@ assert all(token in contract for token in [
     "actual Repeater delegates", "fixed `visitAccessibility0/1/2` objects are invalid",
     "append-and-flush mode", "`dict(result)`", "`controller.final_state`",
     "AST extraction of result-assignment field names", "latest-event-by-source",
-    "child returns its own immutable artifact", "visual parent's `itemAt(index)`",
+    "child returns its own immutable artifact", "`Repeater.itemAt(index)`",
     "Success-feedback visibility is not an AC-SRP-058 requirement",
-    "production `navigation.open` function boundary",
+    "production `navigation.open`", "transient in-memory `captured_request`",
+    "current/latest-production/storage event variables",
+    "generic `observed_outputs`", "result-building `put`",
+    "raw request URL/query/body", "product code must not expose `navigationBoundary`",
 ])
 provenance_source = inspect.getsource(module.assert_mixed_boundary_event_lineage)
 assert all(token in provenance_source for token in [
@@ -355,6 +358,7 @@ assert all(token in provenance_source for token in [
     '"append_attempts_after_finalize"', '"capture_phase"] == "boundary_callback"',
     '"causal_parent_observations"', '"hook_id"', '"registered_boundary_hooks"',
     '"callback_owner"', '"callback_payload"', '"event_appended_at_monotonic_ns"',
+    '"event_flushed_at_monotonic_ns"', '"cause_id"',
     '"file_created_at_monotonic_ns"', '"write_mode"] == "append-and-flush-per-callback"',
     '"flush_count"] == len(events)', '"callback_boundary"', '"observation_schema"',
     '"last_callback_finished_at_monotonic_ns"] == max(',
@@ -375,7 +379,21 @@ assert all(token in driver_guard_source for token in [
     '"final_result[\'captured_request\']"', '"ast.parse(driver_path"', '"ast.walk(tree)"',
     '"write" in journal_calls and "flush" in journal_calls',
     'child.func.value.id == "journal_writer"', 'child.func.attr == "write"',
+    "_driver_integrity_violations(source)", '"observed_outputs"',
+    '"current_production_event_id"', '"current_storage_event_id"',
+    '"navigationBoundary"', '"visual_parent.itemAt(index)"',
 ])
+integrity_source = inspect.getsource(module._driver_integrity_violations)
+assert all(token in integrity_source for token in [
+    '"generic-observed-output"', '"put-after-result-assembly"',
+    '"completed-result-journaling"', '"lazy-schema-registration"',
+    '"callback-missing-explicit-cause-id"', '"journal-missing-explicit-cause-id"',
+    '"global-current-or-latest-event"', '"product-test-navigation-api"',
+    '"fabricated-visual-parent-delegate-path"',
+])
+guard_test_source = inspect.getsource(
+    module.test_mixed_harness_source_guard_rejects_reviewer_p0_p1_patterns)
+assert "_driver_integrity_violations(snippet)" in guard_test_source
 assert "assert_boundary_driver_has_no_result_replay" in inspect.getsource(module.run)
 tamper_guard_source = inspect.getsource(module._assert_tampered_result_is_rejected)
 assert all(token in tamper_guard_source for token in [
@@ -390,7 +408,21 @@ assert all(token in causal_tamper_source for token in [
 ])
 provider_evidence = inspect.getsource(module.assert_actual_failed_provider_request)
 assert 'requests[0]["kind"] == "origin-validation"' in provider_evidence
-assert 'requests[failed["request_index"]] == failed["request"]' in provider_evidence
+assert 'failed["request_summary"] == requests[failed["request_index"]]' in provider_evidence
+assert 'result["captured_request"]' in provider_evidence
+secret_evidence = inspect.getsource(module.assert_sensitive_provider_material_is_memory_only)
+assert all(token in secret_evidence for token in [
+    '"captured_request"', '"captured_requests"', '"sealed-journal"', '"detached-seal"',
+    '"evidence_files"', '"project-file"', '.rglob("*")',
+    '"authorization"', '"raw_provider_response"',
+    '"raw_request_url"', '"raw_request_query"', '"raw_request_body"',
+])
+secret_test_source = inspect.getsource(
+    module.test_ac049_secret_and_raw_wire_material_never_enters_sealed_evidence)
+assert all(token in secret_test_source for token in [
+    "RAW_PROVIDER_RESPONSE_MARKER", "RAW_REQUEST_QUERY_MARKER",
+    '"server_url"', '"optimizer_url"', "assert_sensitive_provider_material_is_memory_only",
+])
 preflight_source = inspect.getsource(module.test_ac050_access_boundary_failures_stop_pipeline_and_preserve_last_good)
 assert '"controller_state_after_explicit_calculate"' in preflight_source
 assert '"derived_from_case_input"' in preflight_source
@@ -408,8 +440,9 @@ assert all(token in dynamic_visit_accessibility for token in [
     'sites=ACCESSIBILITY_FIVE_SITES', 'exact_zero_visit_index=4',
     '"visit_accessibility_binding_observations"',
     '"delegate_model_observation"', '"QML Repeater delegate"',
-    '"delegate_readback_observations"', '"visual_parent_object_id"',
-    '"visual_parent.itemAt(index)"', 'delegate.property("visitValue")',
+    '"delegate_readback_observations"', '"repeater_object_id"',
+    '"Repeater.itemAt(index)"', 'delegate.property("visitValue")',
+    '"visit_value_object_id"', '"visual_parent_object_id" not in observed',
     '"qaccessible"', '"QAccessible.queryAccessibleInterface"', 'visitAccessibility[0-9]+',
     'visit["site_id"] == ACCESSIBILITY_FIVE_SITES[index]["id"]',
     'visit["roundtrip"] is True',
@@ -418,6 +451,7 @@ assert all(token in dynamic_visit_accessibility for token in [
 ])
 assert 'sum(leg["distance_m"] for leg in visit["walking_legs"])' not in dynamic_visit_accessibility
 assert 'storage_readback_observation' not in dynamic_visit_accessibility
+assert 'assert_schema3_document_contract(item["document"])' not in dynamic_visit_accessibility
 notice_source = inspect.getsource(module.test_ac054_exact_stage_sequence_privacy_and_no_incidental_writes)
 assert "coordinate_notice_acknowledged" not in notice_source
 assert all(token in notice_source for token in [
@@ -430,7 +464,14 @@ navigation_source = inspect.getsource(module.assert_navigation_has_observed_no_r
 assert all(token in navigation_source for token in [
     '"observer_installed_before_action"', '"routing-provider-request-log"',
     '"route-storage-write-log"', '"events"] == []', '"navigation.open"',
-    'MIXED_PRODUCTION_SOURCES["navigation"]',
+    '"controller.navigate"', '"navigation.open"', '"external-wrapper"',
+    '"wrapped_symbol"', 'MIXED_PRODUCTION_SOURCES[component]', '"cause_id"',
+])
+product_navigation_guard = inspect.getsource(
+    module.test_ac055_navigation_observation_api_is_not_added_to_product_sources)
+assert all(token in product_navigation_guard for token in [
+    '"navigationBoundary" not in source', '"observationBoundary" not in source',
+    '"testObservation" not in source',
 ])
 ac056_source = inspect.getsource(
     module.test_ac056_every_active_and_inactive_visit_corruption_rejects_whole_document)

@@ -37,7 +37,9 @@
 - Correction-cycle-2 retry 1 rejects empty self-declared provenance and adapter operation tables.
   Every mixed output is tied to a unique raw observation in a hash-chained boundary-event journal;
   the executable test independently validates event IDs/hashes/parents and computes field lineage.
-  Provider request logs retain origin validation and the actual failed request; batch-limit
+  Provider request logs retain origin validation and the failed request's bounded identity/hash;
+  raw request URL/query/body and Authorization data are available only in an explicit transient
+  in-memory capture used by the immediate assertion and are never journaled or persisted. Batch-limit
   preflight comes from observed controller state; an origin response with `location=null` fails even
   when `snapped_distance` is finite.
 - Presentation evidence uses actual effective viewport/theme, semantic before/after object state,
@@ -106,9 +108,23 @@
   evidence. Toggle commit/readback counts and changed paths are derived from storage callbacks, and
   off/on visibility from actual QML properties. Only failure feedback is required by AC058.
 - AC053 uses two changing documents with exactly five visits. It collects actual Repeater delegates
-  through the visual parent's `itemAt(index)`, reads each `delegate.visitValue` and its `QAccessible`
+  through `Repeater.itemAt(index)`, reads each returned delegate's `visitValue` and its `QAccessible`
   interface directly, never recomputes accessibility from repository visits, fixes exact-zero at
   index 4 and rejects the fixed `visitAccessibility0/1/2` implementation.
+- Correction cycle 4 closes the remaining security/evidence gaps without changing a product
+  criterion. Tests scan the sealed JSONL/seal, ordinary returned result/log evidence and named
+  evidence files for the exact synthetic key, Authorization value/header, raw provider
+  response/body and raw request URL/query/body. The transient in-memory captured request is the
+  only exception and is excluded from lineage projection. Hook schemas and exact callback payload
+  keys are frozen before operation start; the JSONL record is appended and flushed inside the
+  callback. Every non-root callback receives an explicit `cause_id` from its trigger and emits that
+  exact ID as its only parent; global current/latest event state and latest-by-source selection fail.
+- The source verifier now gives stable failures for generic `observed_outputs`, result-building
+  `put`, completed-result journaling, lazy schema registration, missing callback `cause_id`, global
+  event pointers, product `navigationBoundary`/observation APIs and fabricated visual-parent
+  delegate paths. Navigation evidence must wrap the imported production `controller.navigate` and
+  `navigation.open` functions separately from the launcher; invalid coordinates still invoke the
+  latter but invoke no external launcher.
 
 The correction is intentionally RED before implementation. M01–M21 remain NOT RUN and no automated
 provenance check is native-QField, live-provider or device evidence.
@@ -456,6 +472,27 @@ specification or Git state.
 
 Ponytail kept the correction within the existing operations and five artifacts; no dependency,
 helper module or new product seam was added.
+
+### Correction cycle 4 DRAFT verification record (2026-09-20)
+
+Status: **DRAFT TEST-DESIGN CORRECTION — pending user approval.** Only the same five acceptance
+artifacts changed. Application/QML/JS, unit tests, the approved specification and Git state were
+not modified by the test-designer.
+
+- Python compilation and design verifier: exit 0. The verifier covers the sealed-evidence secret/
+  raw-wire scan, predeclared exact hook schemas, in-callback append/flush, explicit `cause_id`, all
+  reviewer P0/P1 source patterns, imported navigation wrappers and actual Repeater delegate access.
+- Collection: **566 cases**, exit 0.
+- Static-guard self-check: **8 passed, 558 deselected**, exit 0.
+- Targeted current-implementation result: expected **2 failed, 564 deselected**, exit 1. The current
+  driver is rejected for lazy/generic result observation, mutable global causality and fabricated
+  visual-parent delegate evidence; current product sources are independently rejected for the
+  test-only `navigationBoundary` API. This is implementation RED, not product/device PASS.
+- Manual selector: **21 skipped, 545 deselected**, exit 0. M01–M21 remain NOT RUN.
+- Acceptance-only `git diff --check` over the five files: exit 0, no output.
+
+Ponytail kept the correction in the existing five artifacts with standard-library AST/JSON/file
+checks; no dependency, helper module or new product seam was added.
 
 ## Fixtures and independent oracles
 
