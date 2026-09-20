@@ -76,6 +76,19 @@
 > fragment. Navigation and cold-start entry evidence uses entry/exit wrappers that call the saved
 > original imported functions, including production `navigation.open`. A named event emitted
 > before an unrelated call is not evidence.
+>
+> **DRAFT correction-cycle-4 retry 2.** A projected field is accepted only from one concrete
+> observer callback whose direct causal parent is the already-open entry event of the production
+> wrapper invocation that produced it. The matching exit follows the observation and records the
+> saved original callable identity, before/after call counter, actual return identity or exception;
+> a new `boundary.productionCall` after action completion, a duplicate `controller.calculate`, or a
+> bulk callback receiving an assembled result dictionary is rejected. The four cold-start calls use
+> executable nested wrappers in the order `qml.open_panel` → `controller.create` →
+> `controller.reload` → `repository.load`, with reverse exits. Dormant wrapper source strings and
+> manual events around one component creation are not evidence. Each callback now writes an event
+> core with no impossible appended/flushed/finished claims, then the wrapper writes the immediately
+> following hash-bound receipt after the core write/flush, visibility reread and real callback
+> return. The closed journal hash and seal authenticate both records.
 
 > **APPROVED TEST DESIGN — 2026-09-18 mixed-access/Apple Maps slice (approval 2026-09-18).** This additive contract covers
 > approved D-SRP-049–056, FR-SRP-047–053, NFR-SRP-007–009 and AC-SRP-049–055. It preserves
@@ -138,20 +151,26 @@ with unchanged production observations.
 Every mixed operation returns `production_provenance`, captured by runtime instrumentation rather
 than declared from the operation name. It contains the actual driver path, independently verifiable
 production-source paths/hashes, generated-QML artifact identity where applicable, and a
-`boundary_event_journal`. Named boundary hooks are installed before the operation starts and emit
-one UTF-8 JSONL record per actual callback, appending and flushing it before that callback returns.
-The journal file exists before the operation, records append-and-flush mode and a flush count equal
-to its event count, and cannot be synthesized from an in-memory event list at the end. The writer is
+`boundary_event_journal`. Named boundary hooks are installed before the operation starts. Each
+actual callback appends and flushes one UTF-8 JSONL event-core record containing only facts known at
+serialization time. After that core is visible and the concrete observer callback really returns,
+its wrapper immediately appends the next JSONL record: a receipt bound to the event-core line hash.
+Thus records strictly alternate event/receipt; a receipt cannot be deferred or associated with a
+later callback. The journal file exists before the operation, records event-then-receipt mode and
+separate event/receipt flush counts, and cannot be synthesized from an in-memory list at the end. The writer is
 closed and separately sealed after the last callback and before any result dictionary is
 constructed. Provenance gives its path, seal path, run ID, SHA-256, byte/event counts,
-file-creation/hook-install/operation-start/finalization/result-construction-start monotonic
+file-creation/hook-install/operation-start/operation-completion/finalization/result-construction-start monotonic
 timestamps, registered hook definitions and the empty list of post-finalize append attempts. The seal
-independently repeats the run/hash/count/length/final-event hash/finalization time, hook-registry
-hash, flush count and final callback-finish time. It also contains one per-event IO receipt binding
-the exact journal-line hash to the time after `write` returned, the time after `flush` returned, a
-successful line-visibility reread performed before callback return, and the later callback-finish
-time. These receipt times are strictly increasing and cannot be copied from one precomputed clock
-value. The same receipt contract applies to the independent cold-start child. The executable test
+independently repeats the run/hash/event/receipt/record counts, length, final-event hash,
+final-record-line hash, finalization time, hook-registry hash, separate flush counts, final
+callback-finish time and the canonical receipt-list hash. Each receipt binds the exact preceding
+event line and core-event hash to the real times after core `write` returned, after core `flush`
+returned, after the successful visibility reread and after the concrete callback returned. Event
+cores contain none of `event_appended_at_monotonic_ns`, `event_flushed_at_monotonic_ns` or
+`callback_finished_at_monotonic_ns`: a line cannot truthfully claim operations that happen only
+after it is serialized. Receipt times are strictly increasing and are never `observed_at` offsets.
+The same alternating receipt contract applies to the independent cold-start child. The executable test
 reads both files twice and requires them unchanged.
 Every hook and its exact callback-owned schema is registered and the registry is frozen before any
 operation callback can run; registering a hook or deriving its schema from callback payload keys
@@ -163,15 +182,14 @@ not a shared superset: every event's payload equals its concrete hook schema. A 
 `OUTPUT_FIELDS`, any generated `controller.output.*` hook, synthetic `controller.observe` root,
 `collect(**values)`, generic source/boundary/raw dispatcher or arbitrary assembled keyword snapshot
 is not a callback boundary. Only concrete named callbacks with fixed schemas are allowed. The test independently
-hashes that source and the canonical registry. Each hash-chained record was emitted inside that actual
-callback and has unique event/callback
-IDs, callback start/observation/end timestamps before journal finalization, zero-based `sequence`,
+hashes that source and the canonical registry. Each hash-chained event core was emitted inside that actual
+callback and has unique event/callback IDs, callback start/observation timestamps, zero-based `sequence`,
 `previous_event_sha256`, canonical `event_sha256`, the explicit `cause_id` argument supplied by the
 triggering callback, matching zero-or-one `parent_event_ids`, plus causal
 links to those callbacks, an observer naming the real production source and boundary, a matching
 `callback_owner` and the detached callback-owned `callback_payload`. Actual append/flush/completion
-times come only from the sealed IO receipt recorded after each operation, not timestamps computed
-before the journal write. It has one approved
+times come only from the immediately following journal receipt, which the final seal authenticates,
+not from fields computed before the event write. It has one approved
 source (`production_call`, `controller_state`, `captured_transport`, `captured_storage`,
 `loaded_artifact`, `accessibility_interface`, `source_layer_reread`, `signal_delivery`,
 `navigation_launcher`, `render_observation`), and the raw observed production field paths/values;
@@ -182,7 +200,13 @@ The hash-chain predecessor is never an implicit causal parent. A root production
 current/latest-production/storage event variables, latest-event-by-source lookup and a
 generic relation to every prior production event are invalid. Each
 callback may publish explicit observations containing a unique observation ID, dotted callback
-payload path, raw value and optional pre-registered top-level projection path before the seal;
+payload path, raw value, optional pre-registered top-level projection path and the exact
+`producer_entry_event_id` before the seal. A projected callback has exactly one projected field and
+its sole direct parent is that pre-existing production-wrapper entry; one bulk callback may not
+receive or project an assembled result dictionary. Its receipt finishes before the matching wrapper
+exit begins. Each production wrapper emits an entry/exit pair with one invocation ID, saved-original
+callable ID, before/after original-call counter, and actual returned/threw outcome. The original is
+called exactly once between the pair. Nested wrapper entries point to their already-open outer entry;
 production-call events need not publish an output. No generic output
 capture may inspect the completed result. `capture_outputs`, generic `observed_outputs`, a
 result-building `put`, `dict(result)`, a synthetic
@@ -202,6 +226,17 @@ journal, seal, log and result file in the disposable run. A persisted `server_ur
 `optimizer_url` must have its query and fragment stripped, or the value must be rejected before any
 persistence. Production-call counts are computed from callback records.
 
+`boundary.productionCall`, `wrappedEntry`, `wrappedExit` and equivalent manual marker APIs are
+forbidden in operation assembly code. A production-call record can originate only from an installed
+wrapper that invokes the saved original. Every wrapper entry starts before operation completion;
+every projected observation lies between that same invocation's entry and exit. A later duplicate
+`controller.calculate` created only to parent a completed observation therefore fails both source
+and runtime checks. For cold start the four imported concrete functions are distinct nested wrappers:
+`qml.open_panel` contains `controller.create`, which contains `controller.reload`, which contains
+`repository.load`; their exits are reversed. Runtime counters, original return/exception evidence
+and ordering are mandatory. Merely storing wrapper-looking source strings while manually emitting
+four names around `component.create` is rejected.
+
 The executable test reads and hashes the journal itself, validates hook-before-operation timing,
 finalization, chain and explicit causal parent order, and computes field lineage from raw callback
 payloads without accepting the result dictionary as an input. It mutates a returned field and,
@@ -210,8 +245,8 @@ checks must raise. An AST verifier reads the actual driver source and rejects co
 iteration, output capture/classification, result-mutation journaling, wholesale parent collection
 and the forbidden symbols. Every mixed-operation output field consumed by AC-SRP-049–058—and, to avoid a
 declaration loophole, every returned top-level output except `production_provenance` and the
-explicit transient request capture—must have an
-event ID and a last raw observation equal to the
+explicit transient request capture—must have exactly one
+event ID and raw observation equal to the
 returned value. Source-type causal rules, rather than returned field names, require captured
 transport/storage/artifact, controller, renderer, accessibility, signal and launcher observations
 to descend from explicit production-call parents; render and accessibility observations also descend
@@ -453,7 +488,7 @@ must never report OS soft-keyboard opening or QField map-canvas labels as automa
 | `provider_http_failure` | Through the generated QML calculate control and production controller/backend, create and independently reopen nonempty saved/candidate baselines, then inject one HTTP or statusless transport result at the real transport stage. The ordinary `requests` log retains only bounded non-sensitive request summaries, including origin validation and the failed request identity/hash. `failed_transport_observation` points back to that summary and records status/sanitized classification, never raw response/body/request URL/query/body. A stage copied from `case` is not evidence. An explicitly named transient in-memory `captured_request` may expose the failed request only to the immediate request-shape/hash assertion and is never journaled or persisted. Return the production minimal record, live message-label diagnostic, classification/action, raw-body-retention flag and independently observed state/write/retry snapshots. Production first attempts JSON parsing for a syntactically valid body even when content type is missing or misleading. `status_0`/network records have `http_status=null`, never synthesize HTTP 0, and expose an actionable connection check. Sanitization is performed only by production. Status 200 is a bounded negative oracle: its body must never enter error UI. |
 | `mixed_route_calculate` | Observe the actual coordinate-sharing notice object and accessibility interface before delivering the explicit calculate-button signal. The approved specification requires notice, not a new notice acknowledgement; report `acknowledgement_required=false`. Visual order comes from rendered geometry. Accessibility order comes from actual `QAccessible` parent/child traversal with parent/interface/object IDs and the traversal sequence; QML `childItems` DFS is forbidden. The notice precedes calculate in that observed traversal, and the first request starts after the signal. Execute production preflight/origin validation, one ordered batched `driving-car` snap, per-site walking validation, matrix, optimizer, driving directions and candidate validation. `preflight_observation` is controller state after the click, never `case.access_fault`. Retain origin validation in `requests`. An origin response with `location=null` remains failure even if `snapped_distance` is finite, and starts no access-snap/downstream/write. Cancel or project close delivered immediately after origin validation also starts no later work. Return exact request/stage traces, snap/radius/origin workaround observations, request payload field sets, before/after source/state/storage snapshots and the actual candidate. The exact-zero case may legitimately have `source_coordinate == access_coordinate`; only a nonzero snapped source is forbidden from downstream vehicle payloads. `batch-limit` is rejected before transport. Only an explicit no-foot-path response may continue as unmapped lower-bound, and its save acknowledgement is separate from the coordinate-sharing notice. |
 | `mixed_route_roundtrip` | Create the requested external walking fixture (mapped, exact-zero or explicit no-path) through generated QML and production controller/backend, explicitly save schema 3 through the real save control/repository, independently reopen committed bytes, then perform restart, last-good recovery when requested, offline open, physical folder relocation and complete→uncheck through real controls. `lifecycle_route_observations` independently reread restart/offline/move state; each allowed visit pair must exact-roundtrip. For unmapped visits, the independently calculated source/access geodesic equals `access_offset_m` and both leg distances within 0.01 m. The executable exact-zero fixture deliberately uses non-identical source/access coordinates with `0 < geodesic <= 1 m`; its preserved `access_offset_m` equals that measured geodesic within 0.01 m while both leg distance/duration values stay zero and both geometries stay null. Identical coordinates remain valid under the approved `<=1 m` product rule; the fixture only prevents assuming every exact-zero offset is literally zero. Mapped request endpoints and outbound distance/duration/geometry come from the captured `foot-hiking` response, and return metrics match it with exact reversed geometry. Echoing the candidate as saved/reloaded, constructing a schema wrapper in the harness, or calculating remaining counts in the harness is forbidden. |
-| `mixed_route_compatibility` | Materialize exact supplied storage bytes and run production repository/controller/panel paths. No-file/default open is schema-2 in memory and write-free; settings-only or default-start-only save from no file or schema 1 writes at most schema 2. An explicit production recalculation plus save makes a top-level schema-3 document: the selected same-ID route is tagged `route_schema: 3`, while every unrelated legacy route preserves all original fields plus `route_schema: 1|2` and remains listable/loadable. Untagged homogeneous schema 3 loads without write and receives markers on its next normal write. Unknown markers, duplicate identity, invalid variants and marker/content contradictions fail load/recovery/commit atomically with bytes and last-good unchanged. Existing visit corruption still performs three separate real lifecycle callbacks. A separate corrupt-newest case destroys the seed process/session and starts a distinct `subprocess.Popen` child with a different OS PID. The child returns its own immutable artifact containing PID/parent PID/return code, a canonical generated-project manifest/hash, selected route/document hash, entry-callback event IDs and its own closed/sealed callback JSONL. The parent embeds that artifact, independently hashes and verifies it, and journals both receipt and verification. Each child entry ID identifies the entry phase of an external harness wrapper around the actual `qml.open_panel`, imported `controller.create`, `controller.reload` or imported `repository.load` function; a matching exit event causally follows only after the saved original returns. Direct `productionCall("name")`/manual marker calls, a fixed returned `entry_path`, UUID or loaded flag are not evidence. The child IO receipts prove its lines were written, flushed and visible before callback finish. The child must select the preceding valid route as last-good with corrupt and last-good bytes unchanged and zero provider/write activity. Direct harness-only `recoverLastGood` invocation cannot satisfy this case. |
+| `mixed_route_compatibility` | Materialize exact supplied storage bytes and run production repository/controller/panel paths. No-file/default open is schema-2 in memory and write-free; settings-only or default-start-only save from no file or schema 1 writes at most schema 2. An explicit production recalculation plus save makes a top-level schema-3 document: the selected same-ID route is tagged `route_schema: 3`, while every unrelated legacy route preserves all original fields plus `route_schema: 1|2` and remains listable/loadable. Untagged homogeneous schema 3 loads without write and receives markers on its next normal write. Unknown markers, duplicate identity, invalid variants and marker/content contradictions fail load/recovery/commit atomically with bytes and last-good unchanged. Existing visit corruption still performs three separate real lifecycle callbacks. A separate corrupt-newest case destroys the seed process/session and starts a distinct `subprocess.Popen` child with a different OS PID. The child returns its own immutable artifact containing PID/parent PID/return code, a canonical generated-project manifest/hash, selected route/document hash, entry-callback event IDs and its own closed/sealed callback JSONL. The parent embeds that artifact, independently hashes and verifies it, and journals both receipt and verification. Each child entry ID identifies the entry phase of an executable external harness wrapper around the actual `qml.open_panel`, imported `controller.create`, `controller.reload` or imported `repository.load` function. The four entries nest in that order, their exits reverse, and each pair records saved-original identity, a single call-counter increment, and actual return/exception only after the original returns. Dormant wrapper strings or four manual events around one component creation, direct `productionCall("name")`/`wrappedEntry`/`wrappedExit`, a fixed returned `entry_path`, UUID or loaded flag are not evidence. Alternating child event/receipt records prove each event core was written, flushed and visible and its concrete callback returned before the receipt was appended and before its wrapper exit. The child must select the preceding valid route as last-good with corrupt and last-good bytes unchanged and zero provider/write activity. Direct harness-only `recoverLastGood` invocation cannot satisfy this case. |
 | `mixed_route_presentation` | Commit and independently reload real schema-3 routes, then load the generated `RoutePanel.qml` object tree/map at supplied width/theme. `presentation_provenance` observes effective width/palette, real overlay objects, all three patterns/casings/non-color cues, legends and warning marker. Preview, legend, complete and uncheck events use semantic before/after state and remain write-free where the product contract says so. Before/after renderer values are independent source-layer rereads. For two changed all-mode documents containing exactly five visits, enumerate the actual Repeater delegates only through `Repeater.itemAt(index)`, read that returned delegate's `visitValue` property and query that same delegate's `QAccessible` interface directly. No fabricated `visual_parent.itemAt(index)` path/ID is returned. The accessible site name/ID, walking mode, metric source, out-and-back meaning and distance/time follow those delegate values; exact-zero is index 4 and no visit may be omitted. Repository visits are not returned or recomputed as an accessibility oracle, and fixed `visitAccessibility0/1/2` objects are invalid. Separate visible and accessibility objects bind mapped provider distance/time and fallback straight-line lower bounds without summing them as exact walking totals. No metric-source/value literal or operation/fixture mapping may serve as the oracle. A real route-line toggle records actual storage-before, atomic commit and reopened readback callback events for each successful value change; the test derives the single commit and sole `settings.show_route_line` change from those payloads. Success-feedback visibility is not an AC-SRP-058 requirement. It preserves route/source/completion/revision and provider inactivity, survives panel reopen, a real cold restart and folder move with settings, and restores on write/readback failure with actionable callback-observed failure feedback. Each off/on line visibility is reread from the actual QML objects after the action, never overlaid from an expected Boolean. Preview and legend install storage observers and produce zero observed writes. It remains a generated/headless proxy only. |
 | `platform_map_dispatch` | Save and independently reload an active route through production repository/controller, install routing-request and route-storage-write observers, then locate and invoke the loaded generated QML control whose exact label is `다음 지점 지도 안내`. The harness monkeypatches/wraps the imported production `controller.navigate` and actual imported `Navigation.open` function without changing product code. Its executable wrapper emits an entry event, calls the saved original with the original receiver/arguments, then emits a causally linked exit event with `returned|threw` and launcher count; source inspection proves that ordering. A pre-recorded `wrappedCall("navigation.open")`/named event is invalid. Both functions remain separately distinguishable from every real external `Qt.openUrlExternally` call/result/exception; product code must not expose `navigationBoundary`, an observation callback or another test-only navigation API. Even an invalid coordinate rejected by `checkedCoordinate` produces the real `Navigation.open` entry and throwing exit with launcher count zero. `request_observation` and `write_observation` identify the installed observer/source and return their observed empty event logs; hardcoded `routing_requests=[]`/`writes=[]` mirrors are not evidence. Independently reread state and revision before/after. iOS permits one Apple Maps HTTPS call and no fallback; Android retains NAVER intent/Google Play fallback. The harness never returns a production-computed expected URL for a circular test comparison. |
 

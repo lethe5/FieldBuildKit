@@ -122,6 +122,11 @@ MIXED_FORBIDDEN_SYNTHETIC_BOUNDARY_PREFIXES = (
     "controller.output.", "controller.observe",
 )
 
+MIXED_WRAPPED_CALL_FIELDS = {
+    "phase", "invocation_id", "original_callable_id", "original_call_count",
+    "outcome", "return_identity", "exception_type",
+}
+
 MIXED_EVENT_REQUIRED_ANCESTOR_SOURCES = {
     "controller_state": {"production_call"},
     "captured_transport": {"production_call"},
@@ -150,7 +155,9 @@ def assert_mixed_production_path(result, operation, boundary_events):
     assert Path(provenance["driver_path"]).name != "survey_route_mixed_driver.js"
     calls = {}
     for event in boundary_events:
-        if event["source"] == "production_call":
+        if (event["source"] == "production_call"
+                and event["callback_payload"].get(
+                    f'{event["observer"]["boundary"]}.phase') == "entry"):
             call = event["observer"]["boundary"]
             calls[call] = calls.get(call, 0) + 1
     assert MIXED_PRODUCTION_CALLS[operation] <= set(calls)
@@ -176,6 +183,31 @@ def _event_digest(event):
     payload = json.dumps(unsigned, ensure_ascii=False, sort_keys=True,
                          separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def _receipt_digest(receipt):
+    unsigned = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+    payload = json.dumps(unsigned, ensure_ascii=False, sort_keys=True,
+                         separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _journal_event_receipt_pairs(journal_bytes):
+    """Decode the only serializable truth: event core, then its post-IO receipt."""
+    raw_lines = [line for line in journal_bytes.splitlines(keepends=True) if line.strip()]
+    records = [json.loads(line) for line in raw_lines]
+    assert records and len(records) % 2 == 0
+    events, receipts = records[::2], records[1::2]
+    assert all(record.get("record_type") == "event" for record in events)
+    assert all(record.get("record_type") == "event_io_receipt" for record in receipts)
+    for index, (event, receipt, event_line) in enumerate(
+            zip(events, receipts, raw_lines[::2])):
+        assert event["sequence"] == receipt["sequence"] == index
+        assert receipt["event_id"] == event["event_id"]
+        assert receipt["event_sha256"] == event["event_sha256"]
+        assert receipt["event_line_sha256"] == hashlib.sha256(event_line).hexdigest()
+        assert receipt["receipt_sha256"] == _receipt_digest(receipt)
+    return raw_lines, events, receipts
 
 
 def _contains_forbidden_replay_key(value):
@@ -224,6 +256,17 @@ def _assigned_name_positions(function, fragment):
     return sorted(positions)
 
 
+def _assigned_name_calls(function, fragment, called_name):
+    matches = []
+    for node in ast.walk(function):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        if any(isinstance(target, ast.Name) and fragment in target.id for target in targets):
+            matches.append(_contains_call(node.value, {called_name}))
+    return matches
+
+
 def _call_positions(function, attribute):
     return sorted(_node_position(node) for node in ast.walk(function)
                   if isinstance(node, ast.Call) and _called_name(node) == attribute)
@@ -237,12 +280,13 @@ def _driver_integrity_violations(source):
         "capture_outputs", "bind_result", "result_source", "classify_result_fields",
         "ObservedState", "observed_outputs", "production_parent_ids",
         "declared_projection_paths", "latest_event_id", "latest_by_source", "cause_ids",
-        "collect",
+        "collect", "productionCall", "wrappedEntry", "wrappedExit",
     }
     forbidden_event_names = re.compile(
         r"^(?:current|latest)(?:_production|_storage)?_?event(?:_id)?$", re.I)
     journal_names = {"journal_event", "append_boundary_event"}
     has_predeclared_schema_table = False
+    wrapper_string_names = set()
     for node in tree.body:
         if isinstance(node, (ast.Assign, ast.AnnAssign)):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
@@ -254,8 +298,72 @@ def _driver_integrity_violations(source):
                     for target in targets)
                     and isinstance(node.value, ast.Dict) and node.value.keys):
                 has_predeclared_schema_table = True
+            if (any(isinstance(target, ast.Name)
+                    and target.id in {"STATE_CALLBACK_FIELDS", "RESULT_CALLBACK_FIELDS"}
+                    for target in targets)):
+                violations.add("bulk-result-callback")
+            if (isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
+                    and "phase" in node.value.value.lower()):
+                wrapper_string_names.update(
+                    target.id for target in targets if isinstance(target, ast.Name)
+                    and "wrapper" in target.id.lower())
+    for name in wrapper_string_names:
+        if not any(isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+                   and node.id == name for node in ast.walk(tree)):
+            violations.add("dormant-wrapper-source")
     if not has_predeclared_schema_table:
         violations.add("lazy-schema-registration")
+
+    journal_functions = [node for node in tree.body
+                         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                         and node.name in journal_names]
+    receipt_functions = [node for node in tree.body
+                         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                         and node.name == "append_event_receipt"]
+    if len(journal_functions) != 1 or len(receipt_functions) != 1:
+        violations.add("missing-post-callback-receipt-writer")
+    else:
+        journal_function, receipt_function = journal_functions[0], receipt_functions[0]
+        core_write = _call_positions(journal_function, "write")
+        core_write_returned = _assigned_name_positions(journal_function, "write_returned")
+        core_flush = _call_positions(journal_function, "flush")
+        core_flush_returned = _assigned_name_positions(journal_function, "flush_returned")
+        core_visible = _assigned_name_positions(journal_function, "line_visible")
+        if not (core_write and core_write_returned and core_flush and core_flush_returned
+                and core_visible and core_write[-1] < core_write_returned[0]
+                < core_flush[-1] < core_flush_returned[0] < core_visible[0]
+                and all(all(_assigned_name_calls(
+                    journal_function, fragment, "monotonic_ns"))
+                    for fragment in ("write_returned", "flush_returned", "line_visible"))):
+            violations.add("unmeasured-event-core-io")
+        receipt_finished = _assigned_name_positions(receipt_function, "callback_finished")
+        receipt_write = _call_positions(receipt_function, "write")
+        receipt_flush = _call_positions(receipt_function, "flush")
+        if not (receipt_finished and receipt_write and receipt_flush
+                and receipt_finished[0] < receipt_write[-1] < receipt_flush[-1]
+                and all(_assigned_name_calls(
+                    receipt_function, "callback_finished", "monotonic_ns"))):
+            violations.add("receipt-before-callback-return")
+        receipt_callers = []
+        for node in tree.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            receipt_calls = _call_positions(node, "append_event_receipt")
+            if not receipt_calls:
+                continue
+            receipt_callers.append(node)
+            observer_calls = sorted(
+                _node_position(child) for child in ast.walk(node)
+                if isinstance(child, ast.Call)
+                and (_called_name(child) == "callback"
+                     or _called_name(child).endswith("_callback"))
+                and _called_name(child) != "append_event_receipt")
+            if node.name.endswith("_callback") or not observer_calls or not all(
+                    any(observer < receipt for observer in observer_calls)
+                    for receipt in receipt_calls):
+                violations.add("receipt-not-after-observer-return")
+        if not receipt_callers:
+            violations.add("receipt-not-after-observer-return")
 
     for node in ast.walk(tree):
         if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -282,6 +390,9 @@ def _driver_integrity_violations(source):
             if calls_journal and node.name not in journal_names:
                 if "cause_id" not in parameter_names:
                     violations.add("callback-missing-explicit-cause-id")
+                if (parameter_names & {"result", "final_result", "values", "snapshot"}
+                        or _contains_call(node, {"state_payload"})):
+                    violations.add("bulk-result-callback")
             if node.name in journal_names:
                 if "cause_id" not in parameter_names:
                     violations.add("journal-missing-explicit-cause-id")
@@ -294,24 +405,26 @@ def _driver_integrity_violations(source):
                             and any(token in ast.unparse(child.func.value).lower()
                                     for token in ("hook", "schema", "registry"))):
                         violations.add("lazy-schema-registration")
-                write = _call_positions(node, "write")
-                append_returned = _assigned_name_positions(node, "event_appended")
-                flush = _call_positions(node, "flush")
-                flush_returned = _assigned_name_positions(node, "event_flushed")
-                line_visible = _assigned_name_positions(node, "line_visible")
-                callback_finished = _assigned_name_positions(node, "callback_finished")
-                if not (write and append_returned and flush and flush_returned and line_visible
-                        and callback_finished
-                        and write[-1] < append_returned[0] < flush[-1] < flush_returned[0]
-                        < line_visible[0] < callback_finished[0]):
-                    violations.add("precomputed-journal-timestamps")
+                for child in ast.walk(node):
+                    if isinstance(child, ast.Dict):
+                        literal_keys = {key.value for key in child.keys
+                                        if isinstance(key, ast.Constant)
+                                        and isinstance(key.value, str)}
+                        if literal_keys & {
+                                "event_appended_at_monotonic_ns",
+                                "event_flushed_at_monotonic_ns",
+                                "callback_finished_at_monotonic_ns"}:
+                            violations.add("event-claims-post-serialization-time")
         if isinstance(node, ast.Global) and any(
                 forbidden_event_names.match(name) for name in node.names):
             violations.add("global-current-or-latest-event")
         if isinstance(node, ast.Name) and forbidden_event_names.match(node.id):
             violations.add("global-current-or-latest-event")
         if isinstance(node, ast.Call) and _called_name(node) in forbidden_helpers:
-            violations.add("generic-observed-output")
+            if _called_name(node) in {"productionCall", "wrappedEntry", "wrappedExit"}:
+                violations.add("manual-production-boundary")
+            else:
+                violations.add("generic-observed-output")
         if isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
             if _iterates_completed_result(node.iter):
                 violations.add("completed-result-journaling")
@@ -345,6 +458,7 @@ def assert_boundary_driver_has_no_result_replay(driver_path):
         "capture_outputs", "bind_result", "result_source", "classify_result_fields",
         "ObservedState", "production_parent_ids", "declared_projection_paths",
         "latest_event_id", "latest_by_source", "cause_ids", "observed_outputs", "collect",
+        "productionCall", "wrappedEntry", "wrappedExit",
     }
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef):
@@ -373,12 +487,18 @@ def assert_boundary_driver_has_no_result_replay(driver_path):
         "visual_parent.itemAt(index)", "visual_parent_object_id",
         "ast.parse(driver_path", "ast.walk(tree)",
         "OUTPUT_FIELDS", "controller.output.", "controller.observe",
+        ".productionCall(", ".wrappedEntry(", ".wrappedExit(",
+        "STATE_CALLBACK_FIELDS", "RESULT_CALLBACK_FIELDS",
         "''.join(json.dumps(event", '"".join(json.dumps(event',
     ))
     journal_functions = [node for node in tree.body
                          if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
                          and node.name in {"journal_event", "append_boundary_event"}]
     assert len(journal_functions) == 1
+    receipt_functions = [node for node in tree.body
+                         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                         and node.name == "append_event_receipt"]
+    assert len(receipt_functions) == 1
     main_function = next(node for node in tree.body
                          if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
                          and node.name == "main")
@@ -388,11 +508,12 @@ def assert_boundary_driver_has_no_result_replay(driver_path):
                                             *(keyword.value for keyword in node.keywords)))
                    for node in ast.walk(main_function))
     journal_function = journal_functions[0]
+    receipt_function = receipt_functions[0]
     journal_calls = [_called_name(node) for node in ast.walk(journal_function)
                      if isinstance(node, ast.Call)]
     assert "write" in journal_calls and "flush" in journal_calls
     for node in tree.body:
-        if node is journal_function:
+        if node in {journal_function, receipt_function}:
             continue
         assert not any(isinstance(child, ast.Call)
                        and isinstance(child.func, ast.Attribute)
@@ -455,10 +576,13 @@ def assert_cold_start_entries_are_instrumented_externally(driver_path):
     if not path.is_absolute():
         path = Path(__file__).parents[3] / path
     source = path.read_text(encoding="utf-8")
+    assert not any(token in source for token in (
+        ".productionCall(", ".wrappedEntry(", ".wrappedExit(",
+        "qml_open_panel_wrapper='", "controller_create_wrapper='",
+        "controller_reload_wrapper='", "repository_load_wrapper='",
+    ))
     for symbol in ("qml.open_panel", "controller.create", "controller.reload",
                    "repository.load"):
-        assert not re.search(
-            rf"(?:productionCall|wrappedCall)\(['\"]{re.escape(symbol)}['\"]", source)
         wrapper = _wrapper_literal(source, symbol)
         flattened_symbol = symbol.replace(".", "")
         _assert_original_call_between_entry_and_exit(
@@ -482,7 +606,8 @@ def _assert_result_matches_boundary_lineage(result, lineage):
     used_outputs = set(result) - MIXED_UNJOURNALED_FIELDS
     assert used_outputs <= set(lineage)
     for field in used_outputs:
-        assert lineage[field][-1][2] == result[field]
+        assert len(lineage[field]) == 1, f"{field} must bind at one concrete callback"
+        assert lineage[field][0][2] == result[field]
 
 
 def _assert_tampered_result_is_rejected(result, lineage):
@@ -527,21 +652,102 @@ def _assert_tampered_causal_origins_are_rejected(events):
         _assert_explicit_causal_origins(tampered)
 
 
-def _assert_callback_io_receipts(journal_bytes, seal, events):
-    raw_lines = [line for line in journal_bytes.splitlines(keepends=True) if line.strip()]
-    receipts = seal["callback_io_receipts"]
-    assert len(receipts) == len(events) == len(raw_lines)
+def _assert_wrapped_call_spans(events, receipt_by_event_id):
+    """Prove production-call parents are real original-invoking wrapper spans."""
+    event_by_id = {event["event_id"]: event for event in events}
+    invocations = {}
+    for event in events:
+        if event["source"] != "production_call":
+            continue
+        boundary = event["observer"]["boundary"]
+        wrapped_symbol = "Navigation.open" if boundary == "navigation.open" else boundary
+        assert event["observer"] == {
+            "production_source": MIXED_PRODUCTION_SOURCES[boundary.split(".", 1)[0]],
+            "boundary": boundary,
+            "instrumentation": "external-wrapper",
+            "wrapped_symbol": wrapped_symbol,
+        }
+        payload = event["callback_payload"]
+        assert set(payload) == {f"{boundary}.{field}" for field in MIXED_WRAPPED_CALL_FIELDS}
+        phase = payload[f"{boundary}.phase"]
+        assert phase in {"entry", "exit"}
+        invocation_id = payload[f"{boundary}.invocation_id"]
+        assert isinstance(invocation_id, str) and invocation_id.strip()
+        invocations.setdefault(invocation_id, []).append(event)
+
+    assert invocations
+    original_counts = {}
+    for invocation_id, pair in invocations.items():
+        assert len(pair) == 2
+        phases = {
+            event["callback_payload"][f'{event["observer"]["boundary"]}.phase']: event
+            for event in pair
+        }
+        assert set(phases) == {"entry", "exit"}
+        entry, exit_ = phases["entry"], phases["exit"]
+        boundary = entry["observer"]["boundary"]
+        assert exit_["observer"]["boundary"] == boundary
+        prefix = f"{boundary}."
+        entry_payload, exit_payload = entry["callback_payload"], exit_["callback_payload"]
+        assert exit_["cause_id"] == entry["event_id"]
+        assert entry["sequence"] < exit_["sequence"]
+        assert (receipt_by_event_id[entry["event_id"]]["callback_finished_at_monotonic_ns"]
+                <= exit_["callback_started_at_monotonic_ns"])
+        assert entry_payload[prefix + "outcome"] is None
+        assert entry_payload[prefix + "return_identity"] is None
+        assert entry_payload[prefix + "exception_type"] is None
+        assert exit_payload[prefix + "outcome"] in {"returned", "threw"}
+        if exit_payload[prefix + "outcome"] == "returned":
+            assert exit_payload[prefix + "return_identity"] is not None
+            assert exit_payload[prefix + "exception_type"] is None
+        else:
+            assert exit_payload[prefix + "return_identity"] is None
+            assert isinstance(exit_payload[prefix + "exception_type"], str)
+            assert exit_payload[prefix + "exception_type"].strip()
+        original_id = entry_payload[prefix + "original_callable_id"]
+        assert original_id == exit_payload[prefix + "original_callable_id"]
+        assert isinstance(original_id, str) and original_id.strip()
+        before = entry_payload[prefix + "original_call_count"]
+        after = exit_payload[prefix + "original_call_count"]
+        assert isinstance(before, int) and after == before + 1
+        original_counts.setdefault(original_id, []).append(before)
+
+        descendants = [event for event in events if event["cause_id"] == entry["event_id"]
+                       and event["event_id"] != exit_["event_id"]]
+        assert all(entry["sequence"] < event["sequence"] < exit_["sequence"]
+                   for event in descendants)
+        assert all(receipt_by_event_id[event["event_id"]][
+                       "callback_finished_at_monotonic_ns"]
+                   <= exit_["callback_started_at_monotonic_ns"]
+                   for event in descendants)
+        if entry["cause_id"] is not None:
+            parent = event_by_id[entry["cause_id"]]
+            if parent["source"] == "production_call":
+                parent_boundary = parent["observer"]["boundary"]
+                assert parent["callback_payload"][f"{parent_boundary}.phase"] == "entry"
+
+    assert all(sorted(counts) == list(range(len(counts)))
+               for counts in original_counts.values())
+
+
+def _assert_callback_io_receipts(journal_bytes, seal, events, receipts=None):
+    raw_lines, decoded_events, decoded_receipts = _journal_event_receipt_pairs(journal_bytes)
+    assert decoded_events == events
+    receipts = decoded_receipts if receipts is None else receipts
+    assert receipts == decoded_receipts
+    assert len(receipts) == len(events) == len(raw_lines) // 2
     receipt_by_event_id = {receipt["event_id"]: receipt for receipt in receipts}
     assert len(receipt_by_event_id) == len(receipts)
-    for event, raw_line in zip(events, raw_lines):
+    for event, receipt in zip(events, receipts):
         receipt = receipt_by_event_id[event["event_id"]]
         assert set(receipt) == {
-            "event_id", "line_sha256", "write_returned_at_monotonic_ns",
+            "record_type", "run_id", "sequence", "event_id", "event_sha256",
+            "event_line_sha256", "receipt_sha256", "write_returned_at_monotonic_ns",
             "flush_returned_at_monotonic_ns", "line_visible_at_monotonic_ns",
             "callback_finished_at_monotonic_ns", "visible_line_count",
             "line_available_during_callback",
         }
-        assert receipt["line_sha256"] == hashlib.sha256(raw_line).hexdigest()
+        assert receipt["run_id"] == event["run_id"]
         assert receipt["line_available_during_callback"] is True
         assert receipt["visible_line_count"] == event["sequence"] + 1
         assert (event["observed_at_monotonic_ns"]
@@ -563,8 +769,7 @@ def assert_mixed_boundary_event_lineage(result):
     seal_bytes = seal_path.read_bytes()
     assert journal["sha256"] == hashlib.sha256(journal_bytes).hexdigest()
     seal = json.loads(seal_bytes.decode("utf-8"))
-    raw_lines = journal_bytes.splitlines(keepends=True)
-    events = [json.loads(line) for line in raw_lines if line.strip()]
+    raw_lines, events, receipts = _journal_event_receipt_pairs(journal_bytes)
     assert events and [event["sequence"] for event in events] == list(range(len(events)))
     assert len({event["event_id"] for event in events}) == len(events)
     assert len({event["callback_id"] for event in events}) == len(events)
@@ -577,13 +782,25 @@ def assert_mixed_boundary_event_lineage(result):
             <= journal["hooks_installed_at_monotonic_ns"])
     assert (journal["finalized_at_monotonic_ns"]
             < journal["result_construction_started_at_monotonic_ns"])
+    assert (journal["operation_started_at_monotonic_ns"]
+            < journal["operation_completed_at_monotonic_ns"]
+            < journal["finalized_at_monotonic_ns"])
     assert journal["event_count"] == len(events)
+    assert journal["receipt_count"] == len(receipts)
+    assert journal["record_count"] == len(events) + len(receipts)
     assert journal["byte_length"] == len(journal_bytes)
-    assert journal["write_mode"] == "append-and-flush-per-callback"
-    assert journal["flush_count"] == len(events)
+    assert journal["final_record_sha256"] == hashlib.sha256(raw_lines[-1]).hexdigest()
+    assert journal["write_mode"] == "event-then-receipt-jsonl-per-callback"
+    assert journal["event_flush_count"] == len(events)
+    assert journal["receipt_flush_count"] == len(receipts)
+    assert journal["flush_count"] == len(events) + len(receipts)
     assert journal["append_attempts_after_finalize"] == []
-    receipts = _assert_callback_io_receipts(journal_bytes, seal, events)
+    receipts = _assert_callback_io_receipts(journal_bytes, seal, events, receipts)
     receipt_by_event_id = {receipt["event_id"]: receipt for receipt in receipts}
+    receipts_sha256 = hashlib.sha256(
+        json.dumps(receipts, ensure_ascii=False, sort_keys=True,
+                   separators=(",", ":")).encode("utf-8")).hexdigest()
+    assert journal["callback_io_receipts_sha256"] == receipts_sha256
     assert journal["last_event_flushed_at_monotonic_ns"] == max(
         receipt["flush_returned_at_monotonic_ns"] for receipt in receipts)
     assert journal["last_callback_finished_at_monotonic_ns"] == max(
@@ -594,16 +811,21 @@ def assert_mixed_boundary_event_lineage(result):
         "run_id": journal["run_id"],
         "journal_sha256": journal["sha256"],
         "event_count": len(events),
+        "receipt_count": len(receipts),
+        "record_count": len(events) + len(receipts),
         "byte_length": len(journal_bytes),
         "final_event_sha256": events[-1]["event_sha256"],
+        "final_record_sha256": hashlib.sha256(raw_lines[-1]).hexdigest(),
         "finalized_at_monotonic_ns": journal["finalized_at_monotonic_ns"],
         "hook_registry_sha256": journal["hook_registry_sha256"],
-        "flush_count": len(events),
+        "event_flush_count": len(events),
+        "receipt_flush_count": len(receipts),
+        "flush_count": len(events) + len(receipts),
         "last_event_flushed_at_monotonic_ns": journal[
             "last_event_flushed_at_monotonic_ns"],
         "last_callback_finished_at_monotonic_ns": journal[
             "last_callback_finished_at_monotonic_ns"],
-        "callback_io_receipts": receipts,
+        "callback_io_receipts_sha256": receipts_sha256,
     }
     assert not _contains_forbidden_replay_key(events)
     assert not _contains_forbidden_replay_key(provenance)
@@ -656,6 +878,8 @@ def assert_mixed_boundary_event_lineage(result):
                      "adapter_postprocessed_fields"} & set(event))
         assert event["run_id"] == journal["run_id"]
         assert event["source"] in MIXED_EVIDENCE_SOURCES
+        assert not ({"event_appended_at_monotonic_ns", "event_flushed_at_monotonic_ns",
+                     "callback_finished_at_monotonic_ns"} & set(event))
         assert event["capture_phase"] == "boundary_callback"
         assert event["hook_id"] in hook_ids
         assert event["hook_registered_at_monotonic_ns"] <= journal["hooks_installed_at_monotonic_ns"]
@@ -664,7 +888,7 @@ def assert_mixed_boundary_event_lineage(result):
         assert journal["opened_at_monotonic_ns"] <= event["callback_started_at_monotonic_ns"]
         receipt = receipt_by_event_id[event["event_id"]]
         assert receipt["callback_finished_at_monotonic_ns"] <= journal[
-            "finalized_at_monotonic_ns"]
+            "operation_completed_at_monotonic_ns"]
         assert event["previous_event_sha256"] == previous
         assert event["event_sha256"] == _event_digest(event)
         parents = event["parent_event_ids"]
@@ -709,6 +933,7 @@ def assert_mixed_boundary_event_lineage(result):
         for observation in observations:
             assert set(observation) == {
                 "observation_id", "payload_path", "value", "projection_path",
+                "producer_entry_event_id",
             }
             raw_field = observation["payload_path"]
             assert raw_field in raw and raw[raw_field] == observation["value"] and "." in raw_field
@@ -720,10 +945,27 @@ def assert_mixed_boundary_event_lineage(result):
             assert projection_path == schema[raw_field]
             if projection_path is not None:
                 assert projection_path not in MIXED_UNJOURNALED_FIELDS
+                assert len([item for item in observations
+                            if item["projection_path"] is not None]) == 1
+                assert event["source"] != "production_call"
+                assert observation["producer_entry_event_id"] == event["cause_id"]
         event_sequences[event["event_id"]] = event["sequence"]
         event_by_id[event["event_id"]] = event
         callback_by_event_id[event["event_id"]] = event["callback_id"]
         previous = event["event_sha256"]
+
+    _assert_wrapped_call_spans(events, receipt_by_event_id)
+    for event in events:
+        projected = [item for item in event["observations"]
+                     if item["projection_path"] is not None]
+        if not projected:
+            continue
+        parent = event_by_id[event["cause_id"]]
+        assert parent["source"] == "production_call"
+        boundary = parent["observer"]["boundary"]
+        assert parent["callback_payload"][f"{boundary}.phase"] == "entry"
+        assert receipt_by_event_id[parent["event_id"]][
+            "callback_finished_at_monotonic_ns"] <= event["callback_started_at_monotonic_ns"]
 
     lineage = _lineage_from_boundary_events(events)
     _assert_result_matches_boundary_lineage(result, lineage)
@@ -845,25 +1087,24 @@ def assert_sensitive_provider_material_is_memory_only(result, raw_response_marke
 
 def observed_production_calls(result):
     journal_path = Path(result["production_provenance"]["boundary_event_journal"]["path"])
-    events = [json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line]
+    _, events, _ = _journal_event_receipt_pairs(journal_path.read_bytes())
     return {event["observer"]["boundary"] for event in events
-            if event["source"] == "production_call"}
+            if event["source"] == "production_call"
+            and event["callback_payload"][f'{event["observer"]["boundary"]}.phase'] == "entry"}
 
 
 def boundary_event_map(result):
     journal_path = Path(result["production_provenance"]["boundary_event_journal"]["path"])
-    return {event["event_id"]: event for event in (
-        json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line
-    )}
+    _, events, _ = _journal_event_receipt_pairs(journal_path.read_bytes())
+    return {event["event_id"]: event for event in events}
 
 
 def assert_callback_observation(result, observation, *, source):
     event = boundary_event_map(result)[observation["event_id"]]
     assert event["source"] == source
     assert event["callback_payload"][observation["payload_path"]] == observation["value"]
-    assert event["event_appended_at_monotonic_ns"] < (
-        result["production_provenance"]["boundary_event_journal"]
-        ["result_construction_started_at_monotonic_ns"])
+    assert event["observed_at_monotonic_ns"] < result["production_provenance"][
+        "boundary_event_journal"]["result_construction_started_at_monotonic_ns"]
     return observation["value"]
 
 
@@ -882,9 +1123,8 @@ def changed_leaf_paths(before, after, prefix=""):
 
 def assert_lifecycle_observation_is_journal_event(result, observation, expected_action):
     journal_path = Path(result["production_provenance"]["boundary_event_journal"]["path"])
-    events = {event["event_id"]: event for event in (
-        json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line
-    )}
+    _, journal_events, _ = _journal_event_receipt_pairs(journal_path.read_bytes())
+    events = {event["event_id"]: event for event in journal_events}
     event = events[observation["event_id"]]
     assert observation["action"] == expected_action
     assert event["callback_id"] == observation["callback_id"]
@@ -927,12 +1167,49 @@ def assert_lifecycle_observation_is_journal_event(result, observation, expected_
      "def emit(cause_id, boundary, raw):\n    return journal_event(cause_id, raw)\n"),
     ("synthetic-controller-observation",
      "BOUNDARY_HOOK_SCHEMAS={'controller.output.ok': {'controller.output.ok.value': 'ok'}}\n"),
-    ("precomputed-journal-timestamps",
+    ("event-claims-post-serialization-time",
      "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
      "def journal_event(cause_id, raw):\n"
-     "    event_appended_at = clock()\n    event_flushed_at = clock()\n"
-     "    callback_finished_at = clock()\n    journal_writer.write(raw)\n"
-     "    journal_writer.flush()\n"),
+     "    event={'event_appended_at_monotonic_ns': observed_at + 1, "
+     "'event_flushed_at_monotonic_ns': observed_at + 2, "
+     "'callback_finished_at_monotonic_ns': observed_at + 3}\n"
+     "    journal_writer.write(raw)\n    journal_writer.flush()\n"),
+    ("manual-production-boundary",
+     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
+     "def operation():\n    boundary.productionCall('controller.calculate')\n"),
+    ("bulk-result-callback",
+     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
+     "def assembled_result_callback(cause_id, result):\n"
+     "    return journal_event(cause_id, result)\n"),
+    ("dormant-wrapper-source",
+     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
+     "cold_wrapper='function wrapper(){ note(\"phase\") }'\n"),
+    ("unmeasured-event-core-io",
+     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
+     "def journal_event(cause_id, raw):\n"
+     "    write_returned = clock()\n    writer.write(raw)\n"
+     "    flush_returned = clock()\n    writer.flush()\n    line_visible = clock()\n"
+     "def append_event_receipt(token):\n"
+     "    callback_finished = clock()\n    writer.write(token)\n    writer.flush()\n"),
+    ("receipt-before-callback-return",
+     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
+     "def journal_event(cause_id, raw):\n"
+     "    writer.write(raw)\n    write_returned = clock()\n"
+     "    writer.flush()\n    flush_returned = clock()\n    line_visible = clock()\n"
+     "def append_event_receipt(token):\n"
+     "    writer.write(token)\n    callback_finished = clock()\n    writer.flush()\n"),
+    ("receipt-not-after-observer-return",
+     "BOUNDARY_HOOK_SCHEMAS={'x': {'x.value': None}}\n"
+     "def journal_event(cause_id, raw):\n"
+     "    writer.write(raw)\n    write_returned = time.monotonic_ns()\n"
+     "    writer.flush()\n    flush_returned = time.monotonic_ns()\n"
+     "    line_visible = time.monotonic_ns()\n"
+     "def append_event_receipt(token):\n"
+     "    callback_finished = time.monotonic_ns()\n"
+     "    writer.write(token)\n    writer.flush()\n"
+     "def concrete_callback(cause_id):\n"
+     "    token = journal_event(cause_id, {})\n"
+     "    return append_event_receipt(token)\n"),
 ])
 def test_mixed_harness_source_guard_rejects_reviewer_p0_p1_patterns(expected_code, snippet):
     assert expected_code in _driver_integrity_violations(snippet)
@@ -3673,8 +3950,13 @@ def assert_navigation_has_observed_no_route_or_storage_activity(result):
     navigation_calls = [event for event in events
                         if event["source"] == "production_call"
                         and event["observer"]["boundary"] == "navigation.open"]
-    assert len(controller_calls) == 1 and len(navigation_calls) == 2
-    controller_call = controller_calls[0]
+    assert len(controller_calls) == len(navigation_calls) == 2
+    controller_phases = {
+        event["callback_payload"]["controller.navigate.phase"]: event
+        for event in controller_calls
+    }
+    assert set(controller_phases) == {"entry", "exit"}
+    controller_call = controller_phases["entry"]
     assert controller_call["observer"]["production_source"] == MIXED_PRODUCTION_SOURCES[
         "controller"]
     assert controller_call["observer"]["instrumentation"] == "external-wrapper"
@@ -3690,14 +3972,12 @@ def assert_navigation_has_observed_no_route_or_storage_activity(result):
             "wrapped_symbol": "Navigation.open",
         }
         assert set(event["callback_payload"]) == {
-            "navigation.open.phase", "navigation.open.launcher_count",
-            "navigation.open.outcome",
+            f"navigation.open.{field}" for field in MIXED_WRAPPED_CALL_FIELDS
         }
-    assert entry["callback_payload"]["navigation.open.launcher_count"] == 0
     assert entry["callback_payload"]["navigation.open.outcome"] is None
-    assert exit_["callback_payload"]["navigation.open.launcher_count"] == len(
-        result["launcher_calls"])
     assert exit_["callback_payload"]["navigation.open.outcome"] in {"returned", "threw"}
+    assert exit_["callback_payload"]["navigation.open.original_call_count"] == (
+        entry["callback_payload"]["navigation.open.original_call_count"] + 1)
     assert entry["cause_id"] == controller_call["event_id"]
     assert exit_["cause_id"] == entry["event_id"]
     assert entry["sequence"] < exit_["sequence"]
@@ -4132,11 +4412,21 @@ def test_ac052_ac056_product_cold_start_panel_recovers_last_good_without_mutatio
     assert child_journal["sha256"] == hashlib.sha256(child_bytes).hexdigest()
     child_seal = json.loads(Path(child_journal["seal_path"]).read_text(encoding="utf-8"))
     assert child_seal["journal_sha256"] == child_journal["sha256"]
-    child_events = [json.loads(line) for line in child_bytes.decode().splitlines() if line]
+    child_lines, child_events, child_receipts = _journal_event_receipt_pairs(child_bytes)
     assert child_events and child_seal["event_count"] == child_journal["event_count"] == len(child_events)
+    assert child_seal["receipt_count"] == child_journal["receipt_count"] == len(child_receipts)
+    assert child_seal["record_count"] == child_journal["record_count"] == len(child_lines)
     assert child_seal["byte_length"] == child_journal["byte_length"] == len(child_bytes)
     assert child_seal["final_event_sha256"] == child_events[-1]["event_sha256"]
-    child_receipts = _assert_callback_io_receipts(child_bytes, child_seal, child_events)
+    assert child_seal["final_record_sha256"] == hashlib.sha256(child_lines[-1]).hexdigest()
+    assert child_journal["final_record_sha256"] == child_seal["final_record_sha256"]
+    child_receipts = _assert_callback_io_receipts(
+        child_bytes, child_seal, child_events, child_receipts)
+    child_receipts_sha256 = hashlib.sha256(
+        json.dumps(child_receipts, ensure_ascii=False, sort_keys=True,
+                   separators=(",", ":")).encode()).hexdigest()
+    assert child_journal["callback_io_receipts_sha256"] == child_receipts_sha256
+    assert child_seal["callback_io_receipts_sha256"] == child_receipts_sha256
     assert child_journal["last_event_flushed_at_monotonic_ns"] == max(
         receipt["flush_returned_at_monotonic_ns"] for receipt in child_receipts)
     assert child_journal["last_callback_finished_at_monotonic_ns"] == max(
@@ -4145,15 +4435,15 @@ def test_ac052_ac056_product_cold_start_panel_recovers_last_good_without_mutatio
         "finalized_at_monotonic_ns"]
     assert [event["sequence"] for event in child_events] == list(range(len(child_events)))
     child_by_id = {event["event_id"]: event for event in child_events}
+    _assert_wrapped_call_spans(
+        child_events, {receipt["event_id"]: receipt for receipt in child_receipts})
     entry_events = [child_by_id[event_id] for event_id in child["entry_callback_event_ids"]]
     assert all(event["process_id"] == child["pid"] for event in child_events)
-    assert [event["sequence"] for event in entry_events] == sorted(
-        event["sequence"] for event in entry_events)
-    required_entry_boundaries = {
+    required_entry_boundaries = [
         "qml.open_panel", "controller.create", "controller.reload", "repository.load",
-    }
-    assert {event["observer"]["boundary"] for event in entry_events} == (
-        required_entry_boundaries)
+    ]
+    assert [event["observer"]["boundary"] for event in entry_events] == required_entry_boundaries
+    exit_events = []
     for entry in entry_events:
         boundary = entry["observer"]["boundary"]
         assert entry["observer"] == {
@@ -4162,17 +4452,32 @@ def test_ac052_ac056_product_cold_start_panel_recovers_last_good_without_mutatio
             "wrapped_symbol": boundary,
         }
         assert entry["callback_payload"] == {
-            f"{boundary}.phase": "entry", f"{boundary}.outcome": None,
+            f"{boundary}.{field}": (
+                "entry" if field == "phase" else None
+                if field in {"outcome", "return_identity", "exception_type"}
+                else entry["callback_payload"][f"{boundary}.{field}"])
+            for field in MIXED_WRAPPED_CALL_FIELDS
         }
         exits = [event for event in child_events
                  if event["observer"]["boundary"] == boundary
                  and event["callback_payload"].get(f"{boundary}.phase") == "exit"
                  and event["cause_id"] == entry["event_id"]]
         assert len(exits) == 1
-        assert exits[0]["callback_payload"] == {
-            f"{boundary}.phase": "exit", f"{boundary}.outcome": "returned",
+        exit_event = exits[0]
+        exit_events.append(exit_event)
+        assert exit_event["callback_payload"][f"{boundary}.outcome"] in {
+            "returned", "threw",
         }
+        assert exit_event["callback_payload"][f"{boundary}.original_call_count"] == (
+            entry["callback_payload"][f"{boundary}.original_call_count"] + 1)
+        assert exit_event["callback_payload"][f"{boundary}.original_callable_id"] == (
+            entry["callback_payload"][f"{boundary}.original_callable_id"])
         assert entry["sequence"] < exits[0]["sequence"]
+    assert [event["observer"]["boundary"] for event in exit_events] == required_entry_boundaries
+    assert [event["sequence"] for event in exit_events] == sorted(
+        (event["sequence"] for event in exit_events), reverse=True)
+    for outer, inner in zip(entry_events, entry_events[1:]):
+        assert inner["cause_id"] == outer["event_id"]
     assert child["selected_route"] == r["last_good_route_before_corruption"]
     assert child["selected_document_sha256"] == r["last_good_document_sha256"]
     assert child["selected_document_sha256"] != r["corrupt_newest_document_sha256"]
@@ -4711,12 +5016,12 @@ def test_ac055_invalid_navigation_coordinate_never_dispatches_or_mutates(run, de
     assert r["ok"] is False and r["launcher_calls"] == []
     calls = [event["observer"]["boundary"] for event in boundary_event_map(r).values()
              if event["source"] == "production_call"]
-    assert calls.count("controller.navigate") == 1
+    assert calls.count("controller.navigate") == 2
     assert calls.count("navigation.open") == 2
     assert not any(event["source"] == "navigation_launcher"
                    for event in boundary_event_map(r).values())
     entry, exit_ = assert_navigation_has_observed_no_route_or_storage_activity(r)
-    assert entry["callback_payload"]["navigation.open.launcher_count"] == 0
-    assert exit_["callback_payload"]["navigation.open.launcher_count"] == 0
     assert exit_["callback_payload"]["navigation.open.outcome"] == "threw"
+    assert exit_["callback_payload"]["navigation.open.return_identity"] is None
+    assert exit_["callback_payload"]["navigation.open.exception_type"]
     assert "좌표" in r["message"]

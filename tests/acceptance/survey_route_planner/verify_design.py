@@ -340,7 +340,7 @@ assert all(token in contract for token in [
     "`ObservedState`", "callback-owned `callback_payload`", "pure post-seal projection",
     "`originating_event_ids`", "`subprocess.Popen`", "different OS PID",
     "actual Repeater delegates", "fixed `visitAccessibility0/1/2` objects are invalid",
-    "append-and-flush mode", "`dict(result)`", "`controller.final_state`",
+    "event-then-receipt mode", "`dict(result)`", "`controller.final_state`",
     "AST extraction of result-assignment field names", "latest-event-by-source",
     "child returns its own immutable artifact", "`Repeater.itemAt(index)`",
     "Success-feedback visibility is not an AC-SRP-058 requirement",
@@ -351,6 +351,8 @@ assert all(token in contract for token in [
     "global `OUTPUT_FIELDS`", "generated `controller.output.*`", "synthetic `controller.observe`",
     "`collect(**values)`", "line-visible-during-callback", "persisted provider URLs",
     "calls the saved original", "pre-recorded `wrappedCall(\"navigation.open\")`",
+    "producer_entry_event_id", "original callable identity", "Dormant wrapper strings",
+    "event core", "hash-bound receipt", "operation-completion",
 ])
 provenance_source = inspect.getsource(module.assert_mixed_boundary_event_lineage)
 assert all(token in provenance_source for token in [
@@ -361,9 +363,13 @@ assert all(token in provenance_source for token in [
     '"append_attempts_after_finalize"', '"capture_phase"] == "boundary_callback"',
     '"causal_parent_observations"', '"hook_id"', '"registered_boundary_hooks"',
     '"callback_owner"', '"callback_payload"', '"cause_id"',
-    '"file_created_at_monotonic_ns"', '"write_mode"] == "append-and-flush-per-callback"',
-    '"flush_count"] == len(events)', '"callback_boundary"', '"observation_schema"',
-    '"callback_io_receipts"', '_assert_callback_io_receipts',
+    '"file_created_at_monotonic_ns"',
+    '"write_mode"] == "event-then-receipt-jsonl-per-callback"',
+    '"flush_count"] == len(events) + len(receipts)', '"callback_boundary"',
+    '"observation_schema"', '"callback_io_receipts_sha256"',
+    '_assert_callback_io_receipts', '_journal_event_receipt_pairs',
+    '"operation_completed_at_monotonic_ns"', '"producer_entry_event_id"',
+    '_assert_wrapped_call_spans',
     '"last_callback_finished_at_monotonic_ns"] == max(',
     'assert set(raw) == set(schema)', 'projection_path == schema[raw_field]',
     "_contains_forbidden_replay_key", "_lineage_from_boundary_events(events)",
@@ -386,6 +392,8 @@ assert all(token in driver_guard_source for token in [
     '"current_production_event_id"', '"current_storage_event_id"',
     '"navigationBoundary"', '"visual_parent.itemAt(index)"',
     '"OUTPUT_FIELDS"', '"controller.output."', '"controller.observe"', '"collect"',
+    '"productionCall"', '"wrappedEntry"', '"wrappedExit"',
+    '"STATE_CALLBACK_FIELDS"',
 ])
 integrity_source = inspect.getsource(module._driver_integrity_violations)
 assert all(token in integrity_source for token in [
@@ -395,8 +403,24 @@ assert all(token in integrity_source for token in [
     '"global-current-or-latest-event"', '"product-test-navigation-api"',
     '"fabricated-visual-parent-delegate-path"',
     '"global-output-schema"', '"generic-keyword-snapshot"',
-    '"nonconcrete-boundary-callback"', '"precomputed-journal-timestamps"',
-    '"synthetic-controller-observation"',
+    '"nonconcrete-boundary-callback"', '"event-claims-post-serialization-time"',
+    '"synthetic-controller-observation"', '"manual-production-boundary"',
+    '"bulk-result-callback"', '"dormant-wrapper-source"',
+    '"missing-post-callback-receipt-writer"', '"unmeasured-event-core-io"',
+    '"receipt-before-callback-return"', '_assigned_name_calls', '"monotonic_ns"',
+    '"receipt-not-after-observer-return"', '"append_event_receipt"',
+])
+receipt_pair_source = inspect.getsource(module._journal_event_receipt_pairs)
+assert all(token in receipt_pair_source for token in [
+    'records[::2]', 'records[1::2]', '"event_io_receipt"',
+    '"event_line_sha256"', '_receipt_digest(receipt)',
+])
+wrapper_span_source = inspect.getsource(module._assert_wrapped_call_spans)
+assert all(token in wrapper_span_source for token in [
+    'MIXED_WRAPPED_CALL_FIELDS', '"original_callable_id"',
+    '"original_call_count"', 'after == before + 1', '"return_identity"',
+    '"exception_type"', 'entry["sequence"] < event["sequence"] < exit_["sequence"]',
+    'sorted(counts) == list(range(len(counts)))',
 ])
 guard_test_source = inspect.getsource(
     module.test_mixed_harness_source_guard_rejects_reviewer_p0_p1_patterns)
@@ -475,7 +499,7 @@ assert all(token in navigation_source for token in [
     '"route-storage-write-log"', '"events"] == []', '"navigation.open"',
     '"controller.navigate"', '"navigation.open"', '"external-wrapper"',
     '"wrapped_symbol"', 'MIXED_PRODUCTION_SOURCES["navigation"]', '"cause_id"',
-    '"navigation.open.phase"', '"navigation.open.launcher_count"',
+    '"navigation.open.phase"', '"navigation.open.original_call_count"',
     '"navigation.open.outcome"', 'set(phases) == {"entry", "exit"}',
 ])
 navigation_wrapper_guard = inspect.getsource(module.assert_product_navigation_is_instrumented_externally)
@@ -544,17 +568,19 @@ assert all(token in cold_start_source for token in [
     'child["pid"] != seed_process["pid"]', '"process_boundary"] == "subprocess.Popen"',
     '"sealed_callback_journal"', '"generated_project_manifest"',
     '"generated_project_sha256"', '"entry_callback_event_ids"',
-    '"writer_closed"] is True', '"final_event_sha256"', 'list(range(len(child_events)))',
-    '_assert_callback_io_receipts',
+    '"writer_closed"] is True', '"final_event_sha256"', '"final_record_sha256"',
+    '_assert_callback_io_receipts', '_journal_event_receipt_pairs',
+    '_assert_wrapped_call_spans',
     '"qml.open_panel"', '"controller.create"', '"controller.reload"', '"repository.load"',
-    '"instrumentation": "external-wrapper"', 'f"{boundary}.phase": "entry"',
-    'f"{boundary}.phase": "exit"', 'f"{boundary}.outcome": "returned"',
+    '"instrumentation": "external-wrapper"', '"entry" if field == "phase"',
+    'original_call_count', 'original_callable_id', 'reverse=True',
+    'inner["cause_id"] == outer["event_id"]',
     '"corrupt_newest_bytes_after"] == r["corrupt_newest_bytes_before"]',
     '"provider_requests"] == r["storage_writes_after_corruption"] == []',
 ])
 callback_receipt_source = inspect.getsource(module._assert_callback_io_receipts)
 assert all(token in callback_receipt_source for token in [
-    '"line_sha256"', '"write_returned_at_monotonic_ns"',
+    '"event_line_sha256"', '"receipt_sha256"', '"write_returned_at_monotonic_ns"',
     '"flush_returned_at_monotonic_ns"', '"line_visible_at_monotonic_ns"',
     '"callback_finished_at_monotonic_ns"', '"line_available_during_callback"',
     'receipt["visible_line_count"] == event["sequence"] + 1',

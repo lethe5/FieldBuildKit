@@ -138,6 +138,17 @@
   coordinate entry/throw with zero launchers. Cold-start `qml.open_panel`, `controller.create`,
   `controller.reload` and `repository.load` entry IDs likewise come from original-invoking wrappers,
   not manual named markers. No product observation seam is introduced.
+- Correction-cycle-4 retry 2 makes production causality executable. Every projected field is bound
+  once at a concrete one-field observer callback whose direct parent is the already-open entry of
+  the saved-original wrapper that produced it; its callback finishes before the matching wrapper
+  exit. Source/runtime guards reject post-action or duplicate `boundary.productionCall` markers,
+  assembled-result callbacks and result fields sharing a bulk observation. Each wrapper pair carries
+  one invocation ID, original callable identity, exact before/after call counter and real return or
+  exception. Cold-start wrappers are executable and nested in product order, not dormant strings or
+  four manual markers around one `component.create`. Journal lines alternate event core then
+  hash-bound IO receipt. Event cores make no impossible appended/flushed/finished claim; the next
+  receipt records actual event write-return, flush-return, visibility and callback-return times,
+  and the seal authenticates both line kinds and their counts/hashes.
 
 The correction is intentionally RED before implementation. M01–M21 remain NOT RUN and no automated
 provenance check is native-QField, live-provider or device evidence.
