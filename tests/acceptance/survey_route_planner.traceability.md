@@ -320,17 +320,21 @@ adapter/driver, unit-test, specification or UI-guidance change is required. This
 
 ## DRAFT AC-SRP-049–058 traceability redesign (2026-09-21)
 
+> DRAFT correction (2026-09-21; user approval required): AC-SRP-050/054 add the executable
+> provider-valid origin 1x1 matrix regression. This is Category A coverage of existing
+> D-SRP-050/052 and FR-SRP-048/052; it changes no product requirement.
+
 Harness contract: survey_route_planner/HARNESS_CONTRACT.md, section
 “DRAFT AC-SRP-049–058 direct-observation redesign”.
 
 | Criterion | Direct automated evidence | Remaining manual evidence |
 | --- | --- | --- |
 | AC-SRP-049 | ac049 HTTP failure and unsafe-body tests over actual localhost traffic | M18 live-provider wording/status |
-| AC-SRP-050 | ac050 single-batch/radius and null/batch-stop tests; actual HTTP bodies and source/result comparison | M18 live rural snap/source inspection |
+| AC-SRP-050 | ac050 explicit origin 1x1 request/response, validation-only resolved-coordinate and saved-start immutability tests; single-batch/radius and null/batch/origin-response-stop tests; actual HTTP bodies and source/result comparison | M18 live rural snap/source inspection |
 | AC-SRP-051 | ac051 mapped/exact-zero/unmapped and malformed-walking tests | M18 live mapped/no-path behavior |
 | AC-SRP-052 | ac052/ac057 production-save roundtrip; real slot files, separate-process reopen and moved folder | M03 target-QField offline/recovery |
 | AC-SRP-053 | ac053 QML runtime object-tree/Repeater/QAccessible test plus raw provider/file callback slices and before/after counters for each exercised passive product action; canned empty boundary results fail | M19 pixels, contrast, interaction and screen reader |
-| AC-SRP-054 | ac054 actual HTTP sequence/privacy test and file-wide secret scan | M18 live consent/provider boundary |
+| AC-SRP-054 | ac050/ac054 semantic origin-stage and actual HTTP sequence/privacy tests plus file-wide secret scan | M18 live consent/provider boundary |
 | AC-SRP-055 | ac055 navigation.open direct-spy and coordinate tests | M20 iOS and M21 Android handoff |
 | AC-SRP-056 | ac056 three production-saved active/inactive schema-3 routes cover all three allowed pairs; active+inactive corruption covers required missing/blank fields, both identity mismatches, unknown values and all six disallowed cross-pairs with raw corrupt/last-good bytes and request/write counters | M03 target-QField recovery |
 | AC-SRP-057 | ac057 variant-corruption and schema-boundary tests, exact top-level-schema-3 `route_schema: 1` plus schema-2 `legs` contradiction, and AC052 selected replacement/legacy preservation | M03 list/load compatibility |
@@ -347,3 +351,8 @@ Harness contract: survey_route_planner/HARNESS_CONTRACT.md, section
 
 M01–M21 remain **NOT RUN**. Automated success never substitutes for native QField, live ORS,
 Apple Maps or NAVER device verification.
+
+Correction verification: design verifier **PASS**; **403 collected**; focused AC049–058
+**43 passed, 4 failed, 356 deselected**. The four intended REDs are the invalid request shape plus
+accepted unresolved-destination, null-duration and non-numeric-duration responses. The existing
+unresolved-source stop is green. M01–M21 remain **NOT RUN**.

@@ -281,6 +281,8 @@ for required in (
     "_direct_node", "_route_http", "_provider_responder",
     "test_ac049_http_failure_preserves_actual_stage_status_and_stops",
     "test_ac050_single_batched_snap_uses_original_coordinates_and_exact_radius",
+    "test_ac050_origin_validation_is_explicit_1x1_and_resolved_coordinates_are_validation_only",
+    "test_ac050_invalid_origin_1x1_response_stops_with_actionable_start_error",
     "test_ac051_actual_backend_emits_roundtrip_walking_contract",
     "test_ac052_ac057_production_save_roundtrips_schema3_and_preserves_legacy",
     "test_ac053_qml_runtime_reads_real_tree_repeater_and_qaccessible",
@@ -298,6 +300,22 @@ assert all(name in test_source for name in (
     "M20_ios_apple_maps_handoff", "M21_android_naver_regression",
 ))
 assert "ThreadingHTTPServer" in test_source
+origin_success_source = inspect.getsource(
+    module.test_ac050_origin_validation_is_explicit_1x1_and_resolved_coordinates_are_validation_only)
+assert all(token in origin_success_source for token in (
+    '"locations": [MIXED_START, MIXED_START]', '"sources": [0]', '"destinations": [1]',
+    '"metrics": ["duration"]', '"resolve_locations": True',
+    'access_snap["body"] == {"locations": [MIXED_SOURCE], "radius": 2000}',
+    'route["start"] == MIXED_START', 'route["visits"][0]["source_coordinate"] == MIXED_SOURCE',
+))
+origin_failure_source = inspect.getsource(
+    module.test_ac050_invalid_origin_1x1_response_stops_with_actionable_start_error)
+assert all(token in origin_failure_source for token in (
+    '"unresolved_source"', '"unresolved_destination"', '"null_duration"',
+    '"invalid_duration"', '["map_start", "saved_start"]',
+    '["/v2/matrix/driving-car"]',
+))
+assert 'len(body.get("locations", []))' not in inspect.getsource(module._provider_responder)
 assert 'fs.readFileSync(input.modules[name],"utf8")' in test_source
 assert "repository.checksum(payload)" in test_source
 assert "navigation.open(stop,opener" in test_source

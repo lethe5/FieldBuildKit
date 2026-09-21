@@ -309,6 +309,14 @@ routing requests for completion, uncheck, toggle, restart or load.
 
 ## DRAFT AC-SRP-049–058 direct-observation redesign (2026-09-21)
 
+> DRAFT correction (2026-09-21; user approval required): a matrix request is observed as
+> `origin-validation` only when it explicitly selects one source and one destination from two
+> identical immutable-origin locations (`sources:[0]`, `destinations:[1]`). Location-count
+> heuristics are not evidence. The raw request and raw response must expose the finite 1x1
+> duration and both resolved endpoint locations. Resolved provider coordinates may be compared
+> for validation but must not replace the original start in any later request or saved route.
+> Malformed endpoint/metric fixtures are provider responses, not adapter policy switches.
+
 This section supersedes only the mixed-route callback-journal design that followed the approved
 AC-SRP-001–048 baseline. No provenance journal, causal lineage, event core, receipt, seal,
 field-origin table, callback ancestry, result-source metadata or completed-result capture is an

@@ -2669,7 +2669,7 @@ def _settings(base, secret="SRP_DIRECT_SYNTHETIC_SECRET"):
 
 
 def _provider_responder(*, access=MIXED_ACCESS, fail_stage=None, status=503,
-                        failure=None, malformed_walking=False):
+                        failure=None, malformed_walking=False, origin_response=None):
     matrix_calls = 0
 
     def respond(record, _sequence):
@@ -2678,7 +2678,9 @@ def _provider_responder(*, access=MIXED_ACCESS, fail_stage=None, status=503,
         stage = None
         if "/v2/matrix/" in path:
             matrix_calls += 1
-            stage = "origin-validation" if len(body.get("locations", [])) == 1 else "matrix"
+            stage = ("origin-validation"
+                     if body.get("sources") == [0] and body.get("destinations") == [1]
+                     else "matrix")
         elif "/v2/snap/" in path:
             stage = "access-snap"
         elif "/foot-hiking/" in path:
@@ -2687,10 +2689,18 @@ def _provider_responder(*, access=MIXED_ACCESS, fail_stage=None, status=503,
             stage = "optimizer"
         elif "/v2/directions/" in path:
             stage = "directions"
-        if stage == fail_stage:
+        legacy_origin_body = {
+            "locations": [MIXED_START], "metrics": ["duration"], "resolve_locations": True,
+        }
+        if stage == fail_stage and body != legacy_origin_body:
             return status, "application/json", failure or {"error": {"code": "PROVIDER_FAILURE", "message": "fixture failure"}}
-        if stage == "origin-validation":
-            return 200, "application/json", {"sources": [{"location": MIXED_START, "snapped_distance": 0}]}
+        if stage == "origin-validation" or body == legacy_origin_body:
+            response = origin_response or {
+                "durations": [[0]],
+                "sources": [{"location": MIXED_START, "snapped_distance": 0}],
+                "destinations": [{"location": MIXED_START, "snapped_distance": 0}],
+            }
+            return 200, "application/json", response
         if stage == "access-snap":
             return 200, "application/json", {"locations": [{"location": access}]}
         if stage == "walking-directions":
@@ -2808,6 +2818,72 @@ def test_ac050_single_batched_snap_uses_original_coordinates_and_exact_radius(ra
                if "/v2/matrix/driving-car" in record["path"] and len(record["body"]["locations"]) > 1]
     assert vehicle[0]["body"]["locations"] == [MIXED_START, MIXED_ACCESS]
     assert observed["result"]["stops"][0]["coordinate"] == MIXED_SOURCE
+
+
+def test_ac050_origin_validation_is_explicit_1x1_and_resolved_coordinates_are_validation_only(tmp_path):
+    resolved = [MIXED_START[0] + 0.0001, MIXED_START[1] + 0.0001]
+    origin_response = {
+        "durations": [[0.25]],
+        "sources": [{"location": resolved, "snapped_distance": 12.5}],
+        "destinations": [{"location": resolved, "snapped_distance": 12.5}],
+    }
+    with _route_http(_provider_responder(origin_response=origin_response)) as (base, records):
+        result = _direct_node(
+            "controller_flow", tmp_path,
+            base=str(tmp_path / "origin-validation" / "routes"),
+            document=_legacy_document(),
+            features=[{"id": "site-a", "name": "농촌 A",
+                       "coordinate": MIXED_SOURCE, "completed": False}],
+            settings=_settings(base), start=MIXED_START, roundtrip=False,
+            replace_active=True, name="출발지 불변 경로",
+        )
+    assert result["calculated"] is result["saved"] is True
+    origin = records[0]
+    assert origin["path"] == "/v2/matrix/driving-car"
+    assert origin["body"] == {
+        "locations": [MIXED_START, MIXED_START],
+        "sources": [0], "destinations": [1],
+        "metrics": ["duration"], "resolve_locations": True,
+    }
+    access_snap = records[1]
+    assert access_snap["body"] == {"locations": [MIXED_SOURCE], "radius": 2000}
+    assert resolved not in access_snap["body"]["locations"]
+    vehicle_matrix = records[-3]
+    assert vehicle_matrix["body"]["locations"] == [MIXED_START, MIXED_ACCESS]
+    vehicle_directions = records[-1]
+    assert vehicle_directions["body"]["coordinates"] == [MIXED_START, MIXED_ACCESS]
+    route = next(route for route in result["snapshot"]["data"]["routes"]
+                 if route["route_schema"] == 3)
+    assert route["start"] == MIXED_START
+    assert route["stops"][0]["coordinate"] == MIXED_SOURCE
+    assert route["visits"][0]["source_coordinate"] == MIXED_SOURCE
+    assert resolved not in json.loads(json.dumps(route))["vehicle_legs"][0]["geometry"]["coordinates"]
+
+
+@pytest.mark.parametrize("defect", [
+    "unresolved_source", "unresolved_destination", "null_duration", "invalid_duration",
+])
+def test_ac050_invalid_origin_1x1_response_stops_with_actionable_start_error(defect, tmp_path):
+    response = {
+        "durations": [[0]],
+        "sources": [{"location": MIXED_START, "snapped_distance": 0}],
+        "destinations": [{"location": MIXED_START, "snapped_distance": 0}],
+    }
+    if defect == "unresolved_source":
+        response["sources"][0]["location"] = None
+    elif defect == "unresolved_destination":
+        response["destinations"][0]["location"] = None
+    elif defect == "null_duration":
+        response["durations"][0][0] = None
+    else:
+        response["durations"][0][0] = "invalid"
+    observed, records = _backend_run(
+        tmp_path, _provider_responder(origin_response=response))
+    assert observed["ok"] is False
+    assert observed["error"]["stage"] == "origin-validation"
+    assert observed["error"]["suggested_actions"] == ["map_start", "saved_start"]
+    assert "도로 위" in observed["error"]["message"]
+    assert [record["path"] for record in records] == ["/v2/matrix/driving-car"]
 
 
 def test_ac050_null_snap_and_batch_limit_stop_without_downstream_request(tmp_path):

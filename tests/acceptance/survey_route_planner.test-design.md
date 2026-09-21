@@ -537,12 +537,23 @@ and unaffected-behavior regressions. `builder_step7_route_credentials` becomes t
 
 ## DRAFT AC-SRP-049–058 direct-observation redesign (2026-09-21)
 
+> DRAFT correction (2026-09-21; user approval required): AC050/054 now recognize origin
+> validation by its provider-valid explicit 1x1 matrix contract, not by a one-location heuristic.
+> The request repeats the immutable origin as two locations with `sources:[0]`,
+> `destinations:[1]`, duration metric and resolved locations. A finite 1x1 duration plus resolved
+> source and destination is required. Provider-resolved coordinates are validation-only: the
+> original start remains unchanged in access-snap, vehicle matrix/directions and the saved route.
+> Missing/unresolved endpoints and null/invalid duration stop before access-snap,
+> walking, vehicle routing or storage with the existing actionable origin error. Ordering,
+> privacy, no-retry and direct-observation boundaries are unchanged.
+
 ### Automated design
 
 - AC049 sends real production HTTP through a localhost recorder. Matrix, optimizer and directions
   non-2xx tests assert stage/status, bounded safe scalar normalization, redaction and immediate
   stop. Empty, HTML, malformed and credential-like bodies expose no detail.
-- AC050–051 call backend.calculate directly. Recorded bodies prove one ordered source-coordinate
+- AC050–051 call backend.calculate directly. Recorded bodies prove the explicit provider-valid
+  origin 1x1 request, both resolved endpoint records and finite duration, then one ordered source-coordinate
   snap and exact radius; returned values prove mapped, exact-zero and explicit no-foot-path
   out-and-back visits. Null/batch/origin/radius and malformed/transient walking failures prove no
   downstream requests or writes.
@@ -610,3 +621,14 @@ commit, live provider call or device operation was performed.
 
 The managed sandbox initially denied localhost bind with PermissionError. The authoritative focused
 run above used the approved localhost permission and exercised only 127.0.0.1 disposable servers.
+
+### DRAFT origin-validation correction verification (2026-09-21)
+
+This correction supersedes only the counts and RED description in the immediately preceding draft
+record; it preserves the earlier run as history. Design verification passed and collection is
+**403 tests**. The authoritative focused AC049–058 run is **43 passed, 4 failed, 356 deselected**.
+All four RED results are the intended Category A regression: the current request omits the second
+immutable-origin location and explicit source/destination indexes; current response validation also
+accepts an unresolved destination, null duration and non-numeric duration. Unresolved source already
+stops correctly. `git diff --check` over the five acceptance artifacts passes. M01–M21 remain
+**NOT RUN**; no live provider or device result was claimed.
