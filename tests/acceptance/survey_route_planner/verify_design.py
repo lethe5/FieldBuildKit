@@ -559,3 +559,39 @@ assert all(token in ac062_ui for token in (
     'observed["remembered_key_available_to_qfield"] is False',
 ))
 print("survey route AC061-062 matrix/credential-store design verified; no real app-data used")
+
+# APPROVED Category A correction (2026-09-22): generated-QML acknowledgement/save clicks are direct.
+qml_click_success = inspect.getsource(
+    module.test_ac036_ac051_ac052_unmapped_generated_qml_click_saves_schema3_and_reports_path)
+assert all(token in qml_click_success for token in (
+    'controls["acknowledgement_object_name"] == "unmappedAcknowledgement"',
+    'controls["save_object_name"] == "saveRouteButton"',
+    'controls["save_enabled_before_ack"] is False',
+    'controls["save_enabled_after_ack"] is True',
+    'observed["candidate_after_click"] is None',
+    'document["schema"] == 3',
+    'route["route_schema"] == 3',
+    'observed["load_enabled_after_click"] is True',
+    'observed["independently_reopened_load_enabled"] is True',
+    'route_name in observed["message_after_click"]',
+    'relative_path in observed["message_after_click"]',
+    'observed["feedback_in_viewport"] is True',
+))
+qml_click_failure = inspect.getsource(
+    module.test_ac036_unmapped_generated_qml_save_failure_keeps_candidate_and_shows_error)
+assert all(token in qml_click_failure for token in (
+    'observed["candidate_after_click"] == observed["candidate_before_click"]',
+    'observed["document_after_click"] is None',
+    'observed["load_enabled_after_click"] is False',
+    '"저장 실패" in observed["message_after_click"]',
+    '"저장했습니다" not in observed["message_after_click"]',
+    'observed["feedback_in_viewport"] is True',
+))
+qml_click_driver = (path.parent / "unmapped_save_qml_driver.py").read_text(encoding="utf-8-sig")
+assert all(token in qml_click_driver for token in (
+    "operation set changed", "branch marker changed", "QTest.mouseClick",
+    "pointer_click(acknowledgement)", "pointer_click(save_button)",
+    "feedback_in_viewport", "independently_reopened_document",
+))
+assert "acknowledgeUnmapped(" not in qml_click_driver
+print("survey route unmapped-save generated-QML click design verified; viewport feedback expected RED")

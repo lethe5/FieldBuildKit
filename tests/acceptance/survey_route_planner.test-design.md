@@ -788,3 +788,31 @@ app-data result is claimed.
   evidence; the permission-enabled result above is authoritative.
 - No live provider, native QField, real credential, or real app-data operation was performed. M01–M21 remain
   **NOT RUN**.
+
+## APPROVED unmapped-save QML click conformance correction (2026-09-22)
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-22)**.
+
+Category A authority remains the approved FR-SRP-023/034/051 and AC-SRP-036/051/052 contracts; no
+requirement is added or reinterpreted. The correction closes one missing observation boundary exposed by
+the user's target iPhone/QField result: controller-direct acknowledgement/save tests do not establish what
+happens after the generated panel's enabled save control is tapped.
+
+- Build a disposable project, load its generated `qfield_routes/RoutePanel.qml`, and create a real
+  `unmapped_estimate` candidate through the existing localhost provider boundary.
+- Scroll the loaded panel to `unmappedAcknowledgement` and deliver a window pointer click. Observe the actual
+  `saveRouteButton` disabled before and enabled after that click; calling
+  `controller.acknowledgeUnmapped()` directly is not evidence.
+- Enter a nonblank name, scroll to `saveRouteButton`, and deliver a window pointer click. The success branch
+  must atomically write/read back schema 3, clear the candidate, expose the saved route in the list/load
+  controls, and reopen the same document and active route. Its visible success feedback must remain inside
+  the current scroll viewport and contain the final route name plus the actual project-relative
+  `survey-routes.a.json` or `survey-routes.b.json` path.
+- Repeat with a file-write failure. The same QML click must retain the exact candidate, publish no route or
+  success text, keep list/load unavailable, and visibly report the save failure.
+
+The acceptance-only splice reuses the canonical generated-QML driver and fails closed if its insertion
+markers change. It adds no product algorithm, controller call substitute, app/unit edit, live service, or
+device PASS claim. The focused automated result is intentionally RED only because the committed success text
+is above the user's current scroll viewport after the save-button click; persistence/readback and the failure
+path are otherwise green. The reported iPhone/QField observation remains separate runtime evidence.

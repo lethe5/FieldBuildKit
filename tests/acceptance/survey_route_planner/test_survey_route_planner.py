@@ -31,6 +31,7 @@ import math
 import os
 import re
 import shutil
+import sys
 import threading
 import sqlite3
 import subprocess
@@ -3057,6 +3058,83 @@ def test_ac051_unmapped_save_requires_acknowledgement_and_keeps_null_totals(tmp_
                  if route["route_schema"] == 3)
     assert route["walking_totals"]["duration_s"] is None
     assert route["combined_totals"] is None
+
+
+# APPROVED TEST DESIGN (approval 2026-09-22): generated-QML unmapped-save click regression.
+def _unmapped_save_qml_click(tmp_path, *, fault=""):
+    """Build a disposable project and drive its generated acknowledgement/save controls."""
+    from qfield_builder.survey_route_acceptance import _build
+
+    generated = _build(tmp_path / ("failure" if fault else "success"), sites=[{
+        "site_id": "site-a", "site_name": "농촌 A", "geom_wkt": "POINT(127.01 37.01)",
+    }], site_geometry_type="POINT")
+    driver = Path(__file__).parent / "unmapped_save_qml_driver.py"
+    payload = {
+        "project_dir": generated["project_dir"],
+        "case": {
+            "operation": "unmapped_save_qml_click",
+            "route_name": "현장 fallback 경로",
+            "fault": fault,
+            "features": [{"id": "site-a", "name": "농촌 A", "xy": [127.01, 37.01]}],
+        },
+    }
+    completed = subprocess.run(
+        [sys.executable, str(driver)], input=json.dumps(payload), text=True,
+        encoding="utf-8", errors="replace", capture_output=True, timeout=45,
+    )
+    assert completed.returncode == 0, completed.stderr
+    return json.loads(completed.stdout)
+
+
+def test_ac036_ac051_ac052_unmapped_generated_qml_click_saves_schema3_and_reports_path(tmp_path):
+    observed = _unmapped_save_qml_click(tmp_path)
+    controls = observed["qml_controls"]
+    assert observed["qml_runtime"]["loaded_generated_qml"] is True
+    assert controls["acknowledgement_object_name"] == "unmappedAcknowledgement"
+    assert controls["save_object_name"] == "saveRouteButton"
+    assert controls["save_enabled_before_ack"] is False
+    assert controls["acknowledgement_checked"] is True
+    assert controls["save_enabled_after_ack"] is True
+
+    route_name = observed["route_name_input"].strip()
+    relative_path = observed["committed_project_relative_path"]
+    assert observed["save_ok"] is True
+    assert observed["candidate_after_click"] is None
+    assert relative_path in {"survey-routes.a.json", "survey-routes.b.json"}
+    assert route_name in observed["message_after_click"]
+    assert relative_path in observed["message_after_click"]
+    assert observed["feedback_in_viewport"] is True
+
+    document = observed["document_after_click"]
+    reopened_document = observed["independently_reopened_document"]
+    assert document == reopened_document
+    assert document["schema"] == 3
+    assert observed["route_after_click"] == observed["independently_reopened_route"]
+    route = observed["route_after_click"]
+    assert route["route_schema"] == 3
+    assert route["name"] == route_name
+    assert route["visits"][0]["walking_mode"] == "unmapped_estimate"
+    assert route["walking_totals"]["duration_s"] is None
+    assert route["combined_totals"] is None
+    assert observed["load_enabled_after_click"] is True
+    assert observed["independently_reopened_load_enabled"] is True
+    assert any(item["route_id"] == route["route_id"]
+               for item in observed["independently_reopened_list"])
+
+
+def test_ac036_unmapped_generated_qml_save_failure_keeps_candidate_and_shows_error(tmp_path):
+    observed = _unmapped_save_qml_click(tmp_path, fault="commit_failure")
+    assert observed["qml_controls"]["save_enabled_after_ack"] is True
+    assert observed["save_ok"] is False
+    assert observed["candidate_after_click"] == observed["candidate_before_click"]
+    assert observed["document_after_click"] is None
+    assert observed["route_after_click"] is None
+    assert observed["listed_after_click"] == []
+    assert observed["load_enabled_after_click"] is False
+    assert observed["committed_project_relative_path"] is None
+    assert "저장 실패" in observed["message_after_click"]
+    assert "저장했습니다" not in observed["message_after_click"]
+    assert observed["feedback_in_viewport"] is True
 
 
 def _saved_mixed_document(tmp_path):

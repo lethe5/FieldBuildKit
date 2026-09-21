@@ -429,3 +429,19 @@ Verification: design verifier **PASS**; **475 collected**; authoritative focused
 RED for four missing-diagnostic success cases and thirteen vehicle-stage diagnostics; current vehicle
 provider-response failures preserve state and stop correctly but do not retain the required `matrix` stage.
 An initial restricted run's 31 loopback-bind failures are environment noise, not product evidence.
+
+## APPROVED unmapped-save QML click conformance traceability (2026-09-22)
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-22)**.
+
+| Approved authority | Direct automated evidence | Remaining device evidence |
+| --- | --- | --- |
+| FR-SRP-034; AC-SRP-036 | `test_ac036_ac051_ac052_unmapped_generated_qml_click_saves_schema3_and_reports_path` drives the generated checkbox and save button by pointer event; `test_ac036_unmapped_generated_qml_save_failure_keeps_candidate_and_shows_error` proves candidate/error retention through the same save control | Target iPhone/QField tap result reported by user; retest after implementation |
+| AC-SRP-051 | Success test observes save disabled before and enabled after the real generated acknowledgement click; no direct controller acknowledgement is accepted | Native checkbox/touch semantics remain user-run |
+| FR-SRP-051; AC-SRP-052 | Success test independently reads schema-3 slot storage, reopens the identical document/route, and observes saved-list/load availability | Target-QField restart/folder-move remains M03 |
+| D-SRP-021; FR-SRP-023 | Success test requires the current viewport to contain feedback with the final name and actual project-relative slot path; failure test forbids success text | Native visual placement remains user-run |
+
+Collection: **477 tests**. Focused result: **1 passed, 1 failed, 475 deselected**. The intended RED is the
+successful click's `feedback_in_viewport == false`: schema-3 commit/readback, candidate clearing and exact
+name/path content all succeed, but the committed success is outside the current save-control viewport. The
+injected write-failure case passes with exact candidate retention and a visible production error.

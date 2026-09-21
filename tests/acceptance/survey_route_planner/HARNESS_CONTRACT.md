@@ -450,3 +450,16 @@ password/accessibility observations, but never return or print a decrypted key. 
 Remember-off, blank and injected-store-failure builds must still publish without a credential file or
 plaintext fallback. The diagnostic override must contain exactly one final `credentials.enc`; atomic temp
 files may exist only transiently inside that same disposable directory and must be absent at observation.
+
+## APPROVED unmapped-save generated-QML click correction (2026-09-22)
+
+This correction is **APPROVED TEST DESIGN (approval 2026-09-22)**.
+
+`unmapped_save_qml_click` must load the generated `RoutePanel.qml`, produce an unmapped candidate through
+the existing HTTP fixture, scroll each named control into the live `ScrollView`, and deliver pointer events
+to `unmappedAcknowledgement` and `saveRouteButton`. Direct controller acknowledgement or save invocation is
+not evidence. Return raw control checked/enabled state, the current viewport intersection of `messageLabel`,
+candidate before/after, real slot path/document, active route, saved-list/load state, and an independent panel
+reopen readback. A write-boundary failure may be injected only at `FileUtils.writeFileContent`; it must return
+the unchanged candidate and visible production error with no committed/listed route. The splice is
+acceptance-only, reuses the canonical QML driver, and must fail closed when its exact insertion markers move.
