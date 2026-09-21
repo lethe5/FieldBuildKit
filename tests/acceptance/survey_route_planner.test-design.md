@@ -632,3 +632,17 @@ immutable-origin location and explicit source/destination indexes; current respo
 accepts an unresolved destination, null duration and non-numeric duration. Unresolved source already
 stops correctly. `git diff --check` over the five acceptance artifacts passes. M01–M21 remain
 **NOT RUN**; no live provider or device result was claimed.
+
+### DRAFT semantic matrix-selector correction verification (2026-09-21; user approval required)
+
+This acceptance-oracle correction replaces the stale location-count selector only. Origin
+validation is classified by the duplicate immutable-origin pair plus explicit `sources:[0]` and
+`destinations:[1]`; the vehicle matrix is classified by the actual start/access coordinates and
+absence of that source/destination signature. Exact origin body, resolved response endpoints and
+finite metric, downstream original-start immutability, and request ordering remain asserted.
+
+- Design verifier: **PASS**, exit 0.
+- Collection: **403 collected**, exit 0.
+- Focused AC049–058: **47 passed, 356 deselected**, exit 0.
+- Full acceptance file: **382 passed, 21 skipped**, exit 0, 263.33 s.
+- M01–M21 remain **NOT RUN**; the skips do not claim device or live-provider PASS.

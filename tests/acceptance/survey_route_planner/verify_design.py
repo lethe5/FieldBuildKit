@@ -279,6 +279,7 @@ coverage = set(re.findall(r"ac(\d{3})", test_source))
 assert {f"{i:03d}" for i in range(1, 59)} <= coverage
 for required in (
     "_direct_node", "_route_http", "_provider_responder",
+    "_is_origin_validation_matrix", "_is_vehicle_matrix",
     "test_ac049_http_failure_preserves_actual_stage_status_and_stops",
     "test_ac050_single_batched_snap_uses_original_coordinates_and_exact_radius",
     "test_ac050_origin_validation_is_explicit_1x1_and_resolved_coordinates_are_validation_only",
@@ -315,7 +316,17 @@ assert all(token in origin_failure_source for token in (
     '"invalid_duration"', '["map_start", "saved_start"]',
     '["/v2/matrix/driving-car"]',
 ))
-assert 'len(body.get("locations", []))' not in inspect.getsource(module._provider_responder)
+origin_selector_source = inspect.getsource(module._is_origin_validation_matrix)
+assert all(token in origin_selector_source for token in (
+    'body.get("sources") == [0]', 'body.get("destinations") == [1]',
+    'len(locations) == 2', 'locations[0] == locations[1]',
+))
+vehicle_selector_source = inspect.getsource(module._is_vehicle_matrix)
+assert all(token in vehicle_selector_source for token in (
+    'body.get("locations") == [MIXED_START, MIXED_ACCESS]',
+    '"sources" not in body', '"destinations" not in body',
+))
+assert not re.search(r'len\([^\n]*locations[^\n]*\)\s*(?:==|>)\s*1', test_source)
 assert 'fs.readFileSync(input.modules[name],"utf8")' in test_source
 assert "repository.checksum(payload)" in test_source
 assert "navigation.open(stop,opener" in test_source

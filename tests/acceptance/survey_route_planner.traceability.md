@@ -353,6 +353,7 @@ M01–M21 remain **NOT RUN**. Automated success never substitutes for native QFi
 Apple Maps or NAVER device verification.
 
 Correction verification: design verifier **PASS**; **403 collected**; focused AC049–058
-**43 passed, 4 failed, 356 deselected**. The four intended REDs are the invalid request shape plus
-accepted unresolved-destination, null-duration and non-numeric-duration responses. The existing
-unresolved-source stop is green. M01–M21 remain **NOT RUN**.
+**47 passed, 356 deselected**. The DRAFT semantic-selector correction distinguishes the duplicate
+origin pair with explicit `sources:[0]`/`destinations:[1]` from the actual start/access vehicle
+matrix without those indexes; no location-count stage heuristic remains. The full acceptance file
+is **382 passed, 21 skipped**. M01–M21 remain **NOT RUN**; user approval is required.

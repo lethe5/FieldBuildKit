@@ -2668,6 +2668,22 @@ def _settings(base, secret="SRP_DIRECT_SYNTHETIC_SECRET"):
     }
 
 
+def _is_origin_validation_matrix(record):
+    body = record["body"]
+    locations = body.get("locations")
+    return ("/v2/matrix/" in record["path"]
+            and body.get("sources") == [0] and body.get("destinations") == [1]
+            and isinstance(locations, list) and len(locations) == 2
+            and locations[0] == locations[1])
+
+
+def _is_vehicle_matrix(record):
+    body = record["body"]
+    return ("/v2/matrix/" in record["path"]
+            and body.get("locations") == [MIXED_START, MIXED_ACCESS]
+            and "sources" not in body and "destinations" not in body)
+
+
 def _provider_responder(*, access=MIXED_ACCESS, fail_stage=None, status=503,
                         failure=None, malformed_walking=False, origin_response=None):
     matrix_calls = 0
@@ -2678,9 +2694,7 @@ def _provider_responder(*, access=MIXED_ACCESS, fail_stage=None, status=503,
         stage = None
         if "/v2/matrix/" in path:
             matrix_calls += 1
-            stage = ("origin-validation"
-                     if body.get("sources") == [0] and body.get("destinations") == [1]
-                     else "matrix")
+            stage = "origin-validation" if _is_origin_validation_matrix(record) else "matrix"
         elif "/v2/snap/" in path:
             stage = "access-snap"
         elif "/foot-hiking/" in path:
@@ -2814,9 +2828,8 @@ def test_ac050_single_batched_snap_uses_original_coordinates_and_exact_radius(ra
     snap = [record for record in records if "/v2/snap/driving-car/json" in record["path"]]
     assert len(snap) == 1
     assert snap[0]["body"] == {"locations": [MIXED_SOURCE], "radius": radius}
-    vehicle = [record for record in records
-               if "/v2/matrix/driving-car" in record["path"] and len(record["body"]["locations"]) > 1]
-    assert vehicle[0]["body"]["locations"] == [MIXED_START, MIXED_ACCESS]
+    vehicle = [record for record in records if _is_vehicle_matrix(record)]
+    assert len(vehicle) == 1
     assert observed["result"]["stops"][0]["coordinate"] == MIXED_SOURCE
 
 
