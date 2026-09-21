@@ -1,6 +1,6 @@
 # Feature: 도로망 조사 경로 및 조사대상 도형 확장
 
-> Status: **APPROVED — D-SRP-058~059 / FR-SRP-055~056 / AC-SRP-057~058 storage compatibility and route-line preference reconciliation approved 2026-09-19; prior approved baseline preserved.**
+> Status: **DRAFT — D-SRP-060 / FR-SRP-057 / AC-SRP-059 ORS walking endpoint-snapping clarification proposed 2026-09-21; prior approved baseline preserved.**
 > Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; 2026-09-16 approved workflow/progress slice; D-SRP-031~035, FR-SRP-029~033 and AC-SRP-031~035 approved 2026-09-16; D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 and AC-SRP-036~041 approved 2026-09-17; D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 and AC-SRP-042~045 approved 2026-09-17; D-SRP-046~048, FR-SRP-044~046, NFR-SRP-006 and AC-SRP-046~048 approved 2026-09-17; D-SRP-049~056, FR-SRP-047~053, NFR-SRP-007~009 and AC-SRP-049~055 approved 2026-09-18. Target QField device verification remains **NOT RUN (미검증)**.
 > Owner: spec-writer
 > Extends: [통합 명세](qfield-project-builder.md)
@@ -9,6 +9,19 @@
 
 
 ## 0. 문서 권한과 현재 상태 (2026-09-14)
+
+**2026-09-21 ORS 도보 endpoint snapping 명확화 제안 (DRAFT):** 실제 ORS `foot-hiking`
+GeoJSON이 요청한 access/source가 아니라 routing graph에 snap된 좌표에서 시작·끝날 수 있는데도 현재
+구현이 geometry endpoint를 요청 좌표와 1 m 이내로 강제하고 provider distance를 요청 좌표 사이
+geodesic보다 짧다는 이유로 거부하는 현상은 승인되지 않은 over-validation이다. 그러나 승인된
+D-SRP-051/053, FR-SRP-049/050 및 AC-SRP-051은 `access→source`와 `exact`가 요청 좌표 전체의 물리적
+연결을 뜻하는지, provider가 실제로 계산한 snapped graph 구간만을 뜻하는지 구분하지 않아 단순한
+Category A 제거만으로는 거리·시간을 과장해 설명할 수 있다. 이는 Category B ambiguity다. 아래
+D-SRP-060, FR-SRP-057 및 AC-SRP-059는 requested access/source를 immutable marker로 계속 보존하고,
+구조가 유효한 provider geometry/metric을 수정 없이 받아들이되 그 범위를 provider-routed graph
+구간으로 명시하는 최소 정합 제안이다. synthetic connector, 추정 거리/시간, 새 provenance 값 또는
+schema 4를 만들지 않으며 **사용자 승인 전 DRAFT**다. 기존 승인 기준과 acceptance artifact는 소급
+변경하지 않는다.
 
 **2026-09-19 reviewer-blocker 분류와 최소 정합 제안 (DRAFT):** 이번 correction cycle은
 승인된 동작을 구현·검증하는 과정에서 드러난 일곱 항목을 다시 분류한다. (1) callback 시점에
@@ -554,6 +567,26 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   folder move에서 같은 값이 복구된다. 저장 실패는 현재 저장된 preference와 route/revision을 보존하고
   실패 feedback을 제공하며 성공으로 보고하지 않는다. preview와 legend를 보는 것만으로는 여전히 어떤
   write도 만들지 않는다.
+- D-SRP-060 (2026-09-21 제안, Category B): D-SRP-051의 `foot-hiking` request 좌표는 immutable
+  `access_coordinate`와 `source_coordinate`지만, ORS directions geometry의 시작·끝은 해당 profile의
+  routing graph에 snap된 provider endpoint일 수 있다. mapped 응답은 GeoJSON feature 하나, 두 개 이상의
+  finite WGS84 coordinate를 가진 LineString, finite non-negative summary distance/duration, 요청한 두
+  waypoint에 대응하는 segment 하나, 그리고 route-level `properties.way_points`의 정확히 두 strictly
+  increasing integer index가 각각 geometry의 첫 index `0`과 마지막 index를 가리킬 때 구조적으로
+  유효하다. summary와 segment metric은 D-SRP-028의 distance/duration tolerance 안에서 일치해야 한다.
+  이 조건을 만족하면 geometry 첫·끝과 requested access/source 사이 거리는 acceptance 조건이 아니며,
+  provider distance를 requested access-source geodesic의 lower bound로 검사하지 않는다. provider의
+  distance/duration/geometry는 `ors-foot-hiking`이 반환한 graph 구간 그대로 저장하고 return geometry만
+  exact reverse한다. requested coordinate를 geometry endpoint로 바꾸거나 geometry를 requested marker까지
+  직선으로 연장하거나 gap 거리/시간을 provider metric에 더하지 않는다. 기존 schema 3의
+  `source_coordinate`, `access_coordinate`, geometry endpoint와 `metric_source=ors-foot-hiking`만으로
+  provenance가 분리되므로 새 필드, mode, metric source 또는 schema version은 추가하지 않는다.
+  UI/map/screen reader는 source/access marker를 requested coordinate에 그대로 표시하고 mapped dashed
+  line은 provider graph geometry만 표시한다. mapped walking distance/time 및 이를 더한 combined total은
+  `ORS 경로 기준`이며 requested marker와 provider endpoint 사이 gap은 포함하지 않는다고 계산 결과,
+  저장 경로 detail 및 legend/accessibility text에서 알린다. 이를 access→source 전체의 연속 경로 또는
+  완전한 현장 이동 거리/시간이라고 표현하지 않는다. explicit no-path와 exact-zero 의미는
+  D-SRP-051/053 그대로이며, malformed structure/way_points/metric mismatch는 여전히 전체 계산 실패다.
 
 ## 3. Functional Requirements
 - FR-SRP-001: 생성 프로젝트에 기존 보고서/식별 플러그인과 공존하는 하단 접이식 패널.
@@ -910,6 +943,22 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   포함한 folder move 뒤 복구되고 provider request, route object/revision, source/completion write는 0회다.
   settings write/readback 실패에는 저장된 값과 route 상태를 유지하고 actionable failure를 표시한다.
 
+### 3.10 2026-09-21 ORS 도보 endpoint snapping 명확화 (DRAFT)
+
+- FR-SRP-057 (2026-09-21 제안): walking directions adapter는 D-SRP-060의 documented GeoJSON
+  structure, route-level `way_points`, WGS84 LineString 및 metric consistency를 response boundary에서
+  검증한다. schema-3 reader는 저장된 mapped leg의 기존 finite metric, LineString, reverse geometry,
+  provenance와 totals를 검증하되, requested access/source와 provider geometry endpoint의 1 m equality 또는
+  provider distance와 requested access-source geodesic의 lower-bound 관계는 검증하지 않는다.
+  계산·저장·재로드는 requested `access_coordinate`/`source_coordinate`와 provider-returned
+  distance/duration/geometry를 각각 수정 없이
+  보존하고, map과 접근 가능한 UI는 requested marker, provider-routed dashed line, `ORS 경로 기준 · 요청
+  좌표까지의 endpoint gap 미포함` 의미를 함께 전달한다. gap을 직선 connector, fallback,
+  `unmapped_estimate`, exact total 또는 provider metric으로 만들지 않는다. 구조가 잘못되었거나
+  `way_points`가 full geometry의 첫/마지막 index를 cover하지 않거나 summary/segment metric이 tolerance
+  밖이면 기존 candidate/saved route를 보존한 provider-response failure로 끝나며 fallback, 후속 vehicle
+  request와 write는 0회다.
+
 ## 4. Data / Compatibility
 새 프로젝트 생성만 도형 메타데이터를 변경한다. 사용자의 기존 GPKG를 자동 마이그레이션하지
 않는다. 기본 도형 유형을 지정하지 않은 과거 호출은 MULTIPOLYGON 기본값을 유지한다.
@@ -1082,6 +1131,7 @@ max road offset, 이번 승인 범위의 max access distance, default start, lay
 | AC-SRP-056 (2026-09-18 승인) | production save로 만든 active+inactive route가 있는 schema-3 문서에서 각 visit의 `layer_id`, `site_id`, `metric_source` 누락·blank, stop identity 불일치, unknown `walking_mode`/`metric_source`, 그리고 `mapped/ors-foot-hiking`, `exact_zero/exact_zero`, `unmapped_estimate/straight_line_lower_bound_m` 외 mode/source 조합을 하나씩 주입하면 load/recovery가 문서 전체를 거부한다. 모든 case에서 repair/default/추정, provider request와 storage write는 0회이고 원본 bytes와 last-good route는 동일하다. 세 허용 조합의 정상 문서는 restart/offline/folder move 뒤 exact roundtrip한다. schema 1/2 fixture는 기존 read-only 의미로 계속 열린다. |
 | AC-SRP-057 (2026-09-19 승인) | no-file/default open은 write 0회와 schema-2 in-memory 의미를 보이고, 최초 settings-only save 및 schema-1 settings-only upgrade는 top-level schema가 3이 아니다. 두 개 이상의 schema-1/2 route 중 하나를 explicit recalculation+save하면 document만 schema 3이 되고 selected identity 하나는 `route_schema: 3` mixed route로 교체되며 unrelated routes는 원래 fields와 `route_schema: 1|2`로 모두 남아 list/load된다. active ID, names, revisions와 legacy bytes/semantics는 삭제·mixed 추정 없이 보존된다. untagged homogeneous schema-3 fixture는 write 없이 mixed로 열리고 다음 정상 write에 marker가 생긴다. mixed/legacy corruption, unknown marker, marker/content contradiction 또는 duplicate identity는 전체 commit/load/recovery 실패, provider/storage 후속 동작 0회와 이전 bytes/last-good 보존이다. |
 | AC-SRP-058 (2026-09-19 승인) | default-on toggle을 off로 바꾸면 정확히 한 번의 atomic settings write/readback 뒤 route line 세 class만 숨고 route/source/completion/revision은 불변이다. panel reopen, cold restart와 settings 동반 folder move에서 off가 복구되며 다시 on 저장도 같다. preview/legend view는 write 0회다. settings write/readback failure는 success 0회, persisted preference와 route 상태 불변 및 actionable feedback이고 모든 branch의 provider request는 0회다. |
+| AC-SRP-059 (2026-09-21 제안) | 두 requested coordinate가 각각 유효한 `foot-hiking` graph point로 snap되어 geometry 첫·끝이 requested access/source에서 1 m보다 멀고 provider distance가 requested access-source geodesic보다 짧은 ORS-shaped fixture도, feature 1개·finite WGS84 LineString·summary·segment 1개·route-level `way_points=[0,last]`와 D-SRP-028 metric tolerance를 만족하면 mapped visit으로 승인한다. schema 3 save/restart/offline/folder move는 requested source/access와 provider distance/duration/geometry를 각각 exact roundtrip하고 return geometry만 reverse하며 schema/version/mode/metric source를 새로 만들지 않는다. map과 screen reader는 requested source/access marker와 provider dashed geometry를 서로 다른 좌표에 그대로 표시하고 `ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함`을 전달하며 synthetic connector, gap metric/time, fallback과 source 좌표 이동은 0개다. missing/non-covering/non-integer/non-increasing `way_points`, invalid geometry/summary/segment 또는 tolerance 밖 metric fixture는 전체 계산 실패, fallback/후속 vehicle request/write 0회 및 last-good 보존이다. |
 
 ## 6. API 근거 / 검증 경계
 VROOM 근거는 초기 provider가 대상으로 삼은 **v1.14.0 tag**에 고정한다. 공식 문서는 timing을
@@ -1092,8 +1142,13 @@ VROOM 근거는 초기 provider가 대상으로 삼은 **v1.14.0 tag**에 고정
 openrouteservice 공식 directions 문서는 GeoJSON route feature의 `properties.segments`를 waypoint 사이
 section(distance/duration/steps) 목록으로, geometry waypoint index를 별도의 route-level
 `properties.way_points`로 정의한다. FR-SRP-033은 이 구조를 따르며 segment 내부의 비문서화 index를
-가정하지 않는다.
+가정하지 않는다. 같은 공식 FAQ는 directions의 입력 start/end가 routable road에서 멀면 기본 최대
+350 m 범위 안에서 point를 찾고, 그 범위에도 graph point가 없을 때 `Could not find point`가 된다고
+설명한다. 따라서 D-SRP-060은 requested coordinate와 route geometry endpoint의 1 m 일치를 ORS response
+contract로 만들지 않고, 공식 response의 geometry/summary/segment/route-level `way_points`를 provider
+graph 구간의 권위값으로 사용한다.
 - https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/requests-and-return-types
+- https://giscience.github.io/openrouteservice/frequently-asked-questions
 
 openrouteservice 공식 snapping 문서는 profile별 graph edge로 point를 snap하고 지정 반경에 적합한
 edge가 없으면 input 순서의 `null`을 반환한다고 정의한다. request body는 `locations`와 필수 `radius`를
@@ -1246,8 +1301,19 @@ device, project fixture, zoom/basemap, 수행한 gesture와 관찰 결과를 함
   FR-SRP-055~056 및 AC-SRP-057~058은 이를 정합하는 승인 기준이다.
   callback evidence, product cold-start recovery, 모든 visit의 accessibility 및 exact Apple Maps error copy는
   각각 기존 acceptance/product 요구의 conformance 문제이므로 새 ID를 만들지 않았다.
+- **O-SRP-016 (2026-09-21 제안·승인 대기):** ORS directions가 request coordinate를 routing graph에
+  snap하는데도 mapped geometry endpoint 일치를 강제한 문제는 D-SRP-060, FR-SRP-057 및 AC-SRP-059의
+  Category B clarification으로 제안했다. 이 제안은 schema 3 또는 provenance enum을 늘리지 않고 provider
+  graph 구간과 requested marker의 의미를 분리한다. 이해관계자 승인 전에는 acceptance/구현 변경을
+  시작하지 않는다.
 
 ### 승인된 slice의 acceptance 정합 범위
+
+D-SRP-060, FR-SRP-057 및 AC-SRP-059가 승인되면 fresh test-designer는 requested endpoint에서 1 m보다
+멀리 snap되고 provider distance가 requested geodesic보다 짧지만 documented GeoJSON/way_points/metric은
+유효한 fixture, way_points/structure/metric negative fixture, schema-3 exact roundtrip과 provider-only
+geometry/UI disclosure를 acceptance design/traceability에 추가한다. 이 DRAFT 문서는 acceptance 파일을
+수정하거나 그 변경을 미리 승인하지 않는다.
 
 2026-09-18 iOS 지도 변경 명세 승인에 따라 새 test-designer는 **D-SRP-056, FR-SRP-053 및
 AC-SRP-055**를 acceptance design/traceability에 추가하고, 기존 AC-SRP-025/039의 iOS NAVER 및
