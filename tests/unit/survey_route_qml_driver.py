@@ -52,7 +52,7 @@ class HTTP(BaseHTTPRequestHandler):
         url=self.headers['X-Original-Url']
         kind=('access-snap' if '/snap/' in url else
             'walking-directions' if '/directions/foot-hiking/' in url else
-            'origin-validation' if '/matrix/' in url and body.get('metrics')==['duration'] and len(body.get('locations',[]))==1 else
+            'origin-validation' if '/matrix/' in url and body.get('sources')==[0] and body.get('destinations')==[1] else
             'matrix' if '/matrix/' in url else 'optimizer' if 'jobs' in body else 'directions')
         headers={'Content-Type':self.headers.get('Content-Type','')}
         if self.headers.get('Authorization') is not None:headers['Authorization']=self.headers['Authorization']
@@ -68,7 +68,9 @@ class HTTP(BaseHTTPRequestHandler):
         if fault_applies and fault=='truncated_json':out=b'{"durations":'
         else:
             if kind=='origin-validation':
-                value={'durations':[[0]],'sources':[{'location':detached(body['locations'][0]),'snapped_distance':0}]}
+                value={'durations':[[0]],
+                       'sources':[{'location':detached(body['locations'][0]),'snapped_distance':0}],
+                       'destinations':[{'location':detached(body['locations'][1]),'snapped_distance':0}]}
             elif kind=='access-snap':
                 value=detached(case.get('access_snap_response',{'locations':[{'location':detached(point)} for point in body['locations']]}))
             elif kind=='walking-directions':

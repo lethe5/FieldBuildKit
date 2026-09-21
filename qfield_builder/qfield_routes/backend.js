@@ -258,9 +258,12 @@ function calculateMixed(settings, targets, start, roundtrip, transport) {
     var sourceTargets=targets.map(function(t){
         return Object.assign({},t,{coordinate:t.coordinate.slice(),source_coordinate:t.coordinate.slice()});
     });
-    return post("origin-validation",base+"/v2/matrix/driving-car"+routingSuffix,{locations:[start],metrics:["duration"],resolve_locations:true}).then(function(origin){
+    return post("origin-validation",base+"/v2/matrix/driving-car"+routingSuffix,{locations:[start.slice(),start.slice()],sources:[0],destinations:[1],metrics:["duration"],resolve_locations:true}).then(function(origin){
         providerDocument(origin,"origin-validation");
-        var source=origin.sources&&origin.sources[0],routable=source&&coordinate(source.location)&&typeof source.snapped_distance==="number"&&isFinite(source.snapped_distance)&&source.snapped_distance>=0;
+        var source=Array.isArray(origin.sources)&&origin.sources.length===1&&origin.sources[0],destination=Array.isArray(origin.destinations)&&origin.destinations.length===1&&origin.destinations[0];
+        var routable=Array.isArray(origin.durations)&&origin.durations.length===1&&Array.isArray(origin.durations[0])&&origin.durations[0].length===1&&typeof origin.durations[0][0]==="number"&&isFinite(origin.durations[0][0])&&origin.durations[0][0]>=0&&
+            source&&coordinate(source.location)&&typeof source.snapped_distance==="number"&&isFinite(source.snapped_distance)&&source.snapped_distance>=0&&
+            destination&&coordinate(destination.location)&&typeof destination.snapped_distance==="number"&&isFinite(destination.snapped_distance)&&destination.snapped_distance>=0;
         if(!routable){var failure=new Error("출발지를 driving-car 도로에서 확인할 수 없습니다. 도로 위의 지도 위치 출발 또는 저장 기본 출발지를 사용하세요.");failure.stage="origin-validation";failure.suggested_actions=["map_start","saved_start"];throw failure;}
         return post("access-snap",base+"/v2/snap/driving-car/json"+routingSuffix,{locations:sourceTargets.map(function(t){return t.source_coordinate;}),radius:radius});
     }).then(function(snap){
