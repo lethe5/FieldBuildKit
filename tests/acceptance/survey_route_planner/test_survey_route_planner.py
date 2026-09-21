@@ -319,7 +319,6 @@ STEP7_ROUTE_KEY_COPY = {
 }
 NAVER_ANDROID_PACKAGE = "com.nhn.android.nmap"
 NAVER_ANDROID_STORE = "market://details?id=com.nhn.android.nmap"
-NAVER_IOS_STORE = "http://itunes.apple.com/app/id311867728?mt=8"
 SELECTION_GUIDANCE = (
     "조사지 레이어를 열고 피처 선택/체크 도구로 계산할 조사지를 선택한 뒤 이 패널로 돌아오세요. "
     "현재 선택한 조사지: {count}개"
@@ -417,6 +416,7 @@ PORTABLE_SETTINGS = {
     "profile": "driving-car",
     "timeout_ms": 1250,
     "max_road_offset_m": 50,
+    "max_access_distance_m": 2000,
     "default_start": [127.123, 37.456],
     "mapping": {"layer": "site", "id": "custom_id", "name": "title", "completed": "done"},
     "show_route_line": True,
@@ -1105,8 +1105,10 @@ def test_ac013_backend_settings(run, configured_offset, expected_offset):
 
 def assert_provider_urls(result, routing_base, optimizer_url):
     requests = requests_by_kind(result)
-    assert set(requests) == {"matrix", "optimizer", "directions"}
-    expected = {"matrix": f"{routing_base}/v2/matrix/driving-car",
+    assert set(requests) == {"origin-validation", "access-snap", "matrix", "optimizer", "directions"}
+    expected = {"origin-validation": f"{routing_base}/v2/matrix/driving-car",
+                "access-snap": f"{routing_base}/v2/snap/driving-car/json",
+                "matrix": f"{routing_base}/v2/matrix/driving-car",
                 "directions": f"{routing_base}/v2/directions/driving-car/geojson",
                 "optimizer": optimizer_url}
     assert all({request["url"] for request in requests[kind]} == {url} for kind, url in expected.items())
@@ -1187,7 +1189,6 @@ def test_ac019_builder_key_consent_embeds_only_project_variable(run):
     assert "QField가 자동으로 사용하도록" in warning
     assert "암호화되지 않은 글자" in warning
     assert "프로젝트 폴더를 열 수 있는 사람은 누구나 키를 확인하고 사용할 수 있습니다." in warning
-    assert "평문" in consent
     assert r["qfield_key_source"] == "project_variable"
     assert r["transport_key_present"] is True
     assert_no_key_outside_project_variable(r, embedded=True)
@@ -1560,13 +1561,13 @@ def test_ac023_storage_failure_has_no_success_or_secret_feedback(run, action):
     assert KEY not in exposed and quote(KEY, safe="") not in exposed
 
 
-def canonical_naver_url(name, caller_id="ch.opengis.qfield"):
-    return ("nmap://navigation?dlat=37.456&dlng=127.123&dname="
+def canonical_naver_query(name, caller_id="ch.opengis.qfield"):
+    return ("navigation?dlat=37.456&dlng=127.123&dname="
             f"{quote(name, safe='')}&appname={quote(caller_id, safe='')}")
 
 
 def canonical_naver_android_intent(name, caller_id="ch.opengis.qfield"):
-    query = canonical_naver_url(name, caller_id).removeprefix("nmap://")
+    query = canonical_naver_query(name, caller_id)
     return (f"intent://{query}#Intent;scheme=nmap;action=android.intent.action.VIEW;"
             "category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end")
 
@@ -1584,17 +1585,15 @@ def test_ac025_exact_encoded_android_intent_and_honest_qt_true(run, caller_id):
     no_calls(r)
 
 
-@pytest.mark.parametrize("platform,expected_primary,expected_store,identifier", [
-    ("android", canonical_naver_android_intent("목적지"), NAVER_ANDROID_STORE, "com.nhn.android.nmap"),
-    ("ios", canonical_naver_url("목적지"), NAVER_IOS_STORE, "311867728"),
-])
-def test_ac025_mobile_fallback_and_all_refused(run, platform, expected_primary, expected_store, identifier):
+def test_ac025_android_fallback_and_all_refused(run):
+    expected_primary = canonical_naver_android_intent("목적지")
     r = run(operation="reopen_navigate", road_geometry=ROAD, destination=[127.123, 37.456], name="목적지",
-            platform=platform, caller_id=None, launch_results=[False, False])
-    assert [call["url"] for call in r["launcher_calls"]] == [expected_primary, expected_store]
+            platform="android", caller_id=None, launch_results=[False, False])
+    assert [call["url"] for call in r["launcher_calls"]] == [expected_primary, NAVER_ANDROID_STORE]
     assert len(r["launcher_calls"]) == 2 and r["fallback_count"] == 1
-    assert r["fallback"]["platform"] == platform and r["fallback"]["identifier"] == identifier
-    assert identifier in r["launcher_calls"][1]["url"]
+    assert r["fallback"]["platform"] == "android"
+    assert r["fallback"]["identifier"] == NAVER_ANDROID_PACKAGE
+    assert NAVER_ANDROID_PACKAGE in r["launcher_calls"][1]["url"]
     assert r["message"].strip() and r["claims"]["navigation_started"] is False
     no_calls(r)
 
@@ -1608,12 +1607,13 @@ def test_ac025_non_mobile_has_actionable_error_without_install_dispatch(run):
 
 
 @pytest.mark.parametrize("roundtrip,expected_count", [(False, 3), (True, 4)])
-def test_ac026_ac035_schema2_complete_immutable_legs_roundtrip(run, roundtrip, expected_count):
+def test_ac026_ac035_schema3_complete_immutable_legs_roundtrip(run, roundtrip, expected_count):
     r = run(operation="schema2_roundtrip", return_to_start=roundtrip, layer_id=SITE_LAYER_ID,
             directions_response=schema2_directions_response(roundtrip=roundtrip),
             post_save_actions=["complete", "uncheck", "toggle", "load"])
     document, route = r["reloaded_document"], r["reloaded_route"]
-    assert document["schema"] == 2 and document == r["saved_document"]
+    assert document["schema"] == 3 and document == r["saved_document"]
+    assert route["route_schema"] == 3
     assert len(route["legs"]) == expected_count
     assert [leg["sequence"] for leg in route["legs"]] == list(range(1, expected_count + 1))
     assert route["legs"][0]["from"] == "start"
@@ -1870,18 +1870,19 @@ def test_ac029_legacy_schema1_load_is_offline_nonmutating_and_unavailable(run):
     no_calls(r)
 
 
-def test_ac029_explicit_full_recalculation_is_only_schema2_upgrade(run):
+def test_ac029_explicit_full_recalculation_upgrades_to_schema3(run):
     legacy = schema2_legacy_document()
     r = run(operation="legacy_route", document=legacy, action="explicit_calculate_and_save", offline=False,
             directions_response=schema2_directions_response(roundtrip=False))
-    assert r["saved_document"]["schema"] == 2
+    assert r["saved_document"]["schema"] == 3
+    assert r["saved_route"]["route_schema"] == 3
     assert r["saved_route"]["route_id"] == "legacy-route-1"
     assert r["saved_route"]["revision"] > 7 and len(r["saved_route"]["legs"]) == 3
     assert r["requests"], "the only permitted migration request is the explicit full calculation"
 
 
 def test_ac029_future_schema_is_preserved_and_rejected(run):
-    future = schema2_legacy_document(schema=3)
+    future = schema2_legacy_document(schema=4)
     r = run(operation="legacy_route", document=future, action="load", offline=True)
     assert r["ok"] is False and r["message"].strip()
     assert r["storage_bytes_after"] == r["storage_bytes_before"]
@@ -1927,14 +1928,26 @@ def test_ac036_recoverable_save_failure_preserves_candidate_for_corrected_retry(
     assert all(state["requests"] == [] for state in r["attempt_states"])
 
 
-@pytest.mark.parametrize("stale_change", ["calculation_input", "snapshot_revision"])
-def test_ac036_only_real_input_or_revision_change_blocks_stale_candidate(run, stale_change):
+def test_ac036_calculation_input_change_blocks_stale_candidate(run):
+    stale_change = "calculation_input"
     r = run(operation="candidate_name_save", seed_saved=True,
             optimizer_response=vroom_response(include_arrivals=True),
             directions_response=schema2_directions_response(roundtrip=True),
             actions=[{"set_name": "저장 시도"}, {"make_stale": stale_change}, {"save": True}])
     assert r["save_ok"] is False and stale_change in r["stale_reason"]
     assert r["message"].strip() and r["candidate_after"] == r["candidate_before"]
+    assert r["saved_routes_after"] == r["saved_routes_before"]
+    assert r["requests_after_calculation"] == []
+
+
+def test_ac036_settings_revision_refreshes_candidate_base_without_stale(run):
+    r = run(operation="candidate_name_save", seed_saved=True,
+            optimizer_response=vroom_response(include_arrivals=True),
+            directions_response=schema2_directions_response(roundtrip=True),
+            actions=[{"make_stale": "snapshot_revision"}])
+    state = r["name_action_states"][-1]
+    assert state["candidate"] == r["candidate_after_calculation"]
+    assert state["base_revision"] > r["base_revision_after_calculation"]
     assert r["saved_routes_after"] == r["saved_routes_before"]
     assert r["requests_after_calculation"] == []
 
@@ -2031,37 +2044,6 @@ def test_ac038_failed_settings_save_preserves_last_good_and_session_key(run):
     assert r["snapshot_after"] == r["snapshot_before"]
     assert r["session_key_after"] == KEY and KEY not in str(r["feedback"])
     assert r["requests"] == []
-
-
-@pytest.mark.parametrize("platform,expected_primary", [
-    ("android", canonical_naver_android_intent("조사지 A & B/#?", "org.example.fieldbuild")),
-    ("ios", canonical_naver_url("조사지 A & B/#?", "org.example.fieldbuild")),
-])
-def test_ac039_platform_specific_official_primary_dispatch(run, platform, expected_primary):
-    r = run(operation="platform_naver_dispatch", platform=platform, host_context="supported_native",
-            destination=[127.123, 37.456], name="조사지 A & B/#?", caller_id="org.example.fieldbuild",
-            launch_results=[True])
-    assert r["launcher_calls"] == [{"url": expected_primary, "via": "Qt.openUrlExternally", "result": True}]
-    assert r["status"] == "운영체제에 실행 요청" and r["fallback_count"] == 0
-    assert r["claims"] == {"app_started": False, "destination_accepted": False, "navigation_started": False}
-    assert not any("map.naver.com" in call["url"] for call in r["launcher_calls"])
-    no_calls(r)
-
-
-@pytest.mark.parametrize("platform,expected_primary,expected_store", [
-    ("android", canonical_naver_android_intent("목적지"), NAVER_ANDROID_STORE),
-    ("ios", canonical_naver_url("목적지"), NAVER_IOS_STORE),
-])
-def test_ac039_official_install_fallback_once_and_no_inferred_web_url(run, platform, expected_primary, expected_store):
-    r = run(operation="platform_naver_dispatch", platform=platform, host_context="supported_native",
-            destination=[127.123, 37.456], name="목적지", caller_id=None, launch_results=[False, True],
-            documented_navigation_web_fallback=None)
-    assert [call["url"] for call in r["launcher_calls"]] == [expected_primary, expected_store]
-    assert r["fallback_count"] == 1 and r["status"] == "설치 페이지 열림"
-    assert r["web_fallback_count"] == 0
-    assert not any("map.naver.com" in call["url"] for call in r["launcher_calls"])
-    assert r["claims"]["navigation_started"] is False
-    no_calls(r)
 
 
 @pytest.mark.parametrize("completion_source", ["field", "route_stop"])
@@ -2968,7 +2950,7 @@ def test_ac054_actual_http_sequence_and_privacy_boundary(tmp_path):
         "market://details?id=com.nhn.android.nmap",
     ]),
 ])
-def test_ac055_navigation_open_direct_spy(platform, results, expected, tmp_path):
+def test_ac039_ac055_navigation_open_direct_spy(platform, results, expected, tmp_path):
     observed = _direct_node(
         "navigation", tmp_path, platform=platform, open_results=results,
         caller_id="org.example/#%", stop={"coordinate": [127.123, 37.456],

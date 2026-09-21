@@ -3,6 +3,9 @@
 > Current AC-SRP-049–058 status: **DRAFT TEST DESIGN (2026-09-21)**.
 > The approved AC-SRP-001–048 mappings below remain preserved and are not reopened.
 
+> **DRAFT retained-suite reconciliation (2026-09-21).** Stale retained expectations are aligned
+> with approved D-SRP-050/053/056/058/059 and AC-SRP-055/057/058; product meaning is unchanged.
+
 > **APPROVED TEST DESIGN — supersession reconciliation (approval 2026-09-17).**
 > This approved reconciliation aligns retained AC-SRP-019/022/024/031 executable expectations with approved
 > D-SRP-043/045, FR-SRP-041/043 and AC-SRP-043/045. Prior approvals below remain preserved.
@@ -58,21 +61,21 @@ test asks for the removed remaining-route calculation.
 | AC-SRP-022 | `ac022_ac024_labels_guidance_and_conditional_controls` (2 widths × 3 modes, D-SRP-037 `계산 대상`, D-SRP-043 `저장 경로 불러오기`, explicit all scope), `ac022_stale_target_is_cleared_and_blocks_target_start` | M01/M02; native feature-model refresh and touch/keyboard controls |
 | AC-SRP-023 | `ac023_storage_feedback_names_exact_committed_relative_path` (2), `ac023_storage_failure_has_no_success_or_secret_feedback` (2) | M03; actual QField FileUtils path and accessible project folder |
 | AC-SRP-024 | `ac022_ac024_labels_guidance_and_conditional_controls` (`저장 경로 불러오기` dropdown; editable field remains `저장할 경로 이름`) | M01/M04; native wrapping/readability |
-| AC-SRP-025 | `ac025_exact_encoded_android_intent_and_honest_qt_true` (2 caller IDs), `ac025_mobile_fallback_and_all_refused` (exact Android intent/iOS scheme and stores), `ac025_non_mobile_has_actionable_error_without_install_dispatch`, retained `ac012_road_and_naver` | M05 separately on Android/iOS; actual handoff, destination acceptance and guidance |
-| AC-SRP-026 | `ac011_ac026_remaining_recalculation_is_superseded`, `ac026_ac035_schema2_complete_immutable_legs_roundtrip` (open/roundtrip), `ac026_invalid_schema2_leg_preserves_existing_route` (7 raw route-level/top-level fault documents with exact provenance and no segment-level way_points), `ac026_provider_total_tolerance` (4 boundaries) | M02/M03; native QField storage roundtrip and UI control absence |
+| AC-SRP-025 | `ac025_exact_encoded_android_intent_and_honest_qt_true` (2 caller IDs), `ac025_android_fallback_and_all_refused`, `ac025_non_mobile_has_actionable_error_without_install_dispatch`, retained `ac012_road_and_naver`; iOS branch superseded by AC055 | M05 Android; actual handoff, destination acceptance and guidance |
+| AC-SRP-026 | `ac011_ac026_remaining_recalculation_is_superseded`, `ac026_ac035_schema3_complete_immutable_legs_roundtrip` (explicit mixed save, open/roundtrip), `ac026_invalid_schema2_leg_preserves_existing_route` (7 raw route-level/top-level ORS fixture faults), `ac026_provider_total_tolerance` (4 boundaries) | M02/M03; native QField storage roundtrip and UI control absence; separate legacy schema-2 reads retained |
 | AC-SRP-027 | `ac010_ac011_ac027_all_complete_uses_saved_full_route`, `ac027_ordered_completion_then_uncheck_creates_out_of_order_gap_and_roundtrip_return` (blocked later-row attempt, then ordered completion and uncheck-created gap; mapped/local; raw intermediate-vertex directions and committed-route provenance), `ac027_completion_overlay_is_blue_accessible_nonpersistent_and_rederived` (3 geometries × mapped/local), `ac027_mapped_write_failure_preserves_overlay_metrics_and_source`, `ac027_ac028_progression_survives_restart_recovery_offline_move` | M04; actual map rendering, source writes and recovery |
 | AC-SRP-028 | `ac028_metric_formatting_and_bottom_bar` (4 ceil-minute edges), `ac028_route_line_toggle_scope_persistence_move_and_zero_api`, `ac027_ac028_progression_survives_restart_recovery_offline_move` | M03/M04; native device-local setting and overlay visibility |
-| AC-SRP-029 | `ac029_legacy_schema1_load_is_offline_nonmutating_and_unavailable`, `ac029_explicit_full_recalculation_is_only_schema2_upgrade`, `ac029_future_schema_is_preserved_and_rejected` | M03/M06; real legacy bytes under QField storage API |
+| AC-SRP-029 | `ac029_legacy_schema1_load_is_offline_nonmutating_and_unavailable`, `ac029_explicit_full_recalculation_upgrades_to_schema3`, `ac029_future_schema_is_preserved_and_rejected` (schema 4) | M03/M06; real legacy bytes under QField storage API |
 | AC-SRP-030 | `ac018_ac030_regression_portability`, `ac013_ac030_no_network_or_secrets` plus AC002/003/008/009/013–019/021–029 rows above | M01–M06; full native regression and redacted device evidence |
 | AC-SRP-031 | `ac031_six_selectors_use_ors_floating_labels_without_collision` (historical six-control subset, 2 widths × empty/value/focus/error; D-SRP-037 shortened labels; distinct loaded-QML object IDs, geometry, style and accessibility; separate-row check scoped to these control labels) | AC043 is final authority for all eight controls; M01 covers native touch/keyboard focus, screen-reader name and device clipping |
 | AC-SRP-032 | `ac032_map_start_marker_is_exact_fixed_and_replaced_not_duplicated`; `ac032_map_start_marker_survives_panel_and_calculation_events` (3); `ac032_map_start_marker_removed_at_lifecycle_end` (4); `ac032_map_start_transform_failure_preserves_previous_marker_and_start` (full canvas enumeration and actual provider/storage write capture) | M02; actual QField map item, project-close lifecycle and visual distinction |
 | AC-SRP-033 | `ac033_target_candidates_match_preflight_before_required_validation` (3 scopes × 0/1/3); `ac033_candidate_refresh_preserves_valid_id_and_clears_stale_after_changes` (separate model/preflight capture IDs and submitted order) | M01; actual QField selection/schema/completion events |
 | AC-SRP-034 | `ac034_selection_guidance_is_selected_only_and_leaves_no_gap` (2 widths × 3 scopes × 0/1/3; visible row coordinates and hidden-item layout absence) | M01; native rendered placement and device accessibility |
-| AC-SRP-035 | `ac026_ac035_schema2_complete_immutable_legs_roundtrip` (open/roundtrip documented ORS slices); `ac035_provider_contract_defects_are_actionable_and_preserve_last_good` (11 raw defects); `ac035_valid_provider_response_forced_client_failure_is_distinct_and_preserves_last_good`; `ac035_six_geometry_families_accept_real_ors_contract_from_approved_representative` (6 real materialized source→generated GPKG/QGS paths) | M02 plus M07 Point, M08 LineString, M09 Polygon; actual QField/live ORS results remain unperformed |
-| AC-SRP-036 | `ac036_name_entry_and_changes_save_existing_candidate_without_recalculation`; `ac036_recoverable_save_failure_preserves_candidate_for_corrected_retry` (3); `ac036_only_real_input_or_revision_change_blocks_stale_candidate` (2) | M10; native QField focus/input and file-failure retry |
+| AC-SRP-035 | `ac026_ac035_schema3_complete_immutable_legs_roundtrip` (open/roundtrip documented ORS slices saved as mixed schema 3); `ac035_provider_contract_defects_are_actionable_and_preserve_last_good` (11 raw defects); `ac035_valid_provider_response_forced_client_failure_is_distinct_and_preserves_last_good`; `ac035_six_geometry_families_accept_real_ors_contract_from_approved_representative` (6 real materialized source→generated GPKG/QGS paths) | M02 plus M07 Point, M08 LineString, M09 Polygon; actual QField/live ORS results remain unperformed |
+| AC-SRP-036 | `ac036_name_entry_and_changes_save_existing_candidate_without_recalculation`; `ac036_recoverable_save_failure_preserves_candidate_for_corrected_retry` (3); `ac036_calculation_input_change_blocks_stale_candidate`; `ac036_settings_revision_refreshes_candidate_base_without_stale` | M10; native QField focus/input and file-failure retry |
 | AC-SRP-037 | `ac037_seven_controls_share_rendered_outlined_floating_label_contract` (2 widths × 5 states; raw loaded-QML rectangles/style/accessibility) | M10; native touch/keyboard/screen reader and clipping |
 | AC-SRP-038 | `ac038_api_settings_initially_collapsed_and_toggle_is_passive`; `ac038_key_provenance_and_session_lifetime_are_observed_from_generated_project` (2); `ac038_settings_save_reports_actual_slot_and_excludes_key_and_objective`; `ac038_failed_settings_save_preserves_last_good_and_session_key` | M10; native session lifecycle/FileUtils/accessibility |
-| AC-SRP-039 | `ac039_platform_specific_official_primary_dispatch` (Android/iOS); `ac039_official_install_fallback_once_and_no_inferred_web_url` (Android/iOS) | M10; actual-device app/store handoff remains NOT RUN |
+| AC-SRP-039 | `ac039_ac055_navigation_open_direct_spy` (retained Android NAVER primary/fallback plus AC055 iOS Apple Maps supersession) | M21 Android and M20 iOS; actual-device handoff remains NOT RUN |
 | AC-SRP-040 | `ac040_only_next_in_order_is_checkable_and_blocked_attempt_is_nonmutating` (mapped/local); `ac040_uncheck_gap_and_external_out_of_order_true_keep_full_remaining_contract` (mapped/local); retained AC027 write-failure preservation | M10; native row focus/reason and external layer refresh |
 | AC-SRP-041 | `ac041_generated_site_labels_use_configured_name_and_white_halo` (Point/LineString/Polygon); `ac041_generated_polygon_uses_non_gray_accent_distinct_from_route_states` | M10; automated render observations are generated/headless configuration proxies only; native QField label/halo rendering and collision handling remain NOT RUN |
 | AC-SRP-042 | `ac042_touch_equivalent_text_input_uses_real_editable_qml_control_without_recalculation` (body + label/notch window taps, immediate focus/caret, zero recovery calls, post-focus IME edits, trim save, candidate/revision/request invariant) | M11 Android and M12 iOS separately; actual OS soft-keyboard opening remains NOT RUN |
@@ -144,6 +147,22 @@ storage readback, zero-request checks, secret boundaries and manual-device limit
 This approved reconciliation does not weaken AC019 secret/key semantics, AC031 accessibility/collision evidence, or
 AC043/045 exact-copy and eight-control requirements. It changes no adapter, driver, application,
 unit test, specification or approved UI-guidance artifact.
+
+## DRAFT retained-suite supersession reconciliation (2026-09-21)
+
+| Stale retained expectation | Approved controlling rule | DRAFT corrected expectation |
+| --- | --- | --- |
+| AC008 omitted the newly persisted access radius. | D-SRP-050; AC-SRP-050 | Portable settings include default `max_access_distance_m=2000`. |
+| AC013 required only matrix/optimizer/directions requests. | D-SRP-050/052 | Exact successful request kinds also include origin validation and access snap. |
+| AC019 required plaintext wording inside the exact consent checkbox label. | D-SRP-045; AC-SRP-045 | Consent remains exactly `위 내용에 동의합니다`; plaintext risk is verified in the separate exact warning widget. |
+| AC025/039 retained iOS NAVER/App Store behavior. | D-SRP-056; FR-SRP-053; AC-SRP-055 | iOS uses Apple Maps HTTPS once with no fallback; Android NAVER/Google Play remains required. |
+| AC026/029/035 expected a new explicit mixed save to remain schema 2. | D-SRP-053/058; AC-SRP-052/057 | Explicit mixed save is schema 3; schema-1/2 legacy read and settings-only tests remain distinct. |
+| AC036 treated every snapshot revision as candidate-stale. | D-SRP-059; AC-SRP-058 | Calculation-input change is stale; successful settings-only route-line toggle preserves the candidate and refreshes its base revision. |
+
+M01–M21 remain user-run **NOT RUN**. No automated proxy is promoted to device evidence.
+
+Verification: design verifier **PASS**; **399 collected**; focused reconciliation
+**72 passed, 327 deselected**; full module **378 passed, 21 skipped**. No implementation RED remains.
 
 ## Earlier draft-stage verification record (2026-09-15; preserved)
 

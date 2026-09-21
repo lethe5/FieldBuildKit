@@ -40,6 +40,7 @@ assert invalid_arrivals["negative"][0] < 0
 assert not math.isfinite(invalid_arrivals["nonfinite"][0])
 assert module.PORTABLE_SETTINGS["backend"] == "ors-vroom"
 assert module.PORTABLE_SETTINGS["max_road_offset_m"] == 50
+assert module.PORTABLE_SETTINGS["max_access_distance_m"] == 2000
 assert "key" not in module.PORTABLE_SETTINGS
 assert module.HOSTED_ROUTING_BASE == "https://api.heigit.org/openrouteservice"
 assert module.HOSTED_OPTIMIZER_URL == "https://api.heigit.org/vroom/v0"
@@ -65,8 +66,8 @@ assert all(case in source for case in ["M01_project_dropdowns_layout", "M02_sche
                                        "M15_ios_light_dark_contrast_matrix",
                                        "M16_ios_header_spacing_and_tap_regions",
                                        "M17_ios_local_date_name_lifecycle"])
-assert module.canonical_naver_url("조사지 A & B/#?") == (
-    "nmap://navigation?dlat=37.456&dlng=127.123&dname="
+assert module.canonical_naver_query("조사지 A & B/#?") == (
+    "navigation?dlat=37.456&dlng=127.123&dname="
     + quote("조사지 A & B/#?", safe="") + "&appname=ch.opengis.qfield")
 assert module.canonical_naver_android_intent("조사지 A & B/#?") == (
     "intent://navigation?dlat=37.456&dlng=127.123&dname="
@@ -74,7 +75,6 @@ assert module.canonical_naver_android_intent("조사지 A & B/#?") == (
     + "&appname=ch.opengis.qfield#Intent;scheme=nmap;action=android.intent.action.VIEW;"
       "category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end")
 assert module.NAVER_ANDROID_STORE == "market://details?id=com.nhn.android.nmap"
-assert module.NAVER_IOS_STORE == "http://itunes.apple.com/app/id311867728?mt=8"
 for roundtrip, count in [(False, 3), (True, 4)]:
     response = module.schema2_directions_response(roundtrip=roundtrip)
     feature = response["features"][0]
@@ -173,7 +173,7 @@ assert module.expected_site_label_expression(name_field_present=False) == (
 assert all(operation in source for operation in [
     'operation="candidate_name_save"', 'operation="followup_panel_ui"',
     'operation="settings_disclosure"', 'operation="settings_key_provenance"',
-    'operation="settings_snapshot_save"', 'operation="platform_naver_dispatch"',
+    'operation="settings_snapshot_save"',
     'operation="ordered_completion_checklist"', 'operation="generated_site_style"',
     'operation="route_name_text_input_proxy"', 'operation="final_floating_label_geometry"',
     'operation="generated_site_label_contract"', 'operation="builder_step7_route_credentials"',
@@ -285,7 +285,7 @@ for required in (
     "test_ac052_ac057_production_save_roundtrips_schema3_and_preserves_legacy",
     "test_ac053_qml_runtime_reads_real_tree_repeater_and_qaccessible",
     "test_ac054_actual_http_sequence_and_privacy_boundary",
-    "test_ac055_navigation_open_direct_spy",
+    "test_ac039_ac055_navigation_open_direct_spy",
     "test_ac056_corrupt_visit_recovery_preserves_bytes_and_last_good",
     "test_ac057_variant_corruption_recovery_is_atomic",
     "test_ac058_toggle_persists_exact_setting_through_restart_and_folder_move",
