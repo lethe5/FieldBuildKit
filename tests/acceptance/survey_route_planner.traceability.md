@@ -1,4 +1,7 @@
-# Survey Route Planner — approved AC-SRP-059 baseline with DRAFT evidence correction
+# Survey Route Planner — approved AC-SRP-061–062 traceability extension
+
+> **APPROVED TEST DESIGN (approval 2026-09-22).** AC-SRP-061–062 mappings are approved;
+> earlier statuses below are preserved.
 
 > **APPROVED TEST DESIGN (approval 2026-09-21).** The AC-SRP-059 endpoint-snapping
 > acceptance baseline is approved. The reviewer correction below remains
@@ -401,3 +404,28 @@ driver guard; authoritative focused AC059 **16 passed, 2 failed, 403 deselected*
 failures are acceptance of the object-shaped `features` impostor and absence of direct runtime
 `access_marker_observations`. Acceptance-only `git diff --check` passed. An initial sandboxed run's
 18 localhost-bind failures are environment noise, not product evidence. M01–M21 remain **NOT RUN**.
+
+## APPROVED AC-SRP-061–062 traceability (2026-09-22)
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-22)**. Approved requirement authority is `d4f8266`.
+
+| Requirement / criterion | Direct automated evidence | Explicit boundary |
+| --- | --- | --- |
+| D-SRP-062; FR-SRP-059; AC-SRP-061 — missing optional diagnostic | `test_ac061_missing_snapped_distance_independently_allows_calculation_and_save` covers origin source, origin destination and both vehicle source rows over actual localhost response payloads, production controller/save and request capture; saved schema-3 route contains no synthesized field | No live ORS call |
+| D-SRP-062; FR-SRP-059; AC-SRP-061 — present invalid and atomicity | `test_ac061_present_invalid_snapped_distance_fails_at_its_stage_and_preserves_state` crosses four locations with string/null/JSON non-finite/negative and proves exact request cutoff, zero write and last-good snapshot/candidate preservation | Provider wording beyond stage/actionability is not prescribed |
+| D-SRP-062; FR-SRP-059; AC-SRP-061 — vehicle maximum and retained validation | `test_ac061_vehicle_snapped_distance_honors_inclusive_configured_maximum` covers 1000/1000.01 m; `test_ac061_optional_diagnostic_does_not_relax_matrix_structure_or_metrics` covers origin/vehicle object-cardinality, location and metric defects | Existing max setting is used; no inferred origin threshold |
+| D-SRP-063; FR-SRP-060; NFR-SRP-010; AC-SRP-062 — canonical macOS/Windows store and sibling isolation | `test_ac062_canonical_platform_store_shares_three_keys_and_ignores_siblings` uses simulated platform roots below `tmp_path`, real encryption/readback for VWorld/Pl@ntNet/route fields, and byte-for-byte sibling snapshots across absent/empty/populated combinations | No real user app-data is opened |
+| D-SRP-063; NFR-SRP-010; AC-SRP-062 — diagnostic override | `test_ac062_diagnostic_override_uses_exactly_one_disposable_store` proves the exact override path, one final file, encrypted route readback and sibling immutability | Override is test/diagnostic only, not a production migration source |
+| FR-SRP-060; NFR-SRP-010; AC-SRP-062 — remember off, blank and failure | `test_ac062_nonretained_branches_build_without_store_or_plaintext_fallback` drives real builds for all three branches, including a write-boundary fault; it proves publication, session behavior, absent store/project copy/plaintext and redacted result | Synthetic fault only; no real disk-full/user store |
+| FR-SRP-060; NFR-SRP-010; AC-SRP-062 — desktop-only and non-leakage | `test_ac062_remembered_route_key_is_not_copied_or_exposed_by_builder_ui` drives the real Step 7 Qt/build path and checks password echo/accessibility, encrypted readback, generated artifacts, QField unavailability and normal UI/log/report/runtime surfaces | Test-only evidence fields may expose the disposable path, never the key; native screen capture is not claimed |
+
+The design verifier guards all fixture locations, the valid-JSON `1e309` non-finite case, state/write
+assertions, both sibling names, shared three-key readback, non-retained project scans and UI/log/report
+redaction assertions. M01–M21 remain **NOT RUN** and are not required to establish these desktop/localhost
+criteria.
+
+Verification: design verifier **PASS**; **475 collected**; authoritative focused AC-SRP-061/062 result
+**22 passed, 17 failed, 436 deselected**. AC-SRP-062 is green in all nine cases. AC-SRP-061 is intentionally
+RED for four missing-diagnostic success cases and thirteen vehicle-stage diagnostics; current vehicle
+provider-response failures preserve state and stop correctly but do not retain the required `matrix` stage.
+An initial restricted run's 31 loopback-bind failures are environment noise, not product evidence.

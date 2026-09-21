@@ -501,3 +501,61 @@ assert all(token in negative_ac060 for token in (
     'observed["writeAttempts"] == observed["writeSuccesses"] == 0',
 ))
 print("survey route AC060 one-point fallback design verified; implementation expected RED")
+
+assert {"061", "062"} <= coverage
+for slot in (
+    "origin_source", "origin_destination", "vehicle_source_0", "vehicle_source_1",
+):
+    origin, vehicle = module._matrix_location_responses(slot, module._MISSING_DIAGNOSTIC)
+    rows = {
+        "origin_source": origin["sources"][0],
+        "origin_destination": origin["destinations"][0],
+        "vehicle_source_0": vehicle["sources"][0],
+        "vehicle_source_1": vehicle["sources"][1],
+    }
+    assert "snapped_distance" not in rows[slot]
+    assert sum("snapped_distance" in row for row in (
+        origin["sources"][0], origin["destinations"][0], *vehicle["sources"])) == 3
+origin, vehicle = module._matrix_location_responses(
+    "vehicle_source_1", module._NONFINITE_JSON_NUMBER)
+assert isinstance(vehicle, str) and "1e309" in vehicle and "Infinity" not in vehicle
+ac061_negative = inspect.getsource(
+    module.test_ac061_present_invalid_snapped_distance_fails_at_its_stage_and_preserves_state)
+assert all(token in ac061_negative for token in (
+    'observed["snapshot_after"] == observed["snapshot_before"]',
+    'observed["candidate_after"] == observed["candidate_before"]',
+    'observed["writeAttempts"] == observed["writeSuccesses"] == 0',
+    'not any(record["path"] == "/optimizer"',
+))
+assert "(1000, True), (1000.01, False)" in test_source
+assert all(fault in test_source for fault in (
+    "origin_sources_cardinality", "origin_destinations_object", "origin_location",
+    "origin_duration", "vehicle_sources_cardinality", "vehicle_sources_object",
+    "vehicle_duration", "vehicle_distance",
+))
+
+ac062_platform = inspect.getsource(
+    module.test_ac062_canonical_platform_store_shares_three_keys_and_ignores_siblings)
+assert all(token in ac062_platform for token in (
+    'root / "FieldBuild Standalone"', 'root / "FieldBuild Kit"',
+    'root / "QField Project Builder"', 'get_remembered_key()',
+    'get_remembered_plantnet_key()', 'get_remembered_route_key()',
+    '[_directory_snapshot(path) for path in siblings] == sibling_before',
+))
+ac062_nonretained = inspect.getsource(
+    module.test_ac062_nonretained_branches_build_without_store_or_plaintext_fallback)
+assert all(token in ac062_nonretained for token in (
+    'result["success"] is True', 'not credential_store.credentials_file_path().exists()',
+    'not any(path.name == "credentials.enc"',
+    'not any(_ROUTE_CREDENTIAL.encode() in path.read_bytes()',
+    '[_directory_snapshot(path) for path in siblings] == sibling_before',
+))
+ac062_ui = inspect.getsource(
+    module.test_ac062_remembered_route_key_is_not_copied_or_exposed_by_builder_ui)
+assert all(token in ac062_ui for token in (
+    'observed["key_input_echo_mode"] == "password"',
+    '"summary", "logs", "errors", "reports", "message", "qml_errors", "diagnostics"',
+    'str(credential_path) not in serialized',
+    'observed["remembered_key_available_to_qfield"] is False',
+))
+print("survey route AC061-062 matrix/credential-store design verified; no real app-data used")

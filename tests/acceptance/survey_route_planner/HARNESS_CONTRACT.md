@@ -1,4 +1,7 @@
-# Survey route acceptance harness — approved AC-SRP-059 baseline with DRAFT evidence correction
+# Survey route acceptance harness — approved AC-SRP-061–062 extension
+
+**APPROVED TEST DESIGN (approval 2026-09-22):** AC-SRP-061 Matrix optional-diagnostic and
+AC-SRP-062 desktop credential-store coverage is approved. Earlier approved/DRAFT statuses are preserved.
 
 **APPROVED TEST DESIGN (approval 2026-09-21).** The AC-SRP-059 endpoint-snapping
 acceptance baseline is approved. The reviewer correction below remains
@@ -423,3 +426,27 @@ boundaries above. It does not add a provenance journal, duplicate the ORS parser
 
 M01–M21 remain **NOT RUN**. This automated contract does not claim live ORS snapping, native QField pixels,
 screen-reader speech, or device interaction.
+
+## APPROVED AC-SRP-061–062 Matrix diagnostic and desktop credential-store extension (2026-09-22)
+
+This extension is **APPROVED TEST DESIGN (approval 2026-09-22)**. It adds no application API. AC-SRP-061
+reuses the existing direct production-JavaScript `backend`, `controller_flow`, and `controller_failure`
+operations plus the disposable localhost transport. Raw Matrix response objects are varied only at the
+provider boundary. `snapped_distance` is independently omitted or made present-invalid in origin
+`sources[0]`, origin `destinations[0]`, and each vehicle `sources[]` row. A JSON numeric literal `1e309`
+is used for the non-finite case so the response is syntactically valid JSON and the runtime receives a
+non-finite Number. Success evidence is the production save/reopen snapshot and captured request sequence;
+failure evidence is the production controller's unchanged snapshot/candidate, exact stage, actual request
+cutoff, and zero post-seed write attempts. The test adapter must not default, calculate, or echo a missing
+diagnostic.
+
+AC-SRP-062 uses `qfield_builder.credential_store`'s public password/remember/readback API and
+`qfield_builder.build.build_project()` directly. Platform inputs (`sys.platform`, `Path.home`, `APPDATA`),
+the documented diagnostic override, and the credential-write fault are external-boundary injections. Every
+writable path is below pytest's disposable `tmp_path`; no real user app-data path is opened. Tests may inspect
+the resulting encrypted bytes, generated project tree, builder result/log/report surfaces, and actual Qt
+password/accessibility observations, but never return or print a decrypted key. `FieldBuild Kit` and
+`QField Project Builder` sibling trees are snapshotted byte-for-byte before and after normal store use.
+Remember-off, blank and injected-store-failure builds must still publish without a credential file or
+plaintext fallback. The diagnostic override must contain exactly one final `credentials.enc`; atomic temp
+files may exist only transiently inside that same disposable directory and must be absent at observation.

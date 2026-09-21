@@ -1,4 +1,7 @@
-# Survey Route Planner — approved AC-SRP-059 baseline with DRAFT evidence correction
+# Survey Route Planner — approved AC-SRP-061–062 extension
+
+> **APPROVED TEST DESIGN (approval 2026-09-22).** The Matrix optional-diagnostic and desktop
+> credential-store extension is approved; earlier statuses below are preserved.
 
 > **APPROVED TEST DESIGN (approval 2026-09-21).** The AC-SRP-059 endpoint-snapping
 > acceptance baseline is approved. The reviewer correction described below is separately
@@ -725,3 +728,63 @@ not product evidence. The permission-enabled rerun above is authoritative.
 - Acceptance-only `git diff --check`: exit 0, no output.
 - The initial sandboxed focused run failed all 18 selected cases because localhost bind was denied; it is
   environment noise, not product evidence. M01–M21 remain **NOT RUN**.
+
+## APPROVED AC-SRP-061–062 Matrix diagnostic and desktop credential-store design (2026-09-22)
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-22)**. Authority is approved specification checkpoint
+`d4f8266`, limited to D-SRP-062–063, FR-SRP-059–060, NFR-SRP-010 and AC-SRP-061–062. Earlier approved
+acceptance history is preserved.
+
+### AC-SRP-061 automated design
+
+- One production controller/save scenario independently removes only `snapped_distance` from origin
+  `sources[0]`, origin `destinations[0]`, vehicle `sources[0]`, or vehicle `sources[1]`. All other response
+  locations, cardinalities and metrics remain valid. Every case must calculate and save, complete the exact
+  origin→snap→walk→vehicle Matrix→optimizer→vehicle directions request sequence, and persist no invented
+  `snapped_distance` field.
+- The same four locations are crossed with present string, null, syntactically valid JSON non-finite `1e309`,
+  and negative values. Origin defects stop after the first request; vehicle defects stop at the fourth request.
+  Each case reports its exact stage, makes no optimizer/vehicle-directions request, performs zero post-seed
+  writes, and preserves the nonempty last-good snapshot and candidate.
+- Vehicle `sources[1].snapped_distance` at the configured 1000 m maximum succeeds and saves; 1000.01 m fails
+  at Matrix with the same state/write guarantees. Eight independent mutations retain object/array cardinality,
+  origin location/duration, and vehicle duration/distance validation, proving optionality is narrow.
+
+### AC-SRP-062 automated design
+
+- Simulated macOS and Windows runtimes place the real encrypted store only at the disposable equivalents of
+  `~/Library/Application Support/FieldBuild Standalone/credentials.enc` and
+  `%APPDATA%\FieldBuild Standalone\credentials.enc`. Four absent/empty/populated combinations of sibling
+  `FieldBuild Kit` and `QField Project Builder` directories are snapshotted before/after. Real password setup,
+  VWorld, Pl@ntNet and route-key retention, lock/unlock and readback prove one shared encrypted store; sibling
+  directory existence and bytes remain identical and compatibility migration is a no-op.
+- The documented diagnostic override points to one disposable directory and leaves exactly one final
+  `credentials.enc`. Readback succeeds after lock/unlock; an adjacent sibling store remains byte-identical.
+- Remember-off, blank+remember, and an injected route-store failure each drive the real project builder.
+  Publication succeeds, session-only semantics remain, no credential file or plaintext fallback appears, and
+  the generated project contains neither `credentials.enc` nor the synthetic key.
+- A real Step 7 Qt/build run with remember on and consent off verifies password echo, non-secret accessibility
+  and label text, encrypted desktop readback, no generated-project credential copy, no QField availability of
+  the desktop-only key, and absence of the synthetic key and exact store path from normal summary/log/error/
+  report/runtime-diagnostic surfaces. The explicit test-evidence field holding the store path is excluded from
+  the normal-surface assertion by design.
+
+All credential tests write only below pytest `tmp_path`, use visibly synthetic values, make no network call,
+and clear unlocked/session state in `finally`. No live provider, native QField, real credential, or real user
+app-data result is claimed.
+
+### DRAFT verification record (2026-09-22)
+
+- Design verifier: **PASS**, exit 0; approved historical guards plus AC-SRP-061/062 fixture, isolation,
+  state-preservation and leakage guards passed.
+- Collection: **475 tests collected**, exit 0.
+- Authoritative focused AC-SRP-061/062 run with disposable localhost permission: **22 passed,
+  17 failed, 436 deselected**, exit 1. All nine AC-SRP-062 credential-store cases passed. The four missing-
+  diagnostic success cases are intended RED against the current mandatory validation. The other thirteen RED
+  cases are vehicle-Matrix invalid/over-limit/structural failures whose current error loses the required
+  `matrix` stage; origin invalid/structural cases, inclusive boundary and all state/write guards pass.
+- The initial sandboxed run was **8 passed, 31 failed, 436 deselected** because all 30 localhost-backed
+  AC-SRP-061 cases and the QML-backed UI case were denied loopback bind. That environmental run is not product
+  evidence; the permission-enabled result above is authoritative.
+- No live provider, native QField, real credential, or real app-data operation was performed. M01–M21 remain
+  **NOT RUN**.

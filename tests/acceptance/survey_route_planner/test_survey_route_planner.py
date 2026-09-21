@@ -1,4 +1,9 @@
-"""DRAFT AC-SRP-049–058 direct-observation redesign (2026-09-21).
+"""APPROVED AC-SRP-061–062 Matrix/credential-store acceptance extension (2026-09-22).
+
+The approved AC-SRP-059 baseline and all earlier history remain preserved below. The new extension
+uses only disposable localhost/app-data fixtures and visibly synthetic credentials.
+
+DRAFT AC-SRP-049–058 direct-observation redesign (2026-09-21).
 
 The approved AC-SRP-001–048 and QPB149–150 history is preserved below.
 
@@ -2725,7 +2730,8 @@ def _is_vehicle_matrix(record):
 
 
 def _provider_responder(*, access=MIXED_ACCESS, fail_stage=None, status=503,
-                        failure=None, malformed_walking=False, origin_response=None):
+                        failure=None, malformed_walking=False, origin_response=None,
+                        vehicle_response=None):
     matrix_calls = 0
 
     def respond(record, _sequence):
@@ -2749,7 +2755,7 @@ def _provider_responder(*, access=MIXED_ACCESS, fail_stage=None, status=503,
         if stage == fail_stage and body != legacy_origin_body:
             return status, "application/json", failure or {"error": {"code": "PROVIDER_FAILURE", "message": "fixture failure"}}
         if stage == "origin-validation" or body == legacy_origin_body:
-            response = origin_response or {
+            response = origin_response if origin_response is not None else {
                 "durations": [[0]],
                 "sources": [{"location": MIXED_START, "snapped_distance": 0}],
                 "destinations": [{"location": MIXED_START, "snapped_distance": 0}],
@@ -2768,10 +2774,11 @@ def _provider_responder(*, access=MIXED_ACCESS, fail_stage=None, status=503,
                                "way_points": [0, 1]},
             }]}
         if stage == "matrix":
-            return 200, "application/json", {
+            response = vehicle_response if vehicle_response is not None else {
                 "durations": [[0, 600], [600, 0]], "distances": [[0, 1000], [1000, 0]],
                 "sources": [{"snapped_distance": 0}, {"snapped_distance": 0}],
             }
+            return 200, "application/json", response
         if stage == "optimizer":
             return 200, "application/json", {
                 "code": 0, "unassigned": [],
@@ -3810,3 +3817,364 @@ def test_ac059_qml_observes_requested_markers_provider_line_and_exact_gap_disclo
     assert boundary["provider_attempts"] == []
     assert boundary["storage_write_attempts"] == []
     assert boundary["source_write_attempts"] == []
+
+
+# AC-SRP-061: Matrix optional snapped_distance -----------------------------------------------
+
+_MISSING_DIAGNOSTIC = object()
+_NONFINITE_JSON_NUMBER = object()
+
+
+def _matrix_location_responses(slot, value):
+    origin = {
+        "durations": [[0]],
+        "sources": [{"location": MIXED_START, "snapped_distance": 0}],
+        "destinations": [{"location": MIXED_START, "snapped_distance": 0}],
+    }
+    vehicle = {
+        "durations": [[0, 600], [600, 0]],
+        "distances": [[0, 1000], [1000, 0]],
+        "sources": [{"snapped_distance": 0}, {"snapped_distance": 0}],
+    }
+    row = {
+        "origin_source": origin["sources"][0],
+        "origin_destination": origin["destinations"][0],
+        "vehicle_source_0": vehicle["sources"][0],
+        "vehicle_source_1": vehicle["sources"][1],
+    }[slot]
+    if value is _MISSING_DIAGNOSTIC:
+        row.pop("snapped_distance")
+    elif value is _NONFINITE_JSON_NUMBER:
+        row["snapped_distance"] = "__NONFINITE_JSON_NUMBER__"
+    else:
+        row["snapped_distance"] = value
+
+    def encoded(document):
+        if value is not _NONFINITE_JSON_NUMBER:
+            return document
+        return json.dumps(document, separators=(",", ":")).replace(
+            '"__NONFINITE_JSON_NUMBER__"', "1e309")
+
+    if slot.startswith("origin_"):
+        origin = encoded(origin)
+    else:
+        vehicle = encoded(vehicle)
+    return origin, vehicle
+
+
+def _controller_provider_run(tmp_path, responder, *, expect_success, name):
+    with _route_http(responder) as (base, records):
+        operation = "controller_flow" if expect_success else "controller_failure"
+        observed = _direct_node(
+            operation, tmp_path,
+            base=str(tmp_path / name / "survey-routes"), document=_legacy_document(),
+            features=[{"id": "site-a", "name": "농촌 A",
+                       "coordinate": MIXED_SOURCE, "completed": False}],
+            settings=_settings(base), start=MIXED_START, roundtrip=False,
+            replace_active=True, name="Matrix diagnostic 경로",
+        )
+    return observed, records
+
+
+@pytest.mark.parametrize("slot", [
+    "origin_source", "origin_destination", "vehicle_source_0", "vehicle_source_1",
+])
+def test_ac061_missing_snapped_distance_independently_allows_calculation_and_save(slot, tmp_path):
+    origin, vehicle = _matrix_location_responses(slot, _MISSING_DIAGNOSTIC)
+    observed, records = _controller_provider_run(
+        tmp_path, _provider_responder(origin_response=origin, vehicle_response=vehicle),
+        expect_success=True, name="missing-" + slot,
+    )
+    assert observed["calculated"] is observed["saved"] is True
+    route = next(route for route in observed["snapshot"]["data"]["routes"]
+                 if route.get("route_schema") == 3)
+    assert "snapped_distance" not in json.dumps(route, ensure_ascii=False)
+    assert [record["path"] for record in records] == [
+        "/v2/matrix/driving-car", "/v2/snap/driving-car/json",
+        "/v2/directions/foot-hiking/geojson", "/v2/matrix/driving-car",
+        "/optimizer", "/v2/directions/driving-car/geojson",
+    ]
+
+
+@pytest.mark.parametrize("slot,expected_stage", [
+    ("origin_source", "origin-validation"),
+    ("origin_destination", "origin-validation"),
+    ("vehicle_source_0", "matrix"),
+    ("vehicle_source_1", "matrix"),
+])
+@pytest.mark.parametrize("invalid", [
+    pytest.param("12.5", id="string"),
+    pytest.param(None, id="null"),
+    pytest.param(_NONFINITE_JSON_NUMBER, id="nonfinite"),
+    pytest.param(-0.01, id="negative"),
+])
+def test_ac061_present_invalid_snapped_distance_fails_at_its_stage_and_preserves_state(
+        slot, expected_stage, invalid, tmp_path):
+    origin, vehicle = _matrix_location_responses(slot, invalid)
+    observed, records = _controller_provider_run(
+        tmp_path, _provider_responder(origin_response=origin, vehicle_response=vehicle),
+        expect_success=False, name=f"invalid-{slot}-{id(invalid)}",
+    )
+    assert observed["calculated"] is False
+    assert observed["snapshot_after"] == observed["snapshot_before"]
+    assert observed["candidate_after"] == observed["candidate_before"]
+    assert observed["writeAttempts"] == observed["writeSuccesses"] == 0
+    assert observed["last_error"]["stage"] == expected_stage
+    expected_count = 1 if expected_stage == "origin-validation" else 4
+    assert len(records) == expected_count
+    assert not any(record["path"] == "/optimizer" for record in records)
+    assert not any("/v2/directions/driving-car/" in record["path"] for record in records)
+
+
+@pytest.mark.parametrize("distance,success", [(1000, True), (1000.01, False)])
+def test_ac061_vehicle_snapped_distance_honors_inclusive_configured_maximum(
+        distance, success, tmp_path):
+    origin, vehicle = _matrix_location_responses("vehicle_source_1", distance)
+    observed, records = _controller_provider_run(
+        tmp_path, _provider_responder(origin_response=origin, vehicle_response=vehicle),
+        expect_success=success, name="boundary-" + str(distance),
+    )
+    if success:
+        assert observed["calculated"] is observed["saved"] is True
+        assert records[-1]["path"] == "/v2/directions/driving-car/geojson"
+    else:
+        assert observed["calculated"] is False
+        assert observed["snapshot_after"] == observed["snapshot_before"]
+        assert observed["candidate_after"] == observed["candidate_before"]
+        assert observed["writeAttempts"] == observed["writeSuccesses"] == 0
+        assert observed["last_error"]["stage"] == "matrix"
+        assert records[-1]["path"] == "/v2/matrix/driving-car"
+
+
+def _structurally_invalid_matrix_responses(fault):
+    origin, vehicle = _matrix_location_responses("origin_source", 0)
+    if fault == "origin_sources_cardinality":
+        origin["sources"] = []
+    elif fault == "origin_destinations_object":
+        origin["destinations"] = {"0": origin["destinations"][0]}
+    elif fault == "origin_location":
+        origin["sources"][0]["location"] = None
+    elif fault == "origin_duration":
+        origin["durations"] = [[None]]
+    elif fault == "vehicle_sources_cardinality":
+        vehicle["sources"].pop()
+    elif fault == "vehicle_sources_object":
+        vehicle["sources"] = {"0": vehicle["sources"][0], "1": vehicle["sources"][1]}
+    elif fault == "vehicle_duration":
+        vehicle["durations"][0][1] = None
+    elif fault == "vehicle_distance":
+        vehicle["distances"][0][1] = "1000"
+    else:
+        raise AssertionError(fault)
+    return origin, vehicle
+
+
+@pytest.mark.parametrize("fault,expected_stage", [
+    ("origin_sources_cardinality", "origin-validation"),
+    ("origin_destinations_object", "origin-validation"),
+    ("origin_location", "origin-validation"),
+    ("origin_duration", "origin-validation"),
+    ("vehicle_sources_cardinality", "matrix"),
+    ("vehicle_sources_object", "matrix"),
+    ("vehicle_duration", "matrix"),
+    ("vehicle_distance", "matrix"),
+])
+def test_ac061_optional_diagnostic_does_not_relax_matrix_structure_or_metrics(
+        fault, expected_stage, tmp_path):
+    origin, vehicle = _structurally_invalid_matrix_responses(fault)
+    observed, records = _controller_provider_run(
+        tmp_path, _provider_responder(origin_response=origin, vehicle_response=vehicle),
+        expect_success=False, name="structure-" + fault,
+    )
+    assert observed["calculated"] is False
+    assert observed["snapshot_after"] == observed["snapshot_before"]
+    assert observed["candidate_after"] == observed["candidate_before"]
+    assert observed["writeAttempts"] == observed["writeSuccesses"] == 0
+    assert observed["last_error"]["stage"] == expected_stage
+    assert len(records) == (1 if expected_stage == "origin-validation" else 4)
+
+
+# AC-SRP-062: canonical desktop credential store ----------------------------------------------
+
+_ROUTE_CREDENTIAL = "SRP_ROUTE_KEY_SYNTHETIC_62"
+_CREDENTIAL_PASSWORD = "acceptance-only-password-62"
+
+
+def _configure_fake_app_data(monkeypatch, tmp_path, platform):
+    from qfield_builder import credential_store
+
+    monkeypatch.delenv(credential_store._APP_DATA_DIR_ENV_OVERRIDE, raising=False)
+    monkeypatch.setattr(credential_store.sys, "platform", platform)
+    if platform == "darwin":
+        home = tmp_path / "home"
+        monkeypatch.setattr(
+            credential_store.Path, "home", classmethod(lambda _cls: home))
+        root = home / "Library" / "Application Support"
+    else:
+        root = tmp_path / "Roaming"
+        monkeypatch.setenv("APPDATA", str(root))
+    return credential_store, root
+
+
+def _directory_snapshot(path):
+    if not path.exists():
+        return None
+    return [
+        (item.relative_to(path).as_posix(), item.is_dir(), None if item.is_dir() else item.read_bytes())
+        for item in sorted(path.rglob("*"))
+    ]
+
+
+def _seed_sibling(path, state):
+    if state == "absent":
+        return
+    path.mkdir(parents=True)
+    if state == "populated":
+        (path / "credentials.enc").write_bytes(b"SIBLING-STORE-MUST-REMAIN-BYTE-IDENTICAL")
+        (path / "sibling-state.txt").write_text("unchanged", encoding="utf-8")
+
+
+@pytest.mark.parametrize("platform,fieldbuild_state,qpb_state", [
+    ("darwin", "absent", "absent"),
+    ("darwin", "empty", "populated"),
+    ("win32", "populated", "empty"),
+    ("win32", "populated", "populated"),
+])
+def test_ac062_canonical_platform_store_shares_three_keys_and_ignores_siblings(
+        platform, fieldbuild_state, qpb_state, monkeypatch, tmp_path):
+    credential_store, root = _configure_fake_app_data(monkeypatch, tmp_path, platform)
+    canonical = root / "FieldBuild Standalone"
+    siblings = [root / "FieldBuild Kit", root / "QField Project Builder"]
+    _seed_sibling(siblings[0], fieldbuild_state)
+    _seed_sibling(siblings[1], qpb_state)
+    sibling_before = [_directory_snapshot(path) for path in siblings]
+    credential_store.lock_session()
+    credential_store.set_session_route_key(None)
+    try:
+        assert credential_store.credentials_file_path() == canonical / "credentials.enc"
+        credential_store.establish_password(_CREDENTIAL_PASSWORD)
+        credential_store.remember_key("SYNTHETIC-VWORLD-62")
+        credential_store.remember_plantnet_key("SYNTHETIC-PLANTNET-62")
+        credential_store.remember_route_key(_ROUTE_CREDENTIAL)
+        encrypted = (canonical / "credentials.enc").read_bytes()
+        assert all(secret not in encrypted for secret in (
+            b"SYNTHETIC-VWORLD-62", b"SYNTHETIC-PLANTNET-62",
+            _ROUTE_CREDENTIAL.encode(),
+        ))
+        credential_store.lock_session()
+        credential_store.unlock_session(_CREDENTIAL_PASSWORD)
+        assert credential_store.get_remembered_key() == "SYNTHETIC-VWORLD-62"
+        assert credential_store.get_remembered_plantnet_key() == "SYNTHETIC-PLANTNET-62"
+        assert credential_store.get_remembered_route_key() == _ROUTE_CREDENTIAL
+        assert credential_store.migrate_legacy_credentials() is False
+        assert [_directory_snapshot(path) for path in siblings] == sibling_before
+    finally:
+        credential_store.lock_session()
+        credential_store.set_session_route_key(None)
+
+
+def test_ac062_diagnostic_override_uses_exactly_one_disposable_store(monkeypatch, tmp_path):
+    from qfield_builder import credential_store
+
+    override = tmp_path / "diagnostic-override"
+    sibling = tmp_path / "FieldBuild Kit"
+    _seed_sibling(sibling, "populated")
+    sibling_before = _directory_snapshot(sibling)
+    monkeypatch.setenv(credential_store._APP_DATA_DIR_ENV_OVERRIDE, str(override))
+    credential_store.lock_session()
+    credential_store.set_session_route_key(None)
+    try:
+        credential_store.establish_password(_CREDENTIAL_PASSWORD)
+        assert credential_store.apply_route_retention_policy(_ROUTE_CREDENTIAL, True) is True
+        path = credential_store.credentials_file_path()
+        assert path == override / "credentials.enc"
+        assert [item.relative_to(override).as_posix() for item in override.rglob("*")] == [
+            "credentials.enc"]
+        credential_store.lock_session()
+        credential_store.unlock_session(_CREDENTIAL_PASSWORD)
+        assert credential_store.get_remembered_route_key() == _ROUTE_CREDENTIAL
+        assert _directory_snapshot(sibling) == sibling_before
+    finally:
+        credential_store.lock_session()
+        credential_store.set_session_route_key(None)
+
+
+@pytest.mark.parametrize("case,key,remember,store_failure", [
+    ("remember-off", _ROUTE_CREDENTIAL, False, False),
+    ("blank", "   ", True, False),
+    ("store-failure", _ROUTE_CREDENTIAL, True, True),
+])
+def test_ac062_nonretained_branches_build_without_store_or_plaintext_fallback(
+        case, key, remember, store_failure, monkeypatch, tmp_path):
+    from qfield_builder import build as build_module
+    from qfield_builder import credential_store
+
+    store_dir = tmp_path / case / "FieldBuild Standalone"
+    project_dir = tmp_path / case / "generated-project"
+    siblings = [tmp_path / case / "FieldBuild Kit", tmp_path / case / "QField Project Builder"]
+    for sibling in siblings:
+        _seed_sibling(sibling, "populated")
+    sibling_before = [_directory_snapshot(path) for path in siblings]
+    monkeypatch.setenv(credential_store._APP_DATA_DIR_ENV_OVERRIDE, str(store_dir))
+    credential_store.lock_session()
+    credential_store.set_session_route_key(None)
+    if store_failure:
+        def fail_remember(_key):
+            raise OSError("synthetic credential-store failure")
+        monkeypatch.setattr(credential_store, "remember_route_key", fail_remember)
+    try:
+        result = build_module.build_project({
+            "project_display_name": "AC062 retention " + case,
+            "survey_type": "temporary_plots",
+            "basemap": {"mode": "none"},
+            "survey_route": {
+                "api_key": key,
+                "consent_accepted": False,
+                "remember_key": remember,
+            },
+        }, str(project_dir))
+        assert result["success"] is True
+        assert not credential_store.credentials_file_path().exists()
+        assert credential_store.get_session_route_key() == key.strip()
+        files = [path for path in project_dir.rglob("*") if path.is_file()]
+        assert not any(path.name == "credentials.enc" for path in files)
+        assert not any(_ROUTE_CREDENTIAL.encode() in path.read_bytes() for path in files)
+        normal_surfaces = json.dumps(result, ensure_ascii=False)
+        assert _ROUTE_CREDENTIAL not in normal_surfaces
+        assert str(credential_store.credentials_file_path()) not in normal_surfaces
+        assert [_directory_snapshot(path) for path in siblings] == sibling_before
+    finally:
+        credential_store.lock_session()
+        credential_store.set_session_route_key(None)
+
+
+def test_ac062_remembered_route_key_is_not_copied_or_exposed_by_builder_ui(run):
+    observed = run(
+        operation="builder_step7_route_credentials", state="remember-only",
+        input_key=_ROUTE_CREDENTIAL, consent=False, remember=True, outcome="success",
+    )
+    credential_path = Path(observed["desktop_credential_store"])
+    assert observed["build_success"] is True
+    assert observed["desktop_retention_readback"] == {
+        "present": True,
+        "source": "encrypted_credentials_store",
+        "plaintext_at_rest": False,
+    }
+    assert observed["key_input_echo_mode"] == "password"
+    route_widget = next(widget for widget in observed["widgets"]
+                        if widget["semantic_id"] == "route_key")
+    assert route_widget["echo_mode"] == "password"
+    assert _ROUTE_CREDENTIAL not in json.dumps(
+        route_widget["accessibility_observation"], ensure_ascii=False)
+    for widget in observed["widgets"]:
+        if widget["semantic_id"] != "route_key":
+            assert _ROUTE_CREDENTIAL not in widget["text"]
+    safe_surfaces = {name: observed[name] for name in (
+        "summary", "logs", "errors", "reports", "message", "qml_errors", "diagnostics")}
+    serialized = json.dumps(safe_surfaces, ensure_ascii=False)
+    assert _ROUTE_CREDENTIAL not in serialized
+    assert str(credential_path) not in serialized
+    artifacts = [Path(path) for path in observed["artifact_paths"]]
+    assert not any(path.name == "credentials.enc" for path in artifacts)
+    assert not any(_ROUTE_CREDENTIAL.encode() in path.read_bytes() for path in artifacts)
+    assert observed["remembered_key_available_to_qfield"] is False
