@@ -1,6 +1,6 @@
 # Feature: 도로망 조사 경로 및 조사대상 도형 확장
 
-> Status: **APPROVED — D-SRP-060 / FR-SRP-057 / AC-SRP-059 ORS walking endpoint-snapping clarification approved 2026-09-21; prior approved baseline preserved.**
+> Status: **APPROVED — D-SRP-061 / FR-SRP-058 / AC-SRP-060 one-point walking response fallback approved 2026-09-21; prior approved baseline preserved.**
 > Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; 2026-09-16 approved workflow/progress slice; D-SRP-031~035, FR-SRP-029~033 and AC-SRP-031~035 approved 2026-09-16; D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 and AC-SRP-036~041 approved 2026-09-17; D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 and AC-SRP-042~045 approved 2026-09-17; D-SRP-046~048, FR-SRP-044~046, NFR-SRP-006 and AC-SRP-046~048 approved 2026-09-17; D-SRP-049~056, FR-SRP-047~053, NFR-SRP-007~009 and AC-SRP-049~055 approved 2026-09-18. Target QField device verification remains **NOT RUN (미검증)**.
 > Owner: spec-writer
 > Extends: [통합 명세](qfield-project-builder.md)
@@ -9,6 +9,15 @@
 
 
 ## 0. 문서 권한과 현재 상태 (2026-09-14)
+
+**2026-09-21 ORS 1점 도보 geometry 정합 (승인):** 실제 QField 계산에서 ORS가
+`LineString` type과 좌표 한 점, route-level `way_points=[0,0]`을 반환하는 퇴화된 성공 응답이
+관찰됐다. 이는 D-SRP-060의 두 점 이상·strictly increasing way-points 계약에는 맞지 않지만, 두 요청
+endpoint가 같은 보행 graph 위치로 snap되어 provider 구간이 0이 된 경우를 기존 unmapped fallback으로
+안전하게 표현할 수 있는지에 대한 Category B ambiguity다. 아래 D-SRP-061, FR-SRP-058 및 AC-SRP-060은
+엄격한 0 metric 조건에서만 기존 `unmapped_estimate/straight_line_lower_bound_m`을 재사용하고 mapped
+geometry를 만들지 않는 최소 정합 제안이다. D-SRP-060의 정상 mapped geometry 계약과 그 밖의 malformed
+  응답 거부는 유지하며 2026-09-21 사용자가 승인했다.
 
 **2026-09-21 ORS 도보 endpoint snapping 명확화 (승인):** 실제 ORS `foot-hiking`
 GeoJSON이 요청한 access/source가 아니라 routing graph에 snap된 좌표에서 시작·끝날 수 있는데도 현재
@@ -587,6 +596,17 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   저장 경로 detail 및 legend/accessibility text에서 알린다. 이를 access→source 전체의 연속 경로 또는
   완전한 현장 이동 거리/시간이라고 표현하지 않는다. explicit no-path와 exact-zero 의미는
   D-SRP-051/053 그대로이며, malformed structure/way_points/metric mismatch는 여전히 전체 계산 실패다.
+- D-SRP-061 (2026-09-21 승인, Category B): D-SRP-060의 정상 mapped 구조와 별도로, walking directions가
+  feature 하나, `geometry.type=LineString`, 정확히 한 개의 finite WGS84 coordinate, segment 정확히 하나,
+  route-level `way_points=[0,0]`, summary와 segment의 distance/duration이 모두 숫자 `0`인 응답을 반환하면
+  adapter는 이를 저장 가능한 mapped geometry나 `exact_zero`로 만들지 않고 해당 visit의 명시적
+  `unmapped_estimate/straight_line_lower_bound_m`으로 분류한다. 요청한 access와 source 사이 geodesic
+  왕복을 직선거리 하한으로 사용하고 duration과 combined total은 기존 D-SRP-051 fallback처럼 `null`,
+  geometry는 요청 좌표 사이 dotted 직선이며 저장 전 확인을 요구한다. 한 점을 복제해 2점 LineString을
+  만들거나 mapped 0 m/0 s, synthetic connector 또는 endpoint-gap metric으로 저장하지 않는다. 한 점인데
+  metric이 non-zero/non-finite/missing이거나 segment/way-points/feature 수가 다르거나 summary와 segment가
+  일치하지 않으면 provider-response failure로 중단하고 fallback, 후속 vehicle request와 write는 0회이며
+  last-good candidate/saved route를 보존한다.
 
 ## 3. Functional Requirements
 - FR-SRP-001: 생성 프로젝트에 기존 보고서/식별 플러그인과 공존하는 하단 접이식 패널.
@@ -959,6 +979,15 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   밖이면 기존 candidate/saved route를 보존한 provider-response failure로 끝나며 fallback, 후속 vehicle
   request와 write는 0회다.
 
+### 3.11 2026-09-21 ORS 1점 도보 geometry fallback (승인)
+
+- FR-SRP-058 (2026-09-21 승인): walking directions adapter는 D-SRP-061의 한 점·zero-metric 응답을 정상 mapped
+  LineString validation 전에 좁게 식별해 기존 explicit no-path와 동일한 fallback payload로 전달한다.
+  controller, repository, map style, acknowledgement 및 totals schema는 기존
+  `unmapped_estimate/straight_line_lower_bound_m` 경로를 그대로 사용하며 새 mode, metric source, schema,
+  dependency 또는 provider request를 추가하지 않는다. D-SRP-061 조건을 하나라도 충족하지 않는 한 점
+  또는 다른 malformed response는 현재의 안전한 구조 진단과 atomic failure를 유지한다.
+
 ## 4. Data / Compatibility
 새 프로젝트 생성만 도형 메타데이터를 변경한다. 사용자의 기존 GPKG를 자동 마이그레이션하지
 않는다. 기본 도형 유형을 지정하지 않은 과거 호출은 MULTIPOLYGON 기본값을 유지한다.
@@ -1132,6 +1161,7 @@ max road offset, 이번 승인 범위의 max access distance, default start, lay
 | AC-SRP-057 (2026-09-19 승인) | no-file/default open은 write 0회와 schema-2 in-memory 의미를 보이고, 최초 settings-only save 및 schema-1 settings-only upgrade는 top-level schema가 3이 아니다. 두 개 이상의 schema-1/2 route 중 하나를 explicit recalculation+save하면 document만 schema 3이 되고 selected identity 하나는 `route_schema: 3` mixed route로 교체되며 unrelated routes는 원래 fields와 `route_schema: 1|2`로 모두 남아 list/load된다. active ID, names, revisions와 legacy bytes/semantics는 삭제·mixed 추정 없이 보존된다. untagged homogeneous schema-3 fixture는 write 없이 mixed로 열리고 다음 정상 write에 marker가 생긴다. mixed/legacy corruption, unknown marker, marker/content contradiction 또는 duplicate identity는 전체 commit/load/recovery 실패, provider/storage 후속 동작 0회와 이전 bytes/last-good 보존이다. |
 | AC-SRP-058 (2026-09-19 승인) | default-on toggle을 off로 바꾸면 정확히 한 번의 atomic settings write/readback 뒤 route line 세 class만 숨고 route/source/completion/revision은 불변이다. panel reopen, cold restart와 settings 동반 folder move에서 off가 복구되며 다시 on 저장도 같다. preview/legend view는 write 0회다. settings write/readback failure는 success 0회, persisted preference와 route 상태 불변 및 actionable feedback이고 모든 branch의 provider request는 0회다. |
 | AC-SRP-059 (2026-09-21 승인) | 두 requested coordinate가 각각 유효한 `foot-hiking` graph point로 snap되어 geometry 첫·끝이 requested access/source에서 1 m보다 멀고 provider distance가 requested access-source geodesic보다 짧은 ORS-shaped fixture도, feature 1개·finite WGS84 LineString·summary·segment 1개·route-level `way_points=[0,last]`와 D-SRP-028 metric tolerance를 만족하면 mapped visit으로 승인한다. schema 3 save/restart/offline/folder move는 requested source/access와 provider distance/duration/geometry를 각각 exact roundtrip하고 return geometry만 reverse하며 schema/version/mode/metric source를 새로 만들지 않는다. map과 screen reader는 requested source/access marker와 provider dashed geometry를 서로 다른 좌표에 그대로 표시하고 `ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함`을 전달하며 synthetic connector, gap metric/time, fallback과 source 좌표 이동은 0개다. missing/non-covering/non-integer/non-increasing `way_points`, invalid geometry/summary/segment 또는 tolerance 밖 metric fixture는 전체 계산 실패, fallback/후속 vehicle request/write 0회 및 last-good 보존이다. |
+| AC-SRP-060 (2026-09-21 승인) | ORS-shaped walking fixture가 feature 1개, `LineString` 좌표 정확히 1개, segment 1개, route-level `way_points=[0,0]`, summary와 segment distance/duration 모두 숫자 0이면 계산은 해당 visit만 `unmapped_estimate/straight_line_lower_bound_m`으로 만들고 requested access↔source geodesic 왕복 lower-bound, null duration/combined total, dotted line, 영향 조사지 안내와 저장 acknowledgement를 사용한다. mapped geometry/metric, duplicated point, connector, 새 mode/schema/request는 0개이며 source/access는 불변이다. distance 또는 duration이 non-zero/non-finite/missing, summary/segment 불일치, `[0,0]` 외 way-points, 좌표 0개/2개 이상인 malformed 변형은 fallback과 후속 vehicle request/write 0회로 실패하고 기존 candidate/saved route를 보존한다. 정상 2점 이상 mapped fixture와 explicit 2010/no-path fixture는 각각 AC-SRP-059와 AC-SRP-051 의미를 유지한다. |
 
 ## 6. API 근거 / 검증 경계
 VROOM 근거는 초기 provider가 대상으로 삼은 **v1.14.0 tag**에 고정한다. 공식 문서는 timing을
