@@ -376,3 +376,66 @@ for production_name in ("backend.js", "controller.js", "repository.js", "navigat
     assert "SRP_DIRECT_SYNTHETIC_SECRET" not in production_source
     assert not re.search(r"\b(?:testOnly|acceptanceOnly)\b", production_source)
 print("survey route AC049-058 direct-observation design verified")
+
+# DRAFT AC-SRP-059 endpoint-snapping design checks.
+test_source = path.read_text(encoding="utf-8-sig")
+coverage = set(re.findall(r"ac(\d{3})", test_source))
+assert {f"{i:03d}" for i in range(1, 60)} <= coverage
+for required in (
+    "SNAPPED_PROVIDER_GEOMETRY", "ENDPOINT_GAP_DISCLOSURE",
+    "test_ac059_snapped_provider_geometry_is_mapped_without_connector_or_gap_metric",
+    "test_ac059_schema3_active_inactive_restart_offline_move_exact_roundtrip",
+    "test_ac059_malformed_walking_contract_stops_before_vehicle_write_and_preserves_last_good",
+    "test_ac059_qml_observes_requested_markers_provider_line_and_exact_gap_disclosure",
+):
+    assert required in test_source
+valid = module._snapped_walking_response()
+feature = valid["features"][0]
+assert valid["type"] == "FeatureCollection"
+assert len(valid["features"]) == 1
+assert feature["type"] == "Feature"
+assert feature["geometry"] == module.SNAPPED_PROVIDER_GEOMETRY
+assert all(len(coordinate) == 2 and all(math.isfinite(value) for value in coordinate)
+           and abs(coordinate[0]) <= 180 and abs(coordinate[1]) <= 90
+           for coordinate in feature["geometry"]["coordinates"])
+assert feature["properties"]["way_points"] == [0, 2]
+assert len(feature["properties"]["segments"]) == 1
+assert module._geodesic_m(feature["geometry"]["coordinates"][0], module.MIXED_ACCESS) > 1
+assert module._geodesic_m(feature["geometry"]["coordinates"][-1], module.MIXED_SOURCE) > 1
+assert module.SNAPPED_DISTANCE_M < module._geodesic_m(module.MIXED_ACCESS, module.MIXED_SOURCE)
+faults = {
+    "missing_way_points", "non_array_way_points", "wrong_length_way_points",
+    "non_integer_way_points", "non_increasing_way_points", "non_covering_start",
+    "non_covering_end", "multiple_segments", "multiple_features", "invalid_geometry",
+    "invalid_summary", "invalid_segment", "distance_tolerance_mismatch",
+    "duration_tolerance_mismatch",
+}
+for fault in faults:
+    assert module._invalid_snapped_response(fault) != valid
+positive_source = inspect.getsource(
+    module.test_ac059_snapped_provider_geometry_is_mapped_without_connector_or_gap_metric)
+assert all(token in positive_source for token in (
+    'visit["walking_mode"] == "mapped"', 'visit["metric_source"] == "ors-foot-hiking"',
+    'visit["access_coordinate"] == MIXED_ACCESS', 'visit["source_coordinate"] == MIXED_SOURCE',
+    '"geometry": SNAPPED_PROVIDER_GEOMETRY', 'list(reversed(SNAPPED_PROVIDER_GEOMETRY["coordinates"]))',
+))
+negative_source = inspect.getsource(
+    module.test_ac059_malformed_walking_contract_stops_before_vehicle_write_and_preserves_last_good)
+assert all(token in negative_source for token in (
+    'observed["snapshot_after"] == observed["snapshot_before"]',
+    'observed["candidate_after"] == observed["candidate_before"]',
+    'observed["writeAttempts"] == observed["writeSuccesses"] == 0',
+    '"/v2/directions/foot-hiking/geojson"',
+))
+qml_source = inspect.getsource(
+    module.test_ac059_qml_observes_requested_markers_provider_line_and_exact_gap_disclosure)
+assert all(token in qml_source for token in (
+    'observed["snapped_endpoint_observation"]',
+    'endpoint["synthetic_connector_count"] == 0',
+    'endpoint["gap_metric_or_duration_count"] == 0',
+    'endpoint["source_coordinate_write_attempts"] == []',
+    'disclosure["text"] == ENDPOINT_GAP_DISCLOSURE',
+    'disclosure["accessible_name"] == ENDPOINT_GAP_DISCLOSURE',
+))
+assert '"way_points": [0, 1]' in inspect.getsource(module._provider_responder)
+print("survey route AC059 endpoint-snapping design verified; M01-M21 remain NOT RUN")

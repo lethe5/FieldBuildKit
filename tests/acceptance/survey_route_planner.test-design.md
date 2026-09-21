@@ -646,3 +646,58 @@ finite metric, downstream original-start immutability, and request ordering rema
 - Focused AC049–058: **47 passed, 356 deselected**, exit 0.
 - Full acceptance file: **382 passed, 21 skipped**, exit 0, 263.33 s.
 - M01–M21 remain **NOT RUN**; the skips do not claim device or live-provider PASS.
+
+## DRAFT AC-SRP-059 ORS walking endpoint-snapping design (2026-09-21)
+
+Status: **DRAFT TEST DESIGN — user approval required.** This is Category A regression coverage for the
+approved D-SRP-060 / FR-SRP-057 / AC-SRP-059 clarification. It changes only the five survey-route
+acceptance artifacts and does not change application, unit-test, specification, or UI-guidance files.
+
+### Automated design
+
+- A raw localhost ORS-shaped fixture has exactly one Feature, a three-coordinate finite WGS84 LineString,
+  one segment, exact summary/segment metrics and route-level `way_points=[0,2]`. Both graph endpoints are
+  over 1 m from immutable requested access/source, while its 30 m provider distance is shorter than the
+  independently calculated requested-coordinate geodesic. The real backend must return mapped/
+  `ors-foot-hiking`, requested markers unchanged, exact provider metrics/geometry, and exact reverse only
+  for the return leg. There is no connector, gap metric/time or fallback.
+- Two real controller saves make the snapped route both active and inactive. The schema-3 document is
+  reopened offline in a separate process after moving its folder. Full-document equality and visit-field
+  assertions reject a schema bump, new mode/source/provenance field, coordinate movement, geometry rewrite,
+  or metric adjustment.
+- Fourteen raw malformed-response mutations cover missing/non-array/wrong-length/non-integer/non-increasing/
+  non-covering route-level `way_points`, multiple segments/features, invalid geometry/summary/segment, and
+  distance/duration mismatch outside `max(1 unit, 0.5%)`. The production controller must preserve the seeded
+  last-good snapshot and candidate, stop after the walking call, and record zero later vehicle requests,
+  fallback, retry or post-seed storage write.
+- Generated QML must expose direct runtime readback of the requested access/source markers and provider-only
+  dashed geometry. Three distinct live calculation-result, saved-detail and legend/accessibility objects must
+  each expose the exact text and accessible name `ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함`.
+  Raw callback slices prove preview/detail/legend/reload are passive. Input echo, source-text matching and
+  canned observation dictionaries are rejected by the harness contract.
+
+### Manual boundary
+
+M01–M21 remain **NOT RUN**. M18 remains the live-ORS boundary for an actual snapped response; M19 remains
+the target-QField map, legend and screen-reader boundary. Automated localhost/QML checks do not promote either
+manual case to PASS.
+
+### DRAFT verification record
+
+Repository: `/Users/tory/vibe_coding/fieldbuild_standalone`, branch
+`codex/route-provider-error-details`. Only the five survey-route acceptance artifacts were edited by this
+test-designer. No application, unit-test, specification, Git-state, live-provider or device mutation occurred.
+
+- Collection: **420 collected**, exit 0.
+- Design verifier: **PASS**, exit 0; approved historical checks and the AC059 fixture/oracle/direct-observation
+  guards passed without executing application behavior.
+- Authoritative focused AC059 run with disposable localhost permission: **14 passed, 3 failed,
+  403 deselected**, exit 1. The valid snapped response is rejected by current endpoint equality/lower-bound
+  validation; consequently active/inactive schema-3 save/reopen cannot start. The loaded-QML operation also
+  lacks `snapped_endpoint_observation` and the required three live disclosure observations. All fourteen
+  malformed fixtures already stop atomically; this does not satisfy the missing valid-path/UI behavior.
+- Acceptance-only `git diff --check`: exit 0, no output.
+- M01–M21 remain **NOT RUN**.
+
+An initial sandboxed focused run failed all 17 selected cases at localhost bind with `PermissionError` and is
+not product evidence. The permission-enabled rerun above is authoritative.

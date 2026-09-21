@@ -22,6 +22,7 @@ from __future__ import annotations
 import importlib
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -2575,6 +2576,21 @@ let launcherCalls=[];
     const saved=calculated?instance.save(input.name||"혼합 경로"):false;
     out={calculated,saved,candidate,snapshot:instance.state.snapshot,state_message:instance.state.message,
       progress:instance.progress(),writeAttempts,writeSuccesses};
+  }else if(input.operation==="controller_failure"){
+    if(input.document)repository.save(fsIo(),input.base,input.document,0);
+    const instance=makeController(input.base,input.features);
+    instance.state.roundtrip=input.roundtrip===true;
+    instance.configure(input.settings);
+    const snapshotBefore=JSON.parse(JSON.stringify(instance.state.snapshot));
+    const candidateBefore=instance.state.candidate?JSON.parse(JSON.stringify(instance.state.candidate)):null;
+    const attemptsBefore=writeAttempts,successesBefore=writeSuccesses;
+    const calculated=await instance.calculate(input.replace_active===true);
+    out={calculated,candidate_before:candidateBefore,
+      candidate_after:instance.state.candidate?JSON.parse(JSON.stringify(instance.state.candidate)):null,
+      snapshot_before:snapshotBefore,snapshot_after:instance.state.snapshot,
+      state_message:instance.state.message,last_error:instance.state.lastError,
+      providerRequestAttempts,writeAttempts:writeAttempts-attemptsBefore,
+      writeSuccesses:writeSuccesses-successesBefore};
   }else if(input.operation==="controller_state"){
     if(input.document)repository.save(fsIo(),input.base,input.document,0);
     const instance=makeController(input.base,input.features);
@@ -2723,7 +2739,8 @@ def _provider_responder(*, access=MIXED_ACCESS, fail_stage=None, status=503,
             return 200, "application/json", {"features": [{
                 "geometry": {"type": "LineString", "coordinates": [access, MIXED_SOURCE]},
                 "properties": {"summary": {"distance": 150, "duration": 120},
-                               "segments": [{"distance": 150, "duration": 120}]},
+                               "segments": [{"distance": 150, "duration": 120}],
+                               "way_points": [0, 1]},
             }]}
         if stage == "matrix":
             return 200, "application/json", {
@@ -3340,3 +3357,237 @@ def test_ac053_qml_runtime_reads_real_tree_repeater_and_qaccessible(run):
         assert all(item["lookup"] == "Repeater.itemAt(index)" for item in delegates)
         assert all(item["qaccessible"]["source"] == "QAccessible.queryAccessibleInterface"
                    for item in delegates)
+
+
+# DRAFT AC-SRP-059: documented ORS walking geometry may use graph-snapped endpoints.
+SNAPPED_PROVIDER_GEOMETRY = {
+    "type": "LineString",
+    "coordinates": [[127.0094, 37.0094], [127.0095, 37.00955], [127.0096, 37.0096]],
+}
+SNAPPED_DISTANCE_M = 30
+SNAPPED_DURATION_S = 20
+ENDPOINT_GAP_DISCLOSURE = "ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함"
+
+
+def _geodesic_m(first, second):
+    radius = 6371008.8
+    lat1, lat2 = math.radians(first[1]), math.radians(second[1])
+    dlat = lat2 - lat1
+    dlon = math.radians(second[0] - first[0])
+    value = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    return radius * 2 * math.asin(math.sqrt(value))
+
+
+def _snapped_walking_response():
+    return {"type": "FeatureCollection", "features": [{
+        "type": "Feature",
+        "geometry": deepcopy(SNAPPED_PROVIDER_GEOMETRY),
+        "properties": {
+            "summary": {"distance": SNAPPED_DISTANCE_M, "duration": SNAPPED_DURATION_S},
+            "segments": [{"distance": SNAPPED_DISTANCE_M, "duration": SNAPPED_DURATION_S}],
+            "way_points": [0, 2],
+        },
+    }]}
+
+
+def _walking_response_responder(response):
+    default = _provider_responder()
+
+    def respond(record, sequence):
+        if "/v2/directions/foot-hiking/geojson" in record["path"]:
+            return 200, "application/geo+json", deepcopy(response)
+        return default(record, sequence)
+
+    return respond
+
+
+def _snapped_saved_document(tmp_path):
+    document = _legacy_document()
+    records = []
+    final_base = None
+    for route_id in ("snapped-a", "snapped-b"):
+        final_base = tmp_path / route_id / "survey-routes"
+        with _route_http(_walking_response_responder(_snapped_walking_response())) as (provider, captured):
+            result = _direct_node(
+                "controller_flow", tmp_path, base=str(final_base), document=document,
+                features=[{"id": "site-a", "name": "농촌 A",
+                           "coordinate": MIXED_SOURCE, "completed": False}],
+                settings=_settings(provider), start=MIXED_START, roundtrip=False,
+                replace_active=False, name=route_id, uuid=route_id,
+            )
+        assert result["calculated"] is True and result["saved"] is True
+        document = result["snapshot"]["data"]
+        records.extend(captured)
+    return document, records, final_base
+
+
+def test_ac059_snapped_provider_geometry_is_mapped_without_connector_or_gap_metric(tmp_path):
+    assert _geodesic_m(SNAPPED_PROVIDER_GEOMETRY["coordinates"][0], MIXED_ACCESS) > 1
+    assert _geodesic_m(SNAPPED_PROVIDER_GEOMETRY["coordinates"][-1], MIXED_SOURCE) > 1
+    assert SNAPPED_DISTANCE_M < _geodesic_m(MIXED_ACCESS, MIXED_SOURCE)
+    observed, records = _backend_run(
+        tmp_path, _walking_response_responder(_snapped_walking_response()))
+    assert observed["ok"] is True
+    visit = observed["result"]["visits"][0]
+    assert visit["walking_mode"] == "mapped"
+    assert visit["metric_source"] == "ors-foot-hiking"
+    assert visit["access_coordinate"] == MIXED_ACCESS
+    assert visit["source_coordinate"] == MIXED_SOURCE
+    outbound, inbound = visit["walking_legs"]
+    assert outbound == {
+        "direction": "outbound", "distance_m": SNAPPED_DISTANCE_M,
+        "duration_s": SNAPPED_DURATION_S, "geometry": SNAPPED_PROVIDER_GEOMETRY,
+    }
+    assert inbound == {
+        **outbound, "direction": "return",
+        "geometry": {"type": "LineString",
+                     "coordinates": list(reversed(SNAPPED_PROVIDER_GEOMETRY["coordinates"]))},
+    }
+    assert observed["result"]["walking_totals"] == {
+        "mapped_distance_m": 2 * SNAPPED_DISTANCE_M,
+        "lower_bound_distance_m": 0,
+        "duration_s": 2 * SNAPPED_DURATION_S,
+        "unavailable_duration_count": 0,
+    }
+    assert not any(record["path"].endswith("/optimizer") for record in records[:3])
+
+
+def test_ac059_schema3_active_inactive_restart_offline_move_exact_roundtrip(tmp_path):
+    document, records, base = _snapped_saved_document(tmp_path)
+    assert document["schema"] == 3
+    snapped = {route["route_id"]: route for route in document["routes"]
+               if route["route_id"] in {"snapped-a", "snapped-b"}}
+    assert set(snapped) == {"snapped-a", "snapped-b"}
+    assert document["active_id"] == "snapped-b"
+    for route_id, route in snapped.items():
+        assert route["route_schema"] == 3
+        visit = route["visits"][0]
+        assert set(visit) == {
+            "layer_id", "site_id", "site_name", "source_coordinate", "access_coordinate",
+            "access_offset_m", "walking_mode", "walking_legs", "trip_multiplier", "metric_source",
+        }
+        assert visit["source_coordinate"] == MIXED_SOURCE
+        assert visit["access_coordinate"] == MIXED_ACCESS
+        assert visit["walking_mode"] == "mapped"
+        assert visit["metric_source"] == "ors-foot-hiking"
+        assert visit["walking_legs"][0]["geometry"] == SNAPPED_PROVIDER_GEOMETRY
+        assert visit["walking_legs"][0]["distance_m"] == SNAPPED_DISTANCE_M
+        assert visit["walking_legs"][0]["duration_s"] == SNAPPED_DURATION_S
+        assert visit["walking_legs"][1]["geometry"]["coordinates"] == list(
+            reversed(SNAPPED_PROVIDER_GEOMETRY["coordinates"]))
+    assert any(route_id != document["active_id"] for route_id in snapped)
+    assert sum("/v2/directions/foot-hiking/geojson" in record["path"] for record in records) == 2
+    moved = tmp_path / "snapped-moved"
+    shutil.move(base.parent, moved)
+    reopened = _direct_node("repo_load", tmp_path, base=str(moved / base.name))
+    assert reopened["ok"] is True
+    assert reopened["loaded"]["data"] == document
+    assert reopened["writeAttempts"] == 0
+
+
+def _invalid_snapped_response(fault):
+    response = _snapped_walking_response()
+    feature = response["features"][0]
+    properties = feature["properties"]
+    if fault == "missing_way_points":
+        properties.pop("way_points")
+    elif fault == "non_array_way_points":
+        properties["way_points"] = "0,2"
+    elif fault == "wrong_length_way_points":
+        properties["way_points"] = [0]
+    elif fault == "non_integer_way_points":
+        properties["way_points"] = [0, 1.5]
+    elif fault == "non_increasing_way_points":
+        properties["way_points"] = [2, 0]
+    elif fault == "non_covering_start":
+        properties["way_points"] = [1, 2]
+    elif fault == "non_covering_end":
+        properties["way_points"] = [0, 1]
+    elif fault == "multiple_segments":
+        properties["segments"].append({"distance": 0, "duration": 0})
+    elif fault == "multiple_features":
+        response["features"].append(deepcopy(feature))
+    elif fault == "invalid_geometry":
+        feature["geometry"] = {"type": "Point", "coordinates": [127.0095, 37.0095]}
+    elif fault == "invalid_summary":
+        properties["summary"]["distance"] = -1
+    elif fault == "invalid_segment":
+        properties["segments"][0].pop("duration")
+    elif fault == "distance_tolerance_mismatch":
+        properties["summary"]["distance"] = SNAPPED_DISTANCE_M + 1.01
+    elif fault == "duration_tolerance_mismatch":
+        properties["summary"]["duration"] = SNAPPED_DURATION_S + 1.01
+    else:
+        raise AssertionError(fault)
+    return response
+
+
+@pytest.mark.parametrize("fault", [
+    "missing_way_points", "non_array_way_points", "wrong_length_way_points",
+    "non_integer_way_points", "non_increasing_way_points", "non_covering_start",
+    "non_covering_end", "multiple_segments", "multiple_features", "invalid_geometry",
+    "invalid_summary", "invalid_segment", "distance_tolerance_mismatch",
+    "duration_tolerance_mismatch",
+])
+def test_ac059_malformed_walking_contract_stops_before_vehicle_write_and_preserves_last_good(
+        fault, tmp_path):
+    with _route_http(_walking_response_responder(_invalid_snapped_response(fault))) as (provider, records):
+        observed = _direct_node(
+            "controller_failure", tmp_path,
+            base=str(tmp_path / fault / "survey-routes"), document=_legacy_document(),
+            features=[{"id": "site-a", "name": "농촌 A",
+                       "coordinate": MIXED_SOURCE, "completed": False}],
+            settings=_settings(provider), start=MIXED_START, roundtrip=False,
+            replace_active=True,
+        )
+    assert observed["calculated"] is False
+    assert observed["snapshot_after"] == observed["snapshot_before"]
+    assert observed["candidate_after"] == observed["candidate_before"]
+    assert observed["writeAttempts"] == observed["writeSuccesses"] == 0
+    assert [record["path"] for record in records] == [
+        "/v2/matrix/driving-car", "/v2/snap/driving-car/json",
+        "/v2/directions/foot-hiking/geojson",
+    ]
+    assert observed["last_error"]["category"] == "provider_response"
+    assert observed["state_message"].strip()
+
+
+def test_ac059_qml_observes_requested_markers_provider_line_and_exact_gap_disclosure(run):
+    observed = run(
+        operation="mixed_route_presentation", viewport_width=320, theme="light",
+        sites=[{"id": "site-a", "name": "농촌 A", "xy": MIXED_SOURCE}],
+        snapped_endpoint_fixture={
+            "requested_access_coordinate": MIXED_ACCESS,
+            "requested_source_coordinate": MIXED_SOURCE,
+            "provider_geometry": SNAPPED_PROVIDER_GEOMETRY,
+            "distance_m": SNAPPED_DISTANCE_M,
+            "duration_s": SNAPPED_DURATION_S,
+            "way_points": [0, 2],
+        },
+        actions=["preview", "legend", "reload-each-visit-value-route"],
+    )
+    endpoint = observed["snapped_endpoint_observation"]
+    assert endpoint["requested_access_marker_coordinate"] == MIXED_ACCESS
+    assert endpoint["requested_source_marker_coordinate"] == MIXED_SOURCE
+    assert endpoint["mapped_dashed_line_coordinates"] == SNAPPED_PROVIDER_GEOMETRY["coordinates"]
+    assert endpoint["mapped_line_pattern"] == "dashed"
+    assert endpoint["synthetic_connector_count"] == 0
+    assert endpoint["gap_metric_or_duration_count"] == 0
+    assert endpoint["fallback_count"] == 0
+    assert endpoint["walking_mode"] == "mapped"
+    assert endpoint["metric_source"] == "ors-foot-hiking"
+    assert endpoint["source_coordinate_write_attempts"] == []
+    disclosures = observed["endpoint_gap_disclosures"]
+    assert set(disclosures) == {"calculation_result", "saved_detail", "legend_accessibility"}
+    for context, disclosure in disclosures.items():
+        assert disclosure["text"] == ENDPOINT_GAP_DISCLOSURE, context
+        assert disclosure["accessible_name"] == ENDPOINT_GAP_DISCLOSURE, context
+        assert disclosure["object_id"], context
+        assert disclosure["source"] in {
+            "QAccessible.queryAccessibleInterface",
+            "QML Accessible attached property runtime readback",
+        }
+    boundary = observed["passive_boundary_observation"]
+    assert boundary["provider_attempts"] == []
+    assert boundary["storage_write_attempts"] == []
+    assert boundary["source_write_attempts"] == []

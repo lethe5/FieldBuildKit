@@ -377,3 +377,34 @@ single-batch access snap and source immutability; mapped/exact-zero/unmapped wal
 visits, metric provenance and totals; request ordering/privacy/write absence; platform navigation;
 active and inactive visit validation; legacy/mixed storage compatibility; and persistent
 route-line preference. M01–M21 remain user-run and **NOT RUN** until recorded on the named target.
+
+## DRAFT AC-SRP-059 endpoint-snapping direct-observation contract (2026-09-21)
+
+This additive contract uses the same production-JavaScript, localhost HTTP, real slot-file and loaded-QML
+boundaries above. It does not add a provenance journal, duplicate the ORS parser, or infer provider behavior.
+
+- The valid response is one GeoJSON Feature with a finite WGS84 LineString, one segment, finite non-negative
+  summary/segment metrics and route-level `properties.way_points=[0,last]`. Both provider geometry endpoints
+  are independently more than 1 m from the immutable requested access/source coordinates, and the provider
+  distance is independently shorter than requested access-to-source geodesic distance. HTTP records and the
+  production return value prove acceptance as `mapped` / `ors-foot-hiking` without a connector or fallback.
+- Two production controller saves create the same snapped contract as active and inactive schema-3 routes.
+  A separate Node process reopens the real files only after the provider server has closed and the project
+  folder has moved. Assertions compare the complete document and exact requested coordinates, provider
+  metrics, outbound geometry, exact reversed return geometry, schema, mode and metric source.
+- `controller_failure` seeds a last-good route through the production repository, then records the production
+  controller snapshot/candidate and actual provider/file counters around one calculation. Raw response mutations
+  cover missing/non-array/wrong-length/non-integer/non-increasing/non-covering `way_points`, multiple segments or
+  features, invalid geometry/summary/segment, and distance/duration mismatch outside D-SRP-028 tolerance. Every
+  case must stop after walking directions, preserve the last-good snapshot/candidate, and make zero post-seed
+  writes, fallback requests, vehicle matrix/optimizer/directions requests or retries.
+- `mixed_route_presentation` receives the snapped fixture at its provider boundary and returns raw loaded-QML
+  observations. `snapped_endpoint_observation` must read the actual requested access marker, source feature marker,
+  mapped walking item coordinates/pattern, actual source-write callback slice, and counts of connector, gap metric
+  and fallback objects. `endpoint_gap_disclosures` must read three distinct live objects for calculation result,
+  saved detail and legend/accessibility, including object identity, visible text and QAccessible/Accessible name.
+  Literal dictionaries assembled from input fixture values, source-text matching, or copied expected strings are
+  invalid evidence. Each live disclosure is exactly `ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함`.
+
+M01–M21 remain **NOT RUN**. This automated contract does not claim live ORS snapping, native QField pixels,
+screen-reader speech, or device interaction.
