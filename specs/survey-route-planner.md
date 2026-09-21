@@ -1,6 +1,6 @@
 # Feature: 도로망 조사 경로 및 조사대상 도형 확장
 
-> Status: **APPROVED — D-SRP-061 / FR-SRP-058 / AC-SRP-060 one-point walking response fallback approved 2026-09-21; prior approved baseline preserved.**
+> Status: **APPROVED — D-SRP-062~063 / FR-SRP-059~060 / NFR-SRP-010 / AC-SRP-061~062 Matrix `snapped_distance` and desktop credential-store conformance clarification approved 2026-09-22; prior approved baseline preserved.**
 > Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; 2026-09-16 approved workflow/progress slice; D-SRP-031~035, FR-SRP-029~033 and AC-SRP-031~035 approved 2026-09-16; D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 and AC-SRP-036~041 approved 2026-09-17; D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 and AC-SRP-042~045 approved 2026-09-17; D-SRP-046~048, FR-SRP-044~046, NFR-SRP-006 and AC-SRP-046~048 approved 2026-09-17; D-SRP-049~056, FR-SRP-047~053, NFR-SRP-007~009 and AC-SRP-049~055 approved 2026-09-18. Target QField device verification remains **NOT RUN (미검증)**.
 > Owner: spec-writer
 > Extends: [통합 명세](qfield-project-builder.md)
@@ -9,6 +9,19 @@
 
 
 ## 0. 문서 권한과 현재 상태 (2026-09-14)
+
+**2026-09-22 Matrix `snapped_distance`와 desktop credential-store 정합 (승인):** 유효한 ORS
+Matrix 응답이 resolved location object의 optional `snapped_distance`를 생략할 수 있는데도 이를 필수
+숫자로 검사하여 origin validation 또는 vehicle matrix를 거부하는 현상은 기존 도로 경로 계약의
+Category A conformance defect다. 다만 필드 누락과 provider가 명시적으로 반환한 malformed/초과 값을
+구분하는 규칙은 기존 문구에 없으므로 D-SRP-062/FR-SRP-059/AC-SRP-061이 최소한으로 명확히 한다.
+또한 이 독립 애플리케이션의 현재 identity authority인 `docs/independence.md`와 달리 상속된 통합 명세의
+과거 rename/migration 문구를 route-key 저장 경로로 적용하면 `credentials.enc` 위치가 둘로 갈리고 다른
+애플리케이션의 비밀을 읽을 수 있다. 이는 Category A conformance defect이며, D-SRP-063/FR-SRP-060/
+NFR-SRP-010/AC-SRP-062는 display name과 분리된 기존 `FieldBuild Standalone` app-data namespace 하나만
+사용하고 다른 앱 저장소는 읽거나 가져오거나 이동하지 않는 현재 호환성 계약을 기록한다. 이 승인 slice는
+기존 승인 이력, 암호화 방식, remember consent 또는 generated-project 평문 전달 예외를 바꾸지 않으며
+사용자 승인 전에는 test-designer/implementer 기준이 아니다.
 
 **2026-09-21 ORS 1점 도보 geometry 정합 (승인):** 실제 QField 계산에서 ORS가
 `LineString` type과 좌표 한 점, route-level `way_points=[0,0]`을 반환하는 퇴화된 성공 응답이
@@ -607,6 +620,24 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   metric이 non-zero/non-finite/missing이거나 segment/way-points/feature 수가 다르거나 summary와 segment가
   일치하지 않으면 provider-response failure로 중단하고 fallback, 후속 vehicle request와 write는 0회이며
   last-good candidate/saved route를 보존한다.
+- D-SRP-062 (2026-09-22 승인, Category A/B): Matrix response의 `snapped_distance`는 optional
+  provider diagnostic이다. 이 tolerance는 vehicle matrix의 `sources[]` 각 항목과 origin-validation
+  1×1 matrix의 `sources[0]` 및 `destinations[0]`에 동일하게 적용한다. object/array의 기존 cardinality,
+  origin resolved `location`, duration 및 vehicle cost-matrix 검증은 그대로 유지한다. 해당 object에
+  `snapped_distance` property가 없으면 이격거리 정보가 없는 것으로 받아들이고 그 사실만으로 계산을
+  거부하거나 `0`으로 대체하지 않는다. property가 존재하면 finite non-negative number여야 하며,
+  string, `null`, `NaN`/infinity 또는 음수는 malformed provider response다. vehicle `sources[]`의 present
+  값이 `max_road_offset_m`을 초과하면 기존과 같이 전체 계산 실패다. origin-validation은 present 값을
+  유효성 검사하되 이 값으로 출발 좌표를 이동하거나 새 offset threshold를 만들지 않는다.
+- D-SRP-063 (2026-09-22 승인, Category A): 이 독립 FieldBuild Kit desktop app의 remembered
+  VWorld/Pl@ntNet/route key는 display name과 별개인 기존 compatibility namespace 하나에 함께 둔다.
+  canonical file은 macOS `~/Library/Application Support/FieldBuild Standalone/credentials.enc`, Windows
+  `%APPDATA%\FieldBuild Standalone\credentials.enc`다. 정상 runtime은 display-name 폴더 또는 과거/다른
+  application의 `FieldBuild Kit`/`QField Project Builder` 저장소를 대체 후보로 탐색, 읽기, import, merge,
+  copy, move 또는 delete하지 않는다. 기존 canonical store는 현재 password와 remembered keys를 migration
+  없이 계속 사용한다. `FIELDBUILD_STANDALONE_APP_DATA_DIR`은 격리 test/diagnostic override일 뿐 두 번째
+  production store나 자동 migration source가 아니다. 이는 `docs/independence.md`의 현재 runtime authority가
+  상속된 `specs/qfield-project-builder.md`의 역사적 rename/migration 문구보다 우선한다는 적용 기록이다.
 
 ## 3. Functional Requirements
 - FR-SRP-001: 생성 프로젝트에 기존 보고서/식별 플러그인과 공존하는 하단 접이식 패널.
@@ -988,6 +1019,19 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   dependency 또는 provider request를 추가하지 않는다. D-SRP-061 조건을 하나라도 충족하지 않는 한 점
   또는 다른 malformed response는 현재의 안전한 구조 진단과 atomic failure를 유지한다.
 
+### 3.12 2026-09-22 Matrix optional diagnostic 및 desktop store 정합 (승인)
+
+- FR-SRP-059 (2026-09-22 승인): Matrix adapter는 D-SRP-062의 세 response location 범위에서
+  `snapped_distance` 누락을 허용한다. present 값만 finite/non-negative와 vehicle maximum을 검사하며,
+  missing 값을 `0`, requested-to-resolved 거리 또는 다른 추정값으로 합성하지 않는다. 누락 외의 기존
+  response 구조/metric/location 결함과 present invalid/초과 값은 정확한 stage의 provider-response
+  failure로 끝나고 후속 request/write 없이 last-good candidate와 saved route를 보존한다.
+- FR-SRP-060 (2026-09-22 승인): Step 7의 desktop `Remember this key`는 D-SRP-063의 canonical
+  `FieldBuild Standalone/credentials.enc`만 사용한다. route key는 기존 VWorld/Pl@ntNet keys와 같은 encrypted
+  store 및 consent/password lifecycle을 재사용하지만 generated project folder로 복사되지 않는다.
+  FieldBuild Kit display rename은 store path를 바꾸거나 migration을 시작하지 않으며, 다른 application
+  namespace의 credential file 존재 여부와 내용은 모든 정상/실패 branch에서 관찰·변경하지 않는다.
+
 ## 4. Data / Compatibility
 새 프로젝트 생성만 도형 메타데이터를 변경한다. 사용자의 기존 GPKG를 자동 마이그레이션하지
 않는다. 기본 도형 유형을 지정하지 않은 과거 호출은 MULTIPOLYGON 기본값을 유지한다.
@@ -1098,6 +1142,11 @@ max road offset, 이번 승인 범위의 max access distance, default start, lay
   line casing은 basemap에 대해 3:1 visual boundary를 만들고 dash/dot/text/icon을 함께 써서 color vision
   deficiency 또는 grayscale에서도 세 mode를 구분한다. map screenshot은 실제 target QField 증거이며
   source color literal만으로 PASS하지 않는다.
+- NFR-SRP-010 (2026-09-22 승인): credential-store path 판정과 route-key retention은 fail-isolated다.
+  canonical store 밖의 credential file/directory를 발견, 열기, 복사, 병합, 이동, 삭제하거나 그 존재를
+  로그·UI·report에 노출하지 않는다. 테스트는 disposable override directory만 사용하고 실제 사용자
+  app-data 또는 다른 앱의 비밀을 읽거나 수정하지 않는다. path mismatch 또는 store failure는 project
+  build를 막거나 plaintext fallback을 만들지 않고 기존 session-only/명시 consent 경계를 유지한다.
 
 ## 5. Acceptance Criteria
 | ID | 관찰 가능한 조건 및 결과 |
@@ -1162,6 +1211,8 @@ max road offset, 이번 승인 범위의 max access distance, default start, lay
 | AC-SRP-058 (2026-09-19 승인) | default-on toggle을 off로 바꾸면 정확히 한 번의 atomic settings write/readback 뒤 route line 세 class만 숨고 route/source/completion/revision은 불변이다. panel reopen, cold restart와 settings 동반 folder move에서 off가 복구되며 다시 on 저장도 같다. preview/legend view는 write 0회다. settings write/readback failure는 success 0회, persisted preference와 route 상태 불변 및 actionable feedback이고 모든 branch의 provider request는 0회다. |
 | AC-SRP-059 (2026-09-21 승인) | 두 requested coordinate가 각각 유효한 `foot-hiking` graph point로 snap되어 geometry 첫·끝이 requested access/source에서 1 m보다 멀고 provider distance가 requested access-source geodesic보다 짧은 ORS-shaped fixture도, feature 1개·finite WGS84 LineString·summary·segment 1개·route-level `way_points=[0,last]`와 D-SRP-028 metric tolerance를 만족하면 mapped visit으로 승인한다. schema 3 save/restart/offline/folder move는 requested source/access와 provider distance/duration/geometry를 각각 exact roundtrip하고 return geometry만 reverse하며 schema/version/mode/metric source를 새로 만들지 않는다. map과 screen reader는 requested source/access marker와 provider dashed geometry를 서로 다른 좌표에 그대로 표시하고 `ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함`을 전달하며 synthetic connector, gap metric/time, fallback과 source 좌표 이동은 0개다. missing/non-covering/non-integer/non-increasing `way_points`, invalid geometry/summary/segment 또는 tolerance 밖 metric fixture는 전체 계산 실패, fallback/후속 vehicle request/write 0회 및 last-good 보존이다. |
 | AC-SRP-060 (2026-09-21 승인) | ORS-shaped walking fixture가 feature 1개, `LineString` 좌표 정확히 1개, segment 1개, route-level `way_points=[0,0]`, summary와 segment distance/duration 모두 숫자 0이면 계산은 해당 visit만 `unmapped_estimate/straight_line_lower_bound_m`으로 만들고 requested access↔source geodesic 왕복 lower-bound, null duration/combined total, dotted line, 영향 조사지 안내와 저장 acknowledgement를 사용한다. mapped geometry/metric, duplicated point, connector, 새 mode/schema/request는 0개이며 source/access는 불변이다. distance 또는 duration이 non-zero/non-finite/missing, summary/segment 불일치, `[0,0]` 외 way-points, 좌표 0개/2개 이상인 malformed 변형은 fallback과 후속 vehicle request/write 0회로 실패하고 기존 candidate/saved route를 보존한다. 정상 2점 이상 mapped fixture와 explicit 2010/no-path fixture는 각각 AC-SRP-059와 AC-SRP-051 의미를 유지한다. |
+| AC-SRP-061 (2026-09-22 승인) | 동일한 성공 계산 fixture에서 (a) origin-validation `sources[0]`, (b) origin-validation `destinations[0]`, (c) vehicle matrix `sources[]` 각각의 `snapped_distance`만 독립적으로 생략해도 기존 valid location/duration/matrices로 계산·저장이 성공하고 missing 값을 합성하지 않는다. 같은 각 위치에 present string/null/non-finite/negative 값을 하나씩 넣으면 해당 stage에서 provider-response failure, 후속 request/write 0회와 last-good 보존이다. vehicle source의 present 값은 configured maximum 이하 boundary에서 성공하고 초과 시 기존 이격거리 실패이며, object/cardinality, origin location/duration 또는 matrix metric 결함은 계속 실패한다. |
+| AC-SRP-062 (2026-09-22 승인) | isolated macOS/Windows path resolution은 remembered route key를 각각 exact `~/Library/Application Support/FieldBuild Standalone/credentials.enc`와 `%APPDATA%\FieldBuild Standalone\credentials.enc`에만 암호화 저장·재로드한다. FieldBuild Kit display name 및 `FieldBuild Kit`/`QField Project Builder` sibling stores의 absent/present/populated 조합은 canonical path와 readback을 바꾸지 않으며 sibling bytes와 directory state는 전후 동일하다. diagnostic override는 명시한 disposable directory의 `credentials.enc` 하나만 사용한다. remember off/blank/store failure는 새 file 또는 plaintext fallback을 만들지 않고, 어느 branch도 desktop store를 generated project에 복사하거나 secret/path를 일반 로그·UI·report에 노출하지 않는다. |
 
 ## 6. API 근거 / 검증 경계
 VROOM 근거는 초기 provider가 대상으로 삼은 **v1.14.0 tag**에 고정한다. 공식 문서는 timing을
@@ -1335,6 +1386,11 @@ device, project fixture, zoom/basemap, 수행한 gesture와 관찰 결과를 함
   snap하는데도 mapped geometry endpoint 일치를 강제한 문제는 D-SRP-060, FR-SRP-057 및 AC-SRP-059의
   Category B clarification으로 정합했다. 이 승인 기준은 schema 3 또는 provenance enum을 늘리지 않고 provider
   graph 구간과 requested marker의 의미를 분리한다. acceptance 산출물은 별도 단계에서 정합하고 승인받아야 한다.
+- **O-SRP-017 (2026-09-22 해결·명세 승인):** D-SRP-062~063, FR-SRP-059~060,
+  NFR-SRP-010 및 AC-SRP-061~062는 optional Matrix diagnostic과 independent-app credential namespace의
+  현재 계약을 구체화하며 2026-09-22 사용자가 승인했다. fresh test-designer가 acceptance/traceability를
+  별도 작성하고 그 산출물도 별도 승인받아야 한다. 이 명세 승인은 기존 acceptance 산출물을 변경하거나
+  그 변경을 미리 승인하지 않는다.
 
 ### 승인된 slice의 acceptance 정합 범위
 
