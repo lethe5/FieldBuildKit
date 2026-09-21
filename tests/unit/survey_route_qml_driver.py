@@ -7,7 +7,7 @@ os.environ['QT_QPA_PLATFORM']='offscreen'
 os.environ['QT_QUICK_CONTROLS_STYLE']='Basic'
 os.environ['QT_QPA_FONTDIR']='C:/Windows/Fonts'
 from PySide6.QtCore import QObject, Slot, QUrl, QMetaObject, Qt, QPoint, QPointF, QCoreApplication, QEvent, qInstallMessageHandler
-from PySide6.QtGui import QGuiApplication, QAccessible, QInputMethodEvent, QInputMethodQueryEvent, QKeyEvent
+from PySide6.QtGui import QGuiApplication, QAccessible, QInputMethodEvent, QInputMethodQueryEvent, QKeyEvent, QPalette, QColor
 from PySide6.QtQml import QQmlAbstractUrlInterceptor, QQmlEngine, QQmlComponent, QQmlNetworkAccessManagerFactory
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from PySide6.QtQuick import QQuickItem, QQuickWindow
@@ -16,8 +16,9 @@ from shiboken6 import getCppPointer
 
 payload=json.load(sys.stdin);case=payload['case'];folder=Path(payload['project_dir']);op=case['operation']
 requests=[];provider_dispatches=[];transport_dispatches=[];received_responses=[];logs=[];transitions=[];writes=[];source_writes=[];expression_calls=[];evaluator_writes=[];fault='';geometry_fault='';completion_fault='';storage_fault='';launched=[];use_case_responses=False
-features=case.get('features',[{'id':str(i),'name':'조사지 '+str(i),'xy':[127+i/1000,37]} for i in range(3)])
+features=case.get('features',case.get('sites',[{'id':str(i),'name':'조사지 '+str(i),'xy':[127+i/1000,37]} for i in range(3)]))
 gps=case.get('gps',[127,37]);map_center=[128,38];response=case.get('response',{})
+walking_response_index=0
 def detached(x):return json.loads(json.dumps(x))
 generated_shape=None;generated_provider_rows=None;generated_provenance={}
 def representative_xy(shape):
@@ -46,33 +47,52 @@ def representative_xy(shape):
 class HTTP(BaseHTTPRequestHandler):
     def log_message(self,*args):pass
     def do_POST(self):
+        global walking_response_index
         body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
         url=self.headers['X-Original-Url']
-        kind='matrix' if 'locations' in body else 'optimizer' if 'jobs' in body else 'directions'
+        kind=('access-snap' if '/snap/' in url else
+            'walking-directions' if '/directions/foot-hiking/' in url else
+            'origin-validation' if '/matrix/' in url and body.get('metrics')==['duration'] and len(body.get('locations',[]))==1 else
+            'matrix' if '/matrix/' in url else 'optimizer' if 'jobs' in body else 'directions')
         headers={'Content-Type':self.headers.get('Content-Type','')}
         if self.headers.get('Authorization') is not None:headers['Authorization']=self.headers['Authorization']
         req={'kind':kind,'url':url,'method':'POST','body':body,'headers':headers}
         requests.append(req);logs.append('HTTP '+req['url'])
-        if fault in ('timeout','network','status_0') and (op!='remaining' or 'jobs' in body):
+        fault_applies=kind in ('matrix','optimizer','directions')
+        if fault_applies and fault in ('timeout','network','status_0') and (op!='remaining' or 'jobs' in body):
             if fault=='timeout':time.sleep(.15)
             self.close_connection=True;return
-        if fault.startswith('http_'):
+        if fault_applies and fault.startswith('http_'):
             self.send_response(int(fault[5:]));self.end_headers();self.wfile.write(('failure '+case.get('key','')).encode());return
-        if fault=='truncated_json':out=b'{"durations":'
+        status=200
+        if fault_applies and fault=='truncated_json':out=b'{"durations":'
         else:
-            if 'locations' in body:
+            if kind=='origin-validation':
+                value={'durations':[[0]],'sources':[{'location':detached(body['locations'][0]),'snapped_distance':0}]}
+            elif kind=='access-snap':
+                value=detached(case.get('access_snap_response',{'locations':[{'location':detached(point)} for point in body['locations']]}))
+            elif kind=='walking-directions':
+                coordinates=body['coordinates'];rows=case.get('walking_responses',[])
+                observed=detached(rows[walking_response_index]) if walking_response_index<len(rows) else {'distance_m':1,'duration_s':1,'geometry':{'type':'LineString','coordinates':coordinates}}
+                walking_response_index+=1
+                if observed.get('explicit_no_path'):
+                    status=404;value={'error':{'code':'NO_FOOT_ROUTE','message':'no foot route found'}}
+                else:
+                    value={'features':[{'geometry':observed['geometry'],'properties':{'summary':{'distance':observed['distance_m'],'duration':observed['duration_s']},'segments':[{'distance':observed['distance_m'],'duration':observed['duration_s']}]}}]}
+            elif kind=='matrix':
                 n=len(body['locations']);times=[[0 if i==j else 10+abs(i-j) for j in range(n)] for i in range(n)];distances=[[0 if i==j else 100+abs(i-j) for j in range(n)] for i in range(n)]
                 value={'durations':detached(case.get('time_matrix',times)),'distances':detached(case.get('distance_matrix',distances)),'sources':[{'snapped_distance':0} for _ in range(n)]}
                 if fault=='null_matrix':value['durations']=None
                 if fault=='disconnected':value['durations'][0][1]=None
                 if fault=='off_road':value['sources'][1]['snapped_distance']=10001
-            elif 'jobs' in body:
+            elif kind=='optimizer':
                 jobs=body['jobs']
                 if use_case_responses and 'optimizer_response' in case:
                     value=detached(case['optimizer_response'])
                 else:
-                    order=response.get('order',case.get('backend_order',[j['description'] for j in jobs]))
-                    steps=[{'type':'job','id':next((j['id'] for j in jobs if j['description']==id),999)} for id in order]
+                    order=response.get('order',case.get('backend_order',[j['id'] for j in jobs]))
+                    feature_ids=[str(row.get('id')) for row in features]
+                    steps=[{'type':'job','id':feature_ids.index(str(item)) if str(item) in feature_ids else item} for item in order]
                     arrivals=response.get('arrivals')
                     if arrivals is not None:
                         for step,arrival in zip(steps,arrivals):step['arrival']=arrival
@@ -95,7 +115,7 @@ class HTTP(BaseHTTPRequestHandler):
                     if legs is None and len(coordinates)>=2:
                         count=len(coordinates)-1;distance=response.get('distance_m',1234);duration=response.get('duration_s',456)
                         legs=[{'distance_m':distance/count,'duration_s':duration/count,'way_points':[i,i+1]} for i in range(count)]
-                    value={'features':[{'geometry':road,'properties':{'segments':[{'distance':v['distance_m'],'duration':v['duration_s']} for v in legs] if legs else None,
+                    value={'features':[{'geometry':road,'properties':{'summary':{'distance':sum(v['distance_m'] for v in legs),'duration':sum(v['duration_s'] for v in legs)} if legs else None,'segments':[{'distance':v['distance_m'],'duration':v['duration_s']} for v in legs] if legs else None,
                         'way_points':list(range(len(legs)+1)) if legs else None}}] if road or legs else []}
                 feature=value.get('features',[{}])[0] if value.get('features') else None
                 segments=feature.get('properties',{}).get('segments') if feature else None
@@ -104,7 +124,7 @@ class HTTP(BaseHTTPRequestHandler):
             if use_case_responses and case.get('provider_document_stage')==kind:
                 value=case.get('provider_document')
             out=json.dumps(value,ensure_ascii=False,allow_nan=True,sort_keys=True,separators=(',',':')).encode()
-        self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers()
+        self.send_response(status);self.send_header('Content-Type','application/json');self.end_headers()
         try:self.wfile.write(out)
         except (BrokenPipeError,ConnectionResetError):pass
 server=ThreadingHTTPServer(('127.0.0.1',0),HTTP);threading.Thread(target=server.serve_forever,daemon=True).start()
@@ -122,7 +142,7 @@ class Network(QNetworkAccessManager):
                 raw=b''.join(chunks)
                 try:value=json.loads(raw)
                 except (ValueError,UnicodeError):value=None
-                kind='matrix' if '/matrix/' in original else 'directions' if '/directions/' in original else 'optimizer'
+                kind='access-snap' if '/snap/' in original else 'walking-directions' if '/directions/foot-hiking/' in original else 'matrix' if '/matrix/' in original else 'directions' if '/directions/' in original else 'optimizer'
                 received_responses.append({'kind':kind,'bytes':raw,'payload':value,'sha256':hashlib.sha256(raw).hexdigest()})
             reply.finished.connect(received)
         return reply
@@ -204,7 +224,7 @@ class Boundary(QObject):
     @Slot(str,str)
     def providerEntry(self,provider,s):
         settings=json.loads(s)
-        provider_dispatches.append({'backend':provider,'max_road_offset_m':settings.get('max_road_offset_m')})
+        provider_dispatches.append({'backend':provider,'max_road_offset_m':settings.get('max_road_offset_m'),'max_access_distance_m':settings.get('max_access_distance_m')})
     @Slot(str)
     def transportEntry(self,s):transport_dispatches.append(json.loads(s))
     @Slot(str)
@@ -222,7 +242,7 @@ put('org.qfield','FeatureModel.qml','import QtQml\nQtObject {property var projec
 put('org.qfield','AttributeFormModel.qml','import QtQml\nQtObject {property var featureModel;property bool result:false;function applyFeatureModel(){} function save(){return result} function changeAttribute(field,value){result=boundaryHost.complete(String(featureModel.feature.attributes.site_id||featureModel.feature.attributes.custom_id),value);return result}}')
 put('org.qfield','QgsGeometryWrapper.qml','import QtQml\nQtObject {property var qgsGeometry;property var crs}')
 put('org.qfield','GeometryUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function createGeometryFromWkt(wkt){return boundaryHost.geometryFromWkt(wkt)} function point(x,y){return ({x:x,y:y})} function reprojectPoint(point){return point}}')
-put('org.qfield','MapToScreen.qml','import QtQml\nQtObject {property var mapSettings;property var mapPoint;readonly property point screenPoint: Qt.point(mapPoint&&mapPoint.x||0,mapPoint&&mapPoint.y||0)}')
+put('org.qfield','MapToScreen.qml','import QtQuick\nItem {property var mapSettings;property var mapPoint;readonly property point screenPoint: Qt.point(mapPoint&&mapPoint.x||0,mapPoint&&mapPoint.y||0)}')
 put('org.qfield','CoordinateReferenceSystemUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function wgs84Crs(){return "EPSG:4326"}}')
 put('org.qfield','FileUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function fileExists(p){return boundaryHost.exists(p)} function readFileContent(p){return boundaryHost.read(p)} function writeFileContent(p,t){return boundaryHost.write(p,t)}}')
 put('org.qfield','LayerUtils.qml','pragma Singleton\nimport QtQml\nQtObject {function createFeatureIterator(layer){var rows=fixtureFeatures, i=0;return {hasNext:function(){return i<rows.length},next:function(){return rows[i++]},close:function(){}}}}')
@@ -349,7 +369,7 @@ def settings(values=None, seed_defaults=True):
     defaults={'optimizer_url':'https://vroom.invalid'} if seed_defaults else {}
     if seed_defaults and not case.get('use_project_key'):defaults['key']=case.get('key','')
     values=defaults | (values or {})
-    names={'server_url':'serverEdit','optimizer_url':'optimizerEdit','backend':'backendEdit','key':'keyEdit','profile':'profileEdit','timeout_ms':'timeoutEdit','max_road_offset_m':'offsetEdit'}
+    names={'server_url':'serverEdit','optimizer_url':'optimizerEdit','backend':'backendEdit','key':'keyEdit','profile':'profileEdit','timeout_ms':'timeoutEdit','max_road_offset_m':'offsetEdit','max_access_distance_m':'accessEdit'}
     for k,v in values.items():
         if k in names:control(names[k],str(v))
     if 'objective' in values:control('objectiveCombo',0 if values['objective']=='time' else 1,'currentIndex')
@@ -469,7 +489,7 @@ def decoded_transport_settings():
                 if actual_media!='application/json':raise RuntimeError('HTTP Content-Type must be application/json')
                 actual,value=actual_media,dispatched_media
             if actual!=value:raise RuntimeError('HTTP header differs from provider dispatch')
-    matrix=next(r for r in transport_dispatches if 'locations' in r['body'])
+    matrix=next(r for r in transport_dispatches if len(r.get('body',{}).get('locations',[]))>1 and 'distance' in r['body'].get('metrics',[]))
     optimizer=next(r for r in transport_dispatches if 'jobs' in r['body'])
     marker='/v2/matrix/'
     if marker not in matrix['url']:raise RuntimeError('matrix provider URL missing')
@@ -483,7 +503,7 @@ def main():
     global features,gps,map_center,fault,geometry_fault,completion_fault,storage_fault,folder,component,response,use_case_responses,panel,project_owner
     original_response=response;response={};original_gps=gps;gps=[127,37]
     new_ops={'project_dropdowns','route_workflow_ui','map_start_marker','generated_geometry_calculate','storage_feedback','reopen_navigate','schema2_roundtrip','route_progression','completion_overlay','metric_display','route_line_toggle','legacy_route',
-        'candidate_name_save','followup_panel_ui','route_name_text_input_proxy','final_floating_label_geometry','settings_disclosure','settings_key_provenance','settings_snapshot_save','platform_naver_dispatch','ordered_completion_checklist','candidate_completion_guard'}
+        'candidate_name_save','followup_panel_ui','route_name_text_input_proxy','final_floating_label_geometry','settings_disclosure','settings_key_provenance','settings_snapshot_save','platform_naver_dispatch','ordered_completion_checklist','candidate_completion_guard','mixed_route_presentation'}
     def site_layer_id():
         return next((l['layer_id'] for l in layers if l.get('source_name')=='site'),layers[0]['layer_id'])
     if op=='project_dropdowns' and case.get('stored_mapping'):
@@ -513,6 +533,11 @@ def main():
         seed_document({'schema':2,'active_id':'navigation-route','routes':[route],'settings':{}})
     type1_without_mapping=case.get('survey_type')=='simple_inventory' and not case.get('mapping')
     if type1_without_mapping:seed_inactive_saved_fixture()
+    if op=='mixed_route_presentation':
+        palette=QPalette();dark=case.get('theme')=='dark'
+        palette.setColor(QPalette.Window,QColor('#111827' if dark else '#f8fafc'))
+        palette.setColor(QPalette.WindowText,QColor('#f9fafb' if dark else '#111827'))
+        app.setPalette(palette);window.resize(int(case.get('viewport_width',320)),900)
     open_panel();settings();original=features
     if op=='legacy_route' and panel.property('controller') is None:
         raw_text=raw_path.read_text(encoding='utf8')
@@ -584,6 +609,7 @@ def main():
         item=panel.findChild(QObject,'routeName');window.show();panel.setProperty('expanded',True)
         for _ in range(5):app.processEvents()
         engine.globalObject().setProperty('routeNameControl',engine.newQObject(item))
+        if re.fullmatch(r'\d{4}-\d{2}-\d{2} 조사',str(item.property('text'))):item.setProperty('text','')
         states=[];selection_observed=False;deletion_observed=False;focus_recovery_invocations=[]
         def input_state(source, **observation):
             focused=window.activeFocusItem()
@@ -745,6 +771,62 @@ def main():
         result.update(active_before=active_before,next_before=next_before,candidate=detached(state()['candidate']),rows=rows,
             active_after=detached(active()),requests=detached(requests),provider_dispatches=detached(provider_dispatches),
             transport_dispatches=detached(transport_dispatches),writes=detached(writes),source_writes=detached(source_writes))
+    elif op=='mixed_route_presentation':
+        for feature in features:feature['done']=False
+        device_inputs();use_site_mapping('done');settings({'max_access_distance_m':2000});control('roundtripBox',True,'checked')
+        offsets=[.0035,.002,.004,.0015,0]
+        access=[[feature['xy'][0]+offsets[index%len(offsets)],feature['xy'][1]] for index,feature in enumerate(features)]
+        case['access_snap_response']={'locations':[{'location':point} for point in access]}
+        walking=[]
+        for index,feature in enumerate(features):
+            if offsets[index%len(offsets)]==0:continue
+            if index%2==0:walking.append({'explicit_no_path':True})
+            else:
+                distance=300 if index==1 else 225
+                walking.append({'distance_m':distance,'duration_s':distance*.8,'geometry':{'type':'LineString','coordinates':[access[index],feature['xy']]}})
+        case['walking_responses']=walking
+        assert calculate();js('p.controller.acknowledgeUnmapped(true)');assert save('표시 혼합 경로')
+        open_panel();window.show();app.processEvents()
+        provider_start=len(transport_dispatches);storage_start=len(writes);source_start=len(source_writes)
+        action_windows=[]
+        for action in case.get('actions',[]):
+            before=(len(transport_dispatches)-provider_start,len(writes)-storage_start,len(source_writes)-source_start)
+            completed=False
+            if action=='preview':
+                js('p.updateView()');drain();completed=panel.property('roadItem') is not None
+            elif action=='legend':
+                if not panel.property('expanded'):click(str(panel.findChild(QObject,'routeSummaryButton').property('text')))
+                legend=panel.findChild(QObject,'mixedRouteLegend');completed=legend is not None and bool(legend.property('visible'))
+            elif action=='reload-each-visit-value-route':
+                js('p.controller.reload()');drain();completed=active() is not None and int(panel.findChild(QObject,'visitAccessibilityRepeater').property('count'))==len(active().get('visits',[]))
+            else:raise RuntimeError('unsupported mixed-route action '+action)
+            action_windows.append({'action':action,
+                'provider_attempt_count_before':before[0],'provider_attempt_count_after':len(transport_dispatches)-provider_start,
+                'storage_write_attempt_count_before':before[1],'storage_write_attempt_count_after':len(writes)-storage_start,
+                'source_write_attempt_count_before':before[2],'source_write_attempt_count_after':len(source_writes)-source_start,
+                'product_operation_completed':completed})
+        observed_lines=json.loads(val('p.walkingItems.filter(function(item){return item.linePattern}).map(function(item){return {semantic_class:item.semanticClass,pattern:item.linePattern,legend:item.legendLabel,contrasting_casing:item.contrastingCasing,warning:item.warningMarker,non_color_cue:item.nonColorCue}})'))
+        vehicle=json.loads(val('({semantic_class:p.roadItem.semanticClass,pattern:p.roadItem.linePattern,legend:p.roadItem.legendLabel,contrasting_casing:p.roadItem.contrastingCasing,warning:false,non_color_cue:p.roadItem.nonColorCue})'))
+        walking_items=[item for item in object_value(panel,'walkingItems') if item.property('linePattern')]
+        rows=[vehicle]+observed_lines;items=[object_value(panel,'roadItem')]+walking_items
+        line_classes={}
+        for row,item in zip(rows,items):
+            semantic=row.pop('semantic_class');row['object_ids']=[str(getCppPointer(item)[0])];line_classes[semantic]=row
+        unmapped_item=next(item for item in walking_items if item.property('linePattern')=='dotted')
+        accessibility_observations=[]
+        for semantic_id,object_name in [('mapped_metric_source','mappedMetricSourceAccessibility'),('mapped_walking_totals','walkingTotalsAccessibility'),('fallback_lower_bound_status','mixedFallbackLabel')]:
+            item=panel.findChild(QObject,object_name);observed=accessibility(item)
+            accessibility_observations.append({'semantic_id':semantic_id,'object_id':str(getCppPointer(item)[0]),'source':'QAccessible.queryAccessibleInterface','name':observed['name'],'role':observed['role']})
+        repeater=panel.findChild(QObject,'visitAccessibilityRepeater');engine.globalObject().setProperty('visitRepeater',engine.newQObject(repeater));count=int(repeater.property('count'))
+        delegates=[]
+        for index in range(count):
+            item=js('visitRepeater.itemAt('+str(index)+')').toQObject()
+            if item is None:raise RuntimeError('Repeater.itemAt(index) returned no delegate')
+            observed=accessibility(item);visit_property=item.property('visitValue');visit_value=detached(visit_property.toVariant() if hasattr(visit_property,'toVariant') else visit_property)
+            delegates.append({'value':{'lookup':'Repeater.itemAt(index)','visit_value_source':'delegate.property("visitValue")','object_id':str(getCppPointer(item)[0]),'object_name':item.objectName(),'delegate_index':index,'visit_value':visit_value,'qaccessible':{'source':'QAccessible.queryAccessibleInterface','object_id':str(getCppPointer(item)[0]),'role':observed['role'],'name':observed['name']}}})
+        model={'model_count':count,'delegate_count':len(delegates),'creation':'QML Repeater delegate','repeater_object_id':str(getCppPointer(repeater)[0]),'enumeration':'Repeater.itemAt(index)'}
+        provider_attempts=detached(transport_dispatches[provider_start:]);storage_write_attempts=detached(writes[storage_start:]);source_write_attempts=detached(source_writes[source_start:])
+        result.update(line_classes=line_classes,warning_marker={'visible':bool(unmapped_item.property('warningMarker')),'non_color_cue':str(unmapped_item.property('nonColorCue')),'object_id':str(getCppPointer(unmapped_item)[0])},passive_boundary_observation={'provider_attempts':provider_attempts,'provider_attempt_count':len(provider_attempts),'storage_write_attempts':storage_write_attempts,'storage_write_attempt_count':len(storage_write_attempts),'source_write_attempts':source_write_attempts,'source_write_attempt_count':len(source_write_attempts),'action_windows':action_windows},accessibility_observations=accessibility_observations,visit_accessibility_binding_observations=[{'delegate_model_observation':{'value':model},'delegate_readback_observations':delegates}])
     elif op=='project_dropdowns':
         selected=case.get('selected_layer_id') or (case.get('stored_mapping') or {}).get('layer_id')
         if selected:js('p.refreshProjectSelectors('+json.dumps(selected)+')')
@@ -780,7 +862,6 @@ def main():
         source_before=source_snapshot();route_storage_before=route_snapshot();writes.clear();source_writes.clear()
         control('startCombo',1,'currentIndex')
         def capture_center(center, transform_fault=''):
-            nonlocal_state=None
             globals()['map_center']=center;device_inputs();panel.setProperty('canvas',js('device.canvas'))
             globals()['geometry_fault']=transform_fault
             click('지도 중심을 출발지로 지정')
@@ -797,6 +878,7 @@ def main():
                 if wrapper is None or not bool(renderer.property('visible')):continue
                 geometry=object_value(wrapper,'qgsGeometry')
                 if not isinstance(geometry,dict) or geometry.get('type') not in ('Point','MultiPoint'):continue
+                if accessible_name(renderer)=='차량 접근점':continue
                 marker=renderer.parentItem()
                 labels=[item for item in visual_objects(marker) if item.property('visible') and item.property('text')] if marker is not None and marker!=host_canvas else []
                 label=labels[0] if labels else None;background=label.parentItem() if label else None
@@ -959,7 +1041,9 @@ def main():
             storage_fault=case.get('fault','');before_count=len([w for w in writes if w['ok']]);click('지정 위치를 기본 출발지로 저장');success=len([w for w in writes if w['ok']])>before_count;storage_fault=''
         else:
             full_calculation(False);storage_fault=case.get('fault','');success=save(case['route_name']);storage_fault=''
-        message=str(panel.property('message'));match=re.search(r'(survey-routes\.[ab]\.json)',message);relative=match[1] if match else None
+        message=str(panel.property('message'))
+        match=re.search(r'(survey-routes\.[ab]\.json)',message)
+        relative=match[1] if match else None
         result.update(ok=success,feedback={'success':success,'text':message,'project_relative_path':relative,'filename':Path(relative).name if relative else None},
             committed_project_relative_path=relative,success_feedback_count=1 if success else 0,saved_after=saved(),errors=[] if success else [message])
     elif op in ('calculate','start','road_cost','calculate_failure','configured_calculate','result_roundtrip','geometry_failure','generated_geometry_calculate'):
@@ -975,7 +1059,8 @@ def main():
                 map_center=case['coordinate'];device_inputs();panel.setProperty('canvas',js('device.canvas'));click('지도 중심을 출발지로 지정');click('지정 위치를 기본 출발지로 저장');open_panel();settings();control('scopeCombo',1,'currentIndex');control('startCombo',3,'currentIndex')
         if op=='road_cost':settings({'objective':case['objective']})
         if op=='configured_calculate':
-            if case.get('fresh_project'):open_panel()
+            if case.get('fresh_project'):
+                open_panel();control('optimizerEdit','')
             elif 'optimizer_url' not in case['settings']:control('optimizerEdit','')
             settings(case['settings'],False);click('서버 설정 저장 (키 제외)')
         if op=='calculate_failure':fault=case['fault'];settings({'timeout_ms':30})
@@ -1406,11 +1491,12 @@ def main():
     elif op=='route_key_availability':
         pass
     else:raise RuntimeError('unsupported '+op)
-    mat=next((r for r in requests if 'locations' in r['body']),None);opt=next((r for r in requests if 'jobs' in r['body']),None)
+    mat=next((r for r in requests if r['kind']=='matrix'),None);opt=next((r for r in requests if 'jobs' in r['body']),None)
     objective=None
     if opt:
         matrices=opt['body']['matrices']['car'];objective='distance' if matrices['costs']==matrices['distances'] and matrices['costs']!=matrices['durations'] else 'time' if matrices['costs']==matrices['durations'] and matrices['costs']!=matrices['distances'] else None
-    result.update(requests=detached(requests),provider_dispatches=detached(provider_dispatches),transport_dispatches=detached(transport_dispatches),submitted_ids=[j['description'] for j in opt['body']['jobs']] if opt else [],request_start=mat['body']['locations'][0] if mat else None,request_coordinate=mat['body']['locations'][1] if mat and len(mat['body']['locations']) > 1 else None,optimizer_request={'objective':objective,'cost_matrix':opt['body']['matrices']['car']['costs'],'return_to_start':opt['body']['vehicles'][0].get('end_index')==0} if opt else None)
+    submitted_route=(state().get('candidate') or active()) if panel.property('controller') is not None else None
+    result.update(requests=detached(requests),provider_dispatches=detached(provider_dispatches),transport_dispatches=detached(transport_dispatches),submitted_ids=[str(row['site_id']) for row in submitted_route.get('stops',[])] if opt and submitted_route else [],request_start=mat['body']['locations'][0] if mat else None,request_coordinate=mat['body']['locations'][1] if mat and len(mat['body']['locations']) > 1 else None,optimizer_request={'objective':objective,'cost_matrix':opt['body']['matrices']['car']['costs'],'return_to_start':opt['body']['vehicles'][0].get('end_index')==0} if opt else None)
     if case.get('restart_after_calculate'):
         open_panel();result['session_key_present_after_restart']=bool(state()['settings']['key'])
     result.setdefault('saved_after',saved() if panel.property('controller') is not None else [])

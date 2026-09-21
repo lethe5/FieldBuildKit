@@ -508,8 +508,8 @@ def test_project_close_drives_destruction_and_detects_missing_cleanup(tmp_path):
     assert result['states'][-1]['canvas_marker_count']==0
     path=Path(project['project_dir'])/'qfield_routes/RoutePanel.qml'
     source=path.read_text(encoding='utf8')
-    source=source.replace('Component.onDestruction: {if(roadItem)roadItem.destroy();clearCompletedOverlays();clearStartMarker();}',
-        'Component.onDestruction: {if(roadItem)roadItem.destroy();clearCompletedOverlays();}')
+    source=source.replace('Component.onDestruction: {lifecycleActive=false;if(controller)controller.cancel("project-close");cancelTransports();if(roadItem)roadItem.destroy();clearCompletedOverlays();clearStartMarker();}',
+        'Component.onDestruction: {lifecycleActive=false;if(controller)controller.cancel("project-close");cancelTransports();if(roadItem)roadItem.destroy();clearCompletedOverlays();}')
     path.write_text(source,encoding='utf8')
     result=_node(case,project['project_dir'])
     assert result['project_close_lifecycle']['project_owner_destroyed'] is True
