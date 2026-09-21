@@ -1,4 +1,8 @@
-# Survey Route Planner — DRAFT AC-SRP-049–058 direct-observation traceability
+# Survey Route Planner — approved AC-SRP-059 baseline with DRAFT evidence correction
+
+> **APPROVED TEST DESIGN (approval 2026-09-21).** The AC-SRP-059 endpoint-snapping
+> acceptance baseline is approved. The reviewer correction below remains
+> **DRAFT TEST DESIGN — user approval required**.
 
 > Current AC-SRP-049–058 status: **DRAFT TEST DESIGN (2026-09-21)**.
 > The approved AC-SRP-001–048 mappings below remain preserved and are not reopened.
@@ -358,17 +362,18 @@ origin pair with explicit `sources:[0]`/`destinations:[1]` from the actual start
 matrix without those indexes; no location-count stage heuristic remains. The full acceptance file
 is **382 passed, 21 skipped**. M01–M21 remain **NOT RUN**; user approval is required.
 
-## DRAFT AC-SRP-059 endpoint-snapping traceability (2026-09-21)
+## APPROVED AC-SRP-059 baseline and DRAFT reviewer-correction traceability (2026-09-21)
 
-Status: **DRAFT TEST DESIGN — user approval required.** The approved AC-SRP-001–048 history and the
-separately draft AC-SRP-049–058 redesign remain preserved.
+Baseline status: **APPROVED TEST DESIGN (approval 2026-09-21).** Correction status:
+**DRAFT TEST DESIGN — user approval required.** The approved history and the separately tracked
+AC-SRP-049–058 status remain preserved.
 
 | Criterion | Direct automated evidence | Remaining manual evidence |
 | --- | --- | --- |
 | AC-SRP-059 valid provider contract | `ac059_snapped_provider_geometry_is_mapped_without_connector_or_gap_metric` over actual localhost traffic and production backend return | M18 live configured ORS snapped response |
 | AC-SRP-059 persistence/reader | `ac059_schema3_active_inactive_restart_offline_move_exact_roundtrip` over two production saves, real schema-3 slot files, separate-process reopen and moved folder | M03 target-QField restart/offline/move |
-| AC-SRP-059 malformed response atomicity | `ac059_malformed_walking_contract_stops_before_vehicle_write_and_preserves_last_good` (14 raw fixture mutations) over production controller/repository snapshots and actual request/write counters | M18 live malformed-provider wording is not required; provider service remains synthetic |
-| AC-SRP-059 map/UI/accessibility | `ac059_qml_observes_requested_markers_provider_line_and_exact_gap_disclosure` over loaded-QML marker/line objects, three distinct live disclosure objects, QAccessible names and raw passive callback slices | M19 target-QField pixels, map alignment and screen-reader speech |
+| AC-SRP-059 malformed response atomicity | `ac059_malformed_walking_contract_stops_before_vehicle_write_and_preserves_last_good` (15 raw fixture mutations, including an object-shaped `features` array impostor) over production controller/repository snapshots and actual request/write counters | M18 live malformed-provider wording is not required; provider service remains synthetic |
+| AC-SRP-059 map/UI/accessibility | `ac059_qml_observes_requested_markers_provider_line_and_exact_gap_disclosure` over enumerated loaded-QML access-marker/provider-line objects, the actual provider feature, visit model, walking totals, three distinct live disclosure objects, QAccessible names and raw passive callback slices; the test derives connector/gap absence from the enumerations | M19 target-QField pixels, map alignment and screen-reader speech |
 
 | Requirement group | Criterion |
 | --- | --- |
@@ -377,7 +382,8 @@ separately draft AC-SRP-049–058 redesign remain preserved.
 The valid fixture independently proves both endpoint gaps exceed 1 m and provider distance is shorter than
 the requested-coordinate geodesic. The persistence test retains existing schema 3, `mapped`, and
 `ors-foot-hiking`; the negative matrix retains last-good state and stops before vehicle routing/write. No
-test accepts a connector, gap metric/time, fallback, coordinate movement, new provenance field or schema bump.
+test accepts a non-Array `features` member, connector, gap metric/time, fallback, coordinate movement, new
+provenance field or schema bump. Harness-provided copied coordinates or constant zero absence counts are not evidence.
 M01–M21 remain **NOT RUN**.
 
 Verification: design verifier **PASS**; **420 collected**; focused AC059 **14 passed, 3 failed,
@@ -386,3 +392,12 @@ active/inactive save/restart/offline/move path, and missing loaded-QML snapped-m
 observations. Existing AC056 corruption coverage remains the authority for all other schema-3 visit validation;
 AC059 changes only endpoint-equality and requested-geodesic lower-bound rejection. Acceptance-only
 `git diff --check` passed. M01–M21 remain **NOT RUN**.
+
+The verification above belongs to the approved baseline. The DRAFT reviewer correction has a separate
+verification record pending below; it does not relabel that historical run.
+
+Correction verification: **421 collected**; design verifier **intended RED** at the hard-coded-zero
+driver guard; authoritative focused AC059 **16 passed, 2 failed, 403 deselected**. The two intended
+failures are acceptance of the object-shaped `features` impostor and absence of direct runtime
+`access_marker_observations`. Acceptance-only `git diff --check` passed. An initial sandboxed run's
+18 localhost-bind failures are environment noise, not product evidence. M01–M21 remain **NOT RUN**.

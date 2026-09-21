@@ -377,7 +377,7 @@ for production_name in ("backend.js", "controller.js", "repository.js", "navigat
     assert not re.search(r"\b(?:testOnly|acceptanceOnly)\b", production_source)
 print("survey route AC049-058 direct-observation design verified")
 
-# DRAFT AC-SRP-059 endpoint-snapping design checks.
+# APPROVED AC-SRP-059 baseline; DRAFT reviewer correction checks.
 test_source = path.read_text(encoding="utf-8-sig")
 coverage = set(re.findall(r"ac(\d{3})", test_source))
 assert {f"{i:03d}" for i in range(1, 60)} <= coverage
@@ -407,6 +407,7 @@ faults = {
     "missing_way_points", "non_array_way_points", "wrong_length_way_points",
     "non_integer_way_points", "non_increasing_way_points", "non_covering_start",
     "non_covering_end", "multiple_segments", "multiple_features", "invalid_geometry",
+    "features_object_array_like",
     "invalid_summary", "invalid_segment", "distance_tolerance_mismatch",
     "duration_tolerance_mismatch",
 }
@@ -431,11 +432,31 @@ qml_source = inspect.getsource(
     module.test_ac059_qml_observes_requested_markers_provider_line_and_exact_gap_disclosure)
 assert all(token in qml_source for token in (
     'observed["snapped_endpoint_observation"]',
-    'endpoint["synthetic_connector_count"] == 0',
-    'endpoint["gap_metric_or_duration_count"] == 0',
+    'endpoint["access_marker_observations"]',
+    'endpoint["source_feature_observations"]',
+    'endpoint["walking_line_observations"]',
+    'endpoint["visit_model_observation"]',
+    'endpoint["walking_totals_observation"]',
+    'connector_lines == []',
+    'gap_metric_or_duration == (0, 0)',
     'endpoint["source_coordinate_write_attempts"] == []',
     'disclosure["text"] == ENDPOINT_GAP_DISCLOSURE',
     'disclosure["accessible_name"] == ENDPOINT_GAP_DISCLOSURE',
 ))
+driver_source = (path.parents[2] / "unit" / "survey_route_qml_driver.py").read_text(
+    encoding="utf-8-sig")
+snapped_driver_source = driver_source[driver_source.index("        if snapped:"):]
+snapped_driver_source = snapped_driver_source[:snapped_driver_source.index(
+    "    elif op=='project_dropdowns':")]
+assert "'synthetic_connector_count':0" not in snapped_driver_source
+assert "'gap_metric_or_duration_count':0" not in snapped_driver_source
+assert "'requested_access_marker_coordinate':detached(access[0])" not in snapped_driver_source
+assert "'requested_source_marker_coordinate':detached(features[0]['xy'])" not in snapped_driver_source
+assert all(token in snapped_driver_source for token in (
+    "'access_marker_observations'", "'source_feature_observations'",
+    "'walking_line_observations'", "'visit_model_observation'",
+    "'walking_totals_observation'", "getCppPointer(",
+    "object_value(", "generated_provider_rows",
+))
 assert '"way_points": [0, 1]' in inspect.getsource(module._provider_responder)
-print("survey route AC059 endpoint-snapping design verified; M01-M21 remain NOT RUN")
+print("survey route AC059 reviewer correction verified; M01-M21 remain NOT RUN")

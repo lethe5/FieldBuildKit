@@ -1,4 +1,8 @@
-# Survey Route Planner — DRAFT AC-SRP-049–058 direct-observation redesign
+# Survey Route Planner — approved AC-SRP-059 baseline with DRAFT evidence correction
+
+> **APPROVED TEST DESIGN (approval 2026-09-21).** The AC-SRP-059 endpoint-snapping
+> acceptance baseline is approved. The reviewer correction described below is separately
+> **DRAFT TEST DESIGN — user approval required** and does not reopen that product behavior.
 
 > Current AC-SRP-049–058 status: **DRAFT TEST DESIGN (2026-09-21)**.
 > The approved AC-SRP-001–048 history below remains preserved and is not reopened.
@@ -647,11 +651,12 @@ finite metric, downstream original-start immutability, and request ordering rema
 - Full acceptance file: **382 passed, 21 skipped**, exit 0, 263.33 s.
 - M01–M21 remain **NOT RUN**; the skips do not claim device or live-provider PASS.
 
-## DRAFT AC-SRP-059 ORS walking endpoint-snapping design (2026-09-21)
+## APPROVED AC-SRP-059 baseline and DRAFT reviewer correction (2026-09-21)
 
-Status: **DRAFT TEST DESIGN — user approval required.** This is Category A regression coverage for the
-approved D-SRP-060 / FR-SRP-057 / AC-SRP-059 clarification. It changes only the five survey-route
-acceptance artifacts and does not change application, unit-test, specification, or UI-guidance files.
+Baseline status: **APPROVED TEST DESIGN (approval 2026-09-21).** Correction status:
+**DRAFT TEST DESIGN — user approval required.** This Category A correction preserves the approved
+D-SRP-060 / FR-SRP-057 / AC-SRP-059 behavior and changes only the five survey-route acceptance
+artifacts; it does not change application, unit-test, specification, or UI-guidance files.
 
 ### Automated design
 
@@ -665,16 +670,22 @@ acceptance artifacts and does not change application, unit-test, specification, 
   reopened offline in a separate process after moving its folder. Full-document equality and visit-field
   assertions reject a schema bump, new mode/source/provenance field, coordinate movement, geometry rewrite,
   or metric adjustment.
-- Fourteen raw malformed-response mutations cover missing/non-array/wrong-length/non-integer/non-increasing/
-  non-covering route-level `way_points`, multiple segments/features, invalid geometry/summary/segment, and
-  distance/duration mismatch outside `max(1 unit, 0.5%)`. The production controller must preserve the seeded
+- Fifteen raw malformed-response mutations cover missing/non-array/wrong-length/non-integer/non-increasing/
+  non-covering route-level `way_points`, multiple segments/features, an object-shaped `features` value that
+  masquerades as `{"0": feature, "length": 1}`, invalid geometry/summary/segment, and distance/duration
+  mismatch outside `max(1 unit, 0.5%)`. The response document must be a GeoJSON FeatureCollection whose
+  `features` member is an actual Array of exactly one GeoJSON Feature. The production controller must preserve the seeded
   last-good snapshot and candidate, stop after the walking call, and record zero later vehicle requests,
   fallback, retry or post-seed storage write.
-- Generated QML must expose direct runtime readback of the requested access/source markers and provider-only
-  dashed geometry. Three distinct live calculation-result, saved-detail and legend/accessibility objects must
+- Generated QML must expose direct runtime readback of the requested access-marker QML object, the actual
+  provider source feature and the provider-line QML object. It must enumerate every rendered access marker
+  and walking-line object with object identity and the named coordinate property, plus the actual route visit
+  model and walking totals. The test itself derives the connector and gap-metric/time counts from those complete
+  enumerations and exact totals; the harness may not return copied fixture coordinates or constant zero counts.
+  Three distinct live calculation-result, saved-detail and legend/accessibility objects must
   each expose the exact text and accessible name `ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함`.
-  Raw callback slices prove preview/detail/legend/reload are passive. Input echo, source-text matching and
-  canned observation dictionaries are rejected by the harness contract.
+  Raw callback slices prove preview/detail/legend/reload are passive. Input echo, source-text matching, constant
+  absence counts and canned observation dictionaries are rejected by the harness contract.
 
 ### Manual boundary
 
@@ -682,7 +693,7 @@ M01–M21 remain **NOT RUN**. M18 remains the live-ORS boundary for an actual sn
 the target-QField map, legend and screen-reader boundary. Automated localhost/QML checks do not promote either
 manual case to PASS.
 
-### DRAFT verification record
+### Superseded approved-baseline verification record
 
 Repository: `/Users/tory/vibe_coding/fieldbuild_standalone`, branch
 `codex/route-provider-error-details`. Only the five survey-route acceptance artifacts were edited by this
@@ -701,3 +712,16 @@ test-designer. No application, unit-test, specification, Git-state, live-provide
 
 An initial sandboxed focused run failed all 17 selected cases at localhost bind with `PermissionError` and is
 not product evidence. The permission-enabled rerun above is authoritative.
+
+### DRAFT reviewer-correction verification record
+
+- Collection: **421 collected**, exit 0.
+- Design verifier: **intended RED**, exit 1 at the guard rejecting the current driver's hard-coded
+  `synthetic_connector_count: 0` (the copied-coordinate guards and required runtime-enumeration fields
+  follow the same gate).
+- Authoritative focused AC059 run with disposable localhost permission: **16 passed, 2 failed,
+  403 deselected**, exit 1. The array-like-object `features` case is wrongly accepted, and the loaded-QML
+  result lacks `access_marker_observations`; these are the two intended implementation/harness RED results.
+- Acceptance-only `git diff --check`: exit 0, no output.
+- The initial sandboxed focused run failed all 18 selected cases because localhost bind was denied; it is
+  environment noise, not product evidence. M01–M21 remain **NOT RUN**.

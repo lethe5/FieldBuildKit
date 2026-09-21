@@ -3359,7 +3359,7 @@ def test_ac053_qml_runtime_reads_real_tree_repeater_and_qaccessible(run):
                    for item in delegates)
 
 
-# DRAFT AC-SRP-059: documented ORS walking geometry may use graph-snapped endpoints.
+# APPROVED AC-SRP-059 baseline; DRAFT reviewer correction to evidence/negative coverage.
 SNAPPED_PROVIDER_GEOMETRY = {
     "type": "LineString",
     "coordinates": [[127.0094, 37.0094], [127.0095, 37.00955], [127.0096, 37.0096]],
@@ -3507,6 +3507,8 @@ def _invalid_snapped_response(fault):
         properties["segments"].append({"distance": 0, "duration": 0})
     elif fault == "multiple_features":
         response["features"].append(deepcopy(feature))
+    elif fault == "features_object_array_like":
+        response["features"] = {"0": deepcopy(feature), "length": 1}
     elif fault == "invalid_geometry":
         feature["geometry"] = {"type": "Point", "coordinates": [127.0095, 37.0095]}
     elif fault == "invalid_summary":
@@ -3525,7 +3527,8 @@ def _invalid_snapped_response(fault):
 @pytest.mark.parametrize("fault", [
     "missing_way_points", "non_array_way_points", "wrong_length_way_points",
     "non_integer_way_points", "non_increasing_way_points", "non_covering_start",
-    "non_covering_end", "multiple_segments", "multiple_features", "invalid_geometry",
+    "non_covering_end", "multiple_segments", "multiple_features", "features_object_array_like",
+    "invalid_geometry",
     "invalid_summary", "invalid_segment", "distance_tolerance_mismatch",
     "duration_tolerance_mismatch",
 ])
@@ -3567,15 +3570,61 @@ def test_ac059_qml_observes_requested_markers_provider_line_and_exact_gap_disclo
         actions=["preview", "legend", "reload-each-visit-value-route"],
     )
     endpoint = observed["snapped_endpoint_observation"]
-    assert endpoint["requested_access_marker_coordinate"] == MIXED_ACCESS
-    assert endpoint["requested_source_marker_coordinate"] == MIXED_SOURCE
-    assert endpoint["mapped_dashed_line_coordinates"] == SNAPPED_PROVIDER_GEOMETRY["coordinates"]
-    assert endpoint["mapped_line_pattern"] == "dashed"
-    assert endpoint["synthetic_connector_count"] == 0
-    assert endpoint["gap_metric_or_duration_count"] == 0
-    assert endpoint["fallback_count"] == 0
-    assert endpoint["walking_mode"] == "mapped"
-    assert endpoint["metric_source"] == "ors-foot-hiking"
+    access_markers = endpoint["access_marker_observations"]
+    assert len(access_markers) == 1
+    assert access_markers[0]["object_id"]
+    assert access_markers[0]["object_name"]
+    assert access_markers[0]["coordinate_property"] == "accessCoordinate"
+    assert access_markers[0]["coordinate"] == MIXED_ACCESS
+    source_features = endpoint["source_feature_observations"]
+    assert len(source_features) == 1
+    assert source_features[0]["provider_layer_id"]
+    assert source_features[0]["provider_feature_id"] is not None
+    assert source_features[0]["coordinate_source"] == "provider feature geometry"
+    assert source_features[0]["coordinate"] == MIXED_SOURCE
+    rendered_lines = endpoint["walking_line_observations"]
+    assert len(rendered_lines) == 1
+    assert rendered_lines[0]["object_id"]
+    assert rendered_lines[0]["object_name"]
+    assert rendered_lines[0]["coordinates_property"] == "coordinates"
+    assert rendered_lines[0]["coordinates"] == SNAPPED_PROVIDER_GEOMETRY["coordinates"]
+    assert rendered_lines[0]["line_pattern"] == "dashed"
+    visit_model = endpoint["visit_model_observation"]
+    assert visit_model["model_source"] in {"panel.candidate.visits", "panel.route.visits"}
+    assert len(visit_model["visits"]) == 1
+    visit = visit_model["visits"][0]
+    assert visit["access_coordinate"] == MIXED_ACCESS
+    assert visit["source_coordinate"] == MIXED_SOURCE
+    assert visit["walking_mode"] == "mapped"
+    assert visit["metric_source"] == "ors-foot-hiking"
+    assert visit["walking_legs"] == [
+        {"direction": "outbound", "distance_m": SNAPPED_DISTANCE_M,
+         "duration_s": SNAPPED_DURATION_S, "geometry": SNAPPED_PROVIDER_GEOMETRY},
+        {"direction": "return", "distance_m": SNAPPED_DISTANCE_M,
+         "duration_s": SNAPPED_DURATION_S,
+         "geometry": {"type": "LineString", "coordinates": list(reversed(
+             SNAPPED_PROVIDER_GEOMETRY["coordinates"]))}},
+    ]
+    totals = endpoint["walking_totals_observation"]
+    assert totals["model_source"] in {
+        "panel.candidate.walking_totals", "panel.routeProgress.remaining_walking"}
+    assert totals["value"] == {
+        "mapped_distance_m": 2 * SNAPPED_DISTANCE_M,
+        "lower_bound_distance_m": 0,
+        "duration_s": 2 * SNAPPED_DURATION_S,
+        "unavailable_duration_count": 0,
+    }
+    # These zeroes are derived here from complete runtime enumerations, never supplied by the harness.
+    connector_lines = [line for line in rendered_lines
+                       if line["coordinates"] != SNAPPED_PROVIDER_GEOMETRY["coordinates"]]
+    gap_metric_or_duration = (
+        totals["value"]["mapped_distance_m"] - sum(
+            leg["distance_m"] for leg in visit["walking_legs"]),
+        totals["value"]["duration_s"] - sum(
+            leg["duration_s"] for leg in visit["walking_legs"]),
+    )
+    assert connector_lines == []
+    assert gap_metric_or_duration == (0, 0)
     assert endpoint["source_coordinate_write_attempts"] == []
     disclosures = observed["endpoint_gap_disclosures"]
     assert set(disclosures) == {"calculation_result", "saved_detail", "legend_accessibility"}

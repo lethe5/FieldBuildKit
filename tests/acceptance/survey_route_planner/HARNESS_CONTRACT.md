@@ -1,4 +1,8 @@
-# Survey route acceptance harness — DRAFT AC-SRP-049–058 direct-observation redesign
+# Survey route acceptance harness — approved AC-SRP-059 baseline with DRAFT evidence correction
+
+**APPROVED TEST DESIGN (approval 2026-09-21).** The AC-SRP-059 endpoint-snapping
+acceptance baseline is approved. The reviewer correction below remains
+**DRAFT TEST DESIGN — user approval required**.
 
 **Current AC-SRP-049–058 status: DRAFT TEST DESIGN (2026-09-21).** The approved
 AC-SRP-001–048 contract and history below remain preserved and are not reopened.
@@ -378,12 +382,13 @@ visits, metric provenance and totals; request ordering/privacy/write absence; pl
 active and inactive visit validation; legacy/mixed storage compatibility; and persistent
 route-line preference. M01–M21 remain user-run and **NOT RUN** until recorded on the named target.
 
-## DRAFT AC-SRP-059 endpoint-snapping direct-observation contract (2026-09-21)
+## APPROVED AC-SRP-059 baseline and DRAFT reviewer correction (2026-09-21)
 
 This additive contract uses the same production-JavaScript, localhost HTTP, real slot-file and loaded-QML
 boundaries above. It does not add a provenance journal, duplicate the ORS parser, or infer provider behavior.
 
-- The valid response is one GeoJSON Feature with a finite WGS84 LineString, one segment, finite non-negative
+- The valid response is a GeoJSON FeatureCollection whose `features` member is an actual Array containing
+  exactly one GeoJSON Feature with a finite WGS84 LineString, one segment, finite non-negative
   summary/segment metrics and route-level `properties.way_points=[0,last]`. Both provider geometry endpoints
   are independently more than 1 m from the immutable requested access/source coordinates, and the provider
   distance is independently shorter than requested access-to-source geodesic distance. HTTP records and the
@@ -395,13 +400,23 @@ boundaries above. It does not add a provenance journal, duplicate the ORS parser
 - `controller_failure` seeds a last-good route through the production repository, then records the production
   controller snapshot/candidate and actual provider/file counters around one calculation. Raw response mutations
   cover missing/non-array/wrong-length/non-integer/non-increasing/non-covering `way_points`, multiple segments or
-  features, invalid geometry/summary/segment, and distance/duration mismatch outside D-SRP-028 tolerance. Every
+  features, an object-shaped `features` value with numeric key `0` and `length: 1`, invalid geometry/summary/segment,
+  and distance/duration mismatch outside D-SRP-028 tolerance. Every
   case must stop after walking directions, preserve the last-good snapshot/candidate, and make zero post-seed
   writes, fallback requests, vehicle matrix/optimizer/directions requests or retries.
-- `mixed_route_presentation` receives the snapped fixture at its provider boundary and returns raw loaded-QML
-  observations. `snapped_endpoint_observation` must read the actual requested access marker, source feature marker,
-  mapped walking item coordinates/pattern, actual source-write callback slice, and counts of connector, gap metric
-  and fallback objects. `endpoint_gap_disclosures` must read three distinct live objects for calculation result,
+- `mixed_route_presentation` receives the snapped fixture only at its provider boundary and returns raw loaded-QML
+  observations. `snapped_endpoint_observation.access_marker_observations` enumerates every access-marker QML
+  object from `walkingItems`, including its real object identity/name and runtime `accessCoordinate` property.
+  `source_feature_observations` enumerates the actual source provider feature(s), including provider layer/feature
+  identity and geometry-derived coordinate. `walking_line_observations` enumerates every rendered walking-line QML
+  object, including real object identity/name and runtime `coordinates` and `linePattern` properties.
+  `visit_model_observation` returns the complete actual candidate-or-route `visits` array and names that runtime
+  model source; `walking_totals_observation` returns the actual candidate walking totals or saved-route progress
+  totals and names that runtime model source. The acceptance test derives connector count from the complete line
+  enumeration and gap metric/time from exact leg-versus-total arithmetic. The harness must not echo fixture/source
+  input coordinates into observations or return `synthetic_connector_count`, `gap_metric_or_duration_count`, or
+  any other constant absence claim. Actual source-write callback slices remain required.
+  `endpoint_gap_disclosures` must read three distinct live objects for calculation result,
   saved detail and legend/accessibility, including object identity, visible text and QAccessible/Accessible name.
   Literal dictionaries assembled from input fixture values, source-text matching, or copied expected strings are
   invalid evidence. Each live disclosure is exactly `ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함`.
