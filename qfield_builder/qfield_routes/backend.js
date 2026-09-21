@@ -16,9 +16,17 @@ function coordinate(value) {
         typeof value[1] === "number" && isFinite(value[1]) && value[1] >= -90 && value[1] <= 90;
 }
 function line(value) {
-    if (!value || value.type !== "LineString" || !Array.isArray(value.coordinates) ||
-            value.coordinates.length < 2 || !value.coordinates.every(coordinate))
-        throw new Error("도로 구간 도형이 올바른 WGS84 LineString이 아닙니다.");
+    if (!value || value.type !== "LineString") throw new Error("type이 LineString이 아닙니다");
+    if (!Array.isArray(value.coordinates)) throw new Error("coordinates가 배열이 아닙니다");
+    if (value.coordinates.length < 2) throw new Error("coordinates 점 개수가 2개보다 적습니다");
+    for (var i=0;i<value.coordinates.length;i++) {
+        var point=value.coordinates[i];
+        if (!Array.isArray(point)||point.length<2) throw new Error("coordinates["+i+"]가 좌표 배열이 아닙니다");
+        if (typeof point[0]!=="number"||!isFinite(point[0])||typeof point[1]!=="number"||!isFinite(point[1]))
+            throw new Error("coordinates["+i+"]에 유한한 숫자가 아닌 값이 있습니다");
+        if (point[0]<-180||point[0]>180||point[1]<-90||point[1]>90)
+            throw new Error("coordinates["+i+"]가 WGS84 범위를 벗어났습니다");
+    }
     return value;
 }
 function endpoint(target) {
@@ -45,9 +53,17 @@ function providerNumber(value, label, reference) {
     try { return number(value, label); }
     catch (error) { throw providerError(label + " provider 값이 올바르지 않습니다: " + reference, reference); }
 }
+function snappedDistance(row, stage, maximum) {
+    if (!Object.prototype.hasOwnProperty.call(row, "snapped_distance")) return;
+    var distance;
+    try { distance = providerNumber(row.snapped_distance, "도로 이격거리", "snapped_distance"); }
+    catch (error) { throw staged(error, stage); }
+    if (maximum !== undefined && distance > maximum)
+        throw staged(providerError("도로에서 너무 먼 조사지가 있습니다. snapped_distance 이격거리 설정을 확인하세요.", "snapped_distance"), stage);
+}
 function providerLine(value, reference) {
     try { return line(value); }
-    catch (error) { throw providerError("도로 구간 geometry가 올바른 WGS84 LineString이 아닙니다: " + reference, reference); }
+    catch (error) { throw providerError("도로 구간 geometry가 올바른 WGS84 LineString이 아닙니다 ("+error.message+"): " + reference, reference); }
 }
 function requestHeaders(settings) {
     var headers = {"Content-Type": "application/json"};
@@ -72,12 +88,15 @@ function calculateLegacy(settings, targets, start, roundtrip, transport) {
             .catch(function(error){ throw staged(error,stage); });
     }
     return post(base + "/v2/matrix/" + encodeURIComponent(settings.profile) + routingSuffix, {locations: locations, metrics: ["duration", "distance"], resolve_locations: true}).then(function(response) {
-        providerDocument(response, "matrix");
-        var times = matrix(response.durations, locations.length, "durations"), distances = matrix(response.distances, locations.length, "distances");
-        if (!Array.isArray(response.sources) || response.sources.length !== locations.length) throw providerError("도로 연결 위치가 누락되었습니다: sources", "sources");
-        response.sources.forEach(function(s) {
-            if (!s || providerNumber(s.snapped_distance, "도로 이격거리", "snapped_distance") > settings.max_road_offset_m) throw providerError("도로에서 너무 먼 조사지가 있습니다. snapped_distance 이격거리 설정을 확인하세요.", "snapped_distance");
-        });
+        var times, distances;
+        try {
+            providerDocument(response, "matrix");
+            times = matrix(response.durations, locations.length, "durations");
+            distances = matrix(response.distances, locations.length, "distances");
+            if (!Array.isArray(response.sources) || response.sources.length !== locations.length || response.sources.some(function(s){return !s || typeof s !== "object" || Array.isArray(s);}))
+                throw providerError("도로 연결 위치가 누락되었습니다: sources", "sources");
+            response.sources.forEach(function(s) { snappedDistance(s, "matrix", settings.max_road_offset_m); });
+        } catch (error) { throw staged(error, "matrix"); }
         var costs = settings.objective === "distance" ? distances : times;
         var vehicle = {id: 1, profile: "car", start_index: 0};
         if (roundtrip) vehicle.end_index = 0;
@@ -227,25 +246,28 @@ function walkingVisit(target, access, raw) {
 }
 function walkingPayload(document, target, access) {
     if (document && document.explicit_no_path) return document;
-    var feature=document&&document.features&&document.features.length===1&&document.features[0], properties=feature&&feature.properties, summary=properties&&properties.summary;
+    var feature=document&&document.type==="FeatureCollection"&&Array.isArray(document.features)&&document.features.length===1&&document.features[0], properties=feature&&feature.type==="Feature"&&feature.properties, summary=properties&&properties.summary;
     if (!feature || !summary) throw providerError("도보 경로 응답이 올바르지 않습니다: "+target.site_id,target.site_id);
-    var geometry=providerLine(feature.geometry,target.site_id),distance=providerNumber(summary.distance,"도보 거리",target.site_id),duration=providerNumber(summary.duration,"도보 시간",target.site_id);
-    var first=geometry.coordinates[0],last=geometry.coordinates[geometry.coordinates.length-1];
-    if(haversine(first,access)>1||haversine(last,target.source_coordinate||target.coordinate)>1)
-        throw providerError("도보 경로 geometry의 시작/도착점이 access/source 좌표와 일치하지 않습니다: "+target.site_id,target.site_id);
-    if(distance+1<haversine(access,target.source_coordinate||target.coordinate))
-        throw providerError("도보 경로 distance가 geometry 끝점 거리와 일치하지 않습니다: "+target.site_id,target.site_id);
-    if(Array.isArray(properties.segments)){
-        var segmentDistance=0,segmentDuration=0;
-        properties.segments.forEach(function(segment){segmentDistance+=providerNumber(segment&&segment.distance,"도보 구간 거리",target.site_id);segmentDuration+=providerNumber(segment&&segment.duration,"도보 구간 시간",target.site_id);});
-        if(!close(distance,segmentDistance,1)||!close(duration,segmentDuration,1))throw providerError("도보 경로 summary와 segment metric이 일치하지 않습니다: "+target.site_id,target.site_id);
-    }
+    var rawGeometry=feature.geometry,segments=properties.segments,wayPoints=properties.way_points;
+    if(rawGeometry&&rawGeometry.type==="LineString"&&Array.isArray(rawGeometry.coordinates)&&rawGeometry.coordinates.length===1&&coordinate(rawGeometry.coordinates[0])&&
+            Array.isArray(segments)&&segments.length===1&&Array.isArray(wayPoints)&&wayPoints.length===2&&wayPoints[0]===0&&wayPoints[1]===0&&
+            summary.distance===0&&summary.duration===0&&segments[0]&&segments[0].distance===0&&segments[0].duration===0)
+        return {explicit_no_path:true};
+    var geometry=providerLine(rawGeometry,target.site_id),distance=providerNumber(summary.distance,"도보 거리",target.site_id),duration=providerNumber(summary.duration,"도보 시간",target.site_id);
+    var last=geometry.coordinates.length-1;
+    if(!Array.isArray(segments)||segments.length!==1||!Array.isArray(wayPoints)||wayPoints.length!==2||
+            !Number.isInteger(wayPoints[0])||!Number.isInteger(wayPoints[1])||wayPoints[0]!==0||wayPoints[1]!==last)
+        throw providerError("도보 경로 segment 또는 route-level way_points가 올바르지 않습니다: "+target.site_id,target.site_id);
+    var segmentDistance=providerNumber(segments[0]&&segments[0].distance,"도보 구간 거리",target.site_id),segmentDuration=providerNumber(segments[0]&&segments[0].duration,"도보 구간 시간",target.site_id);
+    if(!close(distance,segmentDistance,1)||!close(duration,segmentDuration,1))throw providerError("도보 경로 summary와 segment metric이 일치하지 않습니다: "+target.site_id,target.site_id);
     return {distance_m:distance,duration_s:duration,geometry:geometry};
 }
 function explicitNoFootPath(error) {
     var record=error&&error.safe_record;if(!record)return false;
     var code=String(record.provider_code||"").toLowerCase(),message=String(record.provider_message||record.safe_text||"").toLowerCase();
-    return /^(no_foot_route|no_foot_path)$/.test(code)||/no foot (?:route|path) (?:found|available)|도보.*경로.*없/.test(message);
+    return /^(no_foot_route|no_foot_path)$/.test(code)||
+        (code==="2010"&&/could not find routable point\b.*\bspecified coordinate\b/.test(message))||
+        /no foot (?:route|path) (?:found|available)|도보.*경로.*없/.test(message);
 }
 function calculateMixed(settings, targets, start, roundtrip, transport) {
     if (settings.backend !== "ors-vroom") return Promise.reject(new Error("지원하지 않는 경로 backend입니다."));
@@ -262,9 +284,10 @@ function calculateMixed(settings, targets, start, roundtrip, transport) {
         providerDocument(origin,"origin-validation");
         var source=Array.isArray(origin.sources)&&origin.sources.length===1&&origin.sources[0],destination=Array.isArray(origin.destinations)&&origin.destinations.length===1&&origin.destinations[0];
         var routable=Array.isArray(origin.durations)&&origin.durations.length===1&&Array.isArray(origin.durations[0])&&origin.durations[0].length===1&&typeof origin.durations[0][0]==="number"&&isFinite(origin.durations[0][0])&&origin.durations[0][0]>=0&&
-            source&&coordinate(source.location)&&typeof source.snapped_distance==="number"&&isFinite(source.snapped_distance)&&source.snapped_distance>=0&&
-            destination&&coordinate(destination.location)&&typeof destination.snapped_distance==="number"&&isFinite(destination.snapped_distance)&&destination.snapped_distance>=0;
+            source&&typeof source==="object"&&!Array.isArray(source)&&coordinate(source.location)&&
+            destination&&typeof destination==="object"&&!Array.isArray(destination)&&coordinate(destination.location);
         if(!routable){var failure=new Error("출발지를 driving-car 도로에서 확인할 수 없습니다. 도로 위의 지도 위치 출발 또는 저장 기본 출발지를 사용하세요.");failure.stage="origin-validation";failure.suggested_actions=["map_start","saved_start"];throw failure;}
+        snappedDistance(source,"origin-validation");snappedDistance(destination,"origin-validation");
         return post("access-snap",base+"/v2/snap/driving-car/json"+routingSuffix,{locations:sourceTargets.map(function(t){return t.source_coordinate;}),radius:radius});
     }).then(function(snap){
         providerDocument(snap,"access-snap");if(!Array.isArray(snap.locations)||snap.locations.length!==sourceTargets.length)throw providerError("차량 접근점 응답 수가 올바르지 않습니다.","access-snap");

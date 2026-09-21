@@ -80,7 +80,8 @@ class HTTP(BaseHTTPRequestHandler):
                 if observed.get('explicit_no_path'):
                     status=404;value={'error':{'code':'NO_FOOT_ROUTE','message':'no foot route found'}}
                 else:
-                    value={'features':[{'geometry':observed['geometry'],'properties':{'summary':{'distance':observed['distance_m'],'duration':observed['duration_s']},'segments':[{'distance':observed['distance_m'],'duration':observed['duration_s']}]}}]}
+                    last=len(observed['geometry']['coordinates'])-1
+                    value={'type':'FeatureCollection','features':[{'type':'Feature','geometry':observed['geometry'],'properties':{'summary':{'distance':observed['distance_m'],'duration':observed['duration_s']},'segments':[{'distance':observed['distance_m'],'duration':observed['duration_s']}],'way_points':detached(observed.get('way_points',[0,last]))}}]}
             elif kind=='matrix':
                 n=len(body['locations']);times=[[0 if i==j else 10+abs(i-j) for j in range(n)] for i in range(n)];distances=[[0 if i==j else 100+abs(i-j) for j in range(n)] for i in range(n)]
                 value={'durations':detached(case.get('time_matrix',times)),'distances':detached(case.get('distance_matrix',distances)),'sources':[{'snapped_distance':0} for _ in range(n)]}
@@ -319,10 +320,10 @@ iface=Iface();engine.rootContext().setContextProperty('iface',iface)
 qInstallMessageHandler(lambda typ,ctx,msg:logs.append(str(msg)))
 component=QQmlComponent(engine,QUrl.fromLocalFile(str(folder/'qfield_routes/RoutePanel.qml')));panel=None;components=[component]
 project_owner=QObject();project_owner.setObjectName('qfieldProjectOwner')
+fixture_rows=generated_provider_rows if generated_provider_rows is not None else [{'attributes':{'site_id':f.get('id'),'site_name':f.get('name'),'inventory_id':f.get('id'),'selected_korean_name':f.get('name'),**f},'geometry':f.get('geometry') or {'type':'Point','coordinates':f['xy']}} for f in features]
 def device_inputs():
-    rows=generated_provider_rows if generated_provider_rows is not None else [{'attributes':{'site_id':f.get('id'),'site_name':f.get('name'),'inventory_id':f.get('id'),'selected_korean_name':f.get('name'),**f},'geometry':f.get('geometry') or {'type':'Point','coordinates':f['xy']}} for f in features]
-    engine.rootContext().setContextProperty('fixtureFeatures',rows)
-    selected=[r for r in rows if 'selected_ids' not in case or str(r['attributes'].get('id',r['attributes'].get('custom_id',r['attributes'].get('site_id')))) in case['selected_ids']]
+    engine.rootContext().setContextProperty('fixtureFeatures',fixture_rows)
+    selected=[r for r in fixture_rows if 'selected_ids' not in case or str(r['attributes'].get('id',r['attributes'].get('custom_id',r['attributes'].get('site_id')))) in case['selected_ids']]
     js('device.canvas=hostCanvas;hostCanvas.mapSettings={destinationCrs:"EPSG:4326",getCenter:function(){return '+json.dumps({'x':map_center[0],'y':map_center[1]})+'}};device.gps='+json.dumps({'active':gps is not None,'positionInformation':{'latitudeValid':gps is not None,'longitudeValid':gps is not None,'longitude':gps[0] if gps else None,'latitude':gps[1] if gps else None}})+';device.locator={positionInformation:device.gps.positionInformation};device.form={model:{selectedLayer:qgisProject.mapLayersByName('+json.dumps('custom_targets' if case.get('mapping') else '조사지')+')[0],selectedFeatures:'+json.dumps(selected)+'}};')
     if case.get('qfield_property_api'):js('hostCanvas.mapSettings.layers=hostLayers')
 def val(expr):return js('JSON.stringify('+expr+')').toString()
@@ -776,18 +777,26 @@ def main():
     elif op=='mixed_route_presentation':
         for feature in features:feature['done']=False
         device_inputs();use_site_mapping('done');settings({'max_access_distance_m':2000});control('roundtripBox',True,'checked')
+        snapped=case.get('snapped_endpoint_fixture')
         offsets=[.0035,.002,.004,.0015,0]
-        access=[[feature['xy'][0]+offsets[index%len(offsets)],feature['xy'][1]] for index,feature in enumerate(features)]
+        access=[detached(snapped['requested_access_coordinate'])] if snapped else [[feature['xy'][0]+offsets[index%len(offsets)],feature['xy'][1]] for index,feature in enumerate(features)]
         case['access_snap_response']={'locations':[{'location':point} for point in access]}
         walking=[]
-        for index,feature in enumerate(features):
-            if offsets[index%len(offsets)]==0:continue
-            if index%2==0:walking.append({'explicit_no_path':True})
-            else:
-                distance=300 if index==1 else 225
-                walking.append({'distance_m':distance,'duration_s':distance*.8,'geometry':{'type':'LineString','coordinates':[access[index],feature['xy']]}})
+        if snapped:
+            walking.append({'distance_m':snapped['distance_m'],'duration_s':snapped['duration_s'],'geometry':detached(snapped['provider_geometry']),'way_points':detached(snapped['way_points'])})
+        else:
+            for index,feature in enumerate(features):
+                if offsets[index%len(offsets)]==0:continue
+                if index%2==0:walking.append({'explicit_no_path':True})
+                else:
+                    distance=300 if index==1 else 225
+                    walking.append({'distance_m':distance,'duration_s':distance*.8,'geometry':{'type':'LineString','coordinates':[access[index],feature['xy']]}})
         case['walking_responses']=walking
-        assert calculate();js('p.controller.acknowledgeUnmapped(true)');assert save('표시 혼합 경로')
+        assert calculate()
+        candidate_totals_before_save=detached(object_value(panel,'candidate').get('walking_totals')) if snapped else None
+        calculation_disclosure=panel.findChild(QObject,'endpointGapCalculationDisclosure') if snapped else None
+        calculation_observation=accessibility(calculation_disclosure) if calculation_disclosure else None
+        js('p.controller.acknowledgeUnmapped(true)');assert save('표시 혼합 경로')
         open_panel();window.show();app.processEvents()
         provider_start=len(transport_dispatches);storage_start=len(writes);source_start=len(source_writes)
         action_windows=[]
@@ -809,12 +818,13 @@ def main():
                 'product_operation_completed':completed})
         observed_lines=json.loads(val('p.walkingItems.filter(function(item){return item.linePattern}).map(function(item){return {semantic_class:item.semanticClass,pattern:item.linePattern,legend:item.legendLabel,contrasting_casing:item.contrastingCasing,warning:item.warningMarker,non_color_cue:item.nonColorCue}})'))
         vehicle=json.loads(val('({semantic_class:p.roadItem.semanticClass,pattern:p.roadItem.linePattern,legend:p.roadItem.legendLabel,contrasting_casing:p.roadItem.contrastingCasing,warning:false,non_color_cue:p.roadItem.nonColorCue})'))
-        walking_items=[item for item in object_value(panel,'walkingItems') if item.property('linePattern')]
+        all_walking_items=object_value(panel,'walkingItems')
+        walking_items=[item for item in all_walking_items if item.property('linePattern')]
         rows=[vehicle]+observed_lines;items=[object_value(panel,'roadItem')]+walking_items
         line_classes={}
         for row,item in zip(rows,items):
             semantic=row.pop('semantic_class');row['object_ids']=[str(getCppPointer(item)[0])];line_classes[semantic]=row
-        unmapped_item=next(item for item in walking_items if item.property('linePattern')=='dotted')
+        unmapped_item=next((item for item in walking_items if item.property('linePattern')=='dotted'),None)
         accessibility_observations=[]
         for semantic_id,object_name in [('mapped_metric_source','mappedMetricSourceAccessibility'),('mapped_walking_totals','walkingTotalsAccessibility'),('fallback_lower_bound_status','mixedFallbackLabel')]:
             item=panel.findChild(QObject,object_name);observed=accessibility(item)
@@ -828,7 +838,29 @@ def main():
             delegates.append({'value':{'lookup':'Repeater.itemAt(index)','visit_value_source':'delegate.property("visitValue")','object_id':str(getCppPointer(item)[0]),'object_name':item.objectName(),'delegate_index':index,'visit_value':visit_value,'qaccessible':{'source':'QAccessible.queryAccessibleInterface','object_id':str(getCppPointer(item)[0]),'role':observed['role'],'name':observed['name']}}})
         model={'model_count':count,'delegate_count':len(delegates),'creation':'QML Repeater delegate','repeater_object_id':str(getCppPointer(repeater)[0]),'enumeration':'Repeater.itemAt(index)'}
         provider_attempts=detached(transport_dispatches[provider_start:]);storage_write_attempts=detached(writes[storage_start:]);source_write_attempts=detached(source_writes[source_start:])
-        result.update(line_classes=line_classes,warning_marker={'visible':bool(unmapped_item.property('warningMarker')),'non_color_cue':str(unmapped_item.property('nonColorCue')),'object_id':str(getCppPointer(unmapped_item)[0])},passive_boundary_observation={'provider_attempts':provider_attempts,'provider_attempt_count':len(provider_attempts),'storage_write_attempts':storage_write_attempts,'storage_write_attempt_count':len(storage_write_attempts),'source_write_attempts':source_write_attempts,'source_write_attempt_count':len(source_write_attempts),'action_windows':action_windows},accessibility_observations=accessibility_observations,visit_accessibility_binding_observations=[{'delegate_model_observation':{'value':model},'delegate_readback_observations':delegates}])
+        result.update(line_classes=line_classes,warning_marker={'visible':bool(unmapped_item and unmapped_item.property('warningMarker')),'non_color_cue':str(unmapped_item.property('nonColorCue')) if unmapped_item else '','object_id':str(getCppPointer(unmapped_item)[0]) if unmapped_item else None},passive_boundary_observation={'provider_attempts':provider_attempts,'provider_attempt_count':len(provider_attempts),'storage_write_attempts':storage_write_attempts,'storage_write_attempt_count':len(storage_write_attempts),'source_write_attempts':source_write_attempts,'source_write_attempt_count':len(source_write_attempts),'action_windows':action_windows},accessibility_observations=accessibility_observations,visit_accessibility_binding_observations=[{'delegate_model_observation':{'value':model},'delegate_readback_observations':delegates}])
+        if snapped:
+            mapped_item=next(item for item in walking_items if item.property('linePattern')=='dashed')
+            access_markers=[item for item in all_walking_items if item.property('accessCoordinate') is not None]
+            access_marker_observations=[{'object_id':str(getCppPointer(item)[0]),'object_name':item.objectName() or 'accessMarkerFactory',
+                'coordinate_property':'accessCoordinate','coordinate':detached(object_value(item,'accessCoordinate'))} for item in access_markers]
+            provider_rows=generated_provider_rows if generated_provider_rows is not None else fixture_rows
+            source_feature_observations=[{'provider_layer_id':site_layer_id(),'provider_feature_id':row['attributes']['site_id'],
+                'coordinate_source':'provider feature geometry','coordinate':row['geometry']['coordinates']} for row in provider_rows]
+            walking_line_observations=[{'object_id':str(getCppPointer(item)[0]),'object_name':item.objectName() or 'walkingFactory',
+                'coordinates_property':'coordinates','coordinates':detached(object_value(item,'coordinates')),
+                'line_pattern':str(item.property('linePattern'))} for item in walking_items if item.property('linePattern')]
+            route_value=active();visit_values=detached(route_value.get('visits',[]));totals_value=candidate_totals_before_save
+            saved_disclosure=panel.findChild(QObject,'endpointGapSavedDisclosure');legend_disclosure=panel.findChild(QObject,'endpointGapLegendAccessibility')
+            def disclosure(item):
+                observed=accessibility(item)
+                return {'text':str(item.property('text')),'accessible_name':observed['name'],'object_id':str(getCppPointer(item)[0]),'source':'QAccessible.queryAccessibleInterface'}
+            result.update(snapped_endpoint_observation={'access_marker_observations':access_marker_observations,
+                'source_feature_observations':source_feature_observations,'walking_line_observations':walking_line_observations,
+                'visit_model_observation':{'model_source':'panel.route.visits','visits':visit_values},
+                'walking_totals_observation':{'model_source':'panel.candidate.walking_totals','value':totals_value},
+                'source_coordinate_write_attempts':detached(source_writes)},
+                endpoint_gap_disclosures={'calculation_result':{'text':str(calculation_disclosure.property('text')),'accessible_name':calculation_observation['name'],'object_id':str(getCppPointer(calculation_disclosure)[0]),'source':'QAccessible.queryAccessibleInterface'},'saved_detail':disclosure(saved_disclosure),'legend_accessibility':disclosure(legend_disclosure)})
     elif op=='project_dropdowns':
         selected=case.get('selected_layer_id') or (case.get('stored_mapping') or {}).get('layer_id')
         if selected:js('p.refreshProjectSelectors('+json.dumps(selected)+')')
@@ -950,6 +982,7 @@ def main():
         def ui_rect(obj):
             point=obj.mapToItem(panel,QPointF(0,0));return {'left':point.x(),'right':point.x()+obj.width(),'top':point.y(),'bottom':point.y()+obj.height(),'width':obj.width(),'height':obj.height()}
         content=panel.findChild(QObject,'routeContent');scroll=panel.findChild(QObject,'routeScroll');content_rect=ui_rect(content)
+        first_control=panel.findChild(QObject,'layerEdit');first_label=panel.findChild(QObject,'layerEditFloatingLabel');first_label_rect=ui_rect(first_label)
         controls=['layerEdit','idEdit','nameEdit','completionEdit','scopeCombo','startCombo','targetEdit','serverEdit','optimizerEdit','backendEdit','profileEdit','keyEdit','timeoutEdit','offsetEdit','objectiveCombo','routeName','savedCombo']
         field_rects=[ui_rect(panel.findChild(QObject,name)) for name in controls if panel.findChild(QObject,name).property('visible')]
         guidance=[]
@@ -1025,6 +1058,7 @@ def main():
             guidance=str(panel.findChild(QObject,'visitGuidanceLabel').property('text')),
             controls_visible={'map_center':bool(panel.findChild(QObject,'mapCenterButton').property('visible')),'target':bool(panel.findChild(QObject,'targetEdit').property('visible'))},
             target_options=states[-1]['target_options'],selected_target_id=str(panel.findChild(QObject,'targetEdit').property('text') or '') or None,
+            first_floating_label_gap={'content_top':content_rect['top'],'label_top':first_label_rect['top'],'gap':first_label_rect['top']-content_rect['top'],'label_rect':first_label_rect,'control_rect':ui_rect(first_control)},
             horizontal_overflow=content.width()>scroll.property('availableWidth')+.5 or any(item['left']<content_rect['left']-.5 or item['right']>content_rect['right']+.5 for item in field_rects),
             label_guidance_rects=guidance,calculate_enabled=bool(panel.findChild(QObject,'calculateButton').property('enabled')),
             validation_message=str(panel.property('mappingValidation') or panel.property('startValidation') or panel.property('message')),

@@ -42,6 +42,20 @@ process.stdout.write(JSON.stringify({stages:requests.map(r=>r.stage),message}));
     assert "출발지" in result["message"]
 
 
+def test_snapped_distance_is_optional_but_present_values_keep_stage_and_limit():
+    result = _node(r"""const fs=require('fs'),vm=require('vm'),c=vm.createContext({});
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);let errors=[];
+c.snappedDistance({},'origin-validation');c.snappedDistance({snapped_distance:1000},'matrix',1000);
+for(const [row,stage,max] of [[{snapped_distance:'1'},'origin-validation',undefined],[{snapped_distance:1000.01},'matrix',1000]]){
+  try{c.snappedDistance(row,stage,max)}catch(error){errors.push({category:error.category,stage:error.stage})}
+}
+process.stdout.write(JSON.stringify({errors}));""", ROUTES / "backend.js")
+    assert result["errors"] == [
+        {"category": "provider_response", "stage": "origin-validation"},
+        {"category": "provider_response", "stage": "matrix"},
+    ]
+
+
 def test_ios_apple_maps_is_single_dispatch_and_android_fallback_remains():
     result = _node(r"""const fs=require('fs'),vm=require('vm'),c=vm.createContext({});
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);let ios=[],android=[];

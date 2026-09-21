@@ -133,9 +133,7 @@ function validate(data) {
                     if(lowerBound>1||!near(visit.access_offset_m,lowerBound)||outbound.distance_m!==0||outbound.duration_s!==0||outbound.geometry!==null||inbound.geometry!==null)
                         throw new Error("저장된 도보 0거리 구간이 손상되었습니다.");
                 } else if(visit.walking_mode==="mapped") {
-                    if(lowerBound<=1||!near(visit.access_offset_m,lowerBound)||outbound.distance_m+0.01<lowerBound||outbound.duration_s===null||!line(outbound.geometry)||!line(inbound.geometry)||
-                        !sameCoordinate(outbound.geometry.coordinates[0],visit.access_coordinate)||
-                        !sameCoordinate(outbound.geometry.coordinates[outbound.geometry.coordinates.length-1],visit.source_coordinate)||
+                    if(lowerBound<=1||!near(visit.access_offset_m,lowerBound)||outbound.duration_s===null||!line(outbound.geometry)||!line(inbound.geometry)||
                         !reverseCoordinates(outbound.geometry.coordinates,inbound.geometry.coordinates))
                         throw new Error("저장된 지도 도보 구간이 손상되었습니다.");
                 } else if(lowerBound<=1||!near(visit.access_offset_m,lowerBound)||!near(outbound.distance_m,lowerBound)||outbound.duration_s!==null||!line(outbound.geometry)||!line(inbound.geometry)||
