@@ -2499,13 +2499,14 @@ const fs=require("fs"),vm=require("vm"),http=require("http");
 const input=JSON.parse(process.argv[1]);
 function load(name){const c=vm.createContext({});vm.runInContext(fs.readFileSync(input.modules[name],"utf8"),c,{filename:input.modules[name]});return c;}
 const backend=load("backend"),repository=load("repository"),controller=load("controller"),navigation=load("navigation");
-let writeAttempts=0,writeSuccesses=0,failWrites=false;
+let writeAttempts=0,writeSuccesses=0,providerRequestAttempts=0,failWrites=false;
 function io(){
   return {exists:p=>fs.existsSync(p),read:p=>fs.readFileSync(p,"utf8"),write:(p,v)=>{
     writeAttempts++;if(failWrites)return false;fs.mkdirSync(require("path").dirname(p),{recursive:true});
     fs.writeFileSync(p,v);writeSuccesses++;return true;}};
 }
 function transport(request){
+  providerRequestAttempts++;
   return new Promise((resolve,reject)=>{
     const target=new URL(request.url),body=JSON.stringify(request.body);
     const req=http.request({hostname:target.hostname,port:target.port,path:target.pathname+target.search,
@@ -2555,11 +2556,14 @@ let launcherCalls=[];
     const a=repository.save(fsIo(),input.base,input.good,0);
     const b=repository.save(fsIo(),input.base,input.good,a.revision);
     const corruptPath=input.base+"."+b.slot+".json",payload=JSON.stringify(input.corrupt);
+    const lastGoodPath=input.base+"."+a.slot+".json",lastGoodBefore=fs.readFileSync(lastGoodPath,"utf8");
     fs.writeFileSync(corruptPath,JSON.stringify({revision:b.revision,checksum:repository.checksum(payload),payload}));
     const corruptBefore=fs.readFileSync(corruptPath,"utf8"),attemptsBefore=writeAttempts;
     try{out.loaded=repository.load(fsIo(),input.base);out.ok=true;}catch(error){out.ok=false;out.error=serializeError(error);}
-    out.corrupt_bytes_unchanged=fs.readFileSync(corruptPath,"utf8")===corruptBefore;
+    out.corrupt_bytes_before=corruptBefore;out.corrupt_bytes_after=fs.readFileSync(corruptPath,"utf8");
+    out.last_good_bytes_before=lastGoodBefore;out.last_good_bytes_after=fs.readFileSync(lastGoodPath,"utf8");
     out.repository_writes_during_load=writeAttempts-attemptsBefore;
+    out.provider_request_attempts=providerRequestAttempts;
   }else if(input.operation==="controller_flow"){
     if(input.document)repository.save(fsIo(),input.base,input.document,0);
     const instance=makeController(input.base,input.features);
@@ -2905,6 +2909,59 @@ def _saved_mixed_document(tmp_path):
     return result, records, Path(base_path)
 
 
+def _saved_active_inactive_schema3_document(tmp_path):
+    result, records, _ = _saved_mixed_document(tmp_path / "mapped")
+    document = result["snapshot"]["data"]
+    cases = [
+        ("mixed-exact", _provider_responder(access=MIXED_SOURCE), False),
+        ("mixed-unmapped", _provider_responder(
+            fail_stage="walking-directions", status=404,
+            failure={"error": {"code": "NO_FOOT_ROUTE", "message": "no foot route found"}},
+        ), True),
+    ]
+    final_base = None
+    for route_id, responder, acknowledge in cases:
+        final_base = tmp_path / route_id / "routes"
+        with _route_http(responder) as (provider_base, new_records):
+            result = _direct_node(
+                "controller_flow", tmp_path, base=str(final_base), document=document,
+                features=[{"id": "site-a", "name": "농촌 A",
+                           "coordinate": MIXED_SOURCE, "completed": False}],
+                settings=_settings(provider_base), start=MIXED_START, roundtrip=False,
+                replace_active=False, acknowledge_unmapped=acknowledge,
+                name=route_id, uuid=route_id,
+            )
+        assert result["calculated"] is True and result["saved"] is True
+        document = result["snapshot"]["data"]
+        records.extend(new_records)
+    return document, records, final_base
+
+
+AC056_ALLOWED_MODE_SOURCES = {
+    ("mapped", "ors-foot-hiking"),
+    ("exact_zero", "exact_zero"),
+    ("unmapped_estimate", "straight_line_lower_bound_m"),
+}
+AC056_VISIT_CORRUPTIONS = [
+    ("missing", "layer_id", None), ("blank", "layer_id", " "),
+    ("missing", "site_id", None), ("blank", "site_id", "\t"),
+    ("missing", "metric_source", None), ("blank", "metric_source", " "),
+    ("identity_mismatch", "layer_id", "other-layer"),
+    ("identity_mismatch", "site_id", "other-site"),
+    ("unknown", "walking_mode", "unknown"),
+    ("unknown", "metric_source", "unknown"),
+    *(("disallowed_pair", "walking_mode/metric_source", pair)
+      for pair in sorted({
+          ("mapped", "exact_zero"),
+          ("mapped", "straight_line_lower_bound_m"),
+          ("exact_zero", "ors-foot-hiking"),
+          ("exact_zero", "straight_line_lower_bound_m"),
+          ("unmapped_estimate", "ors-foot-hiking"),
+          ("unmapped_estimate", "exact_zero"),
+      })),
+]
+
+
 def test_ac052_ac057_production_save_roundtrips_schema3_and_preserves_legacy(tmp_path):
     result, _, base = _saved_mixed_document(tmp_path)
     document = result["snapshot"]["data"]
@@ -2982,29 +3039,51 @@ def test_ac055_coordinate_normalization_or_rejection(coordinate, special, tmp_pa
             "https://maps.apple.com/directions?destination=0,127.1234568&mode=driving"]
 
 
-@pytest.mark.parametrize("mutation", [
-    ("layer_id", None), ("site_id", " "), ("metric_source", "guessed"),
-    ("walking_mode", "unknown"), ("metric_source", "exact_zero"),
-])
-def test_ac056_corrupt_visit_recovery_preserves_bytes_and_last_good(mutation, tmp_path):
-    result, _, base = _saved_mixed_document(tmp_path)
-    good = result["snapshot"]["data"]
-    corrupt = deepcopy(good)
-    visit = next(route for route in corrupt["routes"] if route["route_schema"] == 3)["visits"][0]
-    field, value = mutation
-    if value is None:
-        visit.pop(field)
-    else:
-        visit[field] = value
-    recovered = _direct_node(
-        "repo_recovery", tmp_path, base=str(tmp_path / "recovery" / "routes"),
-        good=good, corrupt=corrupt,
-    )
-    assert recovered["ok"] is True
-    assert recovered["loaded"]["data"] == good
-    assert recovered["loaded"]["recovered"] is True
-    assert recovered["corrupt_bytes_unchanged"] is True
-    assert recovered["repository_writes_during_load"] == 0
+def test_ac056_three_allowed_combinations_roundtrip_active_and_inactive(tmp_path):
+    document, _, base = _saved_active_inactive_schema3_document(tmp_path)
+    mixed = [route for route in document["routes"] if route["route_schema"] == 3]
+    assert len(mixed) == 3
+    assert {route["route_id"] for route in mixed} > {document["active_id"]}
+    assert {(visit["walking_mode"], visit["metric_source"])
+            for route in mixed for visit in route["visits"]} == AC056_ALLOWED_MODE_SOURCES
+    moved = tmp_path / "allowed-moved"
+    shutil.move(base.parent, moved)
+    reopened = _direct_node("repo_load", tmp_path, base=str(moved / base.name))
+    assert reopened["ok"] is True
+    assert reopened["loaded"]["data"] == document
+    assert reopened["writeAttempts"] == 0
+
+
+@pytest.mark.parametrize("route_state", ["active", "inactive"])
+def test_ac056_corrupt_visit_recovery_preserves_bytes_and_last_good(route_state, tmp_path):
+    good, _, _ = _saved_active_inactive_schema3_document(tmp_path)
+    mixed = [route for route in good["routes"] if route["route_schema"] == 3]
+    target_id = (good["active_id"] if route_state == "active" else
+                 next(route["route_id"] for route in mixed
+                      if route["route_id"] != good["active_id"]))
+    for index, (kind, field, value) in enumerate(AC056_VISIT_CORRUPTIONS):
+        corrupt = deepcopy(good)
+        visit = next(route for route in corrupt["routes"]
+                     if route["route_id"] == target_id)["visits"][0]
+        if kind == "missing":
+            visit.pop(field)
+        elif kind == "disallowed_pair":
+            visit["walking_mode"], visit["metric_source"] = value
+        else:
+            visit[field] = value
+        recovered = _direct_node(
+            "repo_recovery", tmp_path,
+            base=str(tmp_path / f"recovery-{route_state}-{index}" / "routes"),
+            good=good, corrupt=corrupt,
+        )
+        case = (route_state, kind, field, value)
+        assert recovered["ok"] is True, case
+        assert recovered["loaded"]["data"] == good, case
+        assert recovered["loaded"]["recovered"] is True, case
+        assert recovered["corrupt_bytes_after"] == recovered["corrupt_bytes_before"], case
+        assert recovered["last_good_bytes_after"] == recovered["last_good_bytes_before"], case
+        assert recovered["repository_writes_during_load"] == 0, case
+        assert recovered["provider_request_attempts"] == 0, case
 
 
 @pytest.mark.parametrize("corruption", [
@@ -3029,8 +3108,31 @@ def test_ac057_variant_corruption_recovery_is_atomic(corruption, tmp_path):
         good=good, corrupt=corrupt,
     )
     assert recovered["loaded"]["data"] == good
-    assert recovered["corrupt_bytes_unchanged"] is True
+    assert recovered["corrupt_bytes_after"] == recovered["corrupt_bytes_before"]
+    assert recovered["last_good_bytes_after"] == recovered["last_good_bytes_before"]
     assert recovered["repository_writes_during_load"] == 0
+    assert recovered["provider_request_attempts"] == 0
+
+
+def test_ac057_schema3_rejects_schema1_marker_with_schema2_legs_and_preserves_bytes(tmp_path):
+    result, _, _ = _saved_mixed_document(tmp_path)
+    good = result["snapshot"]["data"]
+    assert good["schema"] == 3
+    corrupt = deepcopy(good)
+    legacy = next(route for route in corrupt["routes"] if route["route_schema"] == 2)
+    assert "legs" in legacy
+    legacy["route_schema"] = 1
+    recovered = _direct_node(
+        "repo_recovery", tmp_path, base=str(tmp_path / "schema1-legs" / "routes"),
+        good=good, corrupt=corrupt,
+    )
+    assert recovered["ok"] is True
+    assert recovered["loaded"]["data"] == good
+    assert recovered["loaded"]["recovered"] is True
+    assert recovered["corrupt_bytes_after"] == recovered["corrupt_bytes_before"]
+    assert recovered["last_good_bytes_after"] == recovered["last_good_bytes_before"]
+    assert recovered["repository_writes_during_load"] == 0
+    assert recovered["provider_request_attempts"] == 0
 
 
 def test_ac057_default_and_settings_only_never_promote_to_schema3(tmp_path):
@@ -3117,9 +3219,20 @@ def test_ac053_qml_runtime_reads_real_tree_repeater_and_qaccessible(run):
     assert {key: value["pattern"] for key, value in observed["line_classes"].items()} == {
         "vehicle": "solid", "mapped_walking": "dashed", "unmapped_walking": "dotted"}
     assert observed["warning_marker"]["visible"] is True
-    assert observed["provider_requests"] == []
-    assert all(observer["events"] == []
-               for observer in observed["passive_write_observers"])
+    for result, actions in ((observed, ["preview", "legend"]),
+                            (visit_observed, ["reload-each-visit-value-route"])):
+        boundary = result["passive_boundary_observation"]
+        assert boundary["provider_attempts"] == []
+        assert boundary["storage_write_attempts"] == []
+        assert boundary["provider_attempt_count"] == len(boundary["provider_attempts"])
+        assert boundary["storage_write_attempt_count"] == len(boundary["storage_write_attempts"])
+        assert [item["action"] for item in boundary["action_windows"]] == actions
+        for window in boundary["action_windows"]:
+            assert window["provider_attempt_count_before"] == 0
+            assert window["provider_attempt_count_after"] == 0
+            assert window["storage_write_attempt_count_before"] == 0
+            assert window["storage_write_attempt_count_after"] == 0
+            assert window["product_operation_completed"] is True
     interfaces = observed["accessibility_observations"]
     assert interfaces
     assert all(item["source"] in {

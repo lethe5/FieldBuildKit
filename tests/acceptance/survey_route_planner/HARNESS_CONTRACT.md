@@ -340,6 +340,30 @@ records, slot bytes/file names, QML properties/interfaces, and launcher calls. T
 expectations independently from the approved specification. File-wide secret scans cover every
 disposable generated project and storage file.
 
+For `mixed_route_presentation`, install the existing real provider-dispatch and file-write
+observers before setup and retain their raw callback collections. After the production save/reopen
+setup, record the current collection lengths as the passive-window start indexes; do not clear the
+collections. Invoke every requested preview/detail/legend or visit-reload action through its real
+product operation. Return the raw post-index provider/write slices, their lengths, and one
+`action_windows` row per requested action with before/after lengths and whether that product
+operation completed. Literal empty arrays, fabricated boundary dictionaries, a controller pointer,
+or action names copied without invoking the operation are invalid evidence. This is an ordinary
+counter/slice observation, not a journal, span, receipt, seal or completed-result protocol.
+
+AC056 first creates three schema-3 routes through production save: mapped/ors-foot-hiking,
+exact_zero/exact_zero and unmapped_estimate/straight_line_lower_bound_m. At least one is active and
+at least one inactive. Cold offline reopen after a folder move must roundtrip all three. The
+corruption matrix runs against both an active and inactive schema-3 route and includes missing and
+blank `layer_id`, `site_id` and `metric_source`; layer and site identity mismatch; unknown mode and
+source; and all six cross-pairings outside the three allowed mode/source pairs. Recovery returns raw
+corrupt and last-good slot bytes before/after plus actual provider/write counters. Every corrupt
+case must select the unchanged last-good document without repair, request or write.
+
+AC057 separately mutates a top-level schema-3 document's retained legacy route to
+`route_schema: 1` while leaving its schema-2-only `legs` field present. Load/recovery must reject
+that exact marker/content contradiction, preserve corrupt and last-good slot bytes byte-for-byte,
+and make zero provider or storage-write attempts.
+
 AC-SRP-049–058 retain their full approved semantics: safe bounded provider failure details;
 single-batch access snap and source immutability; mapped/exact-zero/unmapped walking; schema-3
 visits, metric provenance and totals; request ordering/privacy/write absence; platform navigation;

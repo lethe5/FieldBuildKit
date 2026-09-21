@@ -286,8 +286,10 @@ for required in (
     "test_ac053_qml_runtime_reads_real_tree_repeater_and_qaccessible",
     "test_ac054_actual_http_sequence_and_privacy_boundary",
     "test_ac039_ac055_navigation_open_direct_spy",
+    "test_ac056_three_allowed_combinations_roundtrip_active_and_inactive",
     "test_ac056_corrupt_visit_recovery_preserves_bytes_and_last_good",
     "test_ac057_variant_corruption_recovery_is_atomic",
+    "test_ac057_schema3_rejects_schema1_marker_with_schema2_legs_and_preserves_bytes",
     "test_ac058_toggle_persists_exact_setting_through_restart_and_folder_move",
 ):
     assert required in test_source
@@ -301,6 +303,44 @@ assert "repository.checksum(payload)" in test_source
 assert "navigation.open(stop,opener" in test_source
 assert "QAccessible.queryAccessibleInterface" in test_source
 assert "Repeater.itemAt(index)" in test_source
+assert module.AC056_ALLOWED_MODE_SOURCES == {
+    ("mapped", "ors-foot-hiking"),
+    ("exact_zero", "exact_zero"),
+    ("unmapped_estimate", "straight_line_lower_bound_m"),
+}
+assert len(module.AC056_VISIT_CORRUPTIONS) == 16
+assert {(kind, field) for kind, field, _ in module.AC056_VISIT_CORRUPTIONS} >= {
+    ("missing", "layer_id"), ("blank", "layer_id"),
+    ("missing", "site_id"), ("blank", "site_id"),
+    ("missing", "metric_source"), ("blank", "metric_source"),
+    ("identity_mismatch", "layer_id"), ("identity_mismatch", "site_id"),
+    ("unknown", "walking_mode"), ("unknown", "metric_source"),
+}
+assert sum(kind == "disallowed_pair"
+           for kind, _, _ in module.AC056_VISIT_CORRUPTIONS) == 6
+ac053_source = inspect.getsource(module.test_ac053_qml_runtime_reads_real_tree_repeater_and_qaccessible)
+assert all(token in ac053_source for token in (
+    'result["passive_boundary_observation"]', 'boundary["provider_attempts"]',
+    'boundary["storage_write_attempts"]', 'boundary["action_windows"]',
+    'window["provider_attempt_count_before"]',
+    'window["provider_attempt_count_after"]',
+    'window["storage_write_attempt_count_before"]',
+    'window["storage_write_attempt_count_after"]',
+    'window["product_operation_completed"] is True',
+))
+assert 'observed["provider_requests"] == []' not in ac053_source
+assert 'passive_write_observers' not in ac053_source
+ac057_schema1_legs_source = inspect.getsource(
+    module.test_ac057_schema3_rejects_schema1_marker_with_schema2_legs_and_preserves_bytes)
+assert 'good["schema"] == 3' in ac057_schema1_legs_source
+assert 'legacy["route_schema"] = 1' in ac057_schema1_legs_source
+assert '"legs" in legacy' in ac057_schema1_legs_source
+assert all(token in ac057_schema1_legs_source for token in (
+    'recovered["corrupt_bytes_after"] == recovered["corrupt_bytes_before"]',
+    'recovered["last_good_bytes_after"] == recovered["last_good_bytes_before"]',
+    'recovered["repository_writes_during_load"] == 0',
+    'recovered["provider_request_attempts"] == 0',
+))
 for production_name in ("backend.js", "controller.js", "repository.js", "navigation.js"):
     production = path.parents[3] / "qfield_builder" / "qfield_routes" / production_name
     production_source = production.read_text(encoding="utf-8")

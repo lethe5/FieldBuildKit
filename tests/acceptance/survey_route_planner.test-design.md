@@ -547,13 +547,17 @@ and unaffected-behavior regressions. `builder_step7_route_credentials` becomes t
   out-and-back visits. Null/batch/origin/radius and malformed/transient walking failures prove no
   downstream requests or writes.
 - AC052, AC056 and AC057 use production controller/repository calls and real A/B slot files.
-  Production save creates schema 3, retains unrelated tagged legacy routes and exact visit
-  provenance/totals. Separate-process restart, offline reopen, folder move, byte-preserving
-  last-good recovery, every required visit field/mode-source pair, variant markers and duplicate
-  identities are checked without repair or read-time writes.
-- AC053 executes generated QML. It reads real line objects, warning marker, passive actions,
-  every Repeater delegate and its QAccessible name/role. Device pixels, contrast and target-QField
-  interaction remain M19.
+  Three successive production saves create active and inactive schema-3 routes covering every
+  allowed walking-mode/source pair while retaining unrelated tagged legacy routes. Separate-process
+  restart, offline folder move, raw corrupt/last-good byte comparison, and actual request/write
+  counters cover missing+blank required fields, both identity mismatches, unknown values, all six
+  disallowed cross-pairs, variant markers, duplicate identities, and the exact top-level-schema-3
+  `route_schema: 1` plus schema-2-only `legs` contradiction.
+- AC053 executes generated QML. It reads real line objects, warning marker, every Repeater delegate
+  and its QAccessible name/role. Provider/file observers remain installed across setup; start indexes
+  delimit each real preview/legend/visit-reload action window, and tests compare raw callback slices
+  with their actual counters. Literal/canned empty boundary results are rejected. Device pixels,
+  contrast and target-QField interaction remain M19.
 - AC054 asserts the actual localhost request sequence and payload separation. ORS receives only
   coordinates/geometry requests; VROOM receives access/cost/local integer IDs. Synthetic
   credentials may exist in the in-memory HTTP header record but never in UI/error/log/storage or
@@ -565,8 +569,9 @@ and unaffected-behavior regressions. `builder_step7_route_credentials` becomes t
   reopen, separate-process restart and folder move. Write/readback failure rolls back and reports
   failure; preview/legend are passive.
 
-The focused automated slice is expected to be RED until application behavior satisfies every
-assertion. Passing localhost, Node or desktop-QML cases do not turn M18–M21 into PASS.
+The focused automated slice is expected to be RED until the application and direct-observation
+harness satisfy every assertion. Passing localhost, Node or desktop-QML cases do not turn
+M18–M21 into PASS.
 
 ### Manual cases (unchanged; all NOT RUN)
 
@@ -583,14 +588,9 @@ Repository: /Users/tory/vibe_coding/fieldbuild_standalone. Only the five accepta
 edited by this role. No application, unit-test or specification file was edited; no Git mutation,
 commit, live provider call or device operation was performed.
 
-Retained-suite reconciliation rerun (same date): design verifier **PASS**; collection **399**;
-focused affected criteria **72 passed, 327 deselected**; full module **378 passed, 21 skipped**.
-All M01–M21 skips remain **NOT RUN**. The full run found no genuine implementation RED after the
-stale expectations were corrected.
-
 - Collection: .venv/bin/python -m pytest
   tests/acceptance/survey_route_planner/test_survey_route_planner.py --collect-only -q
-  -p no:cacheprovider → **404 collected**, exit 0.
+  -p no:cacheprovider → **398 collected**, exit 0.
 - Design verifier: PYTHONDONTWRITEBYTECODE=1 .venv/bin/python
   tests/acceptance/survey_route_planner/verify_design.py → both baseline and AC049–058 checks
   passed, exit 0.
@@ -598,13 +598,14 @@ stale expectations were corrected.
   .venv/bin/python -m pytest tests/acceptance/survey_route_planner/test_survey_route_planner.py
   -q -p no:cacheprovider --tb=short
   -k 'ac049 or ac050 or ac051 or ac052 or ac053 or ac054 or ac055 or ac056 or ac057 or ac058'
-  → **42 passed, 1 failed, 361 deselected**, exit 1, 22.18 s.
-- The single intended current-implementation RED is
-  test_ac057_schema1_settings_upgrade_then_mixed_save_keeps_legacy_schema1: after a schema-1
-  document receives a settings-only schema-2 upgrade, the subsequent explicit mixed save returns
-  false instead of committing schema 3 while retaining the unrelated route as route_schema 1.
-  This is product behavior, not a journal/harness failure.
-- Manual selector: **21 skipped, 383 deselected**, exit 0. M01–M21 remain NOT RUN.
+  → **40 passed, 2 failed, 356 deselected**, exit 1, 26.79 s.
+- The two intended RED results are exact and independent: AC053 raises `KeyError` because the
+  current QML driver has no raw `passive_boundary_observation` and still returns canned empty
+  boundary values; AC057 loads the top-level-schema-3 route marked `route_schema: 1` despite its
+  schema-2-only `legs`, rather than rejecting it and selecting the unchanged last-good document.
+  The full active/inactive AC056 corruption matrix and all three production-saved allowed pairs
+  pass in the same focused run.
+- Manual selector: **21 skipped, 377 deselected**, exit 0. M01–M21 remain NOT RUN.
 - git diff --check over the five acceptance artifacts: exit 0, no output.
 
 The managed sandbox initially denied localhost bind with PermissionError. The authoritative focused

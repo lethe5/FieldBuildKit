@@ -329,11 +329,11 @@ Harness contract: survey_route_planner/HARNESS_CONTRACT.md, section
 | AC-SRP-050 | ac050 single-batch/radius and null/batch-stop tests; actual HTTP bodies and source/result comparison | M18 live rural snap/source inspection |
 | AC-SRP-051 | ac051 mapped/exact-zero/unmapped and malformed-walking tests | M18 live mapped/no-path behavior |
 | AC-SRP-052 | ac052/ac057 production-save roundtrip; real slot files, separate-process reopen and moved folder | M03 target-QField offline/recovery |
-| AC-SRP-053 | ac053 QML runtime object-tree/Repeater/QAccessible test | M19 pixels, contrast, interaction and screen reader |
+| AC-SRP-053 | ac053 QML runtime object-tree/Repeater/QAccessible test plus raw provider/file callback slices and before/after counters for each exercised passive product action; canned empty boundary results fail | M19 pixels, contrast, interaction and screen reader |
 | AC-SRP-054 | ac054 actual HTTP sequence/privacy test and file-wide secret scan | M18 live consent/provider boundary |
 | AC-SRP-055 | ac055 navigation.open direct-spy and coordinate tests | M20 iOS and M21 Android handoff |
-| AC-SRP-056 | ac056 corrupt-visit recovery over production-saved active/inactive schema-3 data | M03 target-QField recovery |
-| AC-SRP-057 | ac057 variant-corruption and schema-boundary tests plus AC052 selected replacement/legacy preservation | M03 list/load compatibility |
+| AC-SRP-056 | ac056 three production-saved active/inactive schema-3 routes cover all three allowed pairs; active+inactive corruption covers required missing/blank fields, both identity mismatches, unknown values and all six disallowed cross-pairs with raw corrupt/last-good bytes and request/write counters | M03 target-QField recovery |
+| AC-SRP-057 | ac057 variant-corruption and schema-boundary tests, exact top-level-schema-3 `route_schema: 1` plus schema-2 `legs` contradiction, and AC052 selected replacement/legacy preservation | M03 list/load compatibility |
 | AC-SRP-058 | ac058 restart/move and write-failure tests plus passive QML assertion | M03 persistence and M19 visual behavior |
 
 | Requirement group | Criteria |
