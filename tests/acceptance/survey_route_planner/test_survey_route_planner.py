@@ -1739,6 +1739,22 @@ def test_ac026_invalid_schema2_leg_preserves_existing_route(run, fault):
     }
 
 
+@pytest.mark.parametrize("fault,reason,index", [
+    ("invalid_leg_geometry", "type", None),
+    ("non_wgs84_leg", "범위", 3),
+])
+def test_ac026_invalid_linestring_reports_safe_structural_reason(run, fault, reason, index):
+    directions_response, _ = malformed_schema2_directions(fault)
+    r = run(operation="schema2_roundtrip", return_to_start=True,
+            layer_id=SITE_LAYER_ID, directions_response=directions_response,
+            seed_saved=True)
+    rejected(r)
+    assert reason in r["message"]
+    if index is not None:
+        assert f"coordinates[{index}]" in r["message"]
+    assert "181" not in r["message"]
+
+
 @pytest.mark.parametrize("distance_adjustment,duration_adjustment,accepted", [
     (5, 0, True), (5.01, 0, False), (0, 2.28, True), (0, 2.29, False),
 ])
@@ -2396,6 +2412,14 @@ def test_ac047_header_and_first_control_are_distinct_ordered_structures_only():
     assert 'objectName:"routeScroll";visible:panel.expanded' in source
 
 
+def test_ac047_first_floating_label_has_real_content_top_clearance(run):
+    observed = run(operation="route_workflow_ui", viewport_width=320,
+                   start_mode="gps", scope="all", targets=[])
+    gap = observed["first_floating_label_gap"]
+    assert gap["gap"] >= 8
+    assert gap["label_rect"]["bottom"] <= gap["control_rect"]["bottom"]
+
+
 @pytest.mark.parametrize("instant_utc,device_timezone,locale", [
     ("2026-09-16T15:30:00+00:00", "Asia/Seoul", "ko_KR"),
     ("2026-09-17T01:00:00+00:00", "America/Los_Angeles", "en_US"),
@@ -2736,7 +2760,8 @@ def _provider_responder(*, access=MIXED_ACCESS, fail_stage=None, status=503,
         if stage == "walking-directions":
             if malformed_walking:
                 return 200, "application/json", {"features": []}
-            return 200, "application/json", {"features": [{
+            return 200, "application/json", {"type": "FeatureCollection", "features": [{
+                "type": "Feature",
                 "geometry": {"type": "LineString", "coordinates": [access, MIXED_SOURCE]},
                 "properties": {"summary": {"distance": 150, "duration": 120},
                                "segments": [{"distance": 150, "duration": 120}],
@@ -2959,6 +2984,32 @@ def test_ac051_actual_backend_emits_roundtrip_walking_contract(mode, tmp_path):
         assert visit["metric_source"] == "ors-foot-hiking"
         assert visit["walking_legs"][1]["geometry"]["coordinates"] == list(
             reversed(visit["walking_legs"][0]["geometry"]["coordinates"]))
+
+
+def test_ac051_ors_2010_no_routable_point_is_explicit_unmapped_only(tmp_path):
+    explicit, records = _backend_run(tmp_path / "explicit", _provider_responder(
+        fail_stage="walking-directions", status=404,
+        failure={"error": {"code": 2010, "message":
+                            "Could not find routable point within a radius of 350.0 meters "
+                            "of specified coordinate 1: 126.9408626 36.2151360."}},
+    ))
+    assert explicit["ok"] is True
+    visit = explicit["result"]["visits"][0]
+    assert visit["walking_mode"] == "unmapped_estimate"
+    assert visit["metric_source"] == "straight_line_lower_bound_m"
+    assert all(leg["duration_s"] is None for leg in visit["walking_legs"])
+    assert explicit["result"]["walking_totals"]["duration_s"] is None
+    assert explicit["result"]["combined_totals"] is None
+    assert any(record["path"] == "/optimizer" for record in records)
+
+    generic, generic_records = _backend_run(tmp_path / "generic", _provider_responder(
+        fail_stage="walking-directions", status=404,
+        failure={"error": {"code": 2010, "message": "fixture failure"}},
+    ))
+    assert generic["ok"] is False
+    assert [record["path"] for record in generic_records] == [
+        "/v2/matrix/driving-car", "/v2/snap/driving-car/json",
+        "/v2/directions/foot-hiking/geojson"]
 
 
 def test_ac051_malformed_walking_response_does_not_fallback_or_continue(tmp_path):
@@ -3390,6 +3441,18 @@ def _snapped_walking_response():
     }]}
 
 
+def _one_point_zero_walking_response():
+    return {"type": "FeatureCollection", "features": [{
+        "type": "Feature",
+        "geometry": {"type": "LineString", "coordinates": [[127.0095, 37.0095]]},
+        "properties": {
+            "summary": {"distance": 0, "duration": 0},
+            "segments": [{"distance": 0, "duration": 0}],
+            "way_points": [0, 0],
+        },
+    }]}
+
+
 def _walking_response_responder(response):
     default = _provider_responder()
 
@@ -3553,6 +3616,113 @@ def test_ac059_malformed_walking_contract_stops_before_vehicle_write_and_preserv
     ]
     assert observed["last_error"]["category"] == "provider_response"
     assert observed["state_message"].strip()
+
+
+def test_ac060_one_point_zero_route_reuses_existing_unmapped_contract(tmp_path):
+    observed, records = _backend_run(
+        tmp_path, _walking_response_responder(_one_point_zero_walking_response()))
+    assert observed["ok"] is True
+    visit = observed["result"]["visits"][0]
+    assert visit["walking_mode"] == "unmapped_estimate"
+    assert visit["metric_source"] == "straight_line_lower_bound_m"
+    assert visit["access_coordinate"] == MIXED_ACCESS
+    assert visit["source_coordinate"] == MIXED_SOURCE
+    outbound, inbound = visit["walking_legs"]
+    assert outbound["geometry"] == {
+        "type": "LineString", "coordinates": [MIXED_ACCESS, MIXED_SOURCE]}
+    assert inbound["geometry"]["coordinates"] == [MIXED_SOURCE, MIXED_ACCESS]
+    assert outbound["duration_s"] is None and inbound["duration_s"] is None
+    assert outbound["distance_m"] == pytest.approx(_geodesic_m(MIXED_ACCESS, MIXED_SOURCE))
+    assert observed["result"]["walking_totals"] == {
+        "mapped_distance_m": 0,
+        "lower_bound_distance_m": pytest.approx(2 * outbound["distance_m"]),
+        "duration_s": None,
+        "unavailable_duration_count": 2,
+    }
+    assert observed["result"]["combined_totals"] is None
+    assert any(record["path"] == "/optimizer" for record in records)
+    assert [127.0095, 37.0095] not in outbound["geometry"]["coordinates"]
+
+
+def test_ac060_one_point_zero_route_requires_existing_unmapped_acknowledgement(tmp_path):
+    responder = _walking_response_responder(_one_point_zero_walking_response())
+    with _route_http(responder) as (base, _records):
+        common = {
+            "document": _legacy_document(),
+            "features": [{"id": "site-a", "name": "농촌 A",
+                          "coordinate": MIXED_SOURCE, "completed": False}],
+            "settings": _settings(base), "start": MIXED_START, "roundtrip": False,
+            "replace_active": True, "name": "1점 fallback 경로",
+        }
+        blocked = _direct_node(
+            "controller_flow", tmp_path,
+            base=str(tmp_path / "one-point-blocked" / "routes"), **common)
+        accepted = _direct_node(
+            "controller_flow", tmp_path,
+            base=str(tmp_path / "one-point-accepted" / "routes"),
+            acknowledge_unmapped=True, **common)
+    assert blocked["calculated"] is True and blocked["saved"] is False
+    assert "지도에 없는 도보 구간 포함" in blocked["state_message"]
+    assert accepted["saved"] is True
+    route = next(route for route in accepted["snapshot"]["data"]["routes"]
+                 if route["route_schema"] == 3)
+    assert route["visits"][0]["walking_mode"] == "unmapped_estimate"
+    assert route["walking_totals"]["duration_s"] is None
+
+
+def _invalid_one_point_response(fault):
+    response = _one_point_zero_walking_response()
+    feature = response["features"][0]
+    properties = feature["properties"]
+    if fault == "nonzero_summary_distance":
+        properties["summary"]["distance"] = 1
+    elif fault == "nonzero_segment_duration":
+        properties["segments"][0]["duration"] = 1
+    elif fault == "missing_summary_duration":
+        properties["summary"].pop("duration")
+    elif fault == "nonnumeric_segment_distance":
+        properties["segments"][0]["distance"] = "0"
+    elif fault == "bad_way_points":
+        properties["way_points"] = [0, 1]
+    elif fault == "zero_coordinates":
+        feature["geometry"]["coordinates"] = []
+    elif fault == "two_coordinates_zero_way_points":
+        feature["geometry"]["coordinates"].append([127.0095, 37.0095])
+    elif fault == "multiple_segments":
+        properties["segments"].append({"distance": 0, "duration": 0})
+    elif fault == "multiple_features":
+        response["features"].append(deepcopy(feature))
+    else:
+        raise AssertionError(fault)
+    return response
+
+
+@pytest.mark.parametrize("fault", [
+    "nonzero_summary_distance", "nonzero_segment_duration",
+    "missing_summary_duration", "nonnumeric_segment_distance", "bad_way_points",
+    "zero_coordinates", "two_coordinates_zero_way_points", "multiple_segments",
+    "multiple_features",
+])
+def test_ac060_invalid_degenerate_variants_fail_atomically_without_fallback(fault, tmp_path):
+    responder = _walking_response_responder(_invalid_one_point_response(fault))
+    with _route_http(responder) as (provider, records):
+        observed = _direct_node(
+            "controller_failure", tmp_path,
+            base=str(tmp_path / fault / "survey-routes"), document=_legacy_document(),
+            features=[{"id": "site-a", "name": "농촌 A",
+                       "coordinate": MIXED_SOURCE, "completed": False}],
+            settings=_settings(provider), start=MIXED_START, roundtrip=False,
+            replace_active=True,
+        )
+    assert observed["calculated"] is False
+    assert observed["snapshot_after"] == observed["snapshot_before"]
+    assert observed["candidate_after"] == observed["candidate_before"]
+    assert observed["writeAttempts"] == observed["writeSuccesses"] == 0
+    assert [record["path"] for record in records] == [
+        "/v2/matrix/driving-car", "/v2/snap/driving-car/json",
+        "/v2/directions/foot-hiking/geojson",
+    ]
+    assert observed["last_error"]["category"] == "provider_response"
 
 
 def test_ac059_qml_observes_requested_markers_provider_line_and_exact_gap_disclosure(run):

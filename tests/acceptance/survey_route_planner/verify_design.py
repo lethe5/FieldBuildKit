@@ -380,7 +380,7 @@ print("survey route AC049-058 direct-observation design verified")
 # APPROVED AC-SRP-059 baseline; DRAFT reviewer correction checks.
 test_source = path.read_text(encoding="utf-8-sig")
 coverage = set(re.findall(r"ac(\d{3})", test_source))
-assert {f"{i:03d}" for i in range(1, 60)} <= coverage
+assert {f"{i:03d}" for i in range(1, 61)} <= coverage
 for required in (
     "SNAPPED_PROVIDER_GEOMETRY", "ENDPOINT_GAP_DISCLOSURE",
     "test_ac059_snapped_provider_geometry_is_mapped_without_connector_or_gap_metric",
@@ -460,3 +460,44 @@ assert all(token in snapped_driver_source for token in (
 ))
 assert '"way_points": [0, 1]' in inspect.getsource(module._provider_responder)
 print("survey route AC059 reviewer correction verified; M01-M21 remain NOT RUN")
+
+for required in (
+    "_one_point_zero_walking_response",
+    "test_ac060_one_point_zero_route_reuses_existing_unmapped_contract",
+    "test_ac060_one_point_zero_route_requires_existing_unmapped_acknowledgement",
+    "test_ac060_invalid_degenerate_variants_fail_atomically_without_fallback",
+):
+    assert required in test_source
+one_point = module._one_point_zero_walking_response()
+one_feature = one_point["features"][0]
+assert one_feature["geometry"]["type"] == "LineString"
+assert len(one_feature["geometry"]["coordinates"]) == 1
+assert one_feature["properties"] == {
+    "summary": {"distance": 0, "duration": 0},
+    "segments": [{"distance": 0, "duration": 0}],
+    "way_points": [0, 0],
+}
+ac060_faults = {
+    "nonzero_summary_distance", "nonzero_segment_duration",
+    "missing_summary_duration", "nonnumeric_segment_distance", "bad_way_points",
+    "zero_coordinates", "two_coordinates_zero_way_points", "multiple_segments",
+    "multiple_features",
+}
+assert all(module._invalid_one_point_response(fault) != one_point for fault in ac060_faults)
+positive_ac060 = inspect.getsource(
+    module.test_ac060_one_point_zero_route_reuses_existing_unmapped_contract)
+assert all(token in positive_ac060 for token in (
+    'visit["walking_mode"] == "unmapped_estimate"',
+    'visit["metric_source"] == "straight_line_lower_bound_m"',
+    'visit["access_coordinate"] == MIXED_ACCESS',
+    'visit["source_coordinate"] == MIXED_SOURCE',
+    'observed["result"]["combined_totals"] is None',
+))
+negative_ac060 = inspect.getsource(
+    module.test_ac060_invalid_degenerate_variants_fail_atomically_without_fallback)
+assert all(token in negative_ac060 for token in (
+    'observed["snapshot_after"] == observed["snapshot_before"]',
+    'observed["candidate_after"] == observed["candidate_before"]',
+    'observed["writeAttempts"] == observed["writeSuccesses"] == 0',
+))
+print("survey route AC060 one-point fallback design verified; implementation expected RED")
