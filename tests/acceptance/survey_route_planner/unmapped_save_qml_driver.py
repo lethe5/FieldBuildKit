@@ -1,8 +1,8 @@
 """Run the canonical loaded-QML driver with the unmapped-save click observation added.
 
 The production QML/JS and all existing host/provider/file boundaries remain owned by the
-canonical driver.  This approved acceptance-only splice keeps the conformance test RED without
-changing an application or unit-test harness during the test-design stage.
+canonical driver.  The approved acceptance-only splice and approved observation-timing correction
+(approval 2026-09-22) change no application or unit-test harness during the test-design stage.
 """
 from __future__ import annotations
 
@@ -44,6 +44,7 @@ branch = r'''    elif op=='unmapped_save_qml_click':
         candidate_before=detached(state()['candidate'])
         enabled_before_ack=bool(save_button.property('enabled'))
         pointer_click(acknowledgement)
+        acknowledgement_checked_after_click=bool(acknowledgement.property('checked'))
         enabled_after_ack=bool(save_button.property('enabled'))
         route_name=case['route_name'];control('routeName',route_name)
         storage_fault=case.get('fault','')
@@ -74,7 +75,7 @@ branch = r'''    elif op=='unmapped_save_qml_click':
             independently_reopened_load_enabled=bool(panel.findChild(QObject,'loadRouteButton').property('enabled'))
         result.update(qml_controls={'acknowledgement_object_name':acknowledgement.objectName(),
                 'save_object_name':save_button.objectName(),'save_enabled_before_ack':enabled_before_ack,
-                'save_enabled_after_ack':enabled_after_ack,'acknowledgement_checked':bool(acknowledgement.property('checked'))},
+                'save_enabled_after_ack':enabled_after_ack,'acknowledgement_checked':acknowledgement_checked_after_click},
             route_name_input=route_name,save_ok=bool(save_ok),message_after_click=message_after_click,
             feedback_in_viewport=feedback_in_viewport,
             candidate_before_click=candidate_before,candidate_after_click=candidate_after_click,

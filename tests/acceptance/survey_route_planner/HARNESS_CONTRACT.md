@@ -463,3 +463,14 @@ candidate before/after, real slot path/document, active route, saved-list/load s
 reopen readback. A write-boundary failure may be injected only at `FileUtils.writeFileContent`; it must return
 the unchanged candidate and visible production error with no committed/listed route. The splice is
 acceptance-only, reuses the canonical QML driver, and must fail closed when its exact insertion markers move.
+
+### APPROVED acceptance-evidence observation-timing correction (2026-09-22)
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-22)**. The approved click contract above remains unchanged.
+
+The generated checkbox's `checked` state must be captured immediately after the real
+`unmappedAcknowledgement` pointer click and before the save click or any successful independent panel reopen.
+Reading that property from the pre-save control only after `open_panel()` has scheduled the old panel for
+deletion is stale-object evidence and is not accepted. The verifier must enforce the ordering
+acknowledgement click → checked-state capture → save click → independent reopen. All approved save,
+persistence, feedback, failure-retention and exact-control expectations remain unchanged.

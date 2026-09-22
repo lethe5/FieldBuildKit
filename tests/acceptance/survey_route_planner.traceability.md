@@ -445,3 +445,23 @@ Collection: **477 tests**. Focused result: **1 passed, 1 failed, 475 deselected*
 successful click's `feedback_in_viewport == false`: schema-3 commit/readback, candidate clearing and exact
 name/path content all succeed, but the committed success is outside the current save-control viewport. The
 injected write-failure case passes with exact candidate retention and a visible production error.
+
+### APPROVED unmapped-save observation-timing correction traceability (2026-09-22)
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-22)**. The approved authority and expectations in the table
+above remain unchanged.
+
+| Approved authority preserved | Approved evidence correction | Guard |
+| --- | --- | --- |
+| AC-SRP-051 checked/enabled transition | Capture `unmappedAcknowledgement.checked` immediately after its real pointer click, before save/reopen; return the captured Boolean rather than querying the old control after `open_panel()` replaces the panel | Design verifier enforces click → capture → save → reopen ordering and retains the success assertion `acknowledgement_checked is True` |
+| FR-SRP-034/051; AC-SRP-036/052 save and persistence behavior | No change to the real save-button click, schema-3 commit/readback, candidate clearing, list/load/reopen, exact visible name/path, or failure-retention/error observations | Existing success/failure assertions remain required |
+
+Preserved raw implementation history: the first authoritative rerun was **1 failed, 1 passed** at the stale
+checkbox observation, while the immediate unchanged rerun was **2 passed**. The corrected harness therefore
+required repeated independent focused invocations before approval; the three stable runs below satisfied that
+condition, and the user approved the correction on 2026-09-22.
+
+Approved corrected-harness verification: design verifier **PASS**; **477 collected**; three separate
+localhost-enabled focused invocations each returned **2 passed, 475 deselected** (2.58 s, 2.20 s and 2.02 s).
+The prior restricted-sandbox invocation returned **2 failed, 475 deselected** only because both disposable
+localhost binds were denied with `PermissionError`; it is not conformance evidence. M01–M21 remain **NOT RUN**.

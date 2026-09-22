@@ -560,13 +560,15 @@ assert all(token in ac062_ui for token in (
 ))
 print("survey route AC061-062 matrix/credential-store design verified; no real app-data used")
 
-# APPROVED Category A correction (2026-09-22): generated-QML acknowledgement/save clicks are direct.
+# APPROVED Category A correction and acceptance-evidence timing correction (approval 2026-09-22):
+# generated-QML acknowledgement/save clicks are direct.
 qml_click_success = inspect.getsource(
     module.test_ac036_ac051_ac052_unmapped_generated_qml_click_saves_schema3_and_reports_path)
 assert all(token in qml_click_success for token in (
     'controls["acknowledgement_object_name"] == "unmappedAcknowledgement"',
     'controls["save_object_name"] == "saveRouteButton"',
     'controls["save_enabled_before_ack"] is False',
+    'controls["acknowledgement_checked"] is True',
     'controls["save_enabled_after_ack"] is True',
     'observed["candidate_after_click"] is None',
     'document["schema"] == 3',
@@ -591,7 +593,16 @@ qml_click_driver = (path.parent / "unmapped_save_qml_driver.py").read_text(encod
 assert all(token in qml_click_driver for token in (
     "operation set changed", "branch marker changed", "QTest.mouseClick",
     "pointer_click(acknowledgement)", "pointer_click(save_button)",
+    "acknowledgement_checked_after_click=bool(acknowledgement.property('checked'))",
+    "'acknowledgement_checked':acknowledgement_checked_after_click",
     "feedback_in_viewport", "independently_reopened_document",
 ))
 assert "acknowledgeUnmapped(" not in qml_click_driver
-print("survey route unmapped-save generated-QML click design verified; viewport feedback expected RED")
+ack_click = qml_click_driver.index("pointer_click(acknowledgement)")
+ack_capture = qml_click_driver.index(
+    "acknowledgement_checked_after_click=bool(acknowledgement.property('checked'))")
+save_click = qml_click_driver.index("pointer_click(save_button)")
+panel_reopen = qml_click_driver.index("open_panel();settings()", save_click)
+assert ack_click < ack_capture < save_click < panel_reopen
+print("survey route unmapped-save generated-QML click design verified; "
+      "approved acknowledgement observation captured before save/reopen")

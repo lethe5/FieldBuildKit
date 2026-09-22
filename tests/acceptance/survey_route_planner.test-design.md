@@ -816,3 +816,33 @@ markers change. It adds no product algorithm, controller call substitute, app/un
 device PASS claim. The focused automated result is intentionally RED only because the committed success text
 is above the user's current scroll viewport after the save-button click; persistence/readback and the failure
 path are otherwise green. The reported iPhone/QField observation remains separate runtime evidence.
+
+### APPROVED acceptance-evidence observation-timing correction (2026-09-22)
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-22)**. This preserves the approved correction above and
+changes no product requirement or expected outcome.
+
+The success driver previously retained the checkbox object from the original panel, saved, independently
+reopened the panel with `open_panel()`, and only then read `checked` while constructing the result. Because
+the old panel is scheduled for deletion and replaced, that late read is stale-object evidence. Capture the
+actual checkbox state immediately after the real pointer click, before the save click and before any reopen,
+then return that captured Boolean. The design verifier must guard that ordering. The disabled → checked/enabled
+transition, real save-button pointer click, schema-3 commit/readback, candidate clearing, list/load/reopen,
+exact visible success name plus slot path, and failure retention plus visible feedback remain unchanged.
+
+Historical raw implementation evidence is preserved: the first authoritative localhost rerun after the
+application change reported **1 failed, 1 passed** because the success case observed the stale checkbox as
+false; an immediate unchanged rerun reported **2 passed**. Those inconsistent outcomes motivate this
+acceptance-evidence correction and are not treated as stable proof.
+
+#### APPROVED corrected-harness verification record
+
+- Design verifier: **PASS**, exit 0; the retained checks passed and the new ordering guard proved
+  acknowledgement click → checked-state capture → save click → independent reopen.
+- Collection: **477 tests collected**, exit 0.
+- Three separate focused invocations with disposable localhost permission (no repeat plugin): each was
+  **2 passed, 475 deselected**, exit 0, respectively in 2.58 s, 2.20 s and 2.02 s.
+- One preceding restricted-sandbox invocation was **2 failed, 475 deselected**, exit 1, solely because both
+  subprocesses were denied `127.0.0.1` bind with `PermissionError`. It is environment noise, not product or
+  acceptance evidence.
+- No live provider or native-QField/device operation was performed; M01–M21 remain **NOT RUN**.

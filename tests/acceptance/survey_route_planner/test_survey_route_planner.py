@@ -3060,7 +3060,8 @@ def test_ac051_unmapped_save_requires_acknowledgement_and_keeps_null_totals(tmp_
     assert route["combined_totals"] is None
 
 
-# APPROVED TEST DESIGN (approval 2026-09-22): generated-QML unmapped-save click regression.
+# APPROVED TEST DESIGN (approval 2026-09-22), including the approved acceptance-evidence timing correction:
+# generated-QML unmapped-save click regression.
 def _unmapped_save_qml_click(tmp_path, *, fault=""):
     """Build a disposable project and drive its generated acknowledgement/save controls."""
     from qfield_builder.survey_route_acceptance import _build
