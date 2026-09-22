@@ -1,4 +1,7 @@
-# Survey Route Planner — approved AC-SRP-063–065 traceability extension
+# Survey Route Planner — approved AC-SRP-066 traceability over approved AC-SRP-063–065
+
+> **APPROVED TEST DESIGN (approval 2026-09-22).** AC-SRP-066 mappings use
+> approved clarification checkpoint `cb8f2da`.
 
 > **APPROVED TEST DESIGN (approval 2026-09-22).** The AC-SRP-063–065 mappings below trace
 > only to approved D-SRP-064–066 / FR-SRP-061–063 / NFR-SRP-011. Approved AC-SRP-061–062 and
@@ -370,10 +373,10 @@ origin pair with explicit `sources:[0]`/`destinations:[1]` from the actual start
 matrix without those indexes; no location-count stage heuristic remains. The full acceptance file
 is **382 passed, 21 skipped**. M01–M21 remain **NOT RUN**; user approval is required.
 
-## APPROVED AC-SRP-059 baseline and DRAFT reviewer-correction traceability (2026-09-21)
+## APPROVED AC-SRP-059 baseline and reviewer-correction traceability (approved 2026-09-22)
 
 Baseline status: **APPROVED TEST DESIGN (approval 2026-09-21).** Correction status:
-**DRAFT TEST DESIGN — user approval required.** The approved history and the separately tracked
+**APPROVED TEST DESIGN (approval 2026-09-22).** The approved history and the separately tracked
 AC-SRP-049–058 status remain preserved.
 
 | Criterion | Direct automated evidence | Remaining manual evidence |
@@ -381,7 +384,7 @@ AC-SRP-049–058 status remain preserved.
 | AC-SRP-059 valid provider contract | `ac059_snapped_provider_geometry_is_mapped_without_connector_or_gap_metric` over actual localhost traffic and production backend return | M18 live configured ORS snapped response |
 | AC-SRP-059 persistence/reader | `ac059_schema3_active_inactive_restart_offline_move_exact_roundtrip` over two production saves, real schema-3 slot files, separate-process reopen and moved folder | M03 target-QField restart/offline/move |
 | AC-SRP-059 malformed response atomicity | `ac059_malformed_walking_contract_stops_before_vehicle_write_and_preserves_last_good` (15 raw fixture mutations, including an object-shaped `features` array impostor) over production controller/repository snapshots and actual request/write counters | M18 live malformed-provider wording is not required; provider service remains synthetic |
-| AC-SRP-059 map/UI/accessibility | `ac059_qml_observes_requested_markers_provider_line_and_exact_gap_disclosure` over enumerated loaded-QML access-marker/provider-line objects, the actual provider feature, visit model, walking totals, three distinct live disclosure objects, QAccessible names and raw passive callback slices; the test derives connector/gap absence from the enumerations | M19 target-QField pixels, map alignment and screen-reader speech |
+| AC-SRP-059 map/UI/accessibility | `test_ac059_qml_observes_current_requested_markers_provider_line_and_one_gap_detail` over enumerated loaded-QML requested markers, actual provider features/lines, visit model, walking totals and the single live details disclosure; the test derives connector/gap absence from runtime enumerations | M19 target-QField pixels, map alignment and screen-reader speech |
 
 | Requirement group | Criterion |
 | --- | --- |
@@ -401,8 +404,8 @@ observations. Existing AC056 corruption coverage remains the authority for all o
 AC059 changes only endpoint-equality and requested-geodesic lower-bound rejection. Acceptance-only
 `git diff --check` passed. M01–M21 remain **NOT RUN**.
 
-The verification above belongs to the approved baseline. The DRAFT reviewer correction has a separate
-verification record pending below; it does not relabel that historical run.
+The verification above belongs to the approved baseline. The reviewer correction's pre-approval
+verification record remains preserved below; it does not relabel that historical run.
 
 Correction verification: **421 collected**; design verifier **intended RED** at the hard-coded-zero
 driver guard; authoritative focused AC059 **16 passed, 2 failed, 403 deselected**. The two intended
@@ -480,10 +483,13 @@ Status: **APPROVED TEST DESIGN (approval 2026-09-22).** Authority is approved ch
 | D-SRP-064; FR-SRP-061; AC-SRP-063 — exact notice, no acknowledgement, no fallback save gate | `test_ac051_ac063_unmapped_save_needs_no_acknowledgement_and_keeps_null_totals`, `test_ac060_ac063_one_point_zero_route_saves_without_unmapped_acknowledgement`, `test_ac063_mixed_result_has_one_notice_no_ack_and_default_collapsed_details` | Generated Qt/QML and production-controller evidence; native touch remains M22 |
 | D-SRP-064; FR-SRP-061; NFR-SRP-011; AC-SRP-063 — collapsed exact details, raw diagnostics inside, one endpoint-gap line, disclosure purity | Mixed-result test at 320/light and 1024/dark compares candidate/payload/request/write/save state around expand-collapse | QAccessible/layout proxy, not native speech/device rendering |
 | D-SRP-065; FR-SRP-061; AC-SRP-063 — disabled reasons and nonfallback absence | Mixed test checks exact candidate-none and mapping-adjacent reasons; `test_ac063_nonfallback_results_have_no_fallback_notice_or_save_gate` covers all-mapped/exact-zero-only | Existing validation supplies the mapping suffix |
-| D-SRP-065; FR-SRP-062; NFR-SRP-011; AC-SRP-064 — every save outcome visible and announced once | `test_ac064_every_save_outcome_is_visible_once_and_preserves_required_state` crosses seven outcomes at both viewport/theme pairs | One visible QAccessible `StatusBar` is the announcement proxy; native speech remains M22 |
+| D-SRP-065; FR-SRP-062; NFR-SRP-011; AC-SRP-064 — every save outcome visible and announced once | `test_ac064_ac066_every_save_outcome_is_visible_once_and_preserves_required_state` crosses seven outcomes at both viewport/theme pairs | One visible QAccessible `StatusBar` is the announcement proxy; native speech remains M22 |
 | FR-SRP-062; AC-SRP-064 — success/failure state, atomicity and no retry | Same test requires success-only clear/new active; failures preserve candidate plus independent last-good data/revision/bytes and focus/name/disclosure | Synthetic false/readback/exception; no real disk-full |
 | D-SRP-066; FR-SRP-063; AC-SRP-065 — fresh bundle and immutable existing output | `test_ac065_fresh_build_bundles_current_runtime_and_never_updates_existing_project` compares runtime byte trees and exact completion disclosure | Desktop build only; no implicit update claim |
-| AC-SRP-063–065 target-device evidence | `test_ac063_ac064_ac065_target_qfield_handoff_is_user_run_and_unverified` is explicitly skipped | M22 remains `미검증` until user transfer/open |
+| D-SRP-067; FR-SRP-064; AC-SRP-066 — immediate success disable and focus | Same seven-outcome test observes synchronous candidate clear/save disable/exact reason, simulated platform focus clear, no focus-recovery API, no transfer, and preserved name/disclosure | Qt focus behavior is a proxy; native touch remains M22 |
+| NFR-SRP-012; AC-SRP-066 — exact semantic order and layout | Same test compares live coordinate, QAccessible and Tab orders at both viewport/theme pairs and rejects overlap/clipping/overflow | Native screen-reader speech/order remains M22 |
+| AC-SRP-053/059 current presentation under D-SRP-067 | AC059 current-presentation test plus AC063 mixed-result test require runtime markers/geometry/provenance/totals/fallback accessibility and exactly one details endpoint-gap line | M19/M22 device pixels and speech remain `미검증` |
+| AC-SRP-063–066 target-device evidence | `test_ac063_ac064_ac065_ac066_target_qfield_handoff_is_user_run_and_unverified` is explicitly skipped | M22 remains `미검증` until user transfer/open |
 
 Historical acknowledgement-click rows above remain as historical evidence only; D-SRP-064 explicitly
 supersedes their current acknowledgement/gate expectation and the old click driver is removed.

@@ -1,4 +1,4 @@
-"""Run the generated route panel for AC-SRP-063/064 UI observations.
+"""Run the generated route panel for AC-SRP-059/063/064/066 UI observations.
 
 The canonical unit driver owns the QField, HTTP, repository, and Qt boundaries.  This
 acceptance-only splice adds only the two approved observation workflows; it must fail
@@ -98,6 +98,51 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
                 'horizontal_overflow':content.width()>scroll.property('availableWidth')+.5 or
                     any(row['left']<-.5 or row['right']>content.width()+.5 for row in rows),
                 'overlaps':overlaps,'items':rows}
+        def object_id(item):
+            return str(getCppPointer(item)[0])
+        def semantic_observation():
+            basic=[named(name) for name in ('mixedTotalsLabel','walkingTotalsAccessibility',
+                'mappedWalkingDurationAccessibility','straightLineLowerBoundAccessibility')]
+            disclosure=named('routeDetailsDisclosure');details=named('routeDetailsContent')
+            detail_items=[item for item in visual_objects(details)
+                if item is not details and shown(item) and item_text(item)]
+            groups=[('basic_result',[item for item in basic if shown(item)]),
+                ('fallback_notice',[named('fallbackNotice')]),
+                ('details_disclosure',[disclosure]),('details_content',detail_items),
+                ('route_name',[named('routeName')]),('save_button',[named('saveRouteButton')]),
+                ('disabled_reason',[named('saveDisabledReason')]),
+                ('outcome_status',[named('saveStatus')])]
+            groups=[(name,[item for item in items if shown(item)]) for name,items in groups]
+            groups=[(name,items) for name,items in groups if items]
+            content=named('routeContent')
+            def bounds(items):
+                boxes=[]
+                for item in items:
+                    point=item.mapToItem(content,QPointF(0,0))
+                    boxes.append((point.x(),point.y(),point.x()+item.width(),point.y()+item.height()))
+                return {'left':min(box[0] for box in boxes),'top':min(box[1] for box in boxes),
+                    'right':max(box[2] for box in boxes),'bottom':max(box[3] for box in boxes)}
+            group_bounds={name:bounds(items) for name,items in groups}
+            ids={object_id(item):name for name,items in groups for item in items}
+            accessibility_order=[]
+            for item in visual_objects(panel):
+                category=ids.get(object_id(item))
+                if category is None or category in accessibility_order or not shown(item):continue
+                interface=QAccessible.queryAccessibleInterface(item)
+                if interface is not None and interface.text(QAccessible.Name):
+                    accessibility_order.append(category)
+            visual_order=[name for name,_ in sorted(groups,key=lambda pair:group_bounds[pair[0]]['top'])]
+            flat_items=[item for _,items in groups for item in items]
+            return {'expected_order':[name for name,_ in groups],
+                'visual_order':visual_order,'accessibility_order':accessibility_order,
+                'group_bounds':group_bounds,'layout':content_layout(flat_items)}
+        def keyboard_order():
+            disclosure=named('routeDetailsDisclosure');disclosure.forceActiveFocus(Qt.TabFocusReason)
+            app.processEvents();order=[]
+            for _ in range(3):
+                focused=window.activeFocusItem();order.append(focused.objectName() if focused else None)
+                QTest.keyClick(window,Qt.Key_Tab);drain()
+            return order
         def details_state():
             disclosure=named('routeDetailsDisclosure');content=named('routeDetailsContent')
             return {'expanded':bool(content.property('visible')),
@@ -117,8 +162,12 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
                     if composition=='mixed' and index==len(features)-1:
                         walking.append({'explicit_no_path':True})
                     else:
+                        geometry=[point,feature['xy']]
+                        if case.get('snapped_presentation'):
+                            geometry=[[point[0]+.00002,point[1]+.00002],
+                                [feature['xy'][0]+.00002,feature['xy'][1]+.00002]]
                         walking.append({'distance_m':120+index,'duration_s':80+index,
-                            'geometry':{'type':'LineString','coordinates':[point,feature['xy']]}})
+                            'geometry':{'type':'LineString','coordinates':geometry}})
             case['access_snap_response']={'locations':[{'location':point} for point in access]}
             case['walking_responses']=walking
             if not calculate():raise RuntimeError('fixture calculation failed: '+str(panel.property('message')))
@@ -160,6 +209,39 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
                     if parent is details_content:inside=True;break
                     parent=parent.parentItem()
                 endpoint_inside.append(inside)
+            candidate_value=detached(state()['candidate'])
+            all_walking_items=object_value(panel,'walkingItems')
+            access_markers=[item for item in all_walking_items if item.property('accessCoordinate') is not None]
+            rendered_lines=[item for item in all_walking_items if item.property('linePattern')]
+            provider_rows=current_fixture_rows()
+            current_presentation={'access_marker_observations':[
+                    {'object_id':object_id(item),'object_name':item.objectName() or 'accessMarkerFactory',
+                     'coordinate_property':'accessCoordinate',
+                     'coordinate':detached(object_value(item,'accessCoordinate'))}
+                    for item in access_markers],
+                'source_feature_observations':[
+                    {'provider_layer_id':site_layer_id(),
+                     'provider_feature_id':row['attributes']['site_id'],
+                     'coordinate_source':'provider feature geometry',
+                     'coordinate':detached(row['geometry']['coordinates'])}
+                    for row in provider_rows],
+                'walking_line_observations':[
+                    {'object_id':object_id(item),'object_name':item.objectName() or 'walkingFactory',
+                     'coordinates_property':'coordinates',
+                     'coordinates':detached(object_value(item,'coordinates')),
+                     'line_pattern':str(item.property('linePattern')),
+                     'warning_marker':bool(item.property('warningMarker'))}
+                    for item in rendered_lines],
+                'visit_model_observation':{'model_source':'panel.candidate.visits',
+                    'visits':candidate_value['visits']},
+                'walking_totals_observation':{'model_source':'panel.candidate.walking_totals',
+                    'value':candidate_value['walking_totals']},
+                'source_coordinate_write_attempts':detached(source_writes),
+                'fallback_notice_accessible':fallback_accessible,
+                'endpoint_gap_details':[{'text':item_text(item),
+                    'accessible_name':accessibility(item)['name'],'object_id':object_id(item),
+                    'inside_details':inside}
+                    for item,inside in zip(endpoint_objects,endpoint_inside)]}
             pointer_click(disclosure);details_collapsed_again=details_state()
             candidate_after_toggle=detached(state()['candidate'])
             requests_after_toggle=len(requests);writes_after_toggle=len(writes)
@@ -194,6 +276,7 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
                 details_expanded=details_expanded,expanded_visible_texts=expanded_texts,
                 expanded_layout=expanded_layout,
                 endpoint_gap_expanded_count=len(endpoint_objects),endpoint_gap_inside_details=endpoint_inside,
+                current_presentation=current_presentation,
                 details_collapsed_again=details_collapsed_again,candidate_after_toggle=candidate_after_toggle,
                 payload_after_toggle=json.dumps(candidate_after_toggle,ensure_ascii=False,sort_keys=True,separators=(',',':')),
                 request_count_before_toggle=requests_before,request_count_after_toggle=requests_after_toggle,
@@ -206,11 +289,12 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
             # all-mapped candidate.  The save-attempt assertions below start after this setup.
             configure_candidate('all_mapped');control('routeName','마지막 정상 경로')
             if not save('마지막 정상 경로'):raise RuntimeError('failed to seed last-good route')
-            configure_candidate('all_mapped')
+            configure_candidate('mixed')
             disclosure=named('routeDetailsDisclosure')
             if not bool(named('routeDetailsContent').property('visible')):pointer_click(disclosure)
             route_name='새 저장 경로';control('routeName',route_name)
             save_button=named('saveRouteButton');scroll=named('routeScroll');flickable=scroll.property('contentItem')
+            keyboard_traversal=keyboard_order()
             save_button.forceActiveFocus(Qt.TabFocusReason);app.processEvents()
             within=save_button.mapToItem(flickable,QPointF(0,0))
             flickable.setProperty('contentY',max(0,within.y()-flickable.height()/2+save_button.height()/2));app.processEvents()
@@ -240,7 +324,20 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
             name_before=str(named('routeName').property('text'))
             if outcome=='exception':
                 js('var originalSave=p.controller.save;p.controller.save=function(){throw new Error("합성 저장 예외. 다시 시도하세요.")}')
-            QMetaObject.invokeMethod(save_button,'clicked',Qt.DirectConnection);drain()
+            focus_transitions=[]
+            window.activeFocusItemChanged.connect(lambda:focus_transitions.append(
+                window.activeFocusItem().objectName() if window.activeFocusItem() else None))
+            QMetaObject.invokeMethod(save_button,'clicked',Qt.DirectConnection)
+            candidate_immediate=detached(state()['candidate'])
+            save_enabled_immediate=bool(save_button.property('enabled'))
+            disabled_reason_immediate={'text':item_text(named('saveDisabledReason')),
+                'visible':shown(named('saveDisabledReason'))}
+            focus_after_platform_clear=None
+            if outcome=='success':
+                save_button.setProperty('focus',False)
+                focus_after_platform_clear=(window.activeFocusItem().objectName()
+                    if window.activeFocusItem() else None)
+            drain()
             if outcome=='exception':js('p.controller.save=originalSave')
             storage_fault=''
             final_message=str(panel.property('message'));status_after=named('saveStatus')
@@ -248,6 +345,8 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
             document_after=detached(stored());candidate_after=detached(state()['candidate'])
             persisted_revision_after=latest_envelope()[0]
             success=outcome=='success'
+            semantic_order=semantic_observation()
+            qml_source=(folder/'qfield_routes/RoutePanel.qml').read_text(encoding='utf8')
             result.update(outcome=outcome,route_name=route_name,status_text=item_text(status_after),
                 status_viewport_before=status_before_viewport,status_viewport_after=viewport(status_after),
                 announcement_proxy_matches=status_matches,
@@ -261,9 +360,17 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
                 write_attempt_count_before=write_before,write_attempt_count_after=len(writes),
                 focus_object_before=focus_before.objectName() if focus_before else None,
                 focus_object_after=window.activeFocusItem().objectName() if window.activeFocusItem() else None,
+                focus_after_platform_clear=focus_after_platform_clear,
+                focus_transitions=focus_transitions,
+                app_focus_recovery_api_occurrences=qml_source.count('saveRouteButton.forceActiveFocus'),
+                candidate_immediate=candidate_immediate,
+                save_enabled_immediate=save_enabled_immediate,
+                save_enabled_after=bool(save_button.property('enabled')),
+                disabled_reason_immediate=disabled_reason_immediate,
                 route_name_before=name_before,route_name_after=str(named('routeName').property('text')),
                 disclosure_before=disclosure_before,disclosure_after=bool(named('routeDetailsContent').property('visible')),
-                outcome_layout=content_layout([status_after,disclosure,named('routeName'),save_button]),
+                keyboard_traversal=keyboard_traversal,semantic_order=semantic_order,
+                outcome_layout=semantic_order['layout'],
                 qml_runtime={'loaded_generated_qml':True,'generated_qml_path':str(folder/'qfield_routes/RoutePanel.qml')})
 '''
 if source.count(marker) != 1:

@@ -377,7 +377,7 @@ for production_name in ("backend.js", "controller.js", "repository.js", "navigat
     assert not re.search(r"\b(?:testOnly|acceptanceOnly)\b", production_source)
 print("survey route AC049-058 direct-observation design verified")
 
-# APPROVED AC-SRP-059 baseline; DRAFT reviewer correction checks.
+# APPROVED AC-SRP-059 baseline and reviewer correction checks (approval 2026-09-22).
 test_source = path.read_text(encoding="utf-8-sig")
 coverage = set(re.findall(r"ac(\d{3})", test_source))
 assert {f"{i:03d}" for i in range(1, 61)} <= coverage
@@ -386,7 +386,7 @@ for required in (
     "test_ac059_snapped_provider_geometry_is_mapped_without_connector_or_gap_metric",
     "test_ac059_schema3_active_inactive_restart_offline_move_exact_roundtrip",
     "test_ac059_malformed_walking_contract_stops_before_vehicle_write_and_preserves_last_good",
-    "test_ac059_qml_observes_requested_markers_provider_line_and_exact_gap_disclosure",
+    "test_ac059_qml_observes_current_requested_markers_provider_line_and_one_gap_detail",
 ):
     assert required in test_source
 valid = module._snapped_walking_response()
@@ -429,9 +429,9 @@ assert all(token in negative_source for token in (
     '"/v2/directions/foot-hiking/geojson"',
 ))
 qml_source = inspect.getsource(
-    module.test_ac059_qml_observes_requested_markers_provider_line_and_exact_gap_disclosure)
+    module.test_ac059_qml_observes_current_requested_markers_provider_line_and_one_gap_detail)
 assert all(token in qml_source for token in (
-    'observed["snapped_endpoint_observation"]',
+    'observed["current_presentation"]',
     'endpoint["access_marker_observations"]',
     'endpoint["source_feature_observations"]',
     'endpoint["walking_line_observations"]',
@@ -440,23 +440,19 @@ assert all(token in qml_source for token in (
     'connector_lines == []',
     'gap_metric_or_duration == (0, 0)',
     'endpoint["source_coordinate_write_attempts"] == []',
-    'disclosure["text"] == ENDPOINT_GAP_DISCLOSURE',
-    'disclosure["accessible_name"] == ENDPOINT_GAP_DISCLOSURE',
+    'endpoint["endpoint_gap_details"] == [{',
+    '"accessible_name": ENDPOINT_GAP_DISCLOSURE',
+    '"inside_details": True',
 ))
-driver_source = (path.parents[2] / "unit" / "survey_route_qml_driver.py").read_text(
+driver_source = (path.parent / "route_ui_simplification_qml_driver.py").read_text(
     encoding="utf-8-sig")
-snapped_driver_source = driver_source[driver_source.index("        if snapped:"):]
-snapped_driver_source = snapped_driver_source[:snapped_driver_source.index(
-    "    elif op=='project_dropdowns':")]
-assert "'synthetic_connector_count':0" not in snapped_driver_source
-assert "'gap_metric_or_duration_count':0" not in snapped_driver_source
-assert "'requested_access_marker_coordinate':detached(access[0])" not in snapped_driver_source
-assert "'requested_source_marker_coordinate':detached(features[0]['xy'])" not in snapped_driver_source
-assert all(token in snapped_driver_source for token in (
+assert "'synthetic_connector_count':0" not in driver_source
+assert "'gap_metric_or_duration_count':0" not in driver_source
+assert all(token in driver_source for token in (
     "'access_marker_observations'", "'source_feature_observations'",
     "'walking_line_observations'", "'visit_model_observation'",
     "'walking_totals_observation'", "getCppPointer(",
-    "object_value(", "generated_provider_rows",
+    "object_value(", "current_fixture_rows()",
 ))
 assert '"way_points": [0, 1]' in inspect.getsource(module._provider_responder)
 print("survey route AC059 reviewer correction verified; M01-M21 remain NOT RUN")
@@ -560,8 +556,8 @@ assert all(token in ac062_ui for token in (
 ))
 print("survey route AC061-062 matrix/credential-store design verified; no real app-data used")
 
-# APPROVED AC-SRP-063–065 acceptance extension (approval 2026-09-22): exact UI observations and deployment boundary.
-assert {"063", "064", "065"} <= coverage
+# APPROVED AC-SRP-066 reconciliation (approval 2026-09-22): exact UI, focus and ordering observations.
+assert {"063", "064", "065", "066"} <= coverage
 ac051_save = inspect.getsource(
     module.test_ac051_ac063_unmapped_save_needs_no_acknowledgement_and_keeps_null_totals)
 ac060_save = inspect.getsource(
@@ -586,7 +582,7 @@ assert all(token in ac063 for token in (
     'saved["save_ok"] is True',
 ))
 ac064 = inspect.getsource(
-    module.test_ac064_every_save_outcome_is_visible_once_and_preserves_required_state)
+    module.test_ac064_ac066_every_save_outcome_is_visible_once_and_preserves_required_state)
 assert all(token in ac064 for token in (
     'observed["status_viewport_before"]["fully_visible"] is False',
     'observed["status_viewport_after"]["fully_visible"] is True',
@@ -596,6 +592,13 @@ assert all(token in ac064 for token in (
     'observed["document_after"] == observed["document_before"]',
     'observed["persisted_revision_after"] == observed["persisted_revision_before"]',
     'observed["last_good_bytes_unchanged"] is True',
+    'observed["app_focus_recovery_api_occurrences"] == 0',
+    'observed["save_enabled_immediate"] is False',
+    'observed["focus_after_platform_clear"] is None',
+    'observed["focus_object_after"] is None',
+    'semantic["visual_order"] == semantic["expected_order"]',
+    'semantic["accessibility_order"] == semantic["expected_order"]',
+    'observed["keyboard_traversal"] == [',
 ))
 assert all(outcome in test_source for outcome in (
     '"success"', '"blank_name"', '"stale_input"', '"revision_conflict"',
@@ -609,9 +612,24 @@ assert all(token in qml_driver for token in (
     "fallbackNotice", "routeDetailsDisclosure", "routeDetailsContent", "saveStatus",
     "acknowledgement_control_count", "endpoint_gap_inside_details",
     "status_viewport_before", "announcement_proxy_matches", "last_good_bytes_unchanged",
+    "save_enabled_immediate", "focus_after_platform_clear", "focus_transitions",
+    "app_focus_recovery_api_occurrences", "keyboard_traversal", "semantic_order",
+    "current_presentation",
 ))
 assert "acknowledgeUnmapped(" not in qml_driver
 assert not (path.parent / "unmapped_save_qml_driver.py").exists()
+
+ac059 = inspect.getsource(
+    module.test_ac059_qml_observes_current_requested_markers_provider_line_and_one_gap_detail)
+assert all(token in ac059 for token in (
+    'endpoint["access_marker_observations"]',
+    'endpoint["source_feature_observations"]',
+    'endpoint["walking_line_observations"]',
+    'endpoint["walking_totals_observation"]',
+    'endpoint["endpoint_gap_details"] == [{',
+    '"inside_details": True',
+))
+assert "endpoint_gap_disclosures" not in ac059
 
 ac065 = inspect.getsource(
     module.test_ac065_fresh_build_bundles_current_runtime_and_never_updates_existing_project)
@@ -620,6 +638,6 @@ assert all(token in ac065 for token in (
     '_tree_bytes(preexisting) == before',
     'splitlines().count(BUILD_RUNTIME_DISCLOSURE) == 1',
 ))
-manual = inspect.getsource(module.test_ac063_ac064_ac065_target_qfield_handoff_is_user_run_and_unverified)
+manual = inspect.getsource(module.test_ac063_ac064_ac065_ac066_target_qfield_handoff_is_user_run_and_unverified)
 assert "pytest.skip" in manual and "미검증" in manual and "target QField" in manual
-print("survey route AC063-065 approved design verified; target QField remains 미검증")
+print("survey route AC066 approved reconciliation verified; target QField remains 미검증")

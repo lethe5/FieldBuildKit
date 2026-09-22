@@ -1,4 +1,4 @@
-"""APPROVED AC-SRP-063–065 route-result/save/deployment acceptance extension (2026-09-22).
+"""APPROVED AC-SRP-066 reconciliation over the approved AC-SRP-063–065 extension (2026-09-22).
 
 The approved AC-SRP-061–062 extension and all earlier history remain preserved below.  This
 approved extension supersedes only the earlier fallback acknowledgement expectations identified by
@@ -3414,7 +3414,7 @@ def test_ac053_qml_runtime_reads_real_tree_repeater_and_qaccessible(run):
                    for item in delegates)
 
 
-# APPROVED AC-SRP-059 baseline; DRAFT reviewer correction to evidence/negative coverage.
+# APPROVED AC-SRP-059 baseline and reviewer correction (approval 2026-09-22).
 SNAPPED_PROVIDER_GEOMETRY = {
     "type": "LineString",
     "coordinates": [[127.0094, 37.0094], [127.0095, 37.00955], [127.0096, 37.0096]],
@@ -3724,91 +3724,69 @@ def test_ac060_invalid_degenerate_variants_fail_atomically_without_fallback(faul
     assert observed["last_error"]["category"] == "provider_response"
 
 
-def test_ac059_qml_observes_requested_markers_provider_line_and_exact_gap_disclosure(run):
-    observed = run(
-        operation="mixed_route_presentation", viewport_width=320, theme="light",
-        sites=[{"id": "site-a", "name": "농촌 A", "xy": MIXED_SOURCE}],
-        snapped_endpoint_fixture={
-            "requested_access_coordinate": MIXED_ACCESS,
-            "requested_source_coordinate": MIXED_SOURCE,
-            "provider_geometry": SNAPPED_PROVIDER_GEOMETRY,
-            "distance_m": SNAPPED_DISTANCE_M,
-            "duration_s": SNAPPED_DURATION_S,
-            "way_points": [0, 2],
-        },
-        actions=["preview", "legend", "reload-each-visit-value-route"],
+def test_ac059_qml_observes_current_requested_markers_provider_line_and_one_gap_detail(tmp_path):
+    observed = _run_route_ui_qml(
+        tmp_path, operation="route_ui_simplification", composition="all_mapped",
+        snapped_presentation=True, viewport_width=320, theme="light",
     )
-    endpoint = observed["snapped_endpoint_observation"]
+    endpoint = observed["current_presentation"]
+    visits = endpoint["visit_model_observation"]["visits"]
+    mapped_visit = visits[0]
     access_markers = endpoint["access_marker_observations"]
-    assert len(access_markers) == 1
-    assert access_markers[0]["object_id"]
-    assert access_markers[0]["object_name"]
-    assert access_markers[0]["coordinate_property"] == "accessCoordinate"
-    assert access_markers[0]["coordinate"] == MIXED_ACCESS
+    mapped_markers = [marker for marker in access_markers
+                      if marker["coordinate"] == mapped_visit["access_coordinate"]]
+    assert len(mapped_markers) == 1
+    assert mapped_markers[0]["object_id"] and mapped_markers[0]["object_name"]
+    assert mapped_markers[0]["coordinate_property"] == "accessCoordinate"
     source_features = endpoint["source_feature_observations"]
-    assert len(source_features) == 1
-    assert source_features[0]["provider_layer_id"]
-    assert source_features[0]["provider_feature_id"] is not None
-    assert source_features[0]["coordinate_source"] == "provider feature geometry"
-    assert source_features[0]["coordinate"] == MIXED_SOURCE
+    mapped_sources = [feature for feature in source_features
+                      if feature["provider_feature_id"] == mapped_visit["site_id"]]
+    assert len(mapped_sources) == 1
+    assert mapped_sources[0]["provider_layer_id"]
+    assert mapped_sources[0]["coordinate_source"] == "provider feature geometry"
+    assert mapped_sources[0]["coordinate"] == mapped_visit["source_coordinate"]
     rendered_lines = endpoint["walking_line_observations"]
-    assert len(rendered_lines) == 1
-    assert rendered_lines[0]["object_id"]
-    assert rendered_lines[0]["object_name"]
-    assert rendered_lines[0]["coordinates_property"] == "coordinates"
-    assert rendered_lines[0]["coordinates"] == SNAPPED_PROVIDER_GEOMETRY["coordinates"]
-    assert rendered_lines[0]["line_pattern"] == "dashed"
+    mapped_geometry = mapped_visit["walking_legs"][0]["geometry"]["coordinates"]
+    mapped_lines = [line for line in rendered_lines
+                    if line["coordinates"] == mapped_geometry and line["line_pattern"] == "dashed"]
+    assert len(mapped_lines) == 1
+    assert mapped_lines[0]["object_id"] and mapped_lines[0]["object_name"]
+    assert mapped_lines[0]["coordinates_property"] == "coordinates"
+    assert mapped_geometry[0] != mapped_visit["access_coordinate"]
+    assert mapped_geometry[-1] != mapped_visit["source_coordinate"]
     visit_model = endpoint["visit_model_observation"]
-    assert visit_model["model_source"] in {"panel.candidate.visits", "panel.route.visits"}
-    assert len(visit_model["visits"]) == 1
-    visit = visit_model["visits"][0]
-    assert visit["access_coordinate"] == MIXED_ACCESS
-    assert visit["source_coordinate"] == MIXED_SOURCE
-    assert visit["walking_mode"] == "mapped"
-    assert visit["metric_source"] == "ors-foot-hiking"
-    assert visit["walking_legs"] == [
-        {"direction": "outbound", "distance_m": SNAPPED_DISTANCE_M,
-         "duration_s": SNAPPED_DURATION_S, "geometry": SNAPPED_PROVIDER_GEOMETRY},
-        {"direction": "return", "distance_m": SNAPPED_DISTANCE_M,
-         "duration_s": SNAPPED_DURATION_S,
-         "geometry": {"type": "LineString", "coordinates": list(reversed(
-             SNAPPED_PROVIDER_GEOMETRY["coordinates"]))}},
-    ]
+    assert visit_model["model_source"] == "panel.candidate.visits"
+    assert mapped_visit["metric_source"] == "ors-foot-hiking"
+    assert mapped_visit["walking_legs"][1]["geometry"]["coordinates"] == list(
+        reversed(mapped_geometry))
     totals = endpoint["walking_totals_observation"]
-    assert totals["model_source"] in {
-        "panel.candidate.walking_totals", "panel.routeProgress.remaining_walking"}
-    assert totals["value"] == {
-        "mapped_distance_m": 2 * SNAPPED_DISTANCE_M,
-        "lower_bound_distance_m": 0,
-        "duration_s": 2 * SNAPPED_DURATION_S,
-        "unavailable_duration_count": 0,
-    }
+    assert totals["model_source"] == "panel.candidate.walking_totals"
+    assert totals["value"] == observed["candidate_before"]["walking_totals"]
     # These zeroes are derived here from complete runtime enumerations, never supplied by the harness.
+    mapped_leg_geometries = [leg["geometry"]["coordinates"]
+                             for visit in visits if visit["walking_mode"] == "mapped"
+                             for leg in visit["walking_legs"]]
     connector_lines = [line for line in rendered_lines
-                       if line["coordinates"] != SNAPPED_PROVIDER_GEOMETRY["coordinates"]]
+                       if line["line_pattern"] == "dashed" and
+                       line["coordinates"] not in mapped_leg_geometries]
     gap_metric_or_duration = (
         totals["value"]["mapped_distance_m"] - sum(
-            leg["distance_m"] for leg in visit["walking_legs"]),
+            leg["distance_m"] for visit in visits if visit["walking_mode"] == "mapped"
+            for leg in visit["walking_legs"]),
         totals["value"]["duration_s"] - sum(
-            leg["duration_s"] for leg in visit["walking_legs"]),
+            leg["duration_s"] for visit in visits if visit["walking_mode"] == "mapped"
+            for leg in visit["walking_legs"]),
     )
     assert connector_lines == []
     assert gap_metric_or_duration == (0, 0)
     assert endpoint["source_coordinate_write_attempts"] == []
-    disclosures = observed["endpoint_gap_disclosures"]
-    assert set(disclosures) == {"calculation_result", "saved_detail", "legend_accessibility"}
-    for context, disclosure in disclosures.items():
-        assert disclosure["text"] == ENDPOINT_GAP_DISCLOSURE, context
-        assert disclosure["accessible_name"] == ENDPOINT_GAP_DISCLOSURE, context
-        assert disclosure["object_id"], context
-        assert disclosure["source"] in {
-            "QAccessible.queryAccessibleInterface",
-            "QML Accessible attached property runtime readback",
-        }
-    boundary = observed["passive_boundary_observation"]
-    assert boundary["provider_attempts"] == []
-    assert boundary["storage_write_attempts"] == []
-    assert boundary["source_write_attempts"] == []
+    assert endpoint["fallback_notice_accessible"] == []
+    assert endpoint["endpoint_gap_details"] == [{
+        "text": ENDPOINT_GAP_DISCLOSURE,
+        "accessible_name": ENDPOINT_GAP_DISCLOSURE,
+        "object_id": endpoint["endpoint_gap_details"][0]["object_id"],
+        "inside_details": True,
+    }]
 
 
 # AC-SRP-061: Matrix optional snapped_distance -----------------------------------------------
@@ -4304,7 +4282,7 @@ def test_ac063_nonfallback_results_have_no_fallback_notice_or_save_gate(tmp_path
     "success", "blank_name", "stale_input", "revision_conflict",
     "write_false", "readback_mismatch", "exception",
 ])
-def test_ac064_every_save_outcome_is_visible_once_and_preserves_required_state(
+def test_ac064_ac066_every_save_outcome_is_visible_once_and_preserves_required_state(
         tmp_path, viewport_width, theme, outcome):
     observed = _run_route_ui_qml(
         tmp_path, operation="save_outcome_visibility", outcome=outcome,
@@ -4316,9 +4294,16 @@ def test_ac064_every_save_outcome_is_visible_once_and_preserves_required_state(
     assert observed["announcement_proxy_matches"][0]["role"] == "StatusBar"
     assert observed["status_text"]
     assert observed["provider_request_count_after"] == observed["provider_request_count_before"]
-    assert observed["focus_object_after"] == observed["focus_object_before"] == "saveRouteButton"
+    assert observed["focus_object_before"] == "saveRouteButton"
+    assert observed["app_focus_recovery_api_occurrences"] == 0
     assert observed["route_name_after"] == observed["route_name_before"]
     assert observed["disclosure_after"] == observed["disclosure_before"] is True
+    assert observed["keyboard_traversal"] == [
+        "routeDetailsDisclosure", "routeName", "saveRouteButton",
+    ]
+    semantic = observed["semantic_order"]
+    assert semantic["visual_order"] == semantic["expected_order"]
+    assert semantic["accessibility_order"] == semantic["expected_order"]
     assert observed["outcome_layout"]["horizontal_overflow"] is False
     assert observed["outcome_layout"]["overlaps"] == []
     assert not any(item["truncated"] for item in observed["outcome_layout"]["items"])
@@ -4327,12 +4312,24 @@ def test_ac064_every_save_outcome_is_visible_once_and_preserves_required_state(
     assert (observed["write_attempt_count_after"] - observed["write_attempt_count_before"]
             == expected_write_attempts)
     if outcome == "success":
+        assert observed["candidate_immediate"] is None
+        assert observed["save_enabled_immediate"] is False
+        assert observed["save_enabled_after"] is False
+        assert observed["disabled_reason_immediate"] == {
+            "text": "저장할 수 없음: 먼저 새 경로를 계산하세요.",
+            "visible": True,
+        }
+        assert observed["focus_after_platform_clear"] is None
+        assert observed["focus_object_after"] is None
+        assert all(item is None for item in observed["focus_transitions"])
         assert observed["candidate_after"] is None
         assert observed["active_after"]["name"] == observed["route_name"]
         assert observed["document_after"] != observed["document_before"]
         assert observed["persisted_revision_after"] == observed["persisted_revision_before"] + 1
         assert "저장했습니다" in observed["status_text"]
     else:
+        assert observed["focus_after_platform_clear"] is None
+        assert observed["focus_object_after"] == "saveRouteButton"
         assert observed["candidate_after"] == observed["candidate_before"]
         assert observed["document_after"] == observed["document_before"]
         assert observed["persisted_revision_after"] == observed["persisted_revision_before"]
@@ -4382,7 +4379,7 @@ def test_ac065_fresh_build_bundles_current_runtime_and_never_updates_existing_pr
                    for item in observed["logs"]["builder_progress"])
 
 
-def test_ac063_ac064_ac065_target_qfield_handoff_is_user_run_and_unverified():
+def test_ac063_ac064_ac065_ac066_target_qfield_handoff_is_user_run_and_unverified():
     pytest.skip(
         "미검증: 새 FieldBuild Kit output을 target QField로 전달한 뒤 320 px/wide touch, "
         "screen-reader announcement, save persistence, restart and project-folder move를 사용자가 검증"

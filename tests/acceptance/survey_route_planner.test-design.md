@@ -1,4 +1,7 @@
-# Survey Route Planner — approved AC-SRP-063–065 extension
+# Survey Route Planner — approved AC-SRP-066 reconciliation over approved AC-SRP-063–065
+
+> **APPROVED TEST DESIGN (approval 2026-09-22).** D-SRP-067 / FR-SRP-064 /
+> NFR-SRP-012 / AC-SRP-066 authority is approved at checkpoint `cb8f2da`.
 
 > **APPROVED TEST DESIGN (approval 2026-09-22).** This slice covers the approved
 > D-SRP-064–066 / FR-SRP-061–063 / NFR-SRP-011 / AC-SRP-063–065 requirements. The approved
@@ -659,10 +662,10 @@ finite metric, downstream original-start immutability, and request ordering rema
 - Full acceptance file: **382 passed, 21 skipped**, exit 0, 263.33 s.
 - M01–M21 remain **NOT RUN**; the skips do not claim device or live-provider PASS.
 
-## APPROVED AC-SRP-059 baseline and DRAFT reviewer correction (2026-09-21)
+## APPROVED AC-SRP-059 baseline and reviewer correction (approved 2026-09-22)
 
 Baseline status: **APPROVED TEST DESIGN (approval 2026-09-21).** Correction status:
-**DRAFT TEST DESIGN — user approval required.** This Category A correction preserves the approved
+**APPROVED TEST DESIGN (approval 2026-09-22).** This Category A correction preserves the approved
 D-SRP-060 / FR-SRP-057 / AC-SRP-059 behavior and changes only the five survey-route acceptance
 artifacts; it does not change application, unit-test, specification, or UI-guidance files.
 
@@ -690,10 +693,10 @@ artifacts; it does not change application, unit-test, specification, or UI-guida
   and walking-line object with object identity and the named coordinate property, plus the actual route visit
   model and walking totals. The test itself derives the connector and gap-metric/time counts from those complete
   enumerations and exact totals; the harness may not return copied fixture coordinates or constant zero counts.
-  Three distinct live calculation-result, saved-detail and legend/accessibility objects must
-  each expose the exact text and accessible name `ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함`.
-  Raw callback slices prove preview/detail/legend/reload are passive. Input echo, source-text matching, constant
-  absence counts and canned observation dictionaries are rejected by the harness contract.
+  Under the later approved D-SRP-064/D-SRP-067 presentation, the current QML evidence is the one live
+  details object exposing exact visible/accessibility text `ORS 경로 기준 · 요청 좌표까지의 endpoint gap
+  미포함`; removed calculation-result, saved-detail and legend objects are not acceptance targets. Input
+  echo, source-text matching, constant absence counts and canned observation dictionaries remain invalid.
 
 ### Manual boundary
 
@@ -721,7 +724,7 @@ test-designer. No application, unit-test, specification, Git-state, live-provide
 An initial sandboxed focused run failed all 17 selected cases at localhost bind with `PermissionError` and is
 not product evidence. The permission-enabled rerun above is authoritative.
 
-### DRAFT reviewer-correction verification record
+### Pre-approval reviewer-correction verification record (2026-09-21; preserved)
 
 - Collection: **421 collected**, exit 0.
 - Design verifier: **intended RED**, exit 1 at the guard rejecting the current driver's hard-coded
@@ -892,3 +895,25 @@ The current implementation is expected RED because it retains the acknowledgemen
 details by default, repeats endpoint-gap copy, scrolls only after successful save, lacks the disabled-
 reason/status semantics, and omits the exact build-completion disclosure. No live provider, secret,
 real app-data, in-place update, collected-data mutation, or target-device action is automated.
+
+## APPROVED AC-SRP-066 disabled/focus/order reconciliation (2026-09-22)
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-22).** Authority is approved clarification checkpoint
+`cb8f2da`; the approved AC-SRP-063–065 baseline remains unchanged except where D-SRP-067 explicitly
+supersedes its success-focus and ordering interpretation.
+
+- The seven-outcome 320 px/light and 1024 px/dark matrix uses a mixed candidate and expanded details.
+  Success must synchronously clear the candidate, disable save without an enabled exception, and show the
+  exact candidate-none reason. The harness then simulates the platform clearing focus from the disabled
+  button before queued work runs; focus must remain unset, and generated QML must contain no save-button
+  focus-recovery call. Failures retain their naturally focused enabled save button without application
+  transfer. Every outcome preserves route-name text and expanded disclosure state.
+- Live coordinates, QAccessible objects and Tab traversal must all yield the applicable exact sequence:
+  basic result → fallback notice → `상세 정보` and expanded content → `저장할 경로 이름` → `계산 결과 저장`
+  → disabled reason when applicable → outcome status. Layout observations reject overlap, clipping and
+  horizontal overflow. These are Qt/QML proxies, not native touch or speech evidence.
+- AC-SRP-053/059 current-presentation evidence enumerates runtime requested markers, source features,
+  provider walking geometry/metrics/provenance, totals and fallback accessibility. It requires exactly one
+  endpoint-gap line inside expanded details and no removed three-object expectation.
+
+M22 remains user-run and **NOT RUN (`미검증`)** for target-QField touch, screen-reader order and pixels.

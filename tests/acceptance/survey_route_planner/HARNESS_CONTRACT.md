@@ -1,4 +1,7 @@
-# Survey route acceptance harness — approved AC-SRP-063–065 extension
+# Survey route acceptance harness — approved AC-SRP-066 reconciliation over approved AC-SRP-063–065
+
+**APPROVED TEST DESIGN (approval 2026-09-22):** the AC-SRP-066 focus/order extension
+uses approved clarification checkpoint `cb8f2da`.
 
 **APPROVED TEST DESIGN (approval 2026-09-22):** the two generated-QML operations and fresh-
 build comparison below cover AC-SRP-063–065. Approved AC-SRP-061–062 and earlier harness contracts
@@ -389,7 +392,7 @@ visits, metric provenance and totals; request ordering/privacy/write absence; pl
 active and inactive visit validation; legacy/mixed storage compatibility; and persistent
 route-line preference. M01–M21 remain user-run and **NOT RUN** until recorded on the named target.
 
-## APPROVED AC-SRP-059 baseline and DRAFT reviewer correction (2026-09-21)
+## APPROVED AC-SRP-059 baseline and reviewer correction (approved 2026-09-22)
 
 This additive contract uses the same production-JavaScript, localhost HTTP, real slot-file and loaded-QML
 boundaries above. It does not add a provenance journal, duplicate the ORS parser, or infer provider behavior.
@@ -423,10 +426,10 @@ boundaries above. It does not add a provenance journal, duplicate the ORS parser
   enumeration and gap metric/time from exact leg-versus-total arithmetic. The harness must not echo fixture/source
   input coordinates into observations or return `synthetic_connector_count`, `gap_metric_or_duration_count`, or
   any other constant absence claim. Actual source-write callback slices remain required.
-  `endpoint_gap_disclosures` must read three distinct live objects for calculation result,
-  saved detail and legend/accessibility, including object identity, visible text and QAccessible/Accessible name.
-  Literal dictionaries assembled from input fixture values, source-text matching, or copied expected strings are
-  invalid evidence. Each live disclosure is exactly `ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함`.
+  The later D-SRP-064/D-SRP-067 presentation supersedes the historical three-object observation. Current
+  evidence reads one live endpoint-gap object inside expanded details, including object identity, visible text
+  and QAccessible name. Literal dictionaries assembled from input fixture values, source-text matching, or
+  copied expected strings are invalid evidence.
 
 M01–M21 remain **NOT RUN**. This automated contract does not claim live ORS snapping, native QField pixels,
 screen-reader speech, or device interaction.
@@ -504,3 +507,18 @@ AC-SRP-065 reuses the public desktop build flow and compares complete byte maps.
 must equal source; the builder is never pointed at the pre-existing output; and `logs.builder_message`
 must contain the exact D-SRP-066 disclosure once. The new driver contains no `acknowledgeUnmapped` call
 or replacement acknowledgement helper. M22 stays skipped and **NOT RUN (`미검증`)**.
+
+## APPROVED AC-SRP-066 disabled/focus/order extension (2026-09-22)
+
+`save_outcome_visibility` uses a mixed candidate with expanded details. It records candidate, save-enabled
+state and disabled-reason visibility immediately after the real handler returns, before draining queued work.
+For success it then clears button focus to emulate allowed platform behavior; the final focus trace must show
+no application restore or transfer. The generated runtime is also checked for a save-button focus-recovery API
+occurrence so an already-focused no-op cannot hide a forbidden call.
+
+The driver obtains visual group bounds from live items, QAccessible order from live accessible objects, and
+Tab order from real key events. The applicable order is basic result, fallback notice, details disclosure,
+expanded content, route name, save button, disabled reason, outcome status. It returns raw layout rectangles,
+overlaps, truncation and overflow rather than a precomputed pass. The same operation exposes current AC053/059
+marker, source-feature, provider-line, visit/totals, fallback-warning and single-details-gap observations.
+M22 remains user-run and **NOT RUN (`미검증`)**.
