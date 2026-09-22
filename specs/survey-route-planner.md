@@ -1,6 +1,6 @@
 # Feature: 도로망 조사 경로 및 조사대상 도형 확장
 
-> Status: **APPROVED — D-SRP-062~063 / FR-SRP-059~060 / NFR-SRP-010 / AC-SRP-061~062 Matrix `snapped_distance` and desktop credential-store conformance clarification approved 2026-09-22; prior approved baseline preserved.**
+> Status: **APPROVED through D-SRP-064~066 / FR-SRP-061~063 / NFR-SRP-011 / AC-SRP-063~065 (2026-09-22).**
 > Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; 2026-09-16 approved workflow/progress slice; D-SRP-031~035, FR-SRP-029~033 and AC-SRP-031~035 approved 2026-09-16; D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 and AC-SRP-036~041 approved 2026-09-17; D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 and AC-SRP-042~045 approved 2026-09-17; D-SRP-046~048, FR-SRP-044~046, NFR-SRP-006 and AC-SRP-046~048 approved 2026-09-17; D-SRP-049~056, FR-SRP-047~053, NFR-SRP-007~009 and AC-SRP-049~055 approved 2026-09-18. Target QField device verification remains **NOT RUN (미검증)**.
 > Owner: spec-writer
 > Extends: [통합 명세](qfield-project-builder.md)
@@ -9,6 +9,27 @@
 
 
 ## 0. 문서 권한과 현재 상태 (2026-09-14)
+
+**2026-09-22 실제 기기 저장 관찰 및 UI 단순화 (승인):** 사용자는 실제 QField 기기에서 계산된
+경로가 여전히 저장되지 않는 것으로 관찰했고, `지도에 없는 도보 구간 포함` checkbox가 선택 가능한
+옵션처럼 보이며 저장을 위해 확인해야 하는 이유도 불명확하다고 보고했다. 사용자의 명시적 Category C
+변경은 이 checkbox와 acknowledgement save gate를 제거하고 fallback이 포함되었다는 사실만 exact notice로
+항상 알리는 것이다. `ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함` 같은 원시 기술 문구와
+중복 endpoint-gap 안내는 기본 화면을 복잡하게 하므로, 필요한 사용자만 펼치는 `상세 정보` 아래 한 번만
+제공하는 것은 Category D refinement다. 저장 action이 성공한 경우에만 기존 message 위치를 현재 viewport로
+옮기는 구현은 승인된 저장 실패 보존 계약이 화면 밖에 남아 사용자에게 아무 반응이 없는 것처럼 보이게 할
+수 있으므로 Category A conformance defect다. 아래 D-SRP-064~065, FR-SRP-061~062, NFR-SRP-011 및
+AC-SRP-063~064는 같은 DRAFT slice의 이전 acknowledgement 제안을 대체하며, D-SRP-054/061,
+FR-SRP-050/058 및 AC-SRP-051/053/060의 acknowledgement 요구만 명시적으로 supersede한다. 또한
+D-SRP-060, FR-SRP-057, NFR-SRP-009 및 AC-SRP-059의 endpoint-gap·raw provenance를 기본 화면 여러 곳에
+노출하던 presentation 부분은 D-SRP-064의 단일 disclosure placement로 supersede하되 그 의미와
+접근 가능성은 유지한다. fallback의 직선거리 추정 provenance, 시간 사용 불가, 경고 표시와 저장
+atomicity는 유지한다. 이번 관찰만으로 실제 persistence 실패의 원인이 controller validation, 저장소
+write/readback 또는 다른 단계 중 무엇인지는
+입증되지 않았으며, 명세는 원인을 단정하지 않는다. 또한 경로 패널 runtime은 생성 시 각 프로젝트 폴더에
+복사되므로 desktop app 재빌드·재설치만으로 기존 생성 프로젝트가 바뀌지 않는 현재 경계를
+D-SRP-066/FR-SRP-063/AC-SRP-065가 명시한다. 이 slice는 2026-09-22 사용자가 승인했으며 fresh
+test-designer가 acceptance/traceability를 별도 작성하고 그 산출물도 별도 승인받아야 한다.
 
 **2026-09-22 Matrix `snapped_distance`와 desktop credential-store 정합 (승인):** 유효한 ORS
 Matrix 응답이 resolved location object의 optional `snapped_distance`를 생략할 수 있는데도 이를 필수
@@ -638,6 +659,47 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   없이 계속 사용한다. `FIELDBUILD_STANDALONE_APP_DATA_DIR`은 격리 test/diagnostic override일 뿐 두 번째
   production store나 자동 migration source가 아니다. 이는 `docs/independence.md`의 현재 runtime authority가
   상속된 `specs/qfield-project-builder.md`의 역사적 rename/migration 문구보다 우선한다는 적용 기록이다.
+- D-SRP-064 (2026-09-22 승인, Category C/D): 같은 ID로 작성했던 이전 DRAFT acknowledgement 제안을
+  대체한다. D-SRP-054/061, FR-SRP-050/058 및 AC-SRP-051/053/060에서 fallback 저장 전에
+  acknowledgement를 요구하고 미확인 상태의 저장을 막던 부분만 supersede한다. D-SRP-060,
+  FR-SRP-057, NFR-SRP-009 및 AC-SRP-059의 endpoint-gap·raw provenance 표시 위치는 아래의 단일
+  disclosure로 좁혀 읽는다. UI에서
+  `지도에 없는 도보 구간 포함` checkbox와 그 대체 checkbox를 모두 제거하고, fallback의 존재는 선택
+  항목이 아닌 계산 결과로 취급한다. `walking_mode=unmapped_estimate` visit이 하나 이상인 candidate와
+  saved route에는 simple vehicle/walking distance·time totals와 함께 exact visible notice
+  `실제 도로 경로를 못 찾은 구간을 직선거리 추정치로 포함하였습니다.`를 접히지 않은 기본 결과 영역에
+  정확히 한 번 표시한다. 이 notice는 숨기거나 확인할 수 있는 control이 아니며, fallback provenance,
+  `null` duration, dotted geometry 및 warning marker는 기존 승인 계약대로 유지한다.
+
+  결과 영역은 exact label `상세 정보`인 disclosure를 제공하고 최초 candidate 표시와 saved-route load에서
+  기본으로 접는다. raw `walking_mode`/`metric_source`, access/source coordinate, provider/source 구분,
+  affected visit별 name/ID·mode·metric source·시간 사용 불가 사유를 포함한 진단과 endpoint-gap detail은
+  이 disclosure 안에만 둔다. mapped visit이 하나 이상이고 endpoint gap 의미가 적용되면 exact
+  `ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함`을 route-level 설명으로 disclosure 안에 정확히
+  한 번만 표시하며 visit card, totals, legend 또는 disclosure의 다른 행에 반복하지 않는다. disclosure의
+  펼침/접힘은 표시만 바꾸며 candidate, 저장 payload, route/settings/source data 또는 save enablement를
+  바꾸거나 provider request를 만들지 않는다.
+- D-SRP-065 (2026-09-22 승인, Category A/D): `계산 결과 저장` button의 disabled state는
+  button과 같은 viewport에 항상 보이는 한 줄 이유를 제공한다. 우선순위는 (1) candidate 없음:
+  `저장할 수 없음: 먼저 새 경로를 계산하세요.`, (2) mapping invalid: `저장할 수 없음: ` 뒤에 현재
+  mapping validation 문구다. fallback 유무, D-SRP-064 notice의 표시 또는 `상세 정보`의 펼침/접힘은
+  저장 활성화 조건이 아니다. 다른 기존 validation 조건이 충족되면 fallback이 있어도 button이
+  활성화되고 별도 확인 없이 저장을 시도할 수 있다. 활성화된 button을 누른 뒤 controller가 success,
+  false, validation exception, storage write/readback failure 또는 revision conflict 중 어느 결과를
+  반환하더라도 최종 success/error message를
+  같은 status element에 설정하고 그 element 전체를 현재 scroll viewport 안으로 가져온다. success만
+  scroll하는 비대칭은 허용하지 않는다. message는 screen-reader status로 한 번 announce하며 실패를
+  성공으로 표현하거나 기존 candidate/last-good route를 지우지 않는다.
+- D-SRP-066 (2026-09-22 승인, Category D/E): `qfield_routes/` runtime은 FieldBuild Kit가 프로젝트를
+  생성할 때 그 output project folder에 복사되는 project-local asset이다. 따라서 source 수정, desktop
+  app rebuild 또는 reinstall은 이미 생성되어 QField로 전달된 프로젝트 폴더를 자동 수정하지 않는다.
+  이 slice의 동작은 이를 포함한 FieldBuild Kit로 새 output에 생성한 프로젝트부터 적용한다. 기존
+  생성 프로젝트에 적용하려면 원본 입력과 사용자 수집 데이터를 보존하는 별도 승인된 refresh/migration
+  절차가 있거나, 사용자가 안전한 새 output으로 재생성한 뒤 필요한 데이터를 명시적으로 이전해야 한다.
+  현재 범위는 in-place updater를 새로 만들거나 기존 project folder를 묵시적으로 덮어쓰지 않는다.
+  route 기능이 포함된 project build의 완료 summary/help는 exact disclosure `경로 패널 코드는 생성된
+  프로젝트에 포함됩니다. FieldBuild Kit만 업데이트해도 기존 생성 프로젝트는 자동으로 바뀌지 않습니다.`를
+  제공한다.
 
 ## 3. Functional Requirements
 - FR-SRP-001: 생성 프로젝트에 기존 보고서/식별 플러그인과 공존하는 하단 접이식 패널.
@@ -1032,6 +1094,28 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   FieldBuild Kit display rename은 store path를 바꾸거나 migration을 시작하지 않으며, 다른 application
   namespace의 credential file 존재 여부와 내용은 모든 정상/실패 branch에서 관찰·변경하지 않는다.
 
+### 3.13 2026-09-22 fallback notice·상세 정보·결과 가시성·배포 경계 (승인)
+
+- FR-SRP-061 (2026-09-22 승인): fallback visit이 하나 이상인 candidate와 saved route는 D-SRP-064의
+  exact notice를 simple user-facing totals와 함께 기본 결과 영역에 정확히 한 번 표시한다. fallback
+  acknowledgement checkbox/control은 존재하지 않으며 fallback만을 이유로 저장을 disable하거나 추가
+  확인을 요구하지 않는다. `상세 정보` disclosure는 기본으로 접혀 있고 raw metric source/mode,
+  per-visit diagnostics와 endpoint-gap detail을 내부에만 표시한다. endpoint-gap 설명은 적용되는 route마다
+  disclosure 안에 최대 한 번만 렌더링한다. disclosure의 상태는 저장 payload나 저장 가능 여부에 영향을
+  주지 않으며, all-mapped/exact-zero-only 결과에는 fallback notice가 없고 기존 저장 흐름을 유지한다.
+- FR-SRP-062 (2026-09-22 승인): explicit save를 실제로 시도할 수 있는 상태에서는 이름 validation,
+  stale calculation/revision, repository validation, write/readback과 success를 포함한 모든 종료 경로가
+  하나의 visible/accessibility status contract를 사용한다. save가 true인 경우뿐 아니라 false를 반환하거나
+  exception을 처리한 경우에도 결과 message를 현재 viewport로 가져오고 한 번 announce한다. failure에는
+  가능한 범위의 구체적이고 비밀이 제거된 원인과 재시도/재계산/다시 불러오기 등 이미 승인된 action을
+  표시하며 candidate와 last-good saved route를 보존한다. 이 가시성 변경을 실제 저장 성공의 증거 또는
+  이번 기기 관찰의 persistence root-cause 수정으로 주장하지 않는다.
+- FR-SRP-063 (2026-09-22 승인): FieldBuild Kit는 route 기능을 포함해 새로 생성한 프로젝트의
+  `qfield_routes/`가 그 생성 시점 source와 일치하도록 bundle하고 build 완료 시 D-SRP-066 disclosure를
+  표시한다. desktop binary/source update 뒤에도 기존 output project의 embedded route files와 수집 data는
+  자동 변경하지 않는다. acceptance와 release handoff는 어느 FieldBuild Kit build로 어느 project output을
+  새로 생성했는지 구분하고, 기존 output을 그대로 연 기기 관찰을 새 bundle의 검증으로 기록하지 않는다.
+
 ## 4. Data / Compatibility
 새 프로젝트 생성만 도형 메타데이터를 변경한다. 사용자의 기존 GPKG를 자동 마이그레이션하지
 않는다. 기본 도형 유형을 지정하지 않은 과거 호출은 MULTIPOLYGON 기본값을 유지한다.
@@ -1147,6 +1231,14 @@ max road offset, 이번 승인 범위의 max access distance, default start, lay
   로그·UI·report에 노출하지 않는다. 테스트는 disposable override directory만 사용하고 실제 사용자
   app-data 또는 다른 앱의 비밀을 읽거나 수정하지 않는다. path mismatch 또는 store failure는 project
   build를 막거나 plaintext fallback을 만들지 않고 기존 session-only/명시 consent 경계를 유지한다.
+- NFR-SRP-011 (2026-09-22 승인): D-SRP-064~065의 notice, `상세 정보`, disabled reason과 save status는
+  320 px 이상 supported viewport와 light/dark theme에서 저장 control과 함께 읽을 수 있고 horizontal
+  scroll, clipping 또는 다른 control과의 overlap이 없어야 한다. dynamic count/name이 길면 wrap하되
+  기본 결과, notice, disclosure, 저장 control과 결과 status의 읽기 순서를 유지한다. disclosure가 접힌
+  상태에서는 복잡한 내부 문자열을 기본 reading flow에 중복 노출하지 않고, 펼친 상태에서는 label과
+  각 diagnostic의 의미를 keyboard/screen reader로 접근할 수 있어야 한다. save attempt 하나당 최종
+  outcome을 한 번만 announce한다. viewport 이동은 keyboard focus, 입력한 route name, disclosure state와
+  candidate를 바꾸지 않는다.
 
 ## 5. Acceptance Criteria
 | ID | 관찰 가능한 조건 및 결과 |
@@ -1213,6 +1305,9 @@ max road offset, 이번 승인 범위의 max access distance, default start, lay
 | AC-SRP-060 (2026-09-21 승인) | ORS-shaped walking fixture가 feature 1개, `LineString` 좌표 정확히 1개, segment 1개, route-level `way_points=[0,0]`, summary와 segment distance/duration 모두 숫자 0이면 계산은 해당 visit만 `unmapped_estimate/straight_line_lower_bound_m`으로 만들고 requested access↔source geodesic 왕복 lower-bound, null duration/combined total, dotted line, 영향 조사지 안내와 저장 acknowledgement를 사용한다. mapped geometry/metric, duplicated point, connector, 새 mode/schema/request는 0개이며 source/access는 불변이다. distance 또는 duration이 non-zero/non-finite/missing, summary/segment 불일치, `[0,0]` 외 way-points, 좌표 0개/2개 이상인 malformed 변형은 fallback과 후속 vehicle request/write 0회로 실패하고 기존 candidate/saved route를 보존한다. 정상 2점 이상 mapped fixture와 explicit 2010/no-path fixture는 각각 AC-SRP-059와 AC-SRP-051 의미를 유지한다. |
 | AC-SRP-061 (2026-09-22 승인) | 동일한 성공 계산 fixture에서 (a) origin-validation `sources[0]`, (b) origin-validation `destinations[0]`, (c) vehicle matrix `sources[]` 각각의 `snapped_distance`만 독립적으로 생략해도 기존 valid location/duration/matrices로 계산·저장이 성공하고 missing 값을 합성하지 않는다. 같은 각 위치에 present string/null/non-finite/negative 값을 하나씩 넣으면 해당 stage에서 provider-response failure, 후속 request/write 0회와 last-good 보존이다. vehicle source의 present 값은 configured maximum 이하 boundary에서 성공하고 초과 시 기존 이격거리 실패이며, object/cardinality, origin location/duration 또는 matrix metric 결함은 계속 실패한다. |
 | AC-SRP-062 (2026-09-22 승인) | isolated macOS/Windows path resolution은 remembered route key를 각각 exact `~/Library/Application Support/FieldBuild Standalone/credentials.enc`와 `%APPDATA%\FieldBuild Standalone\credentials.enc`에만 암호화 저장·재로드한다. FieldBuild Kit display name 및 `FieldBuild Kit`/`QField Project Builder` sibling stores의 absent/present/populated 조합은 canonical path와 readback을 바꾸지 않으며 sibling bytes와 directory state는 전후 동일하다. diagnostic override는 명시한 disposable directory의 `credentials.enc` 하나만 사용한다. remember off/blank/store failure는 새 file 또는 plaintext fallback을 만들지 않고, 어느 branch도 desktop store를 generated project에 복사하거나 secret/path를 일반 로그·UI·report에 노출하지 않는다. |
+| AC-SRP-063 (2026-09-22 승인) | mapped visit과 fallback visit 2개가 섞인 candidate 및 이를 저장해 다시 연 route는 접히지 않은 결과 영역에 simple vehicle/walking distance·time totals와 exact `실제 도로 경로를 못 찾은 구간을 직선거리 추정치로 포함하였습니다.`를 각각 표시하고 notice는 화면과 screen reader에 정확히 한 번만 존재한다. `지도에 없는 도보 구간 포함` 또는 다른 acknowledgement checkbox/control은 0개이며, 다른 기존 validation이 유효하면 fallback 상태에서도 save button이 활성화되어 추가 확인 없이 저장 성공 fixture를 commit한다. `상세 정보`는 최초 표시/load에서 접혀 있어 raw `walking_mode`/`metric_source`, per-visit diagnostics와 endpoint-gap 문구가 기본 결과에 노출되지 않는다. 펼치면 affected visit별 진단과 적용 route당 exact `ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함` 한 줄만 보이고 visit card/totals/legend에는 같은 endpoint-gap line이 0개다. 펼침/접힘 전후 candidate/payload/request/write count와 save enablement는 동일하다. all-mapped/exact-zero-only candidate에는 fallback notice가 없고, candidate 없음과 invalid mapping만 D-SRP-065의 인접 disabled reason을 보인다. |
+| AC-SRP-064 (2026-09-22 승인) | 320 px 및 wide viewport에서 message/status가 save control 위쪽의 현재 viewport 밖에 있도록 scroll한 뒤, (a) successful commit, (b) blank name, (c) stale calculation input, (d) snapshot revision conflict, (e) repository write false, (f) readback mismatch, (g) injected exception을 각각 한 번 발생시킨다. 모든 case에서 final success/error status 전체가 자동으로 현재 viewport 안에 보이고 screen reader에 정확히 한 번 announce된다. (a)만 success와 candidate clear/new active route를 보이며 (b)~(g)는 success 0회, 원인별 redacted actionable failure, candidate와 last-good saved bytes/revision 보존을 보인다. scroll/focus/name/disclosure state 변화, 추가 provider request 또는 자동 retry는 0회다. 자동 QML test는 success/false/exception branch와 scroll target/announcement wiring의 proxy이고 실제 target QField touch/viewport 결과는 별도 사용자 기기 evidence 전까지 `미검증`이다. |
+| AC-SRP-065 (2026-09-22 승인) | 동일한 pre-existing generated project fixture와 이 slice를 포함한 FieldBuild Kit로 새 output에 생성한 fixture를 비교한다. 새 output의 `qfield_routes/`만 D-SRP-064~065 behavior를 포함하고 build 완료 summary/help에 D-SRP-066 exact disclosure가 보인다. desktop app rebuild/reinstall만 수행한 pre-existing output은 route files, collected GPKG, route storage와 project settings bytes가 전후 동일하며 새 동작을 포함한다고 주장하지 않는다. 새 output을 QField에 명시적으로 전달해 연 target-device test만 이 slice의 실기 검증으로 기록한다. in-place overwrite/migration과 수집 data deletion은 0회다. |
 
 ## 6. API 근거 / 검증 경계
 VROOM 근거는 초기 provider가 대상으로 삼은 **v1.14.0 tag**에 고정한다. 공식 문서는 timing을
@@ -1391,8 +1486,24 @@ device, project fixture, zoom/basemap, 수행한 gesture와 관찰 결과를 함
   현재 계약을 구체화하며 2026-09-22 사용자가 승인했다. fresh test-designer가 acceptance/traceability를
   별도 작성하고 그 산출물도 별도 승인받아야 한다. 이 명세 승인은 기존 acceptance 산출물을 변경하거나
   그 변경을 미리 승인하지 않는다.
+- **O-SRP-018 (2026-09-22 해결·명세 승인):** D-SRP-064~066, FR-SRP-061~063,
+  NFR-SRP-011 및 AC-SRP-063~065는 fallback을 선택 옵션처럼 보이게 하던 acknowledgement와 save gate를
+  제거하고 exact visible notice와 default-collapsed `상세 정보`로 단순화한다. 같은 ID의 이전 DRAFT
+  acknowledgement 제안을 대체하며, D-SRP-054/061, FR-SRP-050/058 및 AC-SRP-051/053/060의
+  acknowledgement 요구만 supersede한다. D-SRP-060, FR-SRP-057, NFR-SRP-009 및 AC-SRP-059의 복잡한
+  기술 문구 표시 위치는 단일 disclosure로 좁힌다. fallback provenance·warning·시간 사용 불가, 모든 save
+  outcome의 viewport/accessibility feedback, 저장 atomicity/last-good 및 project-local route runtime의
+  배포 경계는 유지한다. 실제 기기 persistence failure의 원인을 단정하지 않는다. fresh
+  test-designer가 acceptance/traceability를 정합하며, 그 산출물도 별도 승인이 필요하다.
 
 ### 승인된 slice의 acceptance 정합 범위
+
+2026-09-22 승인된 저장 설명/feedback slice에 따라 fresh test-designer는 **D-SRP-064~066,
+FR-SRP-061~063, NFR-SRP-011 및 AC-SRP-063~065**를 기준으로
+fallback exact notice·acknowledgement control 0개·fallback과 무관한 save enablement, 기본 접힘
+`상세 정보`와 endpoint-gap line 1개 제한, 모든 save true/false/exception의 viewport 이동·단일 announcement·state 보존,
+새 output과 기존 embedded project의 deployment boundary를 각각 독립 test item으로 추가한다. 실제
+target QField save와 scroll/touch 결과는 자동 source inspection만으로 PASS 처리하지 않는다.
 
 2026-09-21 명세 승인에 따라 fresh test-designer는 **D-SRP-060, FR-SRP-057 및 AC-SRP-059**를 기준으로 requested endpoint에서 1 m보다
 멀리 snap되고 provider distance가 requested geodesic보다 짧지만 documented GeoJSON/way_points/metric은
