@@ -1,4 +1,9 @@
-# Survey Route Planner — approved AC-SRP-061–062 extension
+# Survey Route Planner — approved AC-SRP-063–065 extension
+
+> **APPROVED TEST DESIGN (approval 2026-09-22).** This slice covers the approved
+> D-SRP-064–066 / FR-SRP-061–063 / NFR-SRP-011 / AC-SRP-063–065 requirements. The approved
+> AC-SRP-061–062 design and earlier history below remain unchanged. Earlier acknowledgement-gated
+> fallback-save expectations are historical only where D-SRP-064 explicitly supersedes them.
 
 > **APPROVED TEST DESIGN (approval 2026-09-22).** The Matrix optional-diagnostic and desktop
 > credential-store extension is approved; earlier statuses below are preserved.
@@ -846,3 +851,44 @@ acceptance-evidence correction and are not treated as stable proof.
   subprocesses were denied `127.0.0.1` bind with `PermissionError`. It is environment noise, not product or
   acceptance evidence.
 - No live provider or native-QField/device operation was performed; M01–M21 remain **NOT RUN**.
+
+## APPROVED AC-SRP-063–065 result simplification, save feedback, and runtime deployment design
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-22).** Requirement authority is
+the approved specification checkpoint `d31bf65`. This supersedes only earlier tests that required
+or clicked an unmapped-route acknowledgement control.
+
+### Automated design
+
+- AC-SRP-063 loads a freshly generated `RoutePanel.qml` at 320 px/light and 1024 px/dark with one
+  mapped and one fallback visit. It observes one visible/accessibility fallback notice, zero old or
+  replacement acknowledgement controls, fallback-independent save enablement and a real successful
+  save without an acknowledgement API. Exact `상세 정보` is collapsed for candidate and saved-route
+  load; raw modes/sources, per-visit diagnostics and endpoint-gap text are absent from default text.
+  Expanded details identify each visit, expose raw provenance/time-unavailable diagnostics, and own
+  the only visible exact endpoint-gap line. Candidate JSON/payload, request/write counts and save
+  enablement are identical across expand/collapse. Separate all-mapped and exact-zero-only fixtures
+  have no fallback notice. Candidate-none and invalid-mapping reasons are observed beside save.
+- AC-SRP-064 crosses success, blank name, stale input, external revision conflict, write `false`,
+  corrupt readback and injected exception at both viewport/theme pairs. A production-saved last-good
+  route precedes each attempt. The real save-button handler must move the complete final status into
+  view. Exactly one visible QAccessible `StatusBar` whose name is the final message is the automated
+  announcement proxy. Success alone clears the candidate and publishes the new active route; every
+  failure preserves candidate, independently loaded last-good document/revision/bytes, focus, name
+  and disclosure state, with no provider request, retry, or extra write.
+- AC-SRP-065 snapshots every byte of an existing generated project (including collected GPKG, QGS,
+  route storage and a marked older embedded panel), then builds a separate new output. The new
+  `qfield_routes/` tree must byte-match source runtime, the old tree must be unchanged, and the build
+  completion message must contain the D-SRP-066 disclosure exactly once without migration/overwrite
+  claims.
+
+### Manual boundary and intended RED
+
+M22 is user-run: explicitly transfer the newly generated output to target QField and verify 320 px/
+wide touch, screen-reader announcement, save/restart/folder-move persistence and collected-data
+preservation. Until recorded it is **NOT RUN (`미검증`)**. Qt/source tests cannot promote it to PASS.
+
+The current implementation is expected RED because it retains the acknowledgement gate, exposes raw
+details by default, repeats endpoint-gap copy, scrolls only after successful save, lacks the disabled-
+reason/status semantics, and omits the exact build-completion disclosure. No live provider, secret,
+real app-data, in-place update, collected-data mutation, or target-device action is automated.

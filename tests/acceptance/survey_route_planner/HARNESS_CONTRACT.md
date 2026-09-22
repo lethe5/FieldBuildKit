@@ -1,4 +1,8 @@
-# Survey route acceptance harness — approved AC-SRP-061–062 extension
+# Survey route acceptance harness — approved AC-SRP-063–065 extension
+
+**APPROVED TEST DESIGN (approval 2026-09-22):** the two generated-QML operations and fresh-
+build comparison below cover AC-SRP-063–065. Approved AC-SRP-061–062 and earlier harness contracts
+remain unchanged except that D-SRP-064 supersedes the historical acknowledgement save gate.
 
 **APPROVED TEST DESIGN (approval 2026-09-22):** AC-SRP-061 Matrix optional-diagnostic and
 AC-SRP-062 desktop credential-store coverage is approved. Earlier approved/DRAFT statuses are preserved.
@@ -474,3 +478,29 @@ Reading that property from the pre-save control only after `open_panel()` has sc
 deletion is stale-object evidence and is not accepted. The verifier must enforce the ordering
 acknowledgement click → checked-state capture → save click → independent reopen. All approved save,
 persistence, feedback, failure-retention and exact-control expectations remain unchanged.
+
+## APPROVED AC-SRP-063–065 result/save/deployment extension (2026-09-22)
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-22).** D-SRP-064 supersedes the preceding
+acknowledgement-click contract as a current expectation; that prose is retained only as history.
+
+`route_ui_simplification` loads the actual generated panel and returns candidate-none/invalid-mapping
+disabled reasons; screen and QAccessible fallback-notice counts; every old acknowledgement-labelled
+QObject count; default/expanded/collapsed detail text and endpoint-gap ancestry; candidate/payload,
+provider/write and save-enabled snapshots around toggles; and real no-ack save/reopen evidence.
+
+Stable generated-panel observation anchors are `saveDisabledReason`, `fallbackNotice`,
+`routeDetailsDisclosure`, `routeDetailsContent`, and `saveStatus`. The disclosure's accessible name is
+exact `상세 정보`. These anchors are not a new service API.
+
+`save_outcome_visibility` production-saves a last-good route, calculates a second candidate, and drives
+the actual `saveRouteButton` handler for success, blank name, stale input, repository revision conflict,
+write false, readback mismatch and injected exception. It returns status geometry relative to the live
+ScrollView, all visible QAccessible objects named by the final message, candidate and independent
+repository snapshots, valid-slot bytes/revision, focus/name/disclosure state, request count and write
+count. One QAccessible `StatusBar` is the announcement proxy, not proof of native speech.
+
+AC-SRP-065 reuses the public desktop build flow and compares complete byte maps. The new output runtime
+must equal source; the builder is never pointed at the pre-existing output; and `logs.builder_message`
+must contain the exact D-SRP-066 disclosure once. The new driver contains no `acknowledgeUnmapped` call
+or replacement acknowledgement helper. M22 stays skipped and **NOT RUN (`미검증`)**.

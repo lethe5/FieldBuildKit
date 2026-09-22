@@ -1,4 +1,8 @@
-"""APPROVED AC-SRP-061–062 Matrix/credential-store acceptance extension (2026-09-22).
+"""APPROVED AC-SRP-063–065 route-result/save/deployment acceptance extension (2026-09-22).
+
+The approved AC-SRP-061–062 extension and all earlier history remain preserved below.  This
+approved extension supersedes only the earlier fallback acknowledgement expectations identified by
+D-SRP-064 and adds generated-QML and fresh-build observations for the new approved slice.
 
 The approved AC-SRP-059 baseline and all earlier history remain preserved below. The new extension
 uses only disposable localhost/app-data fixtures and visibly synthetic credentials.
@@ -3029,7 +3033,7 @@ def test_ac051_malformed_walking_response_does_not_fallback_or_continue(tmp_path
     assert "도보" in observed["error"]["message"]
 
 
-def test_ac051_unmapped_save_requires_acknowledgement_and_keeps_null_totals(tmp_path):
+def test_ac051_ac063_unmapped_save_needs_no_acknowledgement_and_keeps_null_totals(tmp_path):
     responder = _provider_responder(
         fail_stage="walking-directions", status=404,
         failure={"error": {"code": "NO_FOOT_ROUTE", "message": "no foot route found"}},
@@ -3042,102 +3046,16 @@ def test_ac051_unmapped_save_requires_acknowledgement_and_keeps_null_totals(tmp_
             "settings": _settings(base), "start": MIXED_START, "roundtrip": False,
             "replace_active": True, "name": "fallback 경로",
         }
-        blocked = _direct_node(
-            "controller_flow", tmp_path,
-            base=str(tmp_path / "fallback-blocked" / "routes"), **common,
-        )
         accepted = _direct_node(
             "controller_flow", tmp_path,
-            base=str(tmp_path / "fallback-accepted" / "routes"),
-            acknowledge_unmapped=True, **common,
+            base=str(tmp_path / "fallback-direct-save" / "routes"), **common,
         )
-    assert blocked["calculated"] is True and blocked["saved"] is False
-    assert "지도에 없는 도보 구간 포함" in blocked["state_message"]
+    assert accepted["calculated"] is True
     assert accepted["saved"] is True
     route = next(route for route in accepted["snapshot"]["data"]["routes"]
                  if route["route_schema"] == 3)
     assert route["walking_totals"]["duration_s"] is None
     assert route["combined_totals"] is None
-
-
-# APPROVED TEST DESIGN (approval 2026-09-22), including the approved acceptance-evidence timing correction:
-# generated-QML unmapped-save click regression.
-def _unmapped_save_qml_click(tmp_path, *, fault=""):
-    """Build a disposable project and drive its generated acknowledgement/save controls."""
-    from qfield_builder.survey_route_acceptance import _build
-
-    generated = _build(tmp_path / ("failure" if fault else "success"), sites=[{
-        "site_id": "site-a", "site_name": "농촌 A", "geom_wkt": "POINT(127.01 37.01)",
-    }], site_geometry_type="POINT")
-    driver = Path(__file__).parent / "unmapped_save_qml_driver.py"
-    payload = {
-        "project_dir": generated["project_dir"],
-        "case": {
-            "operation": "unmapped_save_qml_click",
-            "route_name": "현장 fallback 경로",
-            "fault": fault,
-            "features": [{"id": "site-a", "name": "농촌 A", "xy": [127.01, 37.01]}],
-        },
-    }
-    completed = subprocess.run(
-        [sys.executable, str(driver)], input=json.dumps(payload), text=True,
-        encoding="utf-8", errors="replace", capture_output=True, timeout=45,
-    )
-    assert completed.returncode == 0, completed.stderr
-    return json.loads(completed.stdout)
-
-
-def test_ac036_ac051_ac052_unmapped_generated_qml_click_saves_schema3_and_reports_path(tmp_path):
-    observed = _unmapped_save_qml_click(tmp_path)
-    controls = observed["qml_controls"]
-    assert observed["qml_runtime"]["loaded_generated_qml"] is True
-    assert controls["acknowledgement_object_name"] == "unmappedAcknowledgement"
-    assert controls["save_object_name"] == "saveRouteButton"
-    assert controls["save_enabled_before_ack"] is False
-    assert controls["acknowledgement_checked"] is True
-    assert controls["save_enabled_after_ack"] is True
-
-    route_name = observed["route_name_input"].strip()
-    relative_path = observed["committed_project_relative_path"]
-    assert observed["save_ok"] is True
-    assert observed["candidate_after_click"] is None
-    assert relative_path in {"survey-routes.a.json", "survey-routes.b.json"}
-    assert route_name in observed["message_after_click"]
-    assert relative_path in observed["message_after_click"]
-    assert observed["feedback_in_viewport"] is True
-
-    document = observed["document_after_click"]
-    reopened_document = observed["independently_reopened_document"]
-    assert document == reopened_document
-    assert document["schema"] == 3
-    assert observed["route_after_click"] == observed["independently_reopened_route"]
-    route = observed["route_after_click"]
-    assert route["route_schema"] == 3
-    assert route["name"] == route_name
-    assert route["visits"][0]["walking_mode"] == "unmapped_estimate"
-    assert route["walking_totals"]["duration_s"] is None
-    assert route["combined_totals"] is None
-    assert observed["load_enabled_after_click"] is True
-    assert observed["independently_reopened_load_enabled"] is True
-    assert any(item["route_id"] == route["route_id"]
-               for item in observed["independently_reopened_list"])
-
-
-def test_ac036_unmapped_generated_qml_save_failure_keeps_candidate_and_shows_error(tmp_path):
-    observed = _unmapped_save_qml_click(tmp_path, fault="commit_failure")
-    assert observed["qml_controls"]["save_enabled_after_ack"] is True
-    assert observed["save_ok"] is False
-    assert observed["candidate_after_click"] == observed["candidate_before_click"]
-    assert observed["document_after_click"] is None
-    assert observed["route_after_click"] is None
-    assert observed["listed_after_click"] == []
-    assert observed["load_enabled_after_click"] is False
-    assert observed["committed_project_relative_path"] is None
-    assert "저장 실패" in observed["message_after_click"]
-    assert "저장했습니다" not in observed["message_after_click"]
-    assert observed["feedback_in_viewport"] is True
-
-
 def _saved_mixed_document(tmp_path):
     with _route_http(_provider_responder()) as (base, records):
         base_path = str(tmp_path / "project" / "survey-routes")
@@ -3730,7 +3648,7 @@ def test_ac060_one_point_zero_route_reuses_existing_unmapped_contract(tmp_path):
     assert [127.0095, 37.0095] not in outbound["geometry"]["coordinates"]
 
 
-def test_ac060_one_point_zero_route_requires_existing_unmapped_acknowledgement(tmp_path):
+def test_ac060_ac063_one_point_zero_route_saves_without_unmapped_acknowledgement(tmp_path):
     responder = _walking_response_responder(_one_point_zero_walking_response())
     with _route_http(responder) as (base, _records):
         common = {
@@ -3740,15 +3658,10 @@ def test_ac060_one_point_zero_route_requires_existing_unmapped_acknowledgement(t
             "settings": _settings(base), "start": MIXED_START, "roundtrip": False,
             "replace_active": True, "name": "1점 fallback 경로",
         }
-        blocked = _direct_node(
-            "controller_flow", tmp_path,
-            base=str(tmp_path / "one-point-blocked" / "routes"), **common)
         accepted = _direct_node(
             "controller_flow", tmp_path,
-            base=str(tmp_path / "one-point-accepted" / "routes"),
-            acknowledge_unmapped=True, **common)
-    assert blocked["calculated"] is True and blocked["saved"] is False
-    assert "지도에 없는 도보 구간 포함" in blocked["state_message"]
+            base=str(tmp_path / "one-point-direct-save" / "routes"), **common)
+    assert accepted["calculated"] is True
     assert accepted["saved"] is True
     route = next(route for route in accepted["snapshot"]["data"]["routes"]
                  if route["route_schema"] == 3)
@@ -4257,3 +4170,220 @@ def test_ac062_remembered_route_key_is_not_copied_or_exposed_by_builder_ui(run):
     assert not any(path.name == "credentials.enc" for path in artifacts)
     assert not any(_ROUTE_CREDENTIAL.encode() in path.read_bytes() for path in artifacts)
     assert observed["remembered_key_available_to_qfield"] is False
+
+
+# APPROVED AC-SRP-063–065 acceptance extension (approval 2026-09-22).
+FALLBACK_RESULT_NOTICE = "실제 도로 경로를 못 찾은 구간을 직선거리 추정치로 포함하였습니다."
+BUILD_RUNTIME_DISCLOSURE = (
+    "경로 패널 코드는 생성된 프로젝트에 포함됩니다. FieldBuild Kit만 업데이트해도 "
+    "기존 생성 프로젝트는 자동으로 바뀌지 않습니다."
+)
+LONG_SITE_NAME = "산지 B 장기 현장조사 대상 이름이 줄바꿈되어도 진단 의미와 읽기 순서를 유지해야 합니다"
+
+
+def _run_route_ui_qml(tmp_path, **case):
+    """Build a disposable project, then observe its generated RoutePanel through Qt."""
+    from qfield_builder.survey_route_acceptance import _build
+
+    sites = [
+        {"site_id": "site-a", "site_name": "산지 A", "geom_wkt": "POINT(127.010 37.010)"},
+        {"site_id": "site-b", "site_name": LONG_SITE_NAME, "geom_wkt": "POINT(127.020 37.020)"},
+    ]
+    if case.get("composition") == "exact_zero_only":
+        sites = sites[:1]
+    generated = _build(tmp_path / case["operation"], sites=sites, site_geometry_type="POINT")
+    payload = {
+        "project_dir": generated["project_dir"],
+        "case": {
+            **case,
+            "features": [
+                {"id": row["site_id"], "name": row["site_name"],
+                 "xy": [127.01 + index * .01, 37.01 + index * .01]}
+                for index, row in enumerate(sites)
+            ],
+        },
+    }
+    driver = Path(__file__).parent / "route_ui_simplification_qml_driver.py"
+    completed = subprocess.run(
+        [sys.executable, str(driver)], input=json.dumps(payload), text=True,
+        encoding="utf-8", errors="replace", capture_output=True, timeout=60,
+    )
+    assert completed.returncode == 0, completed.stderr
+    return json.loads(completed.stdout)
+
+
+@pytest.mark.parametrize(("viewport_width", "theme"), [(320, "light"), (1024, "dark")])
+def test_ac063_mixed_result_has_one_notice_no_ack_and_default_collapsed_details(
+        tmp_path, viewport_width, theme):
+    observed = _run_route_ui_qml(
+        tmp_path, operation="route_ui_simplification", composition="mixed",
+        viewport_width=viewport_width, theme=theme,
+    )
+    assert observed["qml_runtime"]["loaded_generated_qml"] is True
+    no_candidate = observed["no_candidate_reason"]
+    assert {key: no_candidate[key] for key in ("text", "visible", "save_enabled")} == {
+        "text": "저장할 수 없음: 먼저 새 경로를 계산하세요.",
+        "visible": True,
+        "save_enabled": False,
+    }
+    assert no_candidate["reason_viewport"]["fully_visible"] is True
+    assert no_candidate["save_viewport"]["fully_visible"] is True
+    assert no_candidate["layout"]["horizontal_overflow"] is False
+    assert no_candidate["layout"]["overlaps"] == []
+    assert observed["acknowledgement_control_count"] == 0
+    assert observed["fallback_notice_screen_count"] == 1
+    assert len(observed["fallback_notice_accessible"]) == 1
+    assert observed["fallback_notice_accessible"][0]["name"] == FALLBACK_RESULT_NOTICE
+    assert observed["save_enabled_before_toggle"] is True
+
+    default_text = "\n".join(observed["default_visible_texts"])
+    assert all(value in default_text for value in ("차량 거리", "차량 시간", "도보 거리", "도보 시간"))
+    assert FALLBACK_RESULT_NOTICE in default_text
+    assert observed["details_before"]["label"] == "상세 정보"
+    assert observed["details_before"]["visual_label"] == "상세 정보"
+    assert observed["details_before"]["role"] == "Button"
+    assert observed["details_before"]["expanded"] is False
+    assert observed["endpoint_gap_default_visible_count"] == 0
+    for raw in ("unmapped_estimate", "straight_line_lower_bound_m", "ors-foot-hiking",
+                ENDPOINT_GAP_DISCLOSURE):
+        assert raw not in default_text
+        assert raw not in "\n".join(observed["default_accessible_names"])
+
+    expanded_text = "\n".join(observed["expanded_visible_texts"])
+    assert observed["details_expanded"]["expanded"] is True
+    assert all(value in expanded_text for value in (
+        "site-a", "산지 A", "mapped", "ors-foot-hiking",
+        "site-b", LONG_SITE_NAME, "unmapped_estimate", "straight_line_lower_bound_m",
+        "시간 사용 불가",
+    ))
+    expanded_accessible = "\n".join(observed["details_expanded"]["accessible_names"])
+    assert all(value in expanded_accessible for value in (
+        "site-a", "mapped", "ors-foot-hiking", "site-b", LONG_SITE_NAME,
+        "unmapped_estimate", "straight_line_lower_bound_m", "시간 사용 불가",
+    ))
+    assert observed["endpoint_gap_expanded_count"] == 1
+    assert observed["endpoint_gap_inside_details"] == [True]
+    assert observed["expanded_layout"]["horizontal_overflow"] is False
+    assert observed["expanded_layout"]["overlaps"] == []
+    assert not any(item["truncated"] for item in observed["expanded_layout"]["items"])
+    assert observed["details_collapsed_again"]["expanded"] is False
+    assert observed["candidate_after_toggle"] == observed["candidate_before"]
+    assert observed["payload_after_toggle"] == observed["payload_before"]
+    assert observed["request_count_after_toggle"] == observed["request_count_before_toggle"]
+    assert observed["write_count_after_toggle"] == observed["write_count_before_toggle"]
+    assert observed["save_enabled_after_toggle"] == observed["save_enabled_before_toggle"]
+
+    invalid = observed["invalid_mapping_reason"]
+    assert invalid["mapping_validation"]
+    assert invalid["text"] == "저장할 수 없음: " + invalid["mapping_validation"]
+    assert invalid["save_enabled"] is False
+    assert invalid["reason_viewport"]["fully_visible"] is True
+    assert invalid["save_viewport"]["fully_visible"] is True
+    saved = observed["saved_observation"]
+    assert saved["save_ok"] is True
+    assert saved["route"]["visits"] == observed["candidate_before"]["visits"]
+    assert saved["details"]["label"] == "상세 정보"
+    assert saved["details"]["expanded"] is False
+    assert saved["notice_screen_count"] == saved["notice_accessible_count"] == 1
+
+
+@pytest.mark.parametrize("composition", ["all_mapped", "exact_zero_only"])
+def test_ac063_nonfallback_results_have_no_fallback_notice_or_save_gate(tmp_path, composition):
+    observed = _run_route_ui_qml(
+        tmp_path, operation="route_ui_simplification", composition=composition,
+        viewport_width=320, theme="light",
+    )
+    assert observed["fallback_notice_screen_count"] == 0
+    assert observed["fallback_notice_accessible"] == []
+    assert observed["acknowledgement_control_count"] == 0
+    assert observed["save_enabled_before_toggle"] is True
+
+
+@pytest.mark.parametrize(("viewport_width", "theme"), [(320, "light"), (1024, "dark")])
+@pytest.mark.parametrize("outcome", [
+    "success", "blank_name", "stale_input", "revision_conflict",
+    "write_false", "readback_mismatch", "exception",
+])
+def test_ac064_every_save_outcome_is_visible_once_and_preserves_required_state(
+        tmp_path, viewport_width, theme, outcome):
+    observed = _run_route_ui_qml(
+        tmp_path, operation="save_outcome_visibility", outcome=outcome,
+        viewport_width=viewport_width, theme=theme,
+    )
+    assert observed["status_viewport_before"]["fully_visible"] is False
+    assert observed["status_viewport_after"]["fully_visible"] is True
+    assert len(observed["announcement_proxy_matches"]) == 1
+    assert observed["announcement_proxy_matches"][0]["role"] == "StatusBar"
+    assert observed["status_text"]
+    assert observed["provider_request_count_after"] == observed["provider_request_count_before"]
+    assert observed["focus_object_after"] == observed["focus_object_before"] == "saveRouteButton"
+    assert observed["route_name_after"] == observed["route_name_before"]
+    assert observed["disclosure_after"] == observed["disclosure_before"] is True
+    assert observed["outcome_layout"]["horizontal_overflow"] is False
+    assert observed["outcome_layout"]["overlaps"] == []
+    assert not any(item["truncated"] for item in observed["outcome_layout"]["items"])
+
+    expected_write_attempts = 1 if outcome in {"success", "write_false", "readback_mismatch"} else 0
+    assert (observed["write_attempt_count_after"] - observed["write_attempt_count_before"]
+            == expected_write_attempts)
+    if outcome == "success":
+        assert observed["candidate_after"] is None
+        assert observed["active_after"]["name"] == observed["route_name"]
+        assert observed["document_after"] != observed["document_before"]
+        assert observed["persisted_revision_after"] == observed["persisted_revision_before"] + 1
+        assert "저장했습니다" in observed["status_text"]
+    else:
+        assert observed["candidate_after"] == observed["candidate_before"]
+        assert observed["document_after"] == observed["document_before"]
+        assert observed["persisted_revision_after"] == observed["persisted_revision_before"]
+        assert observed["last_good_bytes_unchanged"] is True
+        assert "저장했습니다" not in observed["status_text"]
+        keyword = {
+            "blank_name": "이름",
+            "stale_input": "새 경로를 계산",
+            "revision_conflict": "다시 불러",
+            "write_false": "저장 실패",
+            "readback_mismatch": "저장 확인 실패",
+            "exception": "다시 시도",
+        }[outcome]
+        assert keyword in observed["status_text"]
+
+
+def _tree_bytes(root):
+    return {str(path.relative_to(root)): path.read_bytes()
+            for path in sorted(root.rglob("*")) if path.is_file()}
+
+
+def test_ac065_fresh_build_bundles_current_runtime_and_never_updates_existing_project(run, tmp_path):
+    from qfield_builder.survey_route_acceptance import _build
+
+    preexisting_result = _build(tmp_path / "legacy-seed", sites=[{
+        "site_id": "legacy", "site_name": "기존 조사", "geom_wkt": "POINT(127 37)",
+    }], site_geometry_type="POINT")
+    preexisting = Path(preexisting_result["project_dir"])
+    legacy_panel = preexisting / "qfield_routes" / "RoutePanel.qml"
+    legacy_panel.write_bytes(legacy_panel.read_bytes() + b"\n// pre-existing generated runtime fixture\n")
+    (preexisting / "survey-routes.a.json").write_bytes(b"legacy route storage bytes")
+    before = _tree_bytes(preexisting)
+
+    observed = run(
+        operation="builder_step7_route_credentials", state="runtime-boundary",
+        input_key="", consent=False, remember=False, outcome="success",
+    )
+    assert observed["build_success"] is True
+    new_project = Path(observed["project_dir"])
+    source_runtime = Path(__file__).parents[3] / "qfield_builder" / "qfield_routes"
+    assert _tree_bytes(new_project / "qfield_routes") == _tree_bytes(source_runtime)
+    assert _tree_bytes(preexisting) == before
+    assert before["qfield_routes/RoutePanel.qml"] != (
+        new_project / "qfield_routes" / "RoutePanel.qml").read_bytes()
+    assert observed["logs"]["builder_message"].splitlines().count(BUILD_RUNTIME_DISCLOSURE) == 1
+    assert not any("migration" in str(item).lower() or "overwrite" in str(item).lower()
+                   for item in observed["logs"]["builder_progress"])
+
+
+def test_ac063_ac064_ac065_target_qfield_handoff_is_user_run_and_unverified():
+    pytest.skip(
+        "미검증: 새 FieldBuild Kit output을 target QField로 전달한 뒤 320 px/wide touch, "
+        "screen-reader announcement, save persistence, restart and project-folder move를 사용자가 검증"
+    )

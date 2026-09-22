@@ -1,4 +1,9 @@
-# Survey Route Planner — approved AC-SRP-061–062 traceability extension
+# Survey Route Planner — approved AC-SRP-063–065 traceability extension
+
+> **APPROVED TEST DESIGN (approval 2026-09-22).** The AC-SRP-063–065 mappings below trace
+> only to approved D-SRP-064–066 / FR-SRP-061–063 / NFR-SRP-011. Approved AC-SRP-061–062 and
+> earlier traceability remains preserved. Any older acknowledgement-gated save row is superseded
+> only to the extent stated by D-SRP-064.
 
 > **APPROVED TEST DESIGN (approval 2026-09-22).** AC-SRP-061–062 mappings are approved;
 > earlier statuses below are preserved.
@@ -465,3 +470,20 @@ Approved corrected-harness verification: design verifier **PASS**; **477 collect
 localhost-enabled focused invocations each returned **2 passed, 475 deselected** (2.58 s, 2.20 s and 2.02 s).
 The prior restricted-sandbox invocation returned **2 failed, 475 deselected** only because both disposable
 localhost binds were denied with `PermissionError`; it is not conformance evidence. M01–M21 remain **NOT RUN**.
+
+## APPROVED AC-SRP-063–065 traceability (2026-09-22)
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-22).** Authority is approved checkpoint `d31bf65`.
+
+| Approved authority | Direct automated evidence | Explicit boundary |
+| --- | --- | --- |
+| D-SRP-064; FR-SRP-061; AC-SRP-063 — exact notice, no acknowledgement, no fallback save gate | `test_ac051_ac063_unmapped_save_needs_no_acknowledgement_and_keeps_null_totals`, `test_ac060_ac063_one_point_zero_route_saves_without_unmapped_acknowledgement`, `test_ac063_mixed_result_has_one_notice_no_ack_and_default_collapsed_details` | Generated Qt/QML and production-controller evidence; native touch remains M22 |
+| D-SRP-064; FR-SRP-061; NFR-SRP-011; AC-SRP-063 — collapsed exact details, raw diagnostics inside, one endpoint-gap line, disclosure purity | Mixed-result test at 320/light and 1024/dark compares candidate/payload/request/write/save state around expand-collapse | QAccessible/layout proxy, not native speech/device rendering |
+| D-SRP-065; FR-SRP-061; AC-SRP-063 — disabled reasons and nonfallback absence | Mixed test checks exact candidate-none and mapping-adjacent reasons; `test_ac063_nonfallback_results_have_no_fallback_notice_or_save_gate` covers all-mapped/exact-zero-only | Existing validation supplies the mapping suffix |
+| D-SRP-065; FR-SRP-062; NFR-SRP-011; AC-SRP-064 — every save outcome visible and announced once | `test_ac064_every_save_outcome_is_visible_once_and_preserves_required_state` crosses seven outcomes at both viewport/theme pairs | One visible QAccessible `StatusBar` is the announcement proxy; native speech remains M22 |
+| FR-SRP-062; AC-SRP-064 — success/failure state, atomicity and no retry | Same test requires success-only clear/new active; failures preserve candidate plus independent last-good data/revision/bytes and focus/name/disclosure | Synthetic false/readback/exception; no real disk-full |
+| D-SRP-066; FR-SRP-063; AC-SRP-065 — fresh bundle and immutable existing output | `test_ac065_fresh_build_bundles_current_runtime_and_never_updates_existing_project` compares runtime byte trees and exact completion disclosure | Desktop build only; no implicit update claim |
+| AC-SRP-063–065 target-device evidence | `test_ac063_ac064_ac065_target_qfield_handoff_is_user_run_and_unverified` is explicitly skipped | M22 remains `미검증` until user transfer/open |
+
+Historical acknowledgement-click rows above remain as historical evidence only; D-SRP-064 explicitly
+supersedes their current acknowledgement/gate expectation and the old click driver is removed.

@@ -464,7 +464,7 @@ print("survey route AC059 reviewer correction verified; M01-M21 remain NOT RUN")
 for required in (
     "_one_point_zero_walking_response",
     "test_ac060_one_point_zero_route_reuses_existing_unmapped_contract",
-    "test_ac060_one_point_zero_route_requires_existing_unmapped_acknowledgement",
+    "test_ac060_ac063_one_point_zero_route_saves_without_unmapped_acknowledgement",
     "test_ac060_invalid_degenerate_variants_fail_atomically_without_fallback",
 ):
     assert required in test_source
@@ -560,49 +560,66 @@ assert all(token in ac062_ui for token in (
 ))
 print("survey route AC061-062 matrix/credential-store design verified; no real app-data used")
 
-# APPROVED Category A correction and acceptance-evidence timing correction (approval 2026-09-22):
-# generated-QML acknowledgement/save clicks are direct.
-qml_click_success = inspect.getsource(
-    module.test_ac036_ac051_ac052_unmapped_generated_qml_click_saves_schema3_and_reports_path)
-assert all(token in qml_click_success for token in (
-    'controls["acknowledgement_object_name"] == "unmappedAcknowledgement"',
-    'controls["save_object_name"] == "saveRouteButton"',
-    'controls["save_enabled_before_ack"] is False',
-    'controls["acknowledgement_checked"] is True',
-    'controls["save_enabled_after_ack"] is True',
-    'observed["candidate_after_click"] is None',
-    'document["schema"] == 3',
-    'route["route_schema"] == 3',
-    'observed["load_enabled_after_click"] is True',
-    'observed["independently_reopened_load_enabled"] is True',
-    'route_name in observed["message_after_click"]',
-    'relative_path in observed["message_after_click"]',
-    'observed["feedback_in_viewport"] is True',
+# APPROVED AC-SRP-063–065 acceptance extension (approval 2026-09-22): exact UI observations and deployment boundary.
+assert {"063", "064", "065"} <= coverage
+ac051_save = inspect.getsource(
+    module.test_ac051_ac063_unmapped_save_needs_no_acknowledgement_and_keeps_null_totals)
+ac060_save = inspect.getsource(
+    module.test_ac060_ac063_one_point_zero_route_saves_without_unmapped_acknowledgement)
+assert "acknowledge_unmapped" not in ac051_save + ac060_save
+assert 'accepted["saved"] is True' in ac051_save + ac060_save
+
+ac063 = inspect.getsource(
+    module.test_ac063_mixed_result_has_one_notice_no_ack_and_default_collapsed_details)
+assert all(token in ac063 for token in (
+    'observed["acknowledgement_control_count"] == 0',
+    'observed["fallback_notice_screen_count"] == 1',
+    'len(observed["fallback_notice_accessible"]) == 1',
+    'observed["details_before"]["expanded"] is False',
+    'observed["endpoint_gap_default_visible_count"] == 0',
+    'observed["endpoint_gap_expanded_count"] == 1',
+    'observed["endpoint_gap_inside_details"] == [True]',
+    'observed["candidate_after_toggle"] == observed["candidate_before"]',
+    'observed["payload_after_toggle"] == observed["payload_before"]',
+    'observed["request_count_after_toggle"] == observed["request_count_before_toggle"]',
+    'observed["write_count_after_toggle"] == observed["write_count_before_toggle"]',
+    'saved["save_ok"] is True',
 ))
-qml_click_failure = inspect.getsource(
-    module.test_ac036_unmapped_generated_qml_save_failure_keeps_candidate_and_shows_error)
-assert all(token in qml_click_failure for token in (
-    'observed["candidate_after_click"] == observed["candidate_before_click"]',
-    'observed["document_after_click"] is None',
-    'observed["load_enabled_after_click"] is False',
-    '"저장 실패" in observed["message_after_click"]',
-    '"저장했습니다" not in observed["message_after_click"]',
-    'observed["feedback_in_viewport"] is True',
+ac064 = inspect.getsource(
+    module.test_ac064_every_save_outcome_is_visible_once_and_preserves_required_state)
+assert all(token in ac064 for token in (
+    'observed["status_viewport_before"]["fully_visible"] is False',
+    'observed["status_viewport_after"]["fully_visible"] is True',
+    'len(observed["announcement_proxy_matches"]) == 1',
+    'observed["provider_request_count_after"] == observed["provider_request_count_before"]',
+    'observed["candidate_after"] == observed["candidate_before"]',
+    'observed["document_after"] == observed["document_before"]',
+    'observed["persisted_revision_after"] == observed["persisted_revision_before"]',
+    'observed["last_good_bytes_unchanged"] is True',
 ))
-qml_click_driver = (path.parent / "unmapped_save_qml_driver.py").read_text(encoding="utf-8-sig")
-assert all(token in qml_click_driver for token in (
+assert all(outcome in test_source for outcome in (
+    '"success"', '"blank_name"', '"stale_input"', '"revision_conflict"',
+    '"write_false"', '"readback_mismatch"', '"exception"',
+))
+
+qml_driver = (path.parent / "route_ui_simplification_qml_driver.py").read_text(
+    encoding="utf-8-sig")
+assert all(token in qml_driver for token in (
     "operation set changed", "branch marker changed", "QTest.mouseClick",
-    "pointer_click(acknowledgement)", "pointer_click(save_button)",
-    "acknowledgement_checked_after_click=bool(acknowledgement.property('checked'))",
-    "'acknowledgement_checked':acknowledgement_checked_after_click",
-    "feedback_in_viewport", "independently_reopened_document",
+    "fallbackNotice", "routeDetailsDisclosure", "routeDetailsContent", "saveStatus",
+    "acknowledgement_control_count", "endpoint_gap_inside_details",
+    "status_viewport_before", "announcement_proxy_matches", "last_good_bytes_unchanged",
 ))
-assert "acknowledgeUnmapped(" not in qml_click_driver
-ack_click = qml_click_driver.index("pointer_click(acknowledgement)")
-ack_capture = qml_click_driver.index(
-    "acknowledgement_checked_after_click=bool(acknowledgement.property('checked'))")
-save_click = qml_click_driver.index("pointer_click(save_button)")
-panel_reopen = qml_click_driver.index("open_panel();settings()", save_click)
-assert ack_click < ack_capture < save_click < panel_reopen
-print("survey route unmapped-save generated-QML click design verified; "
-      "approved acknowledgement observation captured before save/reopen")
+assert "acknowledgeUnmapped(" not in qml_driver
+assert not (path.parent / "unmapped_save_qml_driver.py").exists()
+
+ac065 = inspect.getsource(
+    module.test_ac065_fresh_build_bundles_current_runtime_and_never_updates_existing_project)
+assert all(token in ac065 for token in (
+    '_tree_bytes(new_project / "qfield_routes") == _tree_bytes(source_runtime)',
+    '_tree_bytes(preexisting) == before',
+    'splitlines().count(BUILD_RUNTIME_DISCLOSURE) == 1',
+))
+manual = inspect.getsource(module.test_ac063_ac064_ac065_target_qfield_handoff_is_user_run_and_unverified)
+assert "pytest.skip" in manual and "미검증" in manual and "target QField" in manual
+print("survey route AC063-065 approved design verified; target QField remains 미검증")
