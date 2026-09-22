@@ -1,6 +1,6 @@
 # Feature: 도로망 조사 경로 및 조사대상 도형 확장
 
-> Status: **APPROVED through D-SRP-064~066 / FR-SRP-061~063 / NFR-SRP-011 / AC-SRP-063~065 (2026-09-22).**
+> Status: **APPROVED clarification D-SRP-067 / FR-SRP-064 / NFR-SRP-012 / AC-SRP-066 (2026-09-22).** The approved baseline through D-SRP-064~066 / FR-SRP-061~063 / NFR-SRP-011 / AC-SRP-063~065 remains unchanged.
 > Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; 2026-09-16 approved workflow/progress slice; D-SRP-031~035, FR-SRP-029~033 and AC-SRP-031~035 approved 2026-09-16; D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 and AC-SRP-036~041 approved 2026-09-17; D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 and AC-SRP-042~045 approved 2026-09-17; D-SRP-046~048, FR-SRP-044~046, NFR-SRP-006 and AC-SRP-046~048 approved 2026-09-17; D-SRP-049~056, FR-SRP-047~053, NFR-SRP-007~009 and AC-SRP-049~055 approved 2026-09-18. Target QField device verification remains **NOT RUN (미검증)**.
 > Owner: spec-writer
 > Extends: [통합 명세](qfield-project-builder.md)
@@ -9,6 +9,23 @@
 
 
 ## 0. 문서 권한과 현재 상태 (2026-09-14)
+
+**2026-09-22 저장 성공 후 disabled/focus·읽기 순서 정합 (승인):** 승인된
+D-SRP-065/AC-SRP-063의 `candidate 없음` 최우선 disabled 규칙과 AC-SRP-064/NFR-SRP-011의
+focus 보존 문구를 저장 button이 성공 후에도 활성 상태와 `activeFocus`를 유지해야
+한다는 의미로 읽으면 둘을 동시에 충족할 수 없다. 이는 Category B 내부 충돌이며,
+아래 D-SRP-067/FR-SRP-064/NFR-SRP-012/AC-SRP-066은 candidate를 clear하는 성공 상태
+갱신에서 disabled 규칙이 항상 우선하고 focus 보존은 다른 editable/control에 앱이
+focus를 옮기거나 그 상태를 바꾸지 않는다는 의미임을 제한적으로 명확히 한다.
+또한 NFR-SRP-011의 기존 의미를 따라 시각·semantic accessibility 순서를 기본 결과 →
+fallback notice(적용 시) → `상세 정보` disclosure(펼쳐진 진단은 이 control 바로 뒤) →
+`저장할 경로 이름` → `계산 결과 저장` → disabled reason(적용 시) → 최종 outcome
+status(저장 시도 후)로 고정한다. 현재 QML의 다른 순서는 이미 승인된 NFR-SRP-011의
+Category A conformance defect이지 새 제품 범위가 아니다. D-SRP-064가 AC-SRP-053/059의
+endpoint-gap 표시 위치를 단일 disclosure 내 한 줄로 이미 supersede했으나, 기존 승인
+acceptance 산출물에 삭제된 표시 object와 세 위치의 endpoint-gap line을 요구하는 규칙이
+남아 있다. 이들은 본 명세 승인 후 fresh test-designer가 현재 표시 계약과 정합하고,
+그 구체적 산출물은 별도 사용자 승인을 받아야 한다.
 
 **2026-09-22 실제 기기 저장 관찰 및 UI 단순화 (승인):** 사용자는 실제 QField 기기에서 계산된
 경로가 여전히 저장되지 않는 것으로 관찰했고, `지도에 없는 도보 구간 포함` checkbox가 선택 가능한
@@ -700,6 +717,23 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   route 기능이 포함된 project build의 완료 summary/help는 exact disclosure `경로 패널 코드는 생성된
   프로젝트에 포함됩니다. FieldBuild Kit만 업데이트해도 기존 생성 프로젝트는 자동으로 바뀌지 않습니다.`를
   제공한다.
+- D-SRP-067 (2026-09-22 승인, Category B/A): D-SRP-065의 disabled 우선순위는 save
+  outcome을 포함한 모든 상태 갱신에 즉시 적용한다. 성공적 저장이 candidate를 clear하면
+  `candidate 없음`이 다른 규칙에 앞서 save button을 disable하고 exact reason `저장할 수 없음:
+  먼저 새 경로를 계산하세요.`를 같이 표시한다. focus 보존을 위한 enabled-state 예외,
+  `saveFocusRetained` 또는 그와 동등한 별도 상태를 두지 않는다. 저장 시도 직전 save button에
+  focus가 있었더라도 disable에 따라 플랫폼이 `activeFocus`를 clear하는 것은 허용하며,
+  앱은 그 focus를 disabled button에 강제로 복구하거나 경로 이름·disclosure·다른 control로
+  옮기지 않는다. AC-SRP-064/NFR-SRP-011의 focus 보존은 이 application-initiated focus
+  transfer 및 다른 editable/control state 변경이 없음을 뜻하며, disabled save button의
+  `activeFocus` 유지를 뜻하지 않는다. route name text와 disclosure 펼침/접힘 상태는
+  outcome과 관계없이 보존한다. AC-SRP-064의 status가 save control `위쪽`에 있다는 fixture
+  표현은 status를 시도 전 viewport 밖에 두는 조건으로만 읽고 semantic 배치 근거로 사용하지
+  않는다. 시각 배치, keyboard traversal과 screen-reader reading order는 NFR-SRP-012의 exact
+  순서를 같이 따른다. D-SRP-064의 승인된 presentation supersession에 따라 AC-SRP-053/059의
+  데이터·geometry·provenance·accessibility 의미는 유지하되, 삭제된 기본/legend/saved-detail
+  object나 endpoint-gap line 3개를 현재 표시 object로 요구하지 않고 `상세 정보` 내
+  route-level exact line 1개만 요구한다.
 
 ## 3. Functional Requirements
 - FR-SRP-001: 생성 프로젝트에 기존 보고서/식별 플러그인과 공존하는 하단 접이식 패널.
@@ -1116,6 +1150,15 @@ QField 프로젝트 플러그인에서 선택한 조사대상을 도로망 기�
   자동 변경하지 않는다. acceptance와 release handoff는 어느 FieldBuild Kit build로 어느 project output을
   새로 생성했는지 구분하고, 기존 output을 그대로 연 기기 관찰을 새 bundle의 검증으로 기록하지 않는다.
 
+### 3.14 2026-09-22 저장 성공 후 disabled/focus 정합 (승인)
+
+- FR-SRP-064 (2026-09-22 승인): save success가 candidate를 clear하는 같은 UI update에서
+  save button을 disable하고 candidate-none reason을 표시한다. 성공 status는 현재 viewport에
+  전체가 보이고 screen-reader status로 한 번 announce하며, 이 feedback을 위해 button을 enabled로
+  남기지 않는다. 앱은 focus를 disabled button에 복구하거나 다른 control로 옮기지 않고,
+  route name text와 disclosure state를 보존한다. 실패 outcome은 기존 candidate/last-good
+  보존과 D-SRP-065의 정상 enabled/disabled 규칙을 그대로 따른다.
+
 ## 4. Data / Compatibility
 새 프로젝트 생성만 도형 메타데이터를 변경한다. 사용자의 기존 GPKG를 자동 마이그레이션하지
 않는다. 기본 도형 유형을 지정하지 않은 과거 호출은 MULTIPOLYGON 기본값을 유지한다.
@@ -1239,6 +1282,14 @@ max road offset, 이번 승인 범위의 max access distance, default start, lay
   각 diagnostic의 의미를 keyboard/screen reader로 접근할 수 있어야 한다. save attempt 하나당 최종
   outcome을 한 번만 announce한다. viewport 이동은 keyboard focus, 입력한 route name, disclosure state와
   candidate를 바꾸지 않는다.
+- NFR-SRP-012 (2026-09-22 승인): NFR-SRP-011의 reading-order 계약을 시각 배치,
+  keyboard traversal과 screen reader 모두에서 다음 semantic 순서로 적용한다: (1) simple 기본
+  결과, (2) fallback notice(적용 시), (3) `상세 정보` disclosure와 펼쳐진 내용, (4) `저장할
+  경로 이름`, (5) `계산 결과 저장`, (6) disabled reason(적용 시), (7) save attempt의 최종
+  outcome status(시도 후). 접힌 진단은 reading/accessibility flow에 노출하지 않는다.
+  status를 viewport에 가져오는 동작은 순서를 바꾸거나 다른 editable/control에 focus를
+  이동시키지 않는다. save success 후 disabled 된 save button이 플랫폼 규칙에 따라
+  `activeFocus`를 잃는 것은 이 계약의 위반이 아니다.
 
 ## 5. Acceptance Criteria
 | ID | 관찰 가능한 조건 및 결과 |
@@ -1308,6 +1359,7 @@ max road offset, 이번 승인 범위의 max access distance, default start, lay
 | AC-SRP-063 (2026-09-22 승인) | mapped visit과 fallback visit 2개가 섞인 candidate 및 이를 저장해 다시 연 route는 접히지 않은 결과 영역에 simple vehicle/walking distance·time totals와 exact `실제 도로 경로를 못 찾은 구간을 직선거리 추정치로 포함하였습니다.`를 각각 표시하고 notice는 화면과 screen reader에 정확히 한 번만 존재한다. `지도에 없는 도보 구간 포함` 또는 다른 acknowledgement checkbox/control은 0개이며, 다른 기존 validation이 유효하면 fallback 상태에서도 save button이 활성화되어 추가 확인 없이 저장 성공 fixture를 commit한다. `상세 정보`는 최초 표시/load에서 접혀 있어 raw `walking_mode`/`metric_source`, per-visit diagnostics와 endpoint-gap 문구가 기본 결과에 노출되지 않는다. 펼치면 affected visit별 진단과 적용 route당 exact `ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함` 한 줄만 보이고 visit card/totals/legend에는 같은 endpoint-gap line이 0개다. 펼침/접힘 전후 candidate/payload/request/write count와 save enablement는 동일하다. all-mapped/exact-zero-only candidate에는 fallback notice가 없고, candidate 없음과 invalid mapping만 D-SRP-065의 인접 disabled reason을 보인다. |
 | AC-SRP-064 (2026-09-22 승인) | 320 px 및 wide viewport에서 message/status가 save control 위쪽의 현재 viewport 밖에 있도록 scroll한 뒤, (a) successful commit, (b) blank name, (c) stale calculation input, (d) snapshot revision conflict, (e) repository write false, (f) readback mismatch, (g) injected exception을 각각 한 번 발생시킨다. 모든 case에서 final success/error status 전체가 자동으로 현재 viewport 안에 보이고 screen reader에 정확히 한 번 announce된다. (a)만 success와 candidate clear/new active route를 보이며 (b)~(g)는 success 0회, 원인별 redacted actionable failure, candidate와 last-good saved bytes/revision 보존을 보인다. scroll/focus/name/disclosure state 변화, 추가 provider request 또는 자동 retry는 0회다. 자동 QML test는 success/false/exception branch와 scroll target/announcement wiring의 proxy이고 실제 target QField touch/viewport 결과는 별도 사용자 기기 evidence 전까지 `미검증`이다. |
 | AC-SRP-065 (2026-09-22 승인) | 동일한 pre-existing generated project fixture와 이 slice를 포함한 FieldBuild Kit로 새 output에 생성한 fixture를 비교한다. 새 output의 `qfield_routes/`만 D-SRP-064~065 behavior를 포함하고 build 완료 summary/help에 D-SRP-066 exact disclosure가 보인다. desktop app rebuild/reinstall만 수행한 pre-existing output은 route files, collected GPKG, route storage와 project settings bytes가 전후 동일하며 새 동작을 포함한다고 주장하지 않는다. 새 output을 QField에 명시적으로 전달해 연 target-device test만 이 slice의 실기 검증으로 기록한다. in-place overwrite/migration과 수집 data deletion은 0회다. |
+| AC-SRP-066 (2026-09-22 승인) | candidate가 있고 nonblank route name·valid mapping인 상태에서 save button을 focus하고 disclosure를 펼친 뒤 성공 저장한다. 같은 outcome update에서 candidate는 `null`, 새 route는 active, save button은 disabled, candidate-none exact reason은 visible/accessibility text이며 enabled 예외 상태는 0개다. 최종 success status 전체는 viewport에 보이고 한 번 announce된다. 플랫폼이 disabled button의 `activeFocus`를 clear해도 허용하되, 앱이 focus를 save button에 복구하거나 route-name/disclosure/다른 control로 옮기는 횟수는 0회이고 route name text와 disclosure expanded state는 전후 동일하다. 320 px/light와 wide/dark에서 live visual item order, keyboard traversal 및 accessibility tree는 기본 결과 → fallback notice → `상세 정보`(펼쳐진 내용 포함) → `저장할 경로 이름` → `계산 결과 저장` → disabled reason → outcome status 순서이며 overlap/clipping/horizontal scroll은 0개다. AC-SRP-053/059 의미의 current presentation evidence는 requested markers, provider geometry/metrics/provenance, totals, fallback warning/accessibility와 `상세 정보` 내 endpoint-gap exact line 1개이며, 삭제된 calculation-result/saved-detail/legend object 또는 endpoint-gap line 3개를 요구하지 않는다. 자동 QML 관찰은 proxy이며 실제 target QField touch/screen-reader 결과는 사용자 기기 evidence 전까지 `미검증`이다. |
 
 ## 6. API 근거 / 검증 경계
 VROOM 근거는 초기 provider가 대상으로 삼은 **v1.14.0 tag**에 고정한다. 공식 문서는 timing을
@@ -1495,8 +1547,32 @@ device, project fixture, zoom/basemap, 수행한 gesture와 관찰 결과를 함
   outcome의 viewport/accessibility feedback, 저장 atomicity/last-good 및 project-local route runtime의
   배포 경계는 유지한다. 실제 기기 persistence failure의 원인을 단정하지 않는다. fresh
   test-designer가 acceptance/traceability를 정합하며, 그 산출물도 별도 승인이 필요하다.
+- **O-SRP-019 (2026-09-22 해결·명세 승인):** D-SRP-067, FR-SRP-064,
+  NFR-SRP-012 및 AC-SRP-066은 save success 후 candidate-none disabled 규칙이 focus 보존보다
+  우선함, enabled-state 예외 금지, application-initiated focus transfer 금지, route name/disclosure
+  보존과 exact semantic order를 명확히 한다. QML reading order 오류는 NFR-SRP-011의 Category A
+  conformance defect로 남으며 새 제품 요구로 분류하지 않는다. D-SRP-064에 반하는
+  AC-SRP-053/059의 기존 presentation acceptance 규칙과 AC-SRP-064의 save-button
+  active-focus 동일성 규칙은 fresh test-designer가 정합하고 별도 승인을
+  받아야 한다.
 
 ### 승인된 slice의 acceptance 정합 범위
+
+**승인된 clarification acceptance 정합 범위:** fresh test-designer는
+**D-SRP-067 / FR-SRP-064 / NFR-SRP-012 / AC-SRP-066**을 기준으로 최소한 다음 현재
+acceptance 산출물을 정합한다: `tests/acceptance/survey_route_planner/test_survey_route_planner.py`의
+AC-SRP-059 three-disclosure 및 AC-SRP-064 success-focus assertion,
+`tests/acceptance/survey_route_planner.test-design.md`의 AC-SRP-053/059 presentation·AC-SRP-064 focus 설계,
+`tests/acceptance/survey_route_planner.traceability.md`의 해당 evidence mapping,
+`tests/acceptance/survey_route_planner/HARNESS_CONTRACT.md`의 three-object/focus observation 계약,
+`tests/acceptance/survey_route_planner/verify_design.py`의 해당 guard, 그리고
+`tests/acceptance/survey_route_planner/route_ui_simplification_qml_driver.py`의 disabled/focus/semantic-order
+관찰. 지워진 presentation object와 endpoint-gap line 3개를 다시 만들어 test를 맞추지 않는다.
+acceptance 외 implementation support driver에 같은 구 관찰이 남아 있다면 test-designer는
+요구 evidence만 기록하고, 승인된 test 산출물을 받은 implementer가 이를 정합한다.
+현재 해당 파일에는 `tests/unit/survey_route_qml_driver.py`의 `endpoint_gap_disclosures`
+three-object 관찰이 포함된다. 이 명세
+승인은 저 acceptance 파일을 수정하거나 수정 내용을 미리 승인하지 않는다.
 
 2026-09-22 승인된 저장 설명/feedback slice에 따라 fresh test-designer는 **D-SRP-064~066,
 FR-SRP-061~063, NFR-SRP-011 및 AC-SRP-063~065**를 기준으로
