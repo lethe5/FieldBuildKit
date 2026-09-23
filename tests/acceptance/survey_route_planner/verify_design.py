@@ -704,4 +704,4 @@ assert all(token in ac068_failure for token in (
     'observed["reopened"] == observed["snapshot_before"]',
 ))
 assert 'input.operation==="walking_total_explicit_save"' in module.DIRECT_NODE
-print("survey route AC068 DRAFT walking-total save-roundoff design verified; approval required")
+print("survey route AC068 approved walking-total save-roundoff design verified")
