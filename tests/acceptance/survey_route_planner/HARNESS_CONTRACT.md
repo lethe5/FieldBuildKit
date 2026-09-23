@@ -522,3 +522,20 @@ expanded content, route name, save button, disabled reason, outcome status. It r
 overlaps, truncation and overflow rather than a precomputed pass. The same operation exposes current AC053/059
 marker, source-feature, provider-line, visit/totals, fallback-warning and single-details-gap observations.
 M22 remains user-run and **NOT RUN (`미검증`)**.
+
+## APPROVED AC-SRP-064/066 Qt observation-boundary correction (2026-09-23)
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-23).** The approved harness contracts above remain
+unchanged except for these evidence-oracle corrections.
+
+`save_outcome_visibility` must settle live QML geometry through bounded rendered frames, without a timed
+sleep, before recording layout. It must then place `saveStatus` wholly outside the current Flickable
+viewport and return an `outside` predicate derived from raw item/viewport coordinates. After the actual
+save handler and queued reveal, it settles geometry again and returns the existing full-visibility result.
+
+Focus observations must return the active item's object name, Qt class, accessible role and nearest
+focusable-control identity. On successful disable/platform clear, only no active item or an unnamed item
+with no focusable-control identity is admissible. A named item or any actual focusable control is an
+application-visible transfer and must fail; generated save-button focus recovery remains forbidden.
+Failure outcomes continue to retain `saveRouteButton`. All state, order, endpoint-detail and announcement
+fields remain required.

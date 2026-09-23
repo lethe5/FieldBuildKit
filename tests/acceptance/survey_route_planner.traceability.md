@@ -493,3 +493,14 @@ Status: **APPROVED TEST DESIGN (approval 2026-09-22).** Authority is approved ch
 
 Historical acknowledgement-click rows above remain as historical evidence only; D-SRP-064 explicitly
 supersedes their current acknowledgement/gate expectation and the old click driver is removed.
+
+## APPROVED AC-SRP-064/066 Qt observation-boundary correction traceability (2026-09-23)
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-23).** This corrects acceptance evidence only; approved
+specification checkpoint `cb8f2da` and all product behavior remain unchanged.
+
+| Approved authority preserved | Approved evidence correction | Guard |
+| --- | --- | --- |
+| AC-SRP-064 status starts outside and ends fully visible | Stabilize live rendered geometry, explicitly place `saveStatus` wholly outside the viewport, assert `outside: true`, then require post-attempt `fully_visible: true` | Design verifier requires the bounded render-settle and explicit outside-position helper; no timed sleep |
+| D-SRP-067; FR-SRP-064; AC-SRP-066 no application focus transfer/recovery | Permit only `None` or an unnamed non-focusable Qt scope after platform clear; reject every named target, focusable-control ancestor, and save-button focus-recovery API | Detailed focus observations retain object name, Qt class, accessible role and focusable-control identity |
+| AC-SRP-063–066 remaining state, order, endpoint and device boundaries | Existing success-disable, exact disabled reason, route-name/disclosure preservation, semantic order, one endpoint-gap detail, announcement, atomicity and M22 assertions are unchanged | Existing verifier/test assertions remain required |

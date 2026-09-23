@@ -917,3 +917,23 @@ supersedes its success-focus and ordering interpretation.
   endpoint-gap line inside expanded details and no removed three-object expectation.
 
 M22 remains user-run and **NOT RUN (`미검증`)** for target-QField touch, screen-reader order and pixels.
+
+## APPROVED AC-SRP-064/066 Qt observation-boundary correction (2026-09-23)
+
+Status: **APPROVED TEST DESIGN (approval 2026-09-23).** Approved specification checkpoint `cb8f2da`
+and every AC-SRP-063–066 product expectation remain unchanged.
+
+- The success focus oracle permits only `None` or an unnamed, non-focusable Qt focus scope after the
+  platform clears focus from the disabled save button. It rejects every named focus target, every
+  focusable control (including an unnamed descendant of one), and any generated-QML
+  `saveRouteButton.forceActiveFocus` recovery call. Failure outcomes still retain the enabled save
+  button's focus. Route-name and disclosure state remain unchanged.
+- Before each save attempt, the acceptance driver completes a bounded sequence of rendered frames until
+  the live status/flickable geometry is stable, then explicitly positions the status wholly outside the
+  viewport and records `outside: true`. After the real handler and its queued reveal, it settles rendered
+  geometry again and still requires the complete final status to be visible. This exercises the AC-SRP-064
+  reveal precondition at both widths without treating a fixture that left an adjacent status visible as a
+  product failure. No arbitrary timed sleep is added.
+- Success disable/candidate clear, exact reason, semantic visual/keyboard/accessibility order, endpoint
+  detail placement, announcement count, persistence/atomicity, no retry/provider request, and all manual
+  boundaries remain exactly as approved.

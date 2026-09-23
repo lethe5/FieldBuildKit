@@ -75,10 +75,41 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
             return matches
         def viewport(item):
             scroll=named('routeScroll');flickable=scroll.property('contentItem')
-            top=item.mapToItem(flickable,QPointF(0,0)).y();content_y=float(flickable.property('contentY') or 0)
-            bottom=top+item.height();viewport_bottom=content_y+flickable.height()
-            return {'top':top,'bottom':bottom,'content_y':content_y,
-                'viewport_bottom':viewport_bottom,'fully_visible':top>=content_y and bottom<=viewport_bottom}
+            top=item.mapToItem(flickable,QPointF(0,0)).y();bottom=top+item.height()
+            return {'top':top,'bottom':bottom,'content_y':float(flickable.property('contentY') or 0),
+                'viewport_bottom':flickable.height(),'fully_visible':top>=0 and bottom<=flickable.height(),
+                'outside':bottom<=0 or top>=flickable.height()}
+        def settle_render_geometry(*items):
+            previous=None
+            for _ in range(8):
+                window.update();window.grabWindow();app.processEvents()
+                current=tuple((item.x(),item.y(),item.width(),item.height()) for item in items)
+                if current==previous:return
+                previous=current
+            raise RuntimeError('QML render geometry did not settle')
+        def place_outside_view(item):
+            scroll=named('routeScroll');flickable=scroll.property('contentItem')
+            settle_render_geometry(item,flickable)
+            observed=viewport(item);maximum=max(0,float(flickable.property('contentHeight') or 0)-flickable.height())
+            absolute_top=observed['top']+observed['content_y'];absolute_bottom=observed['bottom']+observed['content_y']
+            for target in (min(maximum,absolute_bottom),max(0,absolute_top-flickable.height())):
+                flickable.setProperty('contentY',target);settle_render_geometry(item,flickable)
+                observed=viewport(item)
+                if observed['outside']:return observed
+            raise RuntimeError('could not place save status outside the viewport')
+        def focus_observation():
+            item=window.activeFocusItem()
+            if item is None:return None
+            control=None;current=item
+            while current is not None and current is not panel:
+                policy=current.property('focusPolicy')
+                if policy is not None and policy!=Qt.NoFocus:
+                    control=current.objectName() or current.metaObject().className();break
+                current=current.parentItem()
+            interface=QAccessible.queryAccessibleInterface(item)
+            return {'object_name':item.objectName(),'class_name':item.metaObject().className(),
+                'accessible_role':interface.role().name if interface is not None else None,
+                'focusable_control':control}
         def content_layout(items):
             content=named('routeContent');scroll=named('routeScroll');rows=[]
             for item in items:
@@ -294,11 +325,10 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
             if not bool(named('routeDetailsContent').property('visible')):pointer_click(disclosure)
             route_name='새 저장 경로';control('routeName',route_name)
             save_button=named('saveRouteButton');scroll=named('routeScroll');flickable=scroll.property('contentItem')
+            status=named('saveStatus');settle_render_geometry(save_button,status,flickable)
             keyboard_traversal=keyboard_order()
             save_button.forceActiveFocus(Qt.TabFocusReason);app.processEvents()
-            within=save_button.mapToItem(flickable,QPointF(0,0))
-            flickable.setProperty('contentY',max(0,within.y()-flickable.height()/2+save_button.height()/2));app.processEvents()
-            status=named('saveStatus');status_before_viewport=viewport(status)
+            status_before_viewport=place_outside_view(status)
             outcome=case['outcome']
             if outcome=='revision_conflict':
                 repository_source=(folder/'qfield_routes/repository.js').read_text(encoding='utf8')
@@ -315,7 +345,7 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
             persisted_revision_before,last_good_path,_=latest_envelope()
             candidate_before=detached(state()['candidate']);document_before=detached(stored())
             revision_before=int(state()['snapshot']['revision']);last_good_bytes=last_good_path.read_bytes()
-            provider_before=len(requests);write_before=len(writes);focus_before=window.activeFocusItem()
+            provider_before=len(requests);write_before=len(writes);focus_before=focus_observation()
             disclosure_before=bool(named('routeDetailsContent').property('visible'))
             if outcome=='blank_name':control('routeName','')
             elif outcome=='stale_input':control('roundtripBox',not bool(named('roundtripBox').property('checked')),'checked')
@@ -325,8 +355,7 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
             if outcome=='exception':
                 js('var originalSave=p.controller.save;p.controller.save=function(){throw new Error("합성 저장 예외. 다시 시도하세요.")}')
             focus_transitions=[]
-            window.activeFocusItemChanged.connect(lambda:focus_transitions.append(
-                window.activeFocusItem().objectName() if window.activeFocusItem() else None))
+            window.activeFocusItemChanged.connect(lambda:focus_transitions.append(focus_observation()))
             QMetaObject.invokeMethod(save_button,'clicked',Qt.DirectConnection)
             candidate_immediate=detached(state()['candidate'])
             save_enabled_immediate=bool(save_button.property('enabled'))
@@ -335,12 +364,12 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
             focus_after_platform_clear=None
             if outcome=='success':
                 save_button.setProperty('focus',False)
-                focus_after_platform_clear=(window.activeFocusItem().objectName()
-                    if window.activeFocusItem() else None)
+                focus_after_platform_clear=focus_observation()
             drain()
             if outcome=='exception':js('p.controller.save=originalSave')
             storage_fault=''
             final_message=str(panel.property('message'));status_after=named('saveStatus')
+            settle_render_geometry(status_after,flickable)
             status_matches=accessible_matches(final_message)
             document_after=detached(stored());candidate_after=detached(state()['candidate'])
             persisted_revision_after=latest_envelope()[0]
@@ -358,8 +387,7 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
                 active_after=detached(active()),success_expected=success,
                 provider_request_count_before=provider_before,provider_request_count_after=len(requests),
                 write_attempt_count_before=write_before,write_attempt_count_after=len(writes),
-                focus_object_before=focus_before.objectName() if focus_before else None,
-                focus_object_after=window.activeFocusItem().objectName() if window.activeFocusItem() else None,
+                focus_before=focus_before,focus_after=focus_observation(),
                 focus_after_platform_clear=focus_after_platform_clear,
                 focus_transitions=focus_transitions,
                 app_focus_recovery_api_occurrences=qml_source.count('saveRouteButton.forceActiveFocus'),

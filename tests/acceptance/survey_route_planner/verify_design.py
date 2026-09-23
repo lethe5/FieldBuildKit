@@ -584,7 +584,7 @@ assert all(token in ac063 for token in (
 ac064 = inspect.getsource(
     module.test_ac064_ac066_every_save_outcome_is_visible_once_and_preserves_required_state)
 assert all(token in ac064 for token in (
-    'observed["status_viewport_before"]["fully_visible"] is False',
+    'observed["status_viewport_before"]["outside"] is True',
     'observed["status_viewport_after"]["fully_visible"] is True',
     'len(observed["announcement_proxy_matches"]) == 1',
     'observed["provider_request_count_after"] == observed["provider_request_count_before"]',
@@ -594,8 +594,8 @@ assert all(token in ac064 for token in (
     'observed["last_good_bytes_unchanged"] is True',
     'observed["app_focus_recovery_api_occurrences"] == 0',
     'observed["save_enabled_immediate"] is False',
-    'observed["focus_after_platform_clear"] is None',
-    'observed["focus_object_after"] is None',
+    'focus["object_name"] == "" and focus["focusable_control"] is None',
+    'observed["focus_after"]["object_name"] == "saveRouteButton"',
     'semantic["visual_order"] == semantic["expected_order"]',
     'semantic["accessibility_order"] == semantic["expected_order"]',
     'observed["keyboard_traversal"] == [',
@@ -613,6 +613,7 @@ assert all(token in qml_driver for token in (
     "acknowledgement_control_count", "endpoint_gap_inside_details",
     "status_viewport_before", "announcement_proxy_matches", "last_good_bytes_unchanged",
     "save_enabled_immediate", "focus_after_platform_clear", "focus_transitions",
+    "focusable_control", "place_outside_view", "settle_render_geometry",
     "app_focus_recovery_api_occurrences", "keyboard_traversal", "semantic_order",
     "current_presentation",
 ))

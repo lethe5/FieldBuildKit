@@ -4288,13 +4288,14 @@ def test_ac064_ac066_every_save_outcome_is_visible_once_and_preserves_required_s
         tmp_path, operation="save_outcome_visibility", outcome=outcome,
         viewport_width=viewport_width, theme=theme,
     )
-    assert observed["status_viewport_before"]["fully_visible"] is False
+    assert observed["status_viewport_before"]["outside"] is True
     assert observed["status_viewport_after"]["fully_visible"] is True
     assert len(observed["announcement_proxy_matches"]) == 1
     assert observed["announcement_proxy_matches"][0]["role"] == "StatusBar"
     assert observed["status_text"]
     assert observed["provider_request_count_after"] == observed["provider_request_count_before"]
-    assert observed["focus_object_before"] == "saveRouteButton"
+    assert observed["focus_before"]["object_name"] == "saveRouteButton"
+    assert observed["focus_before"]["focusable_control"] == "saveRouteButton"
     assert observed["app_focus_recovery_api_occurrences"] == 0
     assert observed["route_name_after"] == observed["route_name_before"]
     assert observed["disclosure_after"] == observed["disclosure_before"] is True
@@ -4319,9 +4320,11 @@ def test_ac064_ac066_every_save_outcome_is_visible_once_and_preserves_required_s
             "text": "저장할 수 없음: 먼저 새 경로를 계산하세요.",
             "visible": True,
         }
-        assert observed["focus_after_platform_clear"] is None
-        assert observed["focus_object_after"] is None
-        assert all(item is None for item in observed["focus_transitions"])
+        for focus in [observed["focus_after_platform_clear"], observed["focus_after"],
+                      *observed["focus_transitions"]]:
+            assert focus is None or (
+                focus["object_name"] == "" and focus["focusable_control"] is None
+            )
         assert observed["candidate_after"] is None
         assert observed["active_after"]["name"] == observed["route_name"]
         assert observed["document_after"] != observed["document_before"]
@@ -4329,7 +4332,8 @@ def test_ac064_ac066_every_save_outcome_is_visible_once_and_preserves_required_s
         assert "저장했습니다" in observed["status_text"]
     else:
         assert observed["focus_after_platform_clear"] is None
-        assert observed["focus_object_after"] == "saveRouteButton"
+        assert observed["focus_after"]["object_name"] == "saveRouteButton"
+        assert observed["focus_after"]["focusable_control"] == "saveRouteButton"
         assert observed["candidate_after"] == observed["candidate_before"]
         assert observed["document_after"] == observed["document_before"]
         assert observed["persisted_revision_after"] == observed["persisted_revision_before"]
