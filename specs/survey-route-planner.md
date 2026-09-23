@@ -1,7 +1,7 @@
 # Feature: 도로망 조사 경로 및 조사대상 도형 확장
 
-> Status: **APPROVED clarification D-SRP-067 / FR-SRP-064 / NFR-SRP-012 / AC-SRP-066 (2026-09-22).** The approved baseline through D-SRP-064~066 / FR-SRP-061~063 / NFR-SRP-011 / AC-SRP-063~065 remains unchanged.
-> Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; 2026-09-16 approved workflow/progress slice; D-SRP-031~035, FR-SRP-029~033 and AC-SRP-031~035 approved 2026-09-16; D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 and AC-SRP-036~041 approved 2026-09-17; D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 and AC-SRP-042~045 approved 2026-09-17; D-SRP-046~048, FR-SRP-044~046, NFR-SRP-006 and AC-SRP-046~048 approved 2026-09-17; D-SRP-049~056, FR-SRP-047~053, NFR-SRP-007~009 and AC-SRP-049~055 approved 2026-09-18. Target QField device verification remains **NOT RUN (미검증)**.
+> Status: **APPROVED clarification D-SRP-069 / FR-SRP-065 / AC-SRP-068 (2026-09-23).** The approved baseline through D-SRP-068 / FR-SRP-064 / NFR-SRP-012 / AC-SRP-067 remains unchanged.
+> Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; 2026-09-16 approved workflow/progress slice; D-SRP-031~035, FR-SRP-029~033 and AC-SRP-031~035 approved 2026-09-16; D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 and AC-SRP-036~041 approved 2026-09-17; D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 and AC-SRP-042~045 approved 2026-09-17; D-SRP-046~048, FR-SRP-044~046, NFR-SRP-006 and AC-SRP-046~048 approved 2026-09-17; D-SRP-049~056, FR-SRP-047~053, NFR-SRP-007~009 and AC-SRP-049~055 approved 2026-09-18. Broad target-QField verification remains **NOT RUN (미검증)** except for the narrowly scoped user-observed steps recorded in the 2026-09-23 approved section below.
 > Owner: spec-writer
 > Extends: [통합 명세](qfield-project-builder.md)
 > Test design: [승인된 기준본](../tests/acceptance/survey_route_planner.test-design.md) — FR-SRP-029~039, AC-SRP-031~041 및 NFR-SRP-004까지 2026-09-17 반영·승인됨; 2026-09-18 승인 ID는 아직 반영되지 않음
@@ -1675,3 +1675,55 @@ Phase 4는 제공된 도로선·네이버지도, Phase 5는 완료·남은 대�
 AC-SRP-066 remains the complete, approved regression criterion for the reported save-control order; no duplicate
 criterion is added here. AC-SRP-067 is limited to the omitted `origin-validation` HTTP-error stage and does not
 claim that the observed 403's external provider-side cause has been diagnosed.
+
+## 2026-09-23 도보 합계 저장 검증 정합 (APPROVED)
+
+> 상태: **APPROVED — 2026-09-23 사용자 명시 승인.** 기존
+> schema-3 무결성 검증, unavailable/null 의미, atomic save·last-good 보존과 명시 계산 경계는 유지한다.
+
+### 실제 기기 관찰과 변경 분류
+
+- 사용자는 이번 실제 기기 흐름에서 password prompt가 한 번만 나타남, save button 표시, route calculation
+  성공을 각각 관찰했다. 이는 해당 기기·프로젝트·실행 흐름의 제한된 사용자 관찰 PASS로만 기록하며,
+  다른 플랫폼·재시작·오류 branch·접근성 또는 저장 성공까지 검증했다고 확대하지 않는다.
+- 같은 흐름에서 save를 누르면 exact message `저장된 도보 경로 합계가 손상되었습니다.`로 실패했다.
+  유효하게 계산된 candidate를 별도 route 재계산 없이 atomic schema-3 commit해야 한다는 FR-SRP-051의
+  **Category A conformance defect**다. 현재 source는 walking totals를 source visit 순서로 누적한 뒤 visits를
+  optimized route 순서로 저장하고, repository validation은 저장 순서로 다시 누적한 값을 도보 합계와
+  exact floating-point equality로 비교한다. 차량/combined totals의 기존 `1e-6` 검증과 달리 합산 순서에
+  따른 무해한 반올림 차이도 거부할 수 있으며, 관찰된 오류와 일치한다. 이 근거는 외부 provider 또는
+  저장 매체 손상을 원인으로 단정하지 않는다.
+
+### Decision Log와 요구사항
+
+- **D-SRP-069 (2026-09-23 APPROVED, Category A clarification):** schema-3 repository가 저장된
+  `visits[].walking_legs[]`에서 다시 구한 `mapped_distance_m`, `lower_bound_distance_m` 및 available
+  `duration_s` 합계와 candidate의 `walking_totals`를 검증할 때, 양쪽 값이 각각 finite non-negative
+  number인 전제에서 합산 순서만으로 생길 수 있는 absolute difference `1e-6` 이하는 동일한 값으로
+  받아들인다. 이는 기존 vehicle/combined aggregate 검증의 bounded tolerance와 같은 경계이며 leg metric,
+  visit provenance 또는 저장된 aggregate를 수정·정규화하는 규칙이 아니다. `1e-6`을 초과하는 차이,
+  negative/non-finite/type-invalid 값과 leg/visit 구조 손상은 계속 거부한다.
+
+  `unavailable_duration_count`는 tolerant comparison 대상이 아니며 저장된 walking leg의 null duration
+  개수와 exact non-negative integer로 일치해야 한다. 그 count가 1 이상이면 `walking_totals.duration_s`와
+  `combined_totals`는 기존대로 exact `null`이고, 0이면 `duration_s`는 finite non-negative 합계와 위
+  tolerance 안에서 일치하며 `combined_totals`의 기존 검증도 유지한다. 저장 검증은 local integrity sum만
+  확인하며 route를 재계산하거나 visit을 재정렬하거나 provider를 호출하지 않는다. 성공은 기존 atomic
+  write/readback·revision 규칙을 따르고, 실패는 write/repair 없이 candidate, saved bytes, active revision과
+  last-good을 보존한다.
+- **FR-SRP-065 (2026-09-23 APPROVED):** explicit save는 계산 결과의 visit 순서가 source 순서에서 optimized
+  route 순서로 바뀌어 finite non-negative walking aggregate에 `1e-6` 이하의 addition-order roundoff가
+  생긴 경우 이를 corruption으로 오인하지 않고 FR-SRP-051의 atomic schema-3 commit을 완료해야 한다.
+  material aggregate mismatch와 unavailable/null/count 불일치는 계속 actionable validation failure이며,
+  어느 branch도 route recomputation, provider request, automatic retry, aggregate rewrite 또는 partial commit을
+  만들지 않는다.
+
+### Acceptance criterion
+
+| ID | APPROVED criterion |
+|---|---|
+| AC-SRP-068 (2026-09-23 APPROVED) | Given a valid mixed-route candidate with at least three visits whose finite non-negative walking leg metrics produce source-order and optimized-stored-order sums that differ by a non-zero amount no greater than `1e-6`, explicit save accepts the mapped distance and, in an all-duration-available fixture, walking duration totals, performs exactly one atomic schema-3 write/readback, makes the saved route active, and preserves the visits in optimized route order. A companion fallback fixture applies the same bounded comparison to mapped/lower-bound distances while preserving exact `walking_totals.duration_s=null`, `combined_totals=null`, and the exact unavailable-duration count. Both success fixtures perform route recalculation, provider request, automatic retry, aggregate rewrite and partial write zero times. For each numeric walking aggregate, a finite non-negative perturbation greater than `1e-6`, and separate negative/non-finite/type-invalid variants, are rejected as corruption; unavailable-count mismatch and null/non-null semantic mismatch are rejected exactly rather than tolerated. Every rejection performs storage write/repair and provider request zero times and preserves the candidate, prior saved bytes, active revision and last-good snapshot. Exact equality and an absolute difference of exactly `1e-6` are accepted; a difference greater than `1e-6` is rejected. |
+
+이 정합은 저장 합계 비교 경계만 좁게 명확히 한다. walking leg 자체의 exact outbound/return 관계,
+provenance, geometry, finite/non-negative validation, fallback lower-bound와 unavailable 의미, schema version,
+atomicity 또는 corruption detection을 완화하지 않는다.
