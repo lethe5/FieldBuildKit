@@ -1,4 +1,7 @@
-# Survey route acceptance harness — approved AC-SRP-066 reconciliation over approved AC-SRP-063–065
+# Survey route acceptance harness — APPROVED AC-SRP-068 extension over the approved baseline
+
+**APPROVED TEST DESIGN (2026-09-23) — explicitly approved by the stakeholder.** The AC-SRP-068 explicit-save
+operation below is not approved. Approved AC-SRP-001–067 contracts remain unchanged.
 
 **APPROVED TEST DESIGN (approval 2026-09-22):** the AC-SRP-066 focus/order extension
 uses approved clarification checkpoint `cb8f2da`.
@@ -566,3 +569,32 @@ acceptance contracts above are unchanged; this corrects only the QML evidence dr
 viewport-relative coordinate as an absolute content position can move an already-scrolled disclosure or
 save button farther out of view and turn real pointer clicks into misses. The design verifier fixes this
 conversion in place so AC-SRP-063/066/067 keep exercising their existing real-click evidence.
+
+## APPROVED AC-SRP-068 walking-total explicit-save operation (2026-09-23)
+
+Status: **DRAFT TEST DESIGN — user approval required.** Authority is approved specification checkpoint
+`36a82b8`, D-SRP-069 / FR-SRP-065 / AC-SRP-068. This adds no product API.
+
+`walking_total_explicit_save` reuses the direct production JavaScript controller/repository harness. It
+production-saves a nonempty schema-2 last-good document, calculates a schema-3 candidate through an injected
+deterministic backend result, then begins the measured action at the real controller `save()` call. The
+candidate contains at least three source visits and a different optimized visit order. Its source-order
+walking aggregate differs nontrivially from the repository's optimized-order local sum by at most `1e-6`.
+The provider transport is fail-closed and counted; no localhost or live network is used.
+
+The operation returns detached candidate, repository snapshot, active-route and route-slot byte observations
+before/after save; write attempts/successes; the committed slot's production readback count during `save()`;
+and deltas for backend calculation, provider transport and automatic retry. It independently reopens the
+repository after the measured action. On success, tests require one slot write, one production committed-slot
+readback, schema 3, active publication, optimized visit order, unchanged aggregate bytes, and zero measured
+calculation/request/retry. On rejection, tests require zero write/repair, byte-identical slots, unchanged
+candidate/snapshot/revision/last-good and zero request/calculation/retry.
+
+Two fixtures separate the availability semantics. The all-duration fixture makes mapped distance and duration
+addition order observable and requires count `0` plus non-null duration/combined totals. The fallback fixture
+makes mapped and lower-bound addition order observable and requires exact positive unavailable count plus
+exact null duration/combined totals. A mutation matrix tests exact equality, inclusive `1e-6`, and rejection
+above `1e-6` for mapped distance, lower-bound distance and duration separately; negative, non-finite and
+type-invalid values for each numeric aggregate; both available/unavailable count mismatch; and null/non-null
+duration and combined-total mismatches in both directions. Mutations are acceptance inputs applied after the
+production calculation and before the measured real save; they do not normalize or repair stored data.

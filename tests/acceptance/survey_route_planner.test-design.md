@@ -1,4 +1,7 @@
-# Survey Route Planner — approved AC-SRP-066 reconciliation over approved AC-SRP-063–065
+# Survey Route Planner — APPROVED AC-SRP-068 extension over the approved baseline
+
+> **APPROVED TEST DESIGN (2026-09-23) — explicitly approved by the stakeholder.** The AC-SRP-068 section is
+> proposed against approved specification checkpoint `36a82b8`. Approved earlier sections remain unchanged.
 
 > **APPROVED TEST DESIGN (approval 2026-09-22).** D-SRP-067 / FR-SRP-064 /
 > NFR-SRP-012 / AC-SRP-066 authority is approved at checkpoint `cb8f2da`.
@@ -967,3 +970,39 @@ The shared live-QML `center_in_view` helper must convert its viewport-relative i
 absolute Flickable target by adding the current `contentY` exactly once. This preserves the existing real
 pointer-click evidence when a preceding observation has already scrolled the panel. The design verifier
 guards both the corrected formula and removal of the former viewport-as-absolute formula.
+
+## APPROVED AC-SRP-068 walking-total save-roundoff design (2026-09-23)
+
+Status: **DRAFT TEST DESIGN — user approval required.** Authority is D-SRP-069, FR-SRP-065 and
+AC-SRP-068 at approved checkpoint `36a82b8`.
+
+The tests reuse the direct production controller/repository JavaScript harness. A deterministic backend
+calculation yields visits in optimized stored order while its walking totals reflect source-order addition.
+The measured explicit-save window begins after that calculation. Therefore the assertions can distinguish
+repository validation from route calculation: measured backend calls, provider requests and automatic retries
+must all be zero.
+
+- `test_ac068_addition_order_roundoff_saves_once_without_recalculation_or_rewrite` crosses an all-duration
+  fixture and a fallback fixture. Each has at least three visits and a nonzero addition-order difference no
+  greater than `1e-6`. Success requires exactly one atomic slot write and committed-slot readback, independent
+  reopen equality, active schema-3 publication, optimized visit order, candidate clearing, no aggregate
+  rewrite, and no measured calculation/request/retry. The all-duration case preserves count `0` with non-null
+  duration/combined totals; fallback preserves the exact unavailable count with null duration/combined totals.
+- `test_ac068_numeric_walking_aggregate_tolerance_is_inclusive_and_bounded` crosses mapped distance,
+  lower-bound distance and duration independently at exact equality, `1e-6`, and `2e-6`. The first two save;
+  the last rejects without any write or state change.
+- `test_ac068_invalid_numeric_walking_aggregates_fail_without_writes` independently crosses every numeric
+  aggregate with negative, non-finite and type-invalid values.
+- `test_ac068_unavailable_count_and_null_semantics_remain_exact` crosses count mismatches in both availability
+  modes and null/non-null duration and combined-total mismatches in both directions.
+
+Every rejection asserts the same preservation oracle: candidate identity/value, repository snapshot, active
+revision, independently reopened last-good and every pre-existing route-slot byte remain unchanged; write,
+repair, provider request, route calculation and retry counts are zero. Fixtures use disposable files and no
+network, secrets, user profile or target-device claim. Current implementation is expected RED only where the
+repository compares the three walking numeric aggregates by exact equality.
+
+Approval-time verification: design verifier **PASS**; collection **523 tests**; focused AC-SRP-068 run
+**5 failed, 21 passed, 497 deselected**. The five intended RED cases are the two source/optimized-order
+fixtures and the three inclusive `1e-6` numeric boundaries. Exact equality and all rejection/preservation
+cases pass. No application code, live provider or device operation was exercised.

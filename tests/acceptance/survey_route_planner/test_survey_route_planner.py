@@ -1,4 +1,8 @@
-"""APPROVED AC-SRP-067 and AC-SRP-066 calculate-controls ordering extension (2026-09-23).
+"""APPROVED AC-SRP-068 walking-total save-roundoff extension (2026-09-23).
+
+Explicitly approved by the stakeholder. The approved AC-SRP-067 and AC-SRP-066 baseline remains unchanged.
+
+APPROVED AC-SRP-067 and AC-SRP-066 calculate-controls ordering extension (2026-09-23).
 
 APPROVED AC-SRP-066 reconciliation over the approved AC-SRP-063–065 extension (2026-09-22).
 
@@ -2536,9 +2540,9 @@ const fs=require("fs"),vm=require("vm"),http=require("http");
 const input=JSON.parse(process.argv[1]);
 function load(name){const c=vm.createContext({});vm.runInContext(fs.readFileSync(input.modules[name],"utf8"),c,{filename:input.modules[name]});return c;}
 const backend=load("backend"),repository=load("repository"),controller=load("controller"),navigation=load("navigation");
-let writeAttempts=0,writeSuccesses=0,providerRequestAttempts=0,failWrites=false;
+let writeAttempts=0,writeSuccesses=0,providerRequestAttempts=0,readPaths=[],failWrites=false;
 function io(){
-  return {exists:p=>fs.existsSync(p),read:p=>fs.readFileSync(p,"utf8"),write:(p,v)=>{
+  return {exists:p=>fs.existsSync(p),read:p=>{readPaths.push(p);return fs.readFileSync(p,"utf8");},write:(p,v)=>{
     writeAttempts++;if(failWrites)return false;fs.mkdirSync(require("path").dirname(p),{recursive:true});
     fs.writeFileSync(p,v);writeSuccesses++;return true;}};
 }
@@ -2638,6 +2642,62 @@ let launcherCalls=[];
     out={result,before,after:instance.state.snapshot.data,revision_before:revision,
       revision_after:instance.state.snapshot.revision,show_route_line:instance.state.showRouteLine,
       message:instance.state.message,progress:instance.progress(),writeAttempts,writeSuccesses};
+  }else if(input.operation==="walking_total_explicit_save"){
+    repository.save(fsIo(),input.base,input.document,0);
+    let backendCalculateCalls=0,automaticRetryAttempts=0;
+    const instance=controller.create({base:input.base,io:fsIo(),repository:{load:repository.load,save:repository.save},
+      backend:{calculate:async()=>{backendCalculateCalls++;return input.result;}},
+      transport:()=>{providerRequestAttempts++;throw new Error("provider request forbidden");},
+      features:()=>input.features,geometry:{coordinate:value=>value.slice()},gps:()=>input.start,
+      uuid:()=>"roundoff-candidate",now:()=>new Date("2026-09-23T00:00:00Z"),projectKey:()=>""});
+    instance.configure({server_url:"https://fixture.invalid",optimizer_url:"https://fixture.invalid/optimizer"});
+    instance.state.roundtrip=false;
+    const calculated=await instance.calculate(false);
+    if(!calculated)throw new Error("fixture candidate calculation failed: "+instance.state.message);
+    const expected=input.repository_totals,mutation=input.mutation||null;
+    if(mutation){
+      const totals=instance.state.candidate.walking_totals,field=mutation.field;
+      if(mutation.kind==="delta"){
+        totals.mapped_distance_m=expected.mapped_distance_m;
+        totals.lower_bound_distance_m=expected.lower_bound_distance_m;
+        if(expected.duration_s!==null)totals.duration_s=expected.duration_s;
+        totals[field]=expected[field]+mutation.value;
+      }
+      else if(mutation.kind==="negative")totals[field]=-1;
+      else if(mutation.kind==="nonfinite")totals[field]=Infinity;
+      else if(mutation.kind==="type_invalid")totals[field]="invalid";
+      else if(mutation.kind==="count_mismatch")totals.unavailable_duration_count=expected.unavailable_duration_count+1;
+      else if(mutation.kind==="duration_null")totals.duration_s=null;
+      else if(mutation.kind==="duration_nonnull")totals.duration_s=0;
+      else if(mutation.kind==="combined_null")instance.state.candidate.combined_totals=null;
+      else if(mutation.kind==="combined_nonnull")instance.state.candidate.combined_totals={distance_m:0,duration_s:0};
+      if(instance.state.candidate.combined_totals && ["mapped_distance_m","duration_s"].includes(field)){
+        instance.state.candidate.combined_totals.distance_m=instance.state.candidate.vehicle_totals.distance_m+totals.mapped_distance_m;
+        instance.state.candidate.combined_totals.duration_s=instance.state.candidate.vehicle_totals.duration_s+totals.duration_s;
+      }
+    }
+    const candidateRef=instance.state.candidate,candidateBefore=JSON.stringify(candidateRef);
+    const snapshotBefore=JSON.stringify(instance.state.snapshot),revisionBefore=instance.state.snapshot.revision;
+    const dir=require("path").dirname(input.base),filesBefore={};
+    fs.readdirSync(dir).filter(name=>name.startsWith(require("path").basename(input.base)+".")).sort().forEach(name=>filesBefore[name]=fs.readFileSync(require("path").join(dir,name),"utf8"));
+    const writesBefore=writeAttempts,successesBefore=writeSuccesses,readsBefore=readPaths.length,
+      calculationsBefore=backendCalculateCalls,requestsBefore=providerRequestAttempts,retriesBefore=automaticRetryAttempts;
+    const saved=instance.save("반올림 경계 경로"),saveReadPaths=readPaths.slice(readsBefore),slot=instance.state.snapshot.slot;
+    const filesAfter={};
+    fs.readdirSync(dir).filter(name=>name.startsWith(require("path").basename(input.base)+".")).sort().forEach(name=>filesAfter[name]=fs.readFileSync(require("path").join(dir,name),"utf8"));
+    const reopened=repository.load(fsIo(),input.base),active=reopened.data.routes.find(route=>route.route_id===reopened.data.active_id)||null;
+    out={calculated,saved,message:instance.state.message,candidate_before:JSON.parse(candidateBefore),
+      candidate_after:instance.state.candidate?JSON.parse(JSON.stringify(instance.state.candidate)):null,
+      candidate_preserved:instance.state.candidate===candidateRef&&JSON.stringify(instance.state.candidate)===candidateBefore,
+      snapshot_before:JSON.parse(snapshotBefore),snapshot_after:instance.state.snapshot,
+      revision_before:revisionBefore,revision_after:instance.state.snapshot.revision,
+      reopened,active,files_before:filesBefore,files_after:filesAfter,
+      write_attempts:writeAttempts-writesBefore,write_successes:writeSuccesses-successesBefore,
+      committed_slot_readbacks:saved?saveReadPaths.filter(path=>path===input.base+"."+slot+".json").length:0,
+      backend_calculations:backendCalculateCalls-calculationsBefore,
+      provider_requests:providerRequestAttempts-requestsBefore,
+      automatic_retries:automaticRetryAttempts-retriesBefore,
+      aggregate_rewritten:saved&&JSON.stringify(active.walking_totals)!==JSON.stringify(JSON.parse(candidateBefore).walking_totals)};
   }
   process.stdout.write(JSON.stringify(out));
 })().catch(error=>{console.error(error&&error.stack||error);process.exit(1);});
@@ -4413,6 +4473,231 @@ def test_ac067_origin_validation_http_403_is_actionable_redacted_and_atomic(
     assert "api_key=" not in normal
     if safe_detail is None:
         assert response_body not in normal
+
+
+# APPROVED AC-SRP-068 acceptance extension.
+def _ac068_sum(values):
+    total = 0.0
+    for value in values:
+        total += value
+        total += value
+    return total
+
+
+def _ac068_haversine_distance(longitude_degrees):
+    return 6371008.8 * math.radians(longitude_degrees)
+
+
+def _ac068_explicit_save_fixture(*, fallback):
+    mapped = {
+        "mapped-a": (1_000_000_000.0, 500_000_000.0),
+        "mapped-b": (0.0000001, 0.0000002),
+        "mapped-c": (0.0000001, 0.0000002),
+    }
+    lower = {
+        "lower-a": 20_000_000.0,
+        "lower-b": 1.1,
+        "lower-c": 1.2,
+    } if fallback else {}
+    source_ids = [*mapped, *lower]
+    optimized_ids = ["mapped-b", "mapped-c", "mapped-a"]
+    if fallback:
+        optimized_ids += ["lower-b", "lower-c", "lower-a"]
+    features, visits_by_id = [], {}
+    earth_radius = 6371008.8
+    for site_id in source_ids:
+        source = [0.0, 0.0]
+        if site_id in mapped:
+            distance, duration = mapped[site_id]
+            access = [0.001, 0.0]
+            offset = _ac068_haversine_distance(0.001)
+            mode, metric = "mapped", "ors-foot-hiking"
+        else:
+            distance, duration = lower[site_id], None
+            access = [math.degrees(distance / earth_radius), 0.0]
+            offset = distance
+            mode, metric = "unmapped_estimate", "straight_line_lower_bound_m"
+        geometry = {"type": "LineString", "coordinates": [access, source]}
+        visits_by_id[site_id] = {
+            "layer_id": "site", "site_id": site_id, "site_name": site_id,
+            "source_coordinate": source, "access_coordinate": access,
+            "access_offset_m": offset, "walking_mode": mode, "trip_multiplier": 2,
+            "metric_source": metric,
+            "walking_legs": [
+                {"direction": "outbound", "distance_m": distance,
+                 "duration_s": duration, "geometry": geometry},
+                {"direction": "return", "distance_m": distance,
+                 "duration_s": duration,
+                 "geometry": {"type": "LineString", "coordinates": [source, access]}},
+            ],
+        }
+        features.append({"id": site_id, "name": site_id,
+                         "coordinate": source, "completed": False})
+
+    stops = [{"source_layer": "site", "site_id": site_id, "name": site_id,
+              "coordinate": visits_by_id[site_id]["source_coordinate"], "completed": False}
+             for site_id in optimized_ids]
+    start = [-1.0, 0.0]
+    vehicle_legs = []
+    for index, stop in enumerate(stops):
+        previous = start if index == 0 else stops[index - 1]["coordinate"]
+        vehicle_legs.append({
+            "sequence": index + 1,
+            "from": "start" if index == 0 else {
+                "layer_id": "site", "site_id": stops[index - 1]["site_id"]},
+            "to": {"layer_id": "site", "site_id": stop["site_id"]},
+            "distance_m": 10.0, "duration_s": 5.0,
+            "geometry": {"type": "LineString", "coordinates": [previous, stop["coordinate"]]},
+        })
+    source_mapped = [mapped[site_id][0] for site_id in source_ids if site_id in mapped]
+    optimized_mapped = [mapped[site_id][0] for site_id in optimized_ids if site_id in mapped]
+    source_duration = [mapped[site_id][1] for site_id in source_ids if site_id in mapped]
+    optimized_duration = [mapped[site_id][1] for site_id in optimized_ids if site_id in mapped]
+    source_lower = [lower[site_id] for site_id in source_ids if site_id in lower]
+    optimized_lower = [lower[site_id] for site_id in optimized_ids if site_id in lower]
+    walking_totals = {
+        "mapped_distance_m": _ac068_sum(source_mapped),
+        "lower_bound_distance_m": _ac068_sum(source_lower),
+        "duration_s": None if fallback else _ac068_sum(source_duration),
+        "unavailable_duration_count": 2 * len(lower),
+    }
+    vehicle_totals = {"distance_m": 10.0 * len(stops), "duration_s": 5.0 * len(stops)}
+    result = {
+        "stops": stops, "distance_m": vehicle_totals["distance_m"],
+        "duration_s": vehicle_totals["duration_s"],
+        "road_geometry": {"type": "LineString", "coordinates": [
+            start, *[stop["coordinate"] for stop in stops]]},
+        "legs": vehicle_legs, "vehicle_legs": deepcopy(vehicle_legs),
+        "visits": [visits_by_id[site_id] for site_id in optimized_ids],
+        "vehicle_totals": vehicle_totals, "walking_totals": walking_totals,
+        "combined_totals": None if fallback else {
+            "distance_m": vehicle_totals["distance_m"] + walking_totals["mapped_distance_m"],
+            "duration_s": vehicle_totals["duration_s"] + walking_totals["duration_s"],
+        },
+        "eta": None, "eta_basis": None,
+    }
+    repository_totals = {
+        "mapped_distance_m": _ac068_sum(optimized_mapped),
+        "lower_bound_distance_m": _ac068_sum(optimized_lower),
+        "duration_s": None if fallback else _ac068_sum(optimized_duration),
+        "unavailable_duration_count": 2 * len(lower),
+    }
+    return {
+        "document": _legacy_document(), "features": features, "start": start,
+        "result": result, "repository_totals": repository_totals,
+        "source_ids": source_ids, "optimized_ids": optimized_ids,
+    }
+
+
+def _run_ac068_explicit_save(tmp_path, *, fallback=False, mutation=None):
+    fixture = _ac068_explicit_save_fixture(fallback=fallback)
+    observed = _direct_node(
+        "walking_total_explicit_save", tmp_path,
+        base=str(tmp_path / "survey-routes"), mutation=mutation, **{
+            key: fixture[key] for key in
+            ("document", "features", "start", "result", "repository_totals")
+        },
+    )
+    return observed, fixture
+
+
+def _assert_ac068_no_save_side_effects(observed):
+    assert observed["saved"] is False
+    assert observed["write_attempts"] == observed["write_successes"] == 0
+    assert observed["provider_requests"] == observed["backend_calculations"] == 0
+    assert observed["automatic_retries"] == 0
+    assert observed["candidate_preserved"] is True
+    assert observed["candidate_after"] == observed["candidate_before"]
+    assert observed["snapshot_after"] == observed["snapshot_before"]
+    assert observed["revision_after"] == observed["revision_before"]
+    assert observed["files_after"] == observed["files_before"]
+    assert observed["reopened"] == observed["snapshot_before"]
+
+
+@pytest.mark.parametrize("fallback", [False, True], ids=["all-duration", "fallback-null"])
+def test_ac068_addition_order_roundoff_saves_once_without_recalculation_or_rewrite(
+        tmp_path, fallback):
+    observed, fixture = _run_ac068_explicit_save(tmp_path, fallback=fallback)
+    candidate_totals = fixture["result"]["walking_totals"]
+    repository_totals = fixture["repository_totals"]
+    fields = ["mapped_distance_m", "lower_bound_distance_m"]
+    if not fallback:
+        fields.append("duration_s")
+    nonzero_differences = [
+        abs(candidate_totals[field] - repository_totals[field])
+        for field in fields if candidate_totals[field] != repository_totals[field]
+    ]
+    assert nonzero_differences and all(0 < difference <= 1e-6 for difference in nonzero_differences)
+    assert observed["calculated"] is observed["saved"] is True
+    assert observed["write_attempts"] == observed["write_successes"] == 1
+    assert observed["committed_slot_readbacks"] == 1
+    assert observed["revision_after"] == observed["revision_before"] + 1
+    assert observed["backend_calculations"] == observed["provider_requests"] == 0
+    assert observed["automatic_retries"] == 0
+    assert observed["aggregate_rewritten"] is False
+    assert observed["candidate_after"] is None
+    assert observed["reopened"] == observed["snapshot_after"]
+    assert observed["active"]["route_id"] == "roundoff-candidate"
+    assert [visit["site_id"] for visit in observed["active"]["visits"]] == fixture["optimized_ids"]
+    assert observed["active"]["walking_totals"] == candidate_totals
+    if fallback:
+        assert observed["active"]["walking_totals"]["duration_s"] is None
+        assert observed["active"]["combined_totals"] is None
+        assert observed["active"]["walking_totals"]["unavailable_duration_count"] == 6
+    else:
+        assert observed["active"]["walking_totals"]["unavailable_duration_count"] == 0
+        assert observed["active"]["combined_totals"] is not None
+
+
+@pytest.mark.parametrize(("field", "fallback"), [
+    ("mapped_distance_m", False),
+    ("lower_bound_distance_m", True),
+    ("duration_s", False),
+])
+@pytest.mark.parametrize(("delta", "accepted"), [
+    (0.0, True), (1e-6, True), (2e-6, False),
+], ids=["exact", "boundary-1e-6", "greater-than-1e-6"])
+def test_ac068_numeric_walking_aggregate_tolerance_is_inclusive_and_bounded(
+        tmp_path, field, fallback, delta, accepted):
+    observed, _ = _run_ac068_explicit_save(
+        tmp_path, fallback=fallback,
+        mutation={"field": field, "kind": "delta", "value": delta},
+    )
+    assert observed["saved"] is accepted
+    if accepted:
+        assert observed["write_attempts"] == observed["write_successes"] == 1
+        assert observed["committed_slot_readbacks"] == 1
+        assert observed["backend_calculations"] == observed["provider_requests"] == 0
+        assert observed["automatic_retries"] == 0
+    else:
+        _assert_ac068_no_save_side_effects(observed)
+
+
+@pytest.mark.parametrize(("field", "fallback"), [
+    ("mapped_distance_m", False),
+    ("lower_bound_distance_m", True),
+    ("duration_s", False),
+])
+@pytest.mark.parametrize("kind", ["negative", "nonfinite", "type_invalid"])
+def test_ac068_invalid_numeric_walking_aggregates_fail_without_writes(
+        tmp_path, field, fallback, kind):
+    observed, _ = _run_ac068_explicit_save(
+        tmp_path, fallback=fallback, mutation={"field": field, "kind": kind})
+    _assert_ac068_no_save_side_effects(observed)
+
+
+@pytest.mark.parametrize(("fallback", "kind"), [
+    (False, "count_mismatch"),
+    (True, "count_mismatch"),
+    (False, "duration_null"),
+    (True, "duration_nonnull"),
+    (False, "combined_null"),
+    (True, "combined_nonnull"),
+])
+def test_ac068_unavailable_count_and_null_semantics_remain_exact(tmp_path, fallback, kind):
+    observed, _ = _run_ac068_explicit_save(
+        tmp_path, fallback=fallback, mutation={"kind": kind})
+    _assert_ac068_no_save_side_effects(observed)
 
 
 def _tree_bytes(root):

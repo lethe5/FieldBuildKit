@@ -1,4 +1,7 @@
-# Survey Route Planner — approved AC-SRP-066 traceability over approved AC-SRP-063–065
+# Survey Route Planner — APPROVED AC-SRP-068 traceability over the approved baseline
+
+> **APPROVED TEST DESIGN (2026-09-23) — explicitly approved by the stakeholder.** AC-SRP-068 mappings below
+> trace approved specification checkpoint `36a82b8`. Approved earlier traceability remains unchanged.
 
 > **APPROVED TEST DESIGN (approval 2026-09-22).** AC-SRP-066 mappings use
 > approved clarification checkpoint `cb8f2da`.
@@ -523,3 +526,20 @@ Status: **APPROVED — explicitly approved by the stakeholder on 2026-09-23.** A
 | Approved authority preserved | Evidence correction | Guard |
 | --- | --- | --- |
 | AC-SRP-063 disclosure/save clicks; AC-SRP-066 save outcomes/order; AC-SRP-067 origin-failure path | Convert the live item's viewport-relative Y coordinate to an absolute Flickable target by adding current `contentY` exactly once before the existing real pointer click | Design verifier requires the corrected formula and forbids the former viewport-relative-as-absolute formula |
+
+## APPROVED AC-SRP-068 traceability (2026-09-23)
+
+Status: **DRAFT TEST DESIGN — user approval required.** Approved requirement authority is checkpoint
+`36a82b8`; no earlier mapping is reopened.
+
+| Approved authority | Proposed direct automated evidence | Explicit boundary / intended result |
+| --- | --- | --- |
+| D-SRP-069; FR-SRP-065; AC-SRP-068 — source/optimized addition-order roundoff | `test_ac068_addition_order_roundoff_saves_once_without_recalculation_or_rewrite` crosses all-duration and fallback fixtures with nonzero difference `<=1e-6`, real controller save, production repository write/readback and independent reopen | Disposable deterministic backend result; measured save has zero backend/provider/retry; expected RED only at exact walking aggregate comparison |
+| D-SRP-069; AC-SRP-068 — exact and inclusive numeric boundary | `test_ac068_numeric_walking_aggregate_tolerance_is_inclusive_and_bounded` crosses mapped/lower/duration at exact equality, `1e-6`, and `2e-6` | Floating observations are production JavaScript numbers; `2e-6` is the unambiguous greater-than-boundary rejection |
+| D-SRP-069; AC-SRP-068 — invalid numeric values | `test_ac068_invalid_numeric_walking_aggregates_fail_without_writes` crosses mapped/lower/duration with negative, non-finite and type-invalid variants | Non-finite is injected at the production-controller candidate boundary; JSON cloning may represent it as null before repository validation, which must still reject without write |
+| D-SRP-069; FR-SRP-065; AC-SRP-068 — exact unavailable/null semantics | `test_ac068_unavailable_count_and_null_semantics_remain_exact` crosses count mismatch in both modes and duration/combined nullability in both directions | No tolerance applies to integer count or null semantics |
+| FR-SRP-065; AC-SRP-068 — atomic success and failure preservation | All four tests assert success-only one write/readback/active route/no rewrite; every failure asserts zero write/repair/request/recalculation/retry and unchanged candidate, slot bytes, active revision and independently reopened last-good | No live provider, QField device, user profile or real credentials |
+
+Draft verification: design verifier **PASS**; **523 collected**; focused result
+**5 failed, 21 passed, 497 deselected**, with RED limited to the two roundoff saves and three `1e-6`
+inclusive-boundary cases expected from the current exact-equality implementation.

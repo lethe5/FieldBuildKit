@@ -659,3 +659,45 @@ assert all(token in ac065 for token in (
 manual = inspect.getsource(module.test_ac063_ac064_ac065_ac066_target_qfield_handoff_is_user_run_and_unverified)
 assert "pytest.skip" in manual and "미검증" in manual and "target QField" in manual
 print("survey route AC066 approved reconciliation verified; target QField remains 미검증")
+
+# APPROVED AC-SRP-068 acceptance design guard.
+assert "068" in coverage
+ac068_success = inspect.getsource(
+    module.test_ac068_addition_order_roundoff_saves_once_without_recalculation_or_rewrite)
+assert all(token in ac068_success for token in (
+    'nonzero_differences', '0 < difference <= 1e-6',
+    'observed["write_attempts"] == observed["write_successes"] == 1',
+    'observed["committed_slot_readbacks"] == 1',
+    'observed["backend_calculations"] == observed["provider_requests"] == 0',
+    'observed["automatic_retries"] == 0', 'observed["aggregate_rewritten"] is False',
+    'fixture["optimized_ids"]', 'observed["active"]["walking_totals"] == candidate_totals',
+    'observed["active"]["walking_totals"]["duration_s"] is None',
+    'observed["active"]["combined_totals"] is None',
+    'observed["active"]["walking_totals"]["unavailable_duration_count"] == 6',
+))
+ac068_boundary = inspect.getsource(
+    module.test_ac068_numeric_walking_aggregate_tolerance_is_inclusive_and_bounded)
+assert all(token in ac068_boundary for token in (
+    'field', 'fallback', 'delta', 'accepted', '_assert_ac068_no_save_side_effects',
+))
+ac068_tokens = (
+    '(0.0, True), (1e-6, True), (2e-6, False)',
+    '("mapped_distance_m", False)', '("lower_bound_distance_m", True)',
+    '("duration_s", False)', '["negative", "nonfinite", "type_invalid"]',
+    '(False, "count_mismatch")', '(True, "count_mismatch")',
+    '(False, "duration_null")', '(True, "duration_nonnull")',
+    '(False, "combined_null")', '(True, "combined_nonnull")',
+)
+assert not [token for token in ac068_tokens if token not in test_source], [
+    token for token in ac068_tokens if token not in test_source]
+ac068_failure = inspect.getsource(module._assert_ac068_no_save_side_effects)
+assert all(token in ac068_failure for token in (
+    'observed["write_attempts"] == observed["write_successes"] == 0',
+    'observed["provider_requests"] == observed["backend_calculations"] == 0',
+    'observed["automatic_retries"] == 0', 'observed["candidate_preserved"] is True',
+    'observed["snapshot_after"] == observed["snapshot_before"]',
+    'observed["files_after"] == observed["files_before"]',
+    'observed["reopened"] == observed["snapshot_before"]',
+))
+assert 'input.operation==="walking_total_explicit_save"' in module.DIRECT_NODE
+print("survey route AC068 DRAFT walking-total save-roundoff design verified; approval required")
