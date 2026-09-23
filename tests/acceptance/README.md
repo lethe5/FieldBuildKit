@@ -119,6 +119,11 @@ only). See
 for the full analysis and exactly what coverage is still missing. The two pre-existing tests this
 change touches (`AC-QPB-058`, `AC-QPB-082`) were confirmed to remain valid, unchanged.
 
+A later approved round for approved D-103 adds the now-authorized cross-page executable acceptance flow for
+the clarified AC-QPB-097 shared-session behavior. See
+[`qfield_project_builder_d103_shared_unlock.traceability.md`](qfield_project_builder_d103_shared_unlock.traceability.md).
+This does not retroactively change the earlier D-53/D-55 round's role-boundary record.
+
 ### Korean field aliases (Decision Log D-56/D-57/D-58)
 
 A later, separate `test-designer` round covers new `DR-QPB-071` (Section 7), new `FR-QPB-119`

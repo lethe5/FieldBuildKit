@@ -504,3 +504,14 @@ specification checkpoint `cb8f2da` and all product behavior remain unchanged.
 | AC-SRP-064 status starts outside and ends fully visible | Stabilize live rendered geometry, explicitly place `saveStatus` wholly outside the viewport, assert `outside: true`, then require post-attempt `fully_visible: true` | Design verifier requires the bounded render-settle and explicit outside-position helper; no timed sleep |
 | D-SRP-067; FR-SRP-064; AC-SRP-066 no application focus transfer/recovery | Permit only `None` or an unnamed non-focusable Qt scope after platform clear; reject every named target, focusable-control ancestor, and save-button focus-recovery API | Detailed focus observations retain object name, Qt class, accessible role and focusable-control identity |
 | AC-SRP-063–066 remaining state, order, endpoint and device boundaries | Existing success-disable, exact disabled reason, route-name/disclosure preservation, semantic order, one endpoint-gap detail, announcement, atomicity and M22 assertions are unchanged | Existing verifier/test assertions remain required |
+
+## APPROVED AC-SRP-066 layout restoration / AC-SRP-067 traceability (2026-09-23)
+
+Status: **APPROVED — explicitly approved by the stakeholder on 2026-09-23.**
+
+| Approved authority | Direct automated evidence | Boundary / current result |
+| --- | --- | --- |
+| AC-SRP-066 result/save block after calculate controls; existing internal order unchanged | `test_ac064_ac066_every_save_outcome_is_visible_once_and_preserves_required_state` now includes actual live calculate controls in raw geometry/accessibility ordering at both viewport/theme pairs | Intentionally RED: committed QML places `basic_result` before `calculation_controls`; M22 remains `미검증` |
+| D-SRP-068; AC-SRP-067 stage/status/actionability/accessibility | `test_ac067_origin_validation_http_403_is_actionable_redacted_and_atomic` checks matching live status/QAccessible name, exact `origin-validation`, HTTP 403 and neutral key/permission action | Intentionally RED only at missing key/permission action text |
+| D-SRP-049; D-SRP-068; AC-SRP-067 redaction and safe-detail allowlist | Same parametrized test crosses unsafe text and safe JSON provider-message fixtures; normal UI/log/storage surfaces exclude secret, `Authorization`, query and unsafe raw response | Synthetic localhost only; no live provider diagnosis |
+| AC-SRP-067 cutoff/atomicity | Same test requires exactly one origin request, zero downstream/retry/write, identical candidate/document/revision and byte-identical route slots | Direct disposable storage snapshots; no user project touched |

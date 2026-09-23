@@ -539,3 +539,19 @@ with no focusable-control identity is admissible. A named item or any actual foc
 application-visible transfer and must fail; generated save-button focus recovery remains forbidden.
 Failure outcomes continue to retain `saveRouteButton`. All state, order, endpoint-detail and announcement
 fields remain required.
+
+## APPROVED AC-SRP-066 calculate-controls boundary / AC-SRP-067 origin HTTP 403 (2026-09-23)
+
+`save_outcome_visibility` extends its live semantic groups with `calculation_controls`, composed from
+the real scope, start, roundtrip, settings disclosure, coordinate-sharing notice and calculate controls.
+Applicable visual and accessibility order must begin with that group, then preserve the already-approved
+result/save order: basic result, fallback notice, details disclosure/content, route name, save button,
+disabled reason and outcome status. Raw QML rectangles remain the oracle.
+
+`origin_http_failure` first creates a production-saved last-good route and a separate live candidate,
+then injects one HTTP 403 at the first `origin-validation` transport boundary. The unsafe fixture body
+contains a visibly synthetic secret/header/query; the companion JSON fixture contains an allowlist-safe
+provider code/message. Returned observations contain only the live panel/status accessibility text,
+bounded safe error record, stage counts, write count, candidate/document/revision snapshots and hex-encoded
+route-file snapshots. They never return request headers, request bodies or the raw response. Exactly one
+post-baseline request must be `origin-validation`; downstream requests, retry/fallback and writes are zero.

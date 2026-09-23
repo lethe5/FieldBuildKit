@@ -18,14 +18,33 @@ source = driver.read_text(encoding="utf-8-sig")
 old_ops = "'ordered_completion_checklist','candidate_completion_guard','mixed_route_presentation'}"
 new_ops = (
     "'ordered_completion_checklist','candidate_completion_guard','mixed_route_presentation',"
-    "'route_ui_simplification','save_outcome_visibility'}"
+    "'route_ui_simplification','save_outcome_visibility','origin_http_failure'}"
 )
 if source.count(old_ops) != 1:
     raise RuntimeError("canonical QML driver operation set changed")
 source = source.replace(old_ops, new_ops)
 
+old_http_fault = """        fault_applies=kind in ('matrix','optimizer','directions')
+        if fault_applies and fault in ('timeout','network','status_0') and (op!='remaining' or 'jobs' in body):
+            if fault=='timeout':threading.Event().wait(.15)
+            self.close_connection=True;return
+        if fault_applies and fault.startswith('http_'):
+            self.send_response(int(fault[5:]));self.end_headers();self.wfile.write(('failure '+case.get('key','')).encode());return
+"""
+new_http_fault = """        fault_applies=(kind==case.get('fault_stage')) if case.get('fault_stage') else kind in ('matrix','optimizer','directions')
+        if fault_applies and fault in ('timeout','network','status_0') and (op!='remaining' or 'jobs' in body):
+            if fault=='timeout':threading.Event().wait(.15)
+            self.close_connection=True;return
+        if fault_applies and fault.startswith('http_'):
+            payload=str(case.get('http_failure_body','failure '+case.get('key',''))).encode()
+            self.send_response(int(fault[5:]));self.send_header('Content-Type',case.get('http_failure_content_type','text/plain'));self.end_headers();self.wfile.write(payload);return
+"""
+if source.count(old_http_fault) != 1:
+    raise RuntimeError("canonical QML driver HTTP fault boundary changed")
+source = source.replace(old_http_fault, new_http_fault)
+
 marker = "    elif op=='mixed_route_presentation':\n"
-branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'):
+branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility','origin_http_failure'):
         fallback_notice='실제 도로 경로를 못 찾은 구간을 직선거리 추정치로 포함하였습니다.'
         endpoint_notice='ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함'
         details_label='상세 정보'
@@ -134,10 +153,13 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
         def semantic_observation():
             basic=[named(name) for name in ('mixedTotalsLabel','walkingTotalsAccessibility',
                 'mappedWalkingDurationAccessibility','straightLineLowerBoundAccessibility')]
+            calculation=[named(name) for name in ('scopeCombo','startCombo','roundtripBox',
+                'settingsDisclosure','coordinateSharingNotice','calculateButton')]
             disclosure=named('routeDetailsDisclosure');details=named('routeDetailsContent')
             detail_items=[item for item in visual_objects(details)
                 if item is not details and shown(item) and item_text(item)]
-            groups=[('basic_result',[item for item in basic if shown(item)]),
+            groups=[('calculation_controls',[item for item in calculation if shown(item)]),
+                ('basic_result',[item for item in basic if shown(item)]),
                 ('fallback_notice',[named('fallbackNotice')]),
                 ('details_disclosure',[disclosure]),('details_content',detail_items),
                 ('route_name',[named('routeName')]),('save_button',[named('saveRouteButton')]),
@@ -202,6 +224,36 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
             case['access_snap_response']={'locations':[{'location':point} for point in access]}
             case['walking_responses']=walking
             if not calculate():raise RuntimeError('fixture calculation failed: '+str(panel.property('message')))
+
+        if op=='origin_http_failure':
+            configure_candidate('mixed')
+            if not save('기존 정상 경로'):raise RuntimeError('could not seed last-good route')
+            configure_candidate('mixed')
+            candidate_before=detached(state()['candidate']);document_before=detached(stored())
+            revision_before=int(state()['snapshot']['revision']);requests_before=len(requests)
+            writes_before=len(writes)
+            files_before={str(path.relative_to(folder)):path.read_bytes().hex()
+                for path in sorted(folder.glob('survey-routes.*.json'))}
+            fault='http_403'
+            calculate()
+            calculation_ok=state()['lastError'] is None
+            fault=''
+            status=named('saveStatus');message=str(panel.property('message'))
+            files_after={str(path.relative_to(folder)):path.read_bytes().hex()
+                for path in sorted(folder.glob('survey-routes.*.json'))}
+            accessible=accessibility(status)
+            normal_surfaces='\n'.join([message,*logs,*[item_text(item) for item in visual_objects(panel) if shown(item)]])
+            result.update(calculation_ok=calculation_ok,message=message,status_visible=shown(status),
+                status_accessibility=accessible,last_error=detached(state()['lastError']),
+                request_stages_after_failure=[row['kind'] for row in requests[requests_before:]],
+                request_count_after_failure=len(requests)-requests_before,
+                write_count_after_failure=len(writes)-writes_before,
+                candidate_before=candidate_before,candidate_after=detached(state()['candidate']),
+                document_before=document_before,document_after=detached(stored()),
+                revision_before=revision_before,revision_after=int(state()['snapshot']['revision']),
+                route_files_before=files_before,route_files_after=files_after,
+                normal_surfaces=normal_surfaces,
+                qml_runtime={'loaded_generated_qml':True,'generated_qml_path':str(folder/'qfield_routes/RoutePanel.qml')})
 
         if op=='route_ui_simplification':
             composition=case.get('composition','mixed')
@@ -315,7 +367,7 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
                 save_enabled_before_toggle=save_before,save_enabled_after_toggle=save_after_toggle,
                 invalid_mapping_reason=invalid_reason,saved_observation=saved_observation,
                 qml_runtime={'loaded_generated_qml':True,'generated_qml_path':str(folder/'qfield_routes/RoutePanel.qml')})
-        else:
+        elif op=='save_outcome_visibility':
             # Seed one last-good route through the production save path, then calculate a new
             # all-mapped candidate.  The save-attempt assertions below start after this setup.
             configure_candidate('all_mapped');control('routeName','마지막 정상 경로')

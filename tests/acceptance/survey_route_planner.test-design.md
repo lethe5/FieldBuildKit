@@ -937,3 +937,24 @@ and every AC-SRP-063–066 product expectation remain unchanged.
 - Success disable/candidate clear, exact reason, semantic visual/keyboard/accessibility order, endpoint
   detail placement, announcement count, persistence/atomicity, no retry/provider request, and all manual
   boundaries remain exactly as approved.
+
+## APPROVED AC-SRP-066 layout restoration / AC-SRP-067 origin HTTP 403 (2026-09-23)
+
+Status: **APPROVED — explicitly approved by the stakeholder on 2026-09-23.** Approved AC-SRP-066 remains unchanged; this round
+adds the missing live boundary between the calculate controls and its already-approved result/save order.
+
+- At 320 px/light and 1024 px/dark, the existing seven-outcome live-QML matrix now observes one
+  `calculation_controls` group from actual controls and requires it before every applicable result/save
+  group. The existing internal order, focus, clipping, overflow and announcement assertions remain intact.
+- AC-SRP-067 seeds both a production-saved last-good route and a distinct candidate, then returns an HTTP
+  403 only for the first `origin-validation` request. Visible and QAccessible status must match, retain the
+  exact stage and status, and give neutral, actionable key/permission guidance. One unsafe raw fixture and
+  one allowlisted safe JSON detail fixture cross the redaction boundary.
+- The failure fixture proves one request only, zero downstream stages/retry/fallback/writes, and byte-for-byte
+  last-good plus candidate/document/revision preservation. It exposes no request header/body or raw response.
+- Target-QField touch/screen-reader behavior remains M22 and `미검증`; no automated proxy promotes it.
+
+Evidence at approval: the focused live layout is intentionally RED at visual order (`basic_result` still
+precedes `calculation_controls`). The focused 403 cases are intentionally RED only because the visible status
+lacks actionable key/permission guidance; stage/status, single-request cutoff, redaction and all state/write
+invariants were directly observed intact.

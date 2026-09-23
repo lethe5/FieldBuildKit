@@ -2252,3 +2252,12 @@ The new `run_survey_route_acceptance` seam is described in
 [design](../survey_route_planner.test-design.md) and
 [traceability](../survey_route_planner.traceability.md). These acceptance artifacts were explicitly approved on 2026-09-14. This addition does not approve a provider, storage format or unresolved centroid policy.
 Earlier entries remain historical evidence; no runtime PASS is claimed by this index update.
+
+## APPROVED D-103 shared unlock direct-GUI boundary (2026-09-23)
+
+No `acceptance_api` function is added. `test_d103_shared_credential_unlock.py` uses the real public encrypted
+store and the real VWorld, Pl@ntNet and ORS wizard-page consumers in one offscreen process. Both app-data
+directory functions are redirected below pytest `tmp_path`; unlocked and session-key state is reset around
+every case. The prompt is an injected deterministic response only. The test may call the production
+review/build persistence boundary directly, but must not start a worker, access real app data, print a key,
+or claim native dialog rendering.

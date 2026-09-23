@@ -1,4 +1,6 @@
-"""APPROVED AC-SRP-066 reconciliation over the approved AC-SRP-063–065 extension (2026-09-22).
+"""APPROVED AC-SRP-067 and AC-SRP-066 calculate-controls ordering extension (2026-09-23).
+
+APPROVED AC-SRP-066 reconciliation over the approved AC-SRP-063–065 extension (2026-09-22).
 
 The approved AC-SRP-061–062 extension and all earlier history remain preserved below.  This
 approved extension supersedes only the earlier fallback acknowledgement expectations identified by
@@ -4303,6 +4305,14 @@ def test_ac064_ac066_every_save_outcome_is_visible_once_and_preserves_required_s
         "routeDetailsDisclosure", "routeName", "saveRouteButton",
     ]
     semantic = observed["semantic_order"]
+    canonical_order = [
+        "calculation_controls", "basic_result", "fallback_notice", "details_disclosure",
+        "details_content", "route_name", "save_button", "disabled_reason", "outcome_status",
+    ]
+    assert semantic["expected_order"][0] == "calculation_controls"
+    assert semantic["expected_order"] == [
+        group for group in canonical_order if group in semantic["expected_order"]
+    ]
     assert semantic["visual_order"] == semantic["expected_order"]
     assert semantic["accessibility_order"] == semantic["expected_order"]
     assert observed["outcome_layout"]["horizontal_overflow"] is False
@@ -4348,6 +4358,61 @@ def test_ac064_ac066_every_save_outcome_is_visible_once_and_preserves_required_s
             "exception": "다시 시도",
         }[outcome]
         assert keyword in observed["status_text"]
+
+
+@pytest.mark.parametrize(("response_body", "content_type", "safe_detail"), [
+    (
+        "Authorization: Bearer SRP-DRAFT-403-SECRET; "
+        "https://provider.invalid/path?api_key=SRP-DRAFT-403-SECRET",
+        "text/plain",
+        None,
+    ),
+    (
+        '{"error":{"code":"ACCESS_DENIED","message":"Permission scope is required"}}',
+        "application/json",
+        "Permission scope is required",
+    ),
+])
+def test_ac067_origin_validation_http_403_is_actionable_redacted_and_atomic(
+        tmp_path, response_body, content_type, safe_detail):
+    secret = "SRP-DRAFT-403-SECRET"
+    observed = _run_route_ui_qml(
+        tmp_path, operation="origin_http_failure", composition="mixed",
+        viewport_width=320, theme="light", key=secret,
+        fault_stage="origin-validation", http_failure_body=response_body,
+        http_failure_content_type=content_type,
+    )
+
+    assert observed["qml_runtime"]["loaded_generated_qml"] is True
+    assert observed["calculation_ok"] is False
+    assert observed["status_visible"] is True
+    assert observed["status_accessibility"]["name"] == observed["message"]
+    assert "출발지 차량 경로 확인(origin-validation)" in observed["message"]
+    assert "HTTP 403" in observed["message"]
+    assert "키" in observed["message"] and ("권한" in observed["message"] or "permission" in observed["message"].lower())
+    assert not any(claim in observed["message"] for claim in (
+        "키가 잘못", "잘못된 키", "요금제가 부족", "provider policy 때문",
+    ))
+    if safe_detail is not None:
+        assert safe_detail in observed["message"]
+
+    error = observed["last_error"]
+    assert error["stage"] == "origin-validation"
+    assert error["http_status"] == 403
+    assert observed["request_stages_after_failure"] == ["origin-validation"]
+    assert observed["request_count_after_failure"] == 1
+    assert observed["write_count_after_failure"] == 0
+    assert observed["candidate_after"] == observed["candidate_before"]
+    assert observed["document_after"] == observed["document_before"]
+    assert observed["revision_after"] == observed["revision_before"]
+    assert observed["route_files_after"] == observed["route_files_before"]
+
+    normal = observed["normal_surfaces"]
+    assert secret not in normal
+    assert "Authorization" not in normal
+    assert "api_key=" not in normal
+    if safe_detail is None:
+        assert response_body not in normal
 
 
 def _tree_bytes(root):

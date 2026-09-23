@@ -617,6 +617,19 @@ assert all(token in qml_driver for token in (
     "app_focus_recovery_api_occurrences", "keyboard_traversal", "semantic_order",
     "current_presentation",
 ))
+assert "067" in coverage
+assert "calculation_controls" in qml_driver
+assert "fault_stage" in qml_driver and "origin_http_failure" in qml_driver
+ac067 = inspect.getsource(
+    module.test_ac067_origin_validation_http_403_is_actionable_redacted_and_atomic)
+assert all(token in ac067 for token in (
+    '"origin-validation"', '"HTTP 403"', 'observed["request_count_after_failure"] == 1',
+    'observed["write_count_after_failure"] == 0',
+    'observed["candidate_after"] == observed["candidate_before"]',
+    'observed["document_after"] == observed["document_before"]',
+    'observed["route_files_after"] == observed["route_files_before"]',
+    'secret not in normal', '"Authorization" not in normal', '"api_key=" not in normal',
+))
 assert "acknowledgeUnmapped(" not in qml_driver
 assert not (path.parent / "unmapped_save_qml_driver.py").exists()
 
