@@ -196,6 +196,7 @@ function httpError(stage, status, body, contentType, key) {
     if (record.http_status !== null) parts.push("HTTP " + record.http_status);
     if (record.provider_code || record.provider_message) parts.push((record.provider_code ? record.provider_code + (record.provider_message ? ": " : "") : "") + (record.provider_message || ""));
     else if (record.safe_text) parts.push(record.safe_text);
+    if(record.http_status===403)parts.push("API 키와 해당 키의 서비스 권한을 확인하세요");
     var error = new Error(parts.join(" · ").slice(0, 512));
     error.category = "provider_http"; error.stage = stage; error.http_status = record.http_status; error.safe_record = record;
     var detail=((record.provider_code||"")+" "+(record.provider_message||"")+" "+(record.safe_text||"")).toLowerCase();

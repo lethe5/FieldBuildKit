@@ -31,6 +31,19 @@ process.stdout.write(JSON.stringify({safe:safe.safe_record,message:safe.message,
     assert result["unsafe"]["safe_text"] is None
 
 
+def test_origin_403_keeps_stage_and_status_with_neutral_key_permission_guidance():
+    result = _node(r"""const fs=require('fs'),vm=require('vm'),c=vm.createContext({});
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);
+const error=c.httpError('origin-validation',403,'Authorization: Bearer secret','text/plain','secret');
+process.stdout.write(JSON.stringify({message:error.message,record:error.safe_record,actions:error.suggested_actions}));""", ROUTES / "backend.js")
+    assert "출발지 차량 경로 확인(origin-validation)" in result["message"]
+    assert "HTTP 403" in result["message"]
+    assert "키" in result["message"] and "권한" in result["message"]
+    assert "Authorization" not in result["message"] and "secret" not in result["message"]
+    assert result["record"]["http_status"] == 403
+    assert result["actions"] == ["permission"]
+
+
 def test_origin_validation_requires_provider_location_before_any_later_request():
     result = _node(r"""const fs=require('fs'),vm=require('vm'),c=vm.createContext({});
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);(async()=>{let requests=[],message='';
