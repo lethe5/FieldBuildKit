@@ -958,3 +958,12 @@ Evidence at approval: the focused live layout is intentionally RED at visual ord
 precedes `calculation_controls`). The focused 403 cases are intentionally RED only because the visible status
 lacks actionable key/permission guidance; stage/status, single-request cutoff, redaction and all state/write
 invariants were directly observed intact.
+
+## APPROVED AC-SRP-063/066/067 scrolled-click coordinate correction (2026-09-23)
+
+Status: **APPROVED — explicitly approved by the stakeholder on 2026-09-23.** No product expectation changes.
+
+The shared live-QML `center_in_view` helper must convert its viewport-relative item Y coordinate to an
+absolute Flickable target by adding the current `contentY` exactly once. This preserves the existing real
+pointer-click evidence when a preceding observation has already scrolled the panel. The design verifier
+guards both the corrected formula and removal of the former viewport-as-absolute formula.

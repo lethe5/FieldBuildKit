@@ -66,7 +66,8 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
         def center_in_view(item):
             scroll=named('routeScroll');flickable=scroll.property('contentItem')
             within=item.mapToItem(flickable,QPointF(0,0))
-            flickable.setProperty('contentY',max(0,within.y()-flickable.height()/2+item.height()/2))
+            current_y=float(flickable.property('contentY') or 0)
+            flickable.setProperty('contentY',max(0,current_y+within.y()-flickable.height()/2+item.height()/2))
             app.processEvents()
         def pointer_click(item):
             center_in_view(item)

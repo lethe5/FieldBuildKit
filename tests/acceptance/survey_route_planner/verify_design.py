@@ -617,6 +617,10 @@ assert all(token in qml_driver for token in (
     "app_focus_recovery_api_occurrences", "keyboard_traversal", "semantic_order",
     "current_presentation",
 ))
+assert qml_driver.count("current_y=float(flickable.property('contentY') or 0)") == 1
+assert qml_driver.count(
+    "max(0,current_y+within.y()-flickable.height()/2+item.height()/2)") == 1
+assert "max(0,within.y()-flickable.height()/2+item.height()/2)" not in qml_driver
 assert "067" in coverage
 assert "calculation_controls" in qml_driver
 assert "fault_stage" in qml_driver and "origin_http_failure" in qml_driver

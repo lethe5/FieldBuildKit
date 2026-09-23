@@ -555,3 +555,14 @@ provider code/message. Returned observations contain only the live panel/status 
 bounded safe error record, stage counts, write count, candidate/document/revision snapshots and hex-encoded
 route-file snapshots. They never return request headers, request bodies or the raw response. Exactly one
 post-baseline request must be `origin-validation`; downstream requests, retry/fallback and writes are zero.
+
+## APPROVED AC-SRP-063/066/067 scrolled-click coordinate correction (2026-09-23)
+
+Status: **APPROVED — explicitly approved by the stakeholder on 2026-09-23.** Product expectations and the approved
+acceptance contracts above are unchanged; this corrects only the QML evidence driver.
+
+`center_in_view` receives an item Y coordinate relative to the current Flickable viewport. Its target
+`contentY` must therefore add the current `contentY` exactly once before centering the item. Treating the
+viewport-relative coordinate as an absolute content position can move an already-scrolled disclosure or
+save button farther out of view and turn real pointer clicks into misses. The design verifier fixes this
+conversion in place so AC-SRP-063/066/067 keep exercising their existing real-click evidence.

@@ -515,3 +515,11 @@ Status: **APPROVED — explicitly approved by the stakeholder on 2026-09-23.**
 | D-SRP-068; AC-SRP-067 stage/status/actionability/accessibility | `test_ac067_origin_validation_http_403_is_actionable_redacted_and_atomic` checks matching live status/QAccessible name, exact `origin-validation`, HTTP 403 and neutral key/permission action | Intentionally RED only at missing key/permission action text |
 | D-SRP-049; D-SRP-068; AC-SRP-067 redaction and safe-detail allowlist | Same parametrized test crosses unsafe text and safe JSON provider-message fixtures; normal UI/log/storage surfaces exclude secret, `Authorization`, query and unsafe raw response | Synthetic localhost only; no live provider diagnosis |
 | AC-SRP-067 cutoff/atomicity | Same test requires exactly one origin request, zero downstream/retry/write, identical candidate/document/revision and byte-identical route slots | Direct disposable storage snapshots; no user project touched |
+
+## APPROVED AC-SRP-063/066/067 scrolled-click correction traceability (2026-09-23)
+
+Status: **APPROVED — explicitly approved by the stakeholder on 2026-09-23.** Approved authority and assertions are unchanged.
+
+| Approved authority preserved | Evidence correction | Guard |
+| --- | --- | --- |
+| AC-SRP-063 disclosure/save clicks; AC-SRP-066 save outcomes/order; AC-SRP-067 origin-failure path | Convert the live item's viewport-relative Y coordinate to an absolute Flickable target by adding current `contentY` exactly once before the existing real pointer click | Design verifier requires the corrected formula and forbids the former viewport-relative-as-absolute formula |
