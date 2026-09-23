@@ -1,7 +1,11 @@
 # Survey route acceptance harness — APPROVED AC-SRP-068 extension over the approved baseline
 
+**APPROVED EVIDENCE CORRECTION (2026-09-23) — explicitly approved by the stakeholder.** The approved operation still
+returns the raw repository-load envelope. Successful tests compare its shared `data`, `revision`, and
+`slot` fields with the controller snapshot and assert its repository-only `recovered` flag separately.
+
 **APPROVED TEST DESIGN (2026-09-23) — explicitly approved by the stakeholder.** The AC-SRP-068 explicit-save
-operation below is not approved. Approved AC-SRP-001–067 contracts remain unchanged.
+operation below is approved. Approved AC-SRP-001–067 contracts remain unchanged.
 
 **APPROVED TEST DESIGN (approval 2026-09-22):** the AC-SRP-066 focus/order extension
 uses approved clarification checkpoint `cb8f2da`.
@@ -572,7 +576,7 @@ conversion in place so AC-SRP-063/066/067 keep exercising their existing real-cl
 
 ## APPROVED AC-SRP-068 walking-total explicit-save operation (2026-09-23)
 
-Status: **DRAFT TEST DESIGN — user approval required.** Authority is approved specification checkpoint
+Status: **APPROVED TEST DESIGN — explicitly approved by the stakeholder.** Authority is approved specification checkpoint
 `36a82b8`, D-SRP-069 / FR-SRP-065 / AC-SRP-068. This adds no product API.
 
 `walking_total_explicit_save` reuses the direct production JavaScript controller/repository harness. It
@@ -582,10 +586,13 @@ candidate contains at least three source visits and a different optimized visit 
 walking aggregate differs nontrivially from the repository's optimized-order local sum by at most `1e-6`.
 The provider transport is fail-closed and counted; no localhost or live network is used.
 
-The operation returns detached candidate, repository snapshot, active-route and route-slot byte observations
+The operation returns detached candidate, controller repository snapshot, raw repository-load envelope,
+active-route and route-slot byte observations
 before/after save; write attempts/successes; the committed slot's production readback count during `save()`;
 and deltas for backend calculation, provider transport and automatic retry. It independently reopens the
-repository after the measured action. On success, tests require one slot write, one production committed-slot
+repository after the measured action. The raw reopen envelope includes `recovered`, unlike the controller
+snapshot; successful equality therefore compares `data`, `revision`, and `slot`, then requires `recovered`
+to be false. On success, tests require one slot write, one production committed-slot
 readback, schema 3, active publication, optimized visit order, unchanged aggregate bytes, and zero measured
 calculation/request/retry. On rejection, tests require zero write/repair, byte-identical slots, unchanged
 candidate/snapshot/revision/last-good and zero request/calculation/retry.

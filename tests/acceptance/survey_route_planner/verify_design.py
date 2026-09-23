@@ -660,7 +660,7 @@ manual = inspect.getsource(module.test_ac063_ac064_ac065_ac066_target_qfield_han
 assert "pytest.skip" in manual and "미검증" in manual and "target QField" in manual
 print("survey route AC066 approved reconciliation verified; target QField remains 미검증")
 
-# APPROVED AC-SRP-068 acceptance design guard.
+# APPROVED AC-SRP-068 reopen-evidence correction guard over the approved design.
 assert "068" in coverage
 ac068_success = inspect.getsource(
     module.test_ac068_addition_order_roundoff_saves_once_without_recalculation_or_rewrite)
@@ -670,6 +670,10 @@ assert all(token in ac068_success for token in (
     'observed["committed_slot_readbacks"] == 1',
     'observed["backend_calculations"] == observed["provider_requests"] == 0',
     'observed["automatic_retries"] == 0', 'observed["aggregate_rewritten"] is False',
+    'observed["reopened"]["data"] == observed["snapshot_after"]["data"]',
+    'observed["reopened"]["revision"] == observed["snapshot_after"]["revision"]',
+    'observed["reopened"]["slot"] == observed["snapshot_after"]["slot"]',
+    'observed["reopened"]["recovered"] is False',
     'fixture["optimized_ids"]', 'observed["active"]["walking_totals"] == candidate_totals',
     'observed["active"]["walking_totals"]["duration_s"] is None',
     'observed["active"]["combined_totals"] is None',

@@ -1,4 +1,10 @@
-"""APPROVED AC-SRP-068 walking-total save-roundoff extension (2026-09-23).
+"""APPROVED AC-SRP-068 reopen-evidence correction (2026-09-23).
+
+Explicitly approved by the stakeholder. The approved AC-SRP-068 design remains unchanged. Successful repository reopen evidence compares
+the shared data/revision/slot fields with the controller snapshot and checks the repository-only
+recovery flag separately.
+
+APPROVED AC-SRP-068 walking-total save-roundoff extension (2026-09-23).
 
 Explicitly approved by the stakeholder. The approved AC-SRP-067 and AC-SRP-066 baseline remains unchanged.
 
@@ -4636,7 +4642,10 @@ def test_ac068_addition_order_roundoff_saves_once_without_recalculation_or_rewri
     assert observed["automatic_retries"] == 0
     assert observed["aggregate_rewritten"] is False
     assert observed["candidate_after"] is None
-    assert observed["reopened"] == observed["snapshot_after"]
+    assert observed["reopened"]["data"] == observed["snapshot_after"]["data"]
+    assert observed["reopened"]["revision"] == observed["snapshot_after"]["revision"]
+    assert observed["reopened"]["slot"] == observed["snapshot_after"]["slot"]
+    assert observed["reopened"]["recovered"] is False
     assert observed["active"]["route_id"] == "roundoff-candidate"
     assert [visit["site_id"] for visit in observed["active"]["visits"]] == fixture["optimized_ids"]
     assert observed["active"]["walking_totals"] == candidate_totals

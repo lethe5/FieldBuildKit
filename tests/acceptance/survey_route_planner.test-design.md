@@ -1,5 +1,10 @@
 # Survey Route Planner — APPROVED AC-SRP-068 extension over the approved baseline
 
+> **APPROVED TEST-DESIGN CORRECTION (2026-09-23) — explicitly approved by the stakeholder.** The successful
+> AC-SRP-068 reopen oracle compares the repository envelope's `data`, `revision`, and `slot` with
+> the controller snapshot, then asserts repository-only `recovered` is false. This corrects the
+> evidence shape only; approved requirements and behavioral expectations are unchanged.
+
 > **APPROVED TEST DESIGN (2026-09-23) — explicitly approved by the stakeholder.** The AC-SRP-068 section is
 > proposed against approved specification checkpoint `36a82b8`. Approved earlier sections remain unchanged.
 
@@ -973,7 +978,7 @@ guards both the corrected formula and removal of the former viewport-as-absolute
 
 ## APPROVED AC-SRP-068 walking-total save-roundoff design (2026-09-23)
 
-Status: **DRAFT TEST DESIGN — user approval required.** Authority is D-SRP-069, FR-SRP-065 and
+Status: **APPROVED TEST DESIGN — explicitly approved by the stakeholder.** Authority is D-SRP-069, FR-SRP-065 and
 AC-SRP-068 at approved checkpoint `36a82b8`.
 
 The tests reuse the direct production controller/repository JavaScript harness. A deterministic backend
@@ -984,8 +989,9 @@ must all be zero.
 
 - `test_ac068_addition_order_roundoff_saves_once_without_recalculation_or_rewrite` crosses an all-duration
   fixture and a fallback fixture. Each has at least three visits and a nonzero addition-order difference no
-  greater than `1e-6`. Success requires exactly one atomic slot write and committed-slot readback, independent
-  reopen equality, active schema-3 publication, optimized visit order, candidate clearing, no aggregate
+  greater than `1e-6`. Success requires exactly one atomic slot write and committed-slot readback;
+  independent reopen equality for data/revision/slot with `recovered == false`; active schema-3 publication,
+  optimized visit order, candidate clearing, no aggregate
   rewrite, and no measured calculation/request/retry. The all-duration case preserves count `0` with non-null
   duration/combined totals; fallback preserves the exact unavailable count with null duration/combined totals.
 - `test_ac068_numeric_walking_aggregate_tolerance_is_inclusive_and_bounded` crosses mapped distance,
@@ -1006,3 +1012,8 @@ Approval-time verification: design verifier **PASS**; collection **523 tests**; 
 **5 failed, 21 passed, 497 deselected**. The five intended RED cases are the two source/optimized-order
 fixtures and the three inclusive `1e-6` numeric boundaries. Exact equality and all rejection/preservation
 cases pass. No application code, live provider or device operation was exercised.
+
+Approved-correction verification against the current implementation: design verifier **PASS**; focused
+AC-SRP-068 run **26 passed, 497 deselected**; acceptance-only `git diff --check` **PASS**. The initial
+system-Python verifier attempt stopped before design checks because Fiona was unavailable; the authoritative
+run used the repository `.venv`.
