@@ -605,3 +605,23 @@ above `1e-6` for mapped distance, lower-bound distance and duration separately; 
 type-invalid values for each numeric aggregate; both available/unavailable count mismatch; and null/non-null
 duration and combined-total mismatches in both directions. Mutations are acceptance inputs applied after the
 production calculation and before the measured real save; they do not normalize or repair stored data.
+
+## APPROVED AC-SRP-069 save-success clarity operation (2026-09-24)
+
+Status: **APPROVED TEST DESIGN — user approved 2026-09-24.** `save_success_clarity` is an acceptance-only splice
+over the canonical generated-QML driver; it adds no product API and does not alter earlier operations.
+
+The operation creates only disposable generated projects and drives the production calculation, controller,
+repository and QML controls. It returns raw exact-text instance lists for visible items and QAccessible name,
+description, help and value channels; the save button enabled state; status role/name; candidate, active route,
+document and revision snapshots; raw route-slot bytes; request/write counters; route-name/disclosure state;
+and detailed focus identity. It must not synthesize a `post-save-success` flag or hide a reason on behalf of
+the product.
+
+Scenarios are `initial`, `saved_route_load`, `project_restart`, `panel_reinitialization`,
+`post_success_stability`, `calculation_start`, `calculation_success`, `calculation_failure`,
+`candidate_invalid_mapping`, `post_success_invalid_mapping`, and `save_failure`. Each pytest invocation starts
+a fresh subprocess. Success/failure use the real save-button handler; calculation transitions use the real
+calculate entry point; invalid mapping edits the real layer control; presentation stability mutates the live
+name, disclosure, palette, viewport and focus. Only backend/storage faults are injected. No live service,
+credential, user profile, project, native QField speech or device result is used or claimed.

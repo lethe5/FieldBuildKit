@@ -1017,3 +1017,49 @@ Approved-correction verification against the current implementation: design veri
 AC-SRP-068 run **26 passed, 497 deselected**; acceptance-only `git diff --check` **PASS**. The initial
 system-Python verifier attempt stopped before design checks because Fiona was unavailable; the authoritative
 run used the repository `.venv`.
+
+## APPROVED AC-SRP-069 save-success clarity design (2026-09-24)
+
+Status: **APPROVED TEST DESIGN — user approved 2026-09-24.** Authority is approved D-SRP-070,
+FR-SRP-066 and AC-SRP-069. This design does not edit or weaken the approved AC-SRP-064/066 tests;
+approval must reconcile their superseded success-only candidate-none expectation.
+
+The generated-QML `save_success_clarity` operation uses the real controller, repository, save button,
+calculation control and mapping controls in a disposable generated project. Its exact-reason oracle counts
+the Korean candidate-none sentence independently in rendered text and in QAccessible name, description,
+help and value channels, retaining each object's role so a status/live-region exposure cannot be hidden by
+a different visual item. A visible QAccessible `StatusBar` with the complete save result remains the one-
+announcement proxy; native target-QField speech remains user-run.
+
+- The 320 px/light and 1024 px/dark success fixtures start with a valid mixed candidate, expanded details,
+  nonblank name and valid mapping. One real save must write once, issue no provider request, clear the
+  candidate, publish the new active route, disable save, keep the full success status in view and expose the
+  candidate-none sentence zero times visually and through every observed accessibility channel.
+- The same live panel then edits the route name, collapses details, changes palette, resizes the viewport and
+  moves focus. Each step repeats the zero-instance oracle and compares persisted document, active route,
+  revision, route-slot bytes and request/write counts with the immediate post-success snapshot. Only the
+  explicitly changed name, disclosure and focus presentation state may differ.
+- Independent post-success fixtures exercise the next explicit calculation at start, success and failure.
+  Start and failure with no candidate must restore one visible/accessibility candidate-none reason; failure
+  also retains an actionable non-success outcome. Success creates a candidate, enables save and has no
+  candidate-none reason.
+- Separate subprocess fixtures cover initial panel state, saved-route load, project restart and panel
+  reinitialization with no candidate. Each requires the ordinary candidate-none reason and disabled save.
+- Candidate-present and post-save-success invalid-mapping fixtures blank the real layer mapping control and
+  require the mapping-invalid reason, never the candidate-none text. A commit-failure fixture preserves the
+  candidate, active last-good route, document, revision and route-slot bytes, never reports success and
+  follows the ordinary valid-candidate enabled/reason state.
+
+All automated fixtures reject unintended candidate restoration, extra write, automatic retry/provider
+request, persisted-state mutation and application-driven presentation mutation. M23 is the user-run target-
+QField check for actual pixels, touch, screen-reader speech and focus; it remains **NOT RUN (`미검증`)**.
+
+### DRAFT verification record (2026-09-24)
+
+Design verifier **PASS**; collection **536 tests**. The sandboxed focused run could not bind the disposable
+localhost server and therefore was not conformance evidence. The authorized localhost-enabled focused run
+returned **6 failed, 6 passed, 1 skipped, 523 deselected**. All six RED results are the current product's
+single exact candidate-none visual/QAccessible-name instance after successful save: both viewport/theme
+stability fixtures, all three next-calculation fixtures at their required post-save precondition, and the
+post-success invalid-mapping priority fixture. Initial/load/restart/reinit, candidate-present invalid mapping
+and save-failure preservation passed. M23 remains `미검증`.

@@ -18,7 +18,8 @@ source = driver.read_text(encoding="utf-8-sig")
 old_ops = "'ordered_completion_checklist','candidate_completion_guard','mixed_route_presentation'}"
 new_ops = (
     "'ordered_completion_checklist','candidate_completion_guard','mixed_route_presentation',"
-    "'route_ui_simplification','save_outcome_visibility','origin_http_failure'}"
+    "'route_ui_simplification','save_outcome_visibility','origin_http_failure',"
+    "'save_success_clarity'}"
 )
 if source.count(old_ops) != 1:
     raise RuntimeError("canonical QML driver operation set changed")
@@ -44,7 +45,7 @@ if source.count(old_http_fault) != 1:
 source = source.replace(old_http_fault, new_http_fault)
 
 marker = "    elif op=='mixed_route_presentation':\n"
-branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility','origin_http_failure'):
+branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility','origin_http_failure','save_success_clarity'):
         fallback_notice='실제 도로 경로를 못 찾은 구간을 직선거리 추정치로 포함하였습니다.'
         endpoint_notice='ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함'
         details_label='상세 정보'
@@ -93,6 +94,24 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
                     matches.append({'object_name':item.objectName(),'role':interface.role().name,
                         'name':interface.text(QAccessible.Name),'object_id':str(getCppPointer(item)[0])})
             return matches
+        def exact_reason_observation():
+            exact='저장할 수 없음: 먼저 새 경로를 계산하세요.'
+            visual=[];accessible=[]
+            channels=((QAccessible.Name,'name'),(QAccessible.Description,'description'),
+                (QAccessible.Help,'help'),(QAccessible.Value,'value'))
+            for item in visual_objects(panel):
+                if shown(item) and item_text(item)==exact:
+                    visual.append({'object_name':item.objectName(),'object_id':object_id(item)})
+                interface=QAccessible.queryAccessibleInterface(item)
+                if interface is None:continue
+                for channel,label in channels:
+                    if interface.text(channel)==exact:
+                        accessible.append({'object_name':item.objectName(),'object_id':object_id(item),
+                            'channel':label,'role':interface.role().name})
+            reason=named('saveDisabledReason')
+            return {'exact':exact,'visible_instances':visual,'accessibility_instances':accessible,
+                'reason_text':item_text(reason),'reason_visible':shown(reason),
+                'save_enabled':bool(named('saveRouteButton').property('enabled'))}
         def viewport(item):
             scroll=named('routeScroll');flickable=scroll.property('contentItem')
             top=item.mapToItem(flickable,QPointF(0,0)).y();bottom=top+item.height()
@@ -256,7 +275,103 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
                 normal_surfaces=normal_surfaces,
                 qml_runtime={'loaded_generated_qml':True,'generated_qml_path':str(folder/'qfield_routes/RoutePanel.qml')})
 
-        if op=='route_ui_simplification':
+        if op=='save_success_clarity':
+            scenario=case['scenario']
+            def storage_bytes():
+                return {str(path.relative_to(folder)):path.read_bytes().hex()
+                    for path in sorted(folder.glob('survey-routes.*.json'))}
+            def invariant_snapshot():
+                current=state()
+                return {'candidate':detached(current['candidate']),'active':detached(active()),
+                    'document':detached(stored()),'revision':int(current['snapshot']['revision']),
+                    'storage_bytes':storage_bytes(),'request_count':len(requests),'write_count':len(writes),
+                    'route_name':str(named('routeName').property('text')),
+                    'disclosure_expanded':bool(named('routeDetailsContent').property('visible')),
+                    'focus':focus_observation()}
+            def invalidate_mapping():
+                named('layerEdit').setProperty('text','');js('p.refreshTargets()');drain()
+            if scenario=='initial':
+                result.update(scenario=scenario,observation=exact_reason_observation())
+            else:
+                configure_candidate('all_mapped');control('routeName','기존 정상 경로')
+                if not save('기존 정상 경로'):raise RuntimeError('failed to seed last-good route')
+                if scenario in ('saved_route_load','project_restart','panel_reinitialization'):
+                    open_panel();settings();window.show();panel.setProperty('expanded',True);drain()
+                    result.update(scenario=scenario,observation=exact_reason_observation(),
+                        candidate=detached(state()['candidate']),active=detached(active()))
+                else:
+                    configure_candidate('mixed')
+                    if scenario=='candidate_invalid_mapping':
+                        before=invariant_snapshot();invalidate_mapping()
+                        result.update(scenario=scenario,before=before,after=invariant_snapshot(),
+                            observation=exact_reason_observation())
+                    elif scenario=='save_failure':
+                        before=invariant_snapshot();storage_fault='commit_failure'
+                        pointer_click(named('saveRouteButton'));storage_fault='';after=invariant_snapshot()
+                        result.update(scenario=scenario,before=before,after=after,
+                            observation=exact_reason_observation(),status_text=item_text(named('saveStatus')))
+                    else:
+                        disclosure=named('routeDetailsDisclosure')
+                        if not bool(named('routeDetailsContent').property('visible')):pointer_click(disclosure)
+                        control('routeName','성공 저장 경로')
+                        save_button=named('saveRouteButton');save_button.forceActiveFocus(Qt.TabFocusReason)
+                        before=invariant_snapshot();writes_before=len(writes);requests_before=len(requests)
+                        pointer_click(save_button);after_success=invariant_snapshot()
+                        success_status=item_text(named('saveStatus'))
+                        success_observation=exact_reason_observation()
+                        status_accessible=accessible_matches(success_status)
+                        if scenario=='post_success_stability':
+                            observations=[]
+                            control('routeName','성공 뒤 이름 편집')
+                            observations.append({'mutation':'route_name','reason':exact_reason_observation(),
+                                'state':invariant_snapshot()})
+                            pointer_click(named('routeDetailsDisclosure'))
+                            observations.append({'mutation':'disclosure','reason':exact_reason_observation(),
+                                'state':invariant_snapshot()})
+                            palette=QPalette();palette.setColor(QPalette.Window,QColor('#111827'))
+                            palette.setColor(QPalette.WindowText,QColor('#f9fafb'));app.setPalette(palette);drain()
+                            observations.append({'mutation':'theme','reason':exact_reason_observation(),
+                                'state':invariant_snapshot()})
+                            window.resize(480,900);drain()
+                            observations.append({'mutation':'viewport','reason':exact_reason_observation(),
+                                'state':invariant_snapshot()})
+                            named('calculateButton').forceActiveFocus(Qt.TabFocusReason);drain()
+                            observations.append({'mutation':'focus','reason':exact_reason_observation(),
+                                'state':invariant_snapshot()})
+                            result.update(mutations=observations)
+                        elif scenario=='calculation_start':
+                            device_inputs();use_site_mapping('done');settings({'max_access_distance_m':2000})
+                            js('p.calculate()')
+                            result.update(start_busy=bool(state()['busy']),transition=exact_reason_observation(),
+                                transition_state=invariant_snapshot())
+                            js('p.controller.cancel("test-cleanup")');drain()
+                        elif scenario=='calculation_success':
+                            configure_candidate('all_mapped')
+                            result.update(transition=exact_reason_observation(),
+                                transition_candidate=detached(state()['candidate']),
+                                transition_state=invariant_snapshot())
+                        elif scenario=='calculation_failure':
+                            fault='network';device_inputs();use_site_mapping('done');settings({'max_access_distance_m':2000})
+                            calculate();fault=''
+                            result.update(transition=exact_reason_observation(),
+                                transition_candidate=detached(state()['candidate']),
+                                calculation_status=str(panel.property('message')),
+                                transition_state=invariant_snapshot())
+                        elif scenario=='post_success_invalid_mapping':
+                            invalidate_mapping();result.update(transition=exact_reason_observation(),
+                                mapping_validation=str(panel.property('mappingValidation')),
+                                transition_state=invariant_snapshot())
+                        qml_source=(folder/'qfield_routes/RoutePanel.qml').read_text(encoding='utf8')
+                        result.update(scenario=scenario,before=before,after_success=after_success,
+                            success_observation=success_observation,success_status=success_status,
+                            success_status_accessible=status_accessible,
+                            success_status_viewport=viewport(named('saveStatus')),
+                            app_focus_recovery_api_occurrences=qml_source.count('saveRouteButton.forceActiveFocus'),
+                            writes_during_success=len(writes)-writes_before,
+                            requests_during_success=len(requests)-requests_before)
+            result.update(qml_runtime={'loaded_generated_qml':True,
+                'generated_qml_path':str(folder/'qfield_routes/RoutePanel.qml')})
+        elif op=='route_ui_simplification':
             composition=case.get('composition','mixed')
             no_candidate_reason=named('saveDisabledReason')
             no_candidate_save=named('saveRouteButton')

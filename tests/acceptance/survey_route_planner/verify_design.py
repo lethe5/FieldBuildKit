@@ -705,3 +705,59 @@ assert all(token in ac068_failure for token in (
 ))
 assert 'input.operation==="walking_total_explicit_save"' in module.DIRECT_NODE
 print("survey route AC068 approved walking-total save-roundoff design verified")
+
+# APPROVED AC-SRP-069 guard: independent supersession evidence; user approved 2026-09-24.
+assert "069" in coverage
+ac069_success = inspect.getsource(
+    module.test_ac069_success_hides_candidate_none_reason_and_stays_hidden_after_presentation_changes)
+assert all(token in ac069_success for token in (
+    '"route_name", "disclosure", "theme", "viewport", "focus"',
+    '_assert_candidate_none_reason(row["reason"], present=False)',
+    'state["candidate"] is None', 'state["active"] == baseline["active"]',
+    'state["document"] == baseline["document"]',
+    'state["revision"] == baseline["revision"]',
+    'state["storage_bytes"] == baseline["storage_bytes"]',
+    'state["request_count"] == baseline["request_count"]',
+    'state["write_count"] == baseline["write_count"]',
+))
+ac069_transition = inspect.getsource(
+    module.test_ac069_next_explicit_calculation_restores_ordinary_reason_state)
+assert all(token in ac069_transition for token in (
+    '"calculation_start", "calculation_success", "calculation_failure"',
+    '_assert_candidate_none_reason(observed["transition"], present=True)',
+    'observed["transition_candidate"] is not None',
+))
+ac069_lifecycle = inspect.getsource(
+    module.test_ac069_non_success_lifecycle_with_no_candidate_shows_ordinary_reason)
+assert all(token in ac069_lifecycle for token in (
+    '"initial", "saved_route_load", "project_restart", "panel_reinitialization"',
+    '_assert_candidate_none_reason(observed["observation"], present=True)',
+))
+ac069_mapping = inspect.getsource(
+    module.test_ac069_mapping_invalid_reason_has_priority_over_candidate_none_suppression)
+assert all(token in ac069_mapping for token in (
+    '"candidate_invalid_mapping", "post_success_invalid_mapping"',
+    'transition["reason_text"] != CANDIDATE_NONE_REASON',
+    '"저장할 수 없음: " + observed["mapping_validation"]',
+))
+ac069_failure = inspect.getsource(
+    module.test_ac069_save_failure_never_enters_success_display_state_and_preserves_last_good)
+assert all(token in ac069_failure for token in (
+    'after["candidate"] == before["candidate"]',
+    'after["active"] == before["active"]',
+    'after["document"] == before["document"]',
+    'after["revision"] == before["revision"]',
+    'after["storage_bytes"] == before["storage_bytes"]',
+    '"저장했습니다" not in observed["status_text"]',
+))
+assert all(token in qml_driver for token in (
+    "'save_success_clarity'", "def exact_reason_observation", "QAccessible.Description",
+    "QAccessible.Help", "QAccessible.Value", "visible_instances", "accessibility_instances",
+    "scenario=='calculation_start'", "scenario=='calculation_success'",
+    "scenario=='calculation_failure'", "scenario=='post_success_invalid_mapping'",
+    "scenario=='save_failure'", "storage_bytes()",
+))
+manual069 = inspect.getsource(
+    module.test_ac069_target_qfield_screen_reader_and_viewport_handoff_is_user_run_and_unverified)
+assert "pytest.skip" in manual069 and "미검증" in manual069 and "target QField" in manual069
+print("survey route AC069 approved save-success clarity design verified; target QField remains 미검증")

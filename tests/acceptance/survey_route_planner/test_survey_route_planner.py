@@ -1,4 +1,9 @@
-"""APPROVED AC-SRP-068 reopen-evidence correction (2026-09-23).
+"""APPROVED AC-SRP-069 save-success clarity acceptance extension (2026-09-24).
+
+User approval is required.  It adds independent tests for approved D-SRP-070 / FR-SRP-066 /
+AC-SRP-069 without changing the earlier approved acceptance expectations below.
+
+APPROVED AC-SRP-068 reopen-evidence correction (2026-09-23).
 
 Explicitly approved by the stakeholder. The approved AC-SRP-068 design remains unchanged. Successful repository reopen evidence compares
 the shared data/revision/slot fields with the controller snapshot and checks the repository-only
@@ -4746,4 +4751,150 @@ def test_ac063_ac064_ac065_ac066_target_qfield_handoff_is_user_run_and_unverifie
     pytest.skip(
         "미검증: 새 FieldBuild Kit output을 target QField로 전달한 뒤 320 px/wide touch, "
         "screen-reader announcement, save persistence, restart and project-folder move를 사용자가 검증"
+    )
+
+
+# APPROVED AC-SRP-069 acceptance extension; user approved 2026-09-24.
+CANDIDATE_NONE_REASON = "저장할 수 없음: 먼저 새 경로를 계산하세요."
+
+
+def _run_ac069_clarity(tmp_path, scenario, *, viewport_width=320, theme="light"):
+    return _run_route_ui_qml(
+        tmp_path, operation="save_success_clarity", scenario=scenario,
+        viewport_width=viewport_width, theme=theme,
+    )
+
+
+def _assert_candidate_none_reason(observation, *, present):
+    assert observation["exact"] == CANDIDATE_NONE_REASON
+    assert len(observation["visible_instances"]) == (1 if present else 0)
+    assert len(observation["accessibility_instances"]) == (1 if present else 0)
+    if present:
+        assert observation["reason_text"] == CANDIDATE_NONE_REASON
+        assert observation["reason_visible"] is True
+        assert observation["save_enabled"] is False
+
+
+def _assert_post_save_success(observed):
+    assert observed["qml_runtime"]["loaded_generated_qml"] is True
+    assert observed["after_success"]["candidate"] is None
+    assert observed["after_success"]["active"]["name"] == "성공 저장 경로"
+    assert observed["success_observation"]["save_enabled"] is False
+    assert observed["after_success"]["route_name"] == observed["before"]["route_name"]
+    assert observed["after_success"]["disclosure_expanded"] == observed["before"]["disclosure_expanded"]
+    focus = observed["after_success"]["focus"]
+    assert focus is None or (focus["object_name"] == "" and focus["focusable_control"] is None)
+    assert observed["app_focus_recovery_api_occurrences"] == 0
+    _assert_candidate_none_reason(observed["success_observation"], present=False)
+    assert "저장했습니다" in observed["success_status"]
+    assert observed["success_status_viewport"]["fully_visible"] is True
+    assert len(observed["success_status_accessible"]) == 1
+    assert observed["success_status_accessible"][0]["role"] == "StatusBar"
+    assert observed["writes_during_success"] == 1
+    assert observed["requests_during_success"] == 0
+
+
+@pytest.mark.parametrize(("viewport_width", "theme"), [(320, "light"), (1024, "dark")])
+def test_ac069_success_hides_candidate_none_reason_and_stays_hidden_after_presentation_changes(
+        tmp_path, viewport_width, theme):
+    observed = _run_ac069_clarity(
+        tmp_path, "post_success_stability", viewport_width=viewport_width, theme=theme)
+    _assert_post_save_success(observed)
+    baseline = observed["after_success"]
+    assert [row["mutation"] for row in observed["mutations"]] == [
+        "route_name", "disclosure", "theme", "viewport", "focus",
+    ]
+    for row in observed["mutations"]:
+        _assert_candidate_none_reason(row["reason"], present=False)
+        state = row["state"]
+        assert state["candidate"] is None
+        assert state["active"] == baseline["active"]
+        assert state["document"] == baseline["document"]
+        assert state["revision"] == baseline["revision"]
+        assert state["storage_bytes"] == baseline["storage_bytes"]
+        assert state["request_count"] == baseline["request_count"]
+        assert state["write_count"] == baseline["write_count"]
+    assert observed["mutations"][0]["state"]["route_name"] == "성공 뒤 이름 편집"
+    assert observed["mutations"][1]["state"]["disclosure_expanded"] is False
+
+
+@pytest.mark.parametrize("scenario", [
+    "calculation_start", "calculation_success", "calculation_failure",
+])
+def test_ac069_next_explicit_calculation_restores_ordinary_reason_state(tmp_path, scenario):
+    observed = _run_ac069_clarity(tmp_path, scenario)
+    _assert_post_save_success(observed)
+    if scenario == "calculation_success":
+        assert observed["transition_candidate"] is not None
+        assert observed["transition"]["save_enabled"] is True
+        _assert_candidate_none_reason(observed["transition"], present=False)
+    else:
+        assert observed.get("start_busy", True) is True
+        assert observed.get("transition_candidate") is None
+        _assert_candidate_none_reason(observed["transition"], present=True)
+        if scenario == "calculation_failure":
+            assert observed["calculation_status"]
+            assert "저장했습니다" not in observed["calculation_status"]
+    assert observed["transition_state"]["active"] == observed["after_success"]["active"]
+    assert observed["transition_state"]["document"] == observed["after_success"]["document"]
+    assert observed["transition_state"]["revision"] == observed["after_success"]["revision"]
+    assert observed["transition_state"]["storage_bytes"] == observed["after_success"]["storage_bytes"]
+    assert observed["transition_state"]["write_count"] == observed["after_success"]["write_count"]
+
+
+@pytest.mark.parametrize("scenario", [
+    "initial", "saved_route_load", "project_restart", "panel_reinitialization",
+])
+def test_ac069_non_success_lifecycle_with_no_candidate_shows_ordinary_reason(tmp_path, scenario):
+    observed = _run_ac069_clarity(tmp_path, scenario)
+    _assert_candidate_none_reason(observed["observation"], present=True)
+    if scenario != "initial":
+        assert observed["candidate"] is None
+        assert observed["active"] is not None
+
+
+@pytest.mark.parametrize("scenario", ["candidate_invalid_mapping", "post_success_invalid_mapping"])
+def test_ac069_mapping_invalid_reason_has_priority_over_candidate_none_suppression(tmp_path, scenario):
+    observed = _run_ac069_clarity(tmp_path, scenario)
+    transition = observed.get("transition", observed.get("observation"))
+    _assert_candidate_none_reason(transition, present=False)
+    assert transition["save_enabled"] is False
+    assert transition["reason_visible"] is True
+    assert transition["reason_text"].startswith("저장할 수 없음: ")
+    assert transition["reason_text"] != CANDIDATE_NONE_REASON
+    if scenario == "post_success_invalid_mapping":
+        _assert_post_save_success(observed)
+        assert transition["reason_text"] == "저장할 수 없음: " + observed["mapping_validation"]
+        baseline, after = observed["after_success"], observed["transition_state"]
+    else:
+        baseline, after = observed["before"], observed["after"]
+        assert after["candidate"] == baseline["candidate"]
+    assert after["active"] == baseline["active"]
+    assert after["document"] == baseline["document"]
+    assert after["revision"] == baseline["revision"]
+    assert after["storage_bytes"] == baseline["storage_bytes"]
+    assert after["request_count"] == baseline["request_count"]
+    assert after["write_count"] == baseline["write_count"]
+
+
+def test_ac069_save_failure_never_enters_success_display_state_and_preserves_last_good(tmp_path):
+    observed = _run_ac069_clarity(tmp_path, "save_failure")
+    before, after = observed["before"], observed["after"]
+    assert after["candidate"] == before["candidate"]
+    assert after["active"] == before["active"]
+    assert after["document"] == before["document"]
+    assert after["revision"] == before["revision"]
+    assert after["storage_bytes"] == before["storage_bytes"]
+    assert after["request_count"] == before["request_count"]
+    assert after["write_count"] == before["write_count"] + 1
+    assert "저장했습니다" not in observed["status_text"]
+    assert observed["observation"]["save_enabled"] is True
+    assert observed["observation"]["reason_visible"] is False
+    _assert_candidate_none_reason(observed["observation"], present=False)
+
+
+def test_ac069_target_qfield_screen_reader_and_viewport_handoff_is_user_run_and_unverified():
+    pytest.skip(
+        "미검증: target QField에서 성공 직후와 재계산/load/restart/reinit 전이의 실제 화면, "
+        "screen-reader speech, focus 및 viewport를 사용자가 검증"
     )
