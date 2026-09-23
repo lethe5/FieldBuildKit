@@ -2532,6 +2532,10 @@ class SymbolStylingPage(QWizardPage):
 
 ROUTE_KEY_CONSENT_TEXT = "위 내용에 동의합니다"
 ROUTE_KEY_REMEMBER_TEXT = "이 키 기억하기 (이 컴퓨터에 암호화하여 저장됨)"
+ROUTE_RUNTIME_DISCLOSURE = (
+    "경로 패널 코드는 생성된 프로젝트에 포함됩니다. FieldBuild Kit만 업데이트해도 "
+    "기존 생성 프로젝트는 자동으로 바뀌지 않습니다."
+)
 
 
 class ReviewAndBuildPage(QWizardPage):
@@ -2725,6 +2729,7 @@ class ReviewAndBuildPage(QWizardPage):
             "참고: 생성된 프로젝트 폴더 전체를 휴대폰과 주고받으세요. QFieldSync로 패키징하지 "
             "마세요(README_TRANSFER_KO.md 참고)."
         )
+        summary_lines.append(ROUTE_RUNTIME_DISCLOSURE)
         self.summary_view.setPlainText("\n".join(summary_lines))
 
     def _load_remembered_route_key(self) -> None:
@@ -3087,7 +3092,10 @@ class ReviewAndBuildPage(QWizardPage):
         self.cancel_build_button.setVisible(False)
         self._build_succeeded = bool(result.get("success"))
         if self._build_succeeded:
-            message = f"프로젝트가 생성되었습니다: {result.get('project_dir')}"
+            message = (
+                f"프로젝트가 생성되었습니다: {result.get('project_dir')}"
+                f"\n{ROUTE_RUNTIME_DISCLOSURE}"
+            )
             if result.get("basemap_provider") and result.get("basemap_layer"):
                 message += (
                     f"\n오프라인 배경지도: {result['basemap_provider']} / "

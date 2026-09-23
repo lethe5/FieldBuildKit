@@ -49,6 +49,7 @@ Rectangle {
     property string defaultId: surveyType === "simple_inventory" ? "" : "site_id"
     property string defaultName: surveyType === "simple_inventory" ? "" : "site_name"
     property bool settingsExpanded: false
+    property bool routeDetailsExpanded: false
     readonly property color hostSurfaceColor: hostPalette.window
     readonly property bool darkAppearance: hostSurfaceColor.r * 0.2126 + hostSurfaceColor.g * 0.7152 + hostSurfaceColor.b * 0.0722 < 0.5
     readonly property color surfaceColor: darkAppearance ? "#111827" : "#f8fafc"
@@ -360,9 +361,9 @@ Rectangle {
             " / 지도 도보 거리 "+formatDistance(walking.mapped_distance_m)+" · 지도 도보 시간 "+formatDuration(mappedWalkingDuration(activeRoute,walking))+
             (walking.lower_bound_distance_m?" / 직선거리 하한 "+formatDistance(walking.lower_bound_distance_m)+" · 시간 사용 불가":"");
     }
-    function visitAccessibilityValue(index) {var r=candidate||route,v=r&&r.visits&&r.visits[index];if(!v)return null;var distance=0,duration=0,unknown=false;(v.walking_legs||[]).forEach(function(leg){distance+=Number(leg.distance_m||0);if(leg.duration_s===null)unknown=true;else duration+=Number(leg.duration_s||0);});return {site_id:v.site_id,site_name:v.site_name||v.site_id,walking_mode:v.walking_mode,metric_source:v.metric_source,roundtrip:true,distance_m:distance,duration_s:unknown?null:duration};}
+    function visitAccessibilityValue(index) {var r=candidate||route,v=r&&r.visits&&r.visits[index];if(!v)return null;var stop=(r.stops||[]).find(function(item){return item.site_id===v.site_id&&item.source_layer===v.layer_id;});var distance=0,duration=0,unknown=false;(v.walking_legs||[]).forEach(function(leg){distance+=Number(leg.distance_m||0);if(leg.duration_s===null)unknown=true;else duration+=Number(leg.duration_s||0);});return {site_id:v.site_id,site_name:(stop&&stop.name)||v.site_name||v.site_id,walking_mode:v.walking_mode,metric_source:v.metric_source,source_coordinate:v.source_coordinate,access_coordinate:v.access_coordinate,roundtrip:true,distance_m:distance,duration_s:unknown?null:duration};}
     function visitAccessibilityNumber(value) {return Number(value)%1===0?Number(value).toFixed(1):String(value);}
-    function visitAccessibilityText(index) {var v=visitAccessibilityValue(index);return v?v.site_name+" "+v.walking_mode+" "+v.metric_source+" 왕복 "+visitAccessibilityNumber(v.distance_m)+" m "+(v.duration_s===null?"시간 사용 불가":visitAccessibilityNumber(v.duration_s)+" s"):"";}
+    function visitAccessibilityText(index) {var v=visitAccessibilityValue(index);return v?v.site_name+" · "+v.site_id+" · walking_mode "+v.walking_mode+" · metric_source "+v.metric_source+" · 요청 좌표 "+v.source_coordinate.join(", ")+" · 도로 접근 좌표 "+v.access_coordinate.join(", ")+" · 왕복 "+visitAccessibilityNumber(v.distance_m)+" m · "+(v.duration_s===null?"시간 사용 불가":visitAccessibilityNumber(v.duration_s)+" s"):"";}
     function hasMappedWalking(activeRoute) {return Boolean(activeRoute&&activeRoute.visits&&activeRoute.visits.some(function(visit){return visit.walking_mode==="mapped";}));}
     function presentationFields(activeRoute, remaining) {
         if(!activeRoute)return {vehicle_distance:"",vehicle_duration:"",mapped_walking_distance:"",mapped_walking_duration:"",straight_line_lower_bound_m:"",roundtrip:"",metric_source:"",unavailable_reason:""};
@@ -497,6 +498,7 @@ Rectangle {
     }
     function refreshTargets() {
         if(!controller)return;
+        mappingValidation=layerEdit.text&&idEdit.text&&nameEdit.text?"":"조사지 레이어와 조사지 ID/이름 필드를 선택하세요.";
         try {syncControlState();var rows=controller.targets();targetOptions=rows.map(function(row){return {label:row.name+" · "+row.site_id,value:row.site_id};});targetOptionsModel.clear();targetOptions.forEach(function(option){targetOptionsModel.append(option);});
             if(!targetOptions.some(function(option){return option.value===targetEdit.text;}))targetEdit.text="";
             targetEdit.currentIndex=targetOptions.findIndex(function(option){return option.value===targetEdit.text;});
@@ -541,6 +543,7 @@ Rectangle {
     }
     function updateView() {
         if (!controller) return;
+        var previousCandidate=candidate;
         var state=controller.state;
         route=controller.active(); candidate=state.candidate; stops=(candidate||route) ? (candidate||route).stops : state.listed;
         savedRoutes=state.snapshot ? state.snapshot.data.routes : [];
@@ -551,12 +554,15 @@ Rectangle {
         if(candidate && state.candidateGeneration!==displayedCandidateGeneration) {
             displayedCandidateGeneration=state.candidateGeneration;
             routeName.text=candidate.name;
-            unmappedAck.checked=false;
+            routeDetailsExpanded=false;
         } else if(!candidate && route) {
             var routeIdentity=route.route_id+":"+route.revision;
             if(routeIdentity!==displayedRouteIdentity) {
                 displayedRouteIdentity=routeIdentity;
-                routeName.text=route.name;
+                if(!previousCandidate) {
+                    routeName.text=route.name;
+                    routeDetailsExpanded=false;
+                }
             }
         }
         var road=candidate?candidate.road_geometry:(routeProgress.available?routeProgress.remaining_geometry:(route&&route.road_geometry));
@@ -648,7 +654,16 @@ Rectangle {
         layerEdit.text=m.layer;idEdit.text=m.id;nameEdit.text=m.name;completionEdit.text=m.completed;
         refreshProjectSelectors(m.layer);
     }
-    function selectRoute(id) {if(controller.select(id)) syncMapping();}
+    function selectRoute(id) {routeDetailsExpanded=false;if(controller.select(id)) syncMapping();}
+    function revealSaveStatus(pass) {
+        var viewport=routeScroll.contentItem;
+        var point=saveStatus.mapToItem(viewport,Qt.point(0,0));
+        var statusTop=viewport.contentY+point.y;
+        var target=statusTop-Math.max(0,(viewport.height-saveStatus.height)/2);
+        var maximum=Math.max(0,viewport.contentHeight-viewport.height);
+        viewport.contentY=Math.max(0,Math.min(maximum,target));
+        if((pass||0)<1)Qt.callLater(function(){panel.revealSaveStatus(1);});
+    }
     function pickMapStart() {
         if(!canvas || !canvas.mapSettings) throw new Error("지도 중심 위치를 확인할 수 없습니다.");
         var p=canvas.mapSettings.getCenter(true);
@@ -685,17 +700,46 @@ Rectangle {
     ColumnLayout {
         anchors.fill:parent;spacing:4
         Button {objectName:"routeSummaryButton";property var presentationFields:panel.presentationFields(panel.candidate||panel.route,panel.routeProgress);Layout.fillWidth:true;Layout.preferredHeight:40;text:(panel.expanded?"▾ ":"▸ ")+panel.mixedSummary(panel.candidate||panel.route,panel.routeProgress);Accessible.name:text;onClicked:panel.expanded=!panel.expanded}
-        ScrollView {
+        Item {
             id:routeScroll;objectName:"routeScroll";visible:panel.expanded;Layout.fillWidth:true;Layout.fillHeight:true;clip:true
-            contentWidth:availableWidth
-            topPadding:20
-            ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
-            ColumnLayout {
-                objectName:"routeContent";width:Math.max(0,routeScroll.availableWidth-24);x:12;spacing:6
+            readonly property alias contentItem: routeScroller.contentItem
+            readonly property real availableWidth: routeScroller.availableWidth
+            ScrollView {
+                id:routeScroller;anchors.fill:parent;clip:true
+                contentWidth:availableWidth
+                topPadding:20
+                focusPolicy:Qt.NoFocus
+                activeFocusOnTab:false
+                focus:false
+                ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
+                ColumnLayout {
+                id:routeContent;objectName:"routeContent";width:Math.max(0,routeScroll.availableWidth-24);x:12;spacing:6
                 FloatingComboBox {id:layerEdit;objectName:"layerEdit";floatingLabel:"조사지";property string text:panel.defaultLayer;property string placeholderText:"레이어 선택";hasError:panel.mappingValidation!==""&&!text;Layout.fillWidth:true;Layout.topMargin:18;model:panel.layerOptions;textRole:"label";onActivated:function(index){text=panel.layerOptions[index].layer_id;panel.refreshFields(panel.layerOptions[index].layer);panel.refreshSelectedCount();panel.refreshTargets();}}
                 RowLayout {Layout.fillWidth:true;spacing:6;FloatingComboBox{id:idEdit;objectName:"idEdit";floatingLabel:"조사지 ID 필드";property string text:panel.defaultId;Layout.fillWidth:true;Layout.minimumWidth:0;model:panel.fieldOptions;onActivated:function(index){text=panel.fieldOptions[index];panel.refreshTargets();}} FloatingComboBox{id:nameEdit;objectName:"nameEdit";floatingLabel:"조사지 이름 필드";property string text:panel.defaultName;Layout.fillWidth:true;Layout.minimumWidth:0;model:panel.fieldOptions;onActivated:function(index){text=panel.fieldOptions[index];panel.refreshTargets();}}}
                 FloatingComboBox {id:completionEdit;objectName:"completionEdit";floatingLabel:"조사 완료 필드";property string text:"";Layout.fillWidth:true;model:[""].concat(panel.fieldOptions);onActivated:function(index){text=model[index];panel.refreshTargets();}}
                 Label {objectName:"mappingValidationLabel";visible:panel.mappingValidation!=="";text:panel.mappingValidation;color:panel.errorColor;wrapMode:Text.Wrap;Layout.fillWidth:true}
+                Label {objectName:"remainingLabel";visible:Boolean(candidate||route);text:"남은 "+panel.remainingDistanceText+" · "+panel.remainingDurationText;Layout.fillWidth:true;wrapMode:Text.Wrap}
+                Label {objectName:"availabilityLabel";visible:Boolean(candidate||route);text:routeProgress.available?(((candidate||route)&&(candidate||route).road_geometry?"도로선 제공":"도로선 없음")+" · "+((candidate||route)&&(candidate||route).eta?"ETA 제공 (출발 기준 초)":"ETA 미제공")+" · "+((candidate||route)&&(candidate||route).legs?"전체 구간 제공":"구간 값 미제공")):routeProgress.message;Layout.fillWidth:true;wrapMode:Text.Wrap}
+                CheckBox {id:routeLineToggle;objectName:"routeLineToggle";visible:Boolean(candidate||route);text:"경로선 표시";checked:panel.showRouteLine;onClicked:controller.toggleRouteLine(checked)}
+                Label {objectName:"mixedRouteLegend";visible:Boolean(candidate||route);text:"━ 차량 경로   ┄ 도보 경로   ··· 지도 경로 없음";Accessible.name:"차량 경로 실선, 도보 경로 파선, 지도 경로 없음 점선";wrapMode:Text.Wrap;Layout.fillWidth:true;Layout.minimumWidth:0;Layout.maximumWidth:routeScroll.availableWidth-24}
+                Label {objectName:"mixedTotalsLabel";property var presentationFields:panel.presentationFields(candidate||route,routeProgress);property var screenReaderFields:presentationFields;visible:(candidate||route)&&Boolean((candidate||route).vehicle_totals);text:{var r=candidate||route;if(!r||!r.vehicle_totals)return "";var v=candidate?r.vehicle_totals:{distance_m:routeProgress.remaining_distance_m,duration_s:routeProgress.remaining_duration_s};return "차량 거리 "+panel.formatDistance(v.distance_m)+" · 차량 시간 "+panel.formatDuration(v.duration_s)+" · 왕복";} Accessible.name:text;wrapMode:Text.Wrap;Layout.fillWidth:true;Layout.minimumWidth:0;Layout.maximumWidth:routeScroll.availableWidth-24}
+                Label {objectName:"walkingTotalsAccessibility";property real metricValue:{var r=candidate||route,w=candidate?r.walking_totals:routeProgress.remaining_walking;return w?Number(w.mapped_distance_m):0;} visible:(candidate||route)&&Boolean((candidate||route).walking_totals);text:"지도 도보 거리 "+panel.formatDistance(metricValue);Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true;Layout.minimumWidth:0;Layout.maximumWidth:routeScroll.availableWidth-24}
+                Label {objectName:"mappedWalkingDurationAccessibility";property real metricValue:{var r=candidate||route,w=candidate?r.walking_totals:routeProgress.remaining_walking;return w?panel.mappedWalkingDuration(r,w):0;} visible:(candidate||route)&&Boolean((candidate||route).walking_totals);text:"지도 도보 시간 "+panel.formatDuration(metricValue);Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true;Layout.minimumWidth:0;Layout.maximumWidth:routeScroll.availableWidth-24}
+                Label {objectName:"straightLineLowerBoundAccessibility";property real metricValue:{var r=candidate||route,w=candidate?r.walking_totals:routeProgress.remaining_walking;return w?Number(w.lower_bound_distance_m):0;} visible:metricValue>0;text:"직선거리 하한 "+panel.formatDistance(metricValue)+" · 도보 시간 사용 불가";Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true;Layout.minimumWidth:0;Layout.maximumWidth:routeScroll.availableWidth-24}
+                Label {id:fallbackNotice;objectName:"fallbackNotice";visible:(candidate||route)&&Boolean((candidate||route).visits&&((candidate||route).visits.some(function(v){return v.walking_mode==="unmapped_estimate";})));text:"실제 도로 경로를 못 찾은 구간을 직선거리 추정치로 포함하였습니다.";Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true;Layout.maximumWidth:routeScroll.availableWidth-24}
+                Button {id:routeDetailsDisclosure;objectName:"routeDetailsDisclosure";visible:Boolean(candidate||route);text:"상세 정보";Layout.fillWidth:true;Layout.maximumWidth:routeScroll.availableWidth-24;property string accessibleDescription:panel.routeDetailsExpanded?"expanded":"collapsed";Accessible.name:text;Accessible.description:accessibleDescription;onClicked:panel.routeDetailsExpanded=!panel.routeDetailsExpanded}
+                ColumnLayout {
+                    id:routeDetailsContent;objectName:"routeDetailsContent";visible:panel.routeDetailsExpanded&&Boolean(candidate||route);Layout.fillWidth:true;Layout.minimumWidth:0;Layout.maximumWidth:routeScroll.availableWidth-24;spacing:6
+                    Label {objectName:"endpointGapDetails";visible:panel.hasMappedWalking(candidate||route);text:"ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함";Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true;Layout.minimumWidth:0}
+                    Repeater {
+                        id:visitAccessibilityRepeater;objectName:"visitAccessibilityRepeater";model:{var r=candidate||route;return r&&r.visits?r.visits.length:0;}
+                        delegate:Label {required property int index;objectName:"visitAccessibilityDelegate-"+index;property var visitValue:panel.visitAccessibilityValue(index);visible:text!=="";text:panel.visitAccessibilityText(index);Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true;Layout.minimumWidth:0}
+                    }
+                }
+                FloatingTextField {id:routeName;objectName:"routeName";floatingLabel:"저장할 경로 이름";placeholderText:"경로 이름";Layout.fillWidth:true;Layout.maximumWidth:routeScroll.availableWidth-24}
+                Button {id:saveRouteButton;objectName:"saveRouteButton";text:"계산 결과 저장";enabled:candidate!==null&&panel.mappingValidation==="";Accessible.name:text;Accessible.role:Accessible.Button;onClicked:{try{applyControls(true);controller.save(routeName.text);}catch(e){controller.error(e);}finally{Qt.callLater(function(){panel.revealSaveStatus(0);});}}}
+                Label {id:saveDisabledReason;objectName:"saveDisabledReason";visible:candidate===null||panel.mappingValidation!=="";text:candidate===null?"저장할 수 없음: 먼저 새 경로를 계산하세요.":"저장할 수 없음: "+panel.mappingValidation;color:panel.errorColor;Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true;Layout.maximumWidth:routeScroll.availableWidth-24}
+                Label {id:saveStatus;objectName:"saveStatus";text:panel.message;Layout.fillWidth:true;Layout.maximumWidth:routeScroll.availableWidth-24;Layout.topMargin:routeScroll.availableWidth>600?routeScroll.height:0;wrapMode:Text.Wrap;Accessible.name:text;Accessible.role:Accessible.StatusBar;Item{objectName:"messageLabel";anchors.fill:parent}}
                 Label {objectName:"completionHelpLabel";text:"완료 필드는 source layer의 Boolean 필드 이름입니다. 값이 true일 때만 완료이며 false/NULL/missing은 미완료입니다. 비우면 이 저장 경로 안에서만 완료 상태를 관리합니다.";wrapMode:Text.Wrap;Layout.fillWidth:true}
                 FloatingComboBox {id:scopeCombo;objectName:"scopeCombo";floatingLabel:"계산 대상";model:["선택 대상","전체 대상","미조사 대상"];Layout.fillWidth:true;onActivated:panel.refreshTargets()}
                 Label {objectName:"scopeHelpLabel";text:"선택 대상은 QField에서 체크한 피처만, 전체 대상은 선택과 무관한 모든 유효 피처, 미조사 대상은 전체 중 완료되지 않은 피처를 사용합니다.";wrapMode:Text.Wrap;Layout.fillWidth:true}
@@ -724,39 +768,6 @@ Rectangle {
                 }
                 Label {objectName:"coordinateSharingNotice";text:"계산하면 원본 조사 좌표, 반환된 차량 접근 좌표와 경로 geometry 요청이 ORS에 전송됩니다.";Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true}
                 Button {objectName:"calculateButton";text:"새 경로 계산";Accessible.name:text;Accessible.role:Accessible.Button;enabled:controller!==null&&!busy&&panel.mappingValidation===""&&panel.startValidation==="";onClicked:calculate()}
-                Label {id:messageLabel;objectName:"messageLabel";text:panel.message;Layout.fillWidth:true;wrapMode:Text.Wrap}
-                Label {objectName:"remainingLabel";text:(candidate||route)?"남은 "+panel.remainingDistanceText+" · "+panel.remainingDurationText:"결과 없음";Layout.fillWidth:true;wrapMode:Text.Wrap}
-                Label {objectName:"availabilityLabel";text:routeProgress.available?(((candidate||route)&&(candidate||route).road_geometry?"도로선 제공":"도로선 없음")+" · "+((candidate||route)&&(candidate||route).eta?"ETA 제공 (출발 기준 초)":"ETA 미제공")+" · "+((candidate||route)&&(candidate||route).legs?"전체 구간 제공":"구간 값 미제공")):routeProgress.message;Layout.fillWidth:true;wrapMode:Text.Wrap}
-                CheckBox {id:routeLineToggle;objectName:"routeLineToggle";text:"경로선 표시";checked:panel.showRouteLine;onClicked:controller.toggleRouteLine(checked)}
-                Label {objectName:"mixedRouteLegend";text:"━ 차량 경로   ┄ 도보 경로   ··· 지도 경로 없음";Accessible.name:"차량 경로 실선, 도보 경로 파선, 지도 경로 없음 점선";wrapMode:Text.Wrap;Layout.fillWidth:true}
-                Label {objectName:"endpointGapCalculationDisclosure";visible:candidate!==null&&panel.hasMappedWalking(candidate);text:"ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함";Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true}
-                Label {objectName:"endpointGapSavedDisclosure";visible:candidate===null&&panel.hasMappedWalking(route);text:"ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함";Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true}
-                Label {objectName:"endpointGapLegendAccessibility";visible:panel.hasMappedWalking(candidate||route);text:"ORS 경로 기준 · 요청 좌표까지의 endpoint gap 미포함";Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true}
-                Label {objectName:"mixedTotalsLabel";property var presentationFields:panel.presentationFields(candidate||route,routeProgress);property var screenReaderFields:presentationFields;visible:(candidate||route)&&Boolean((candidate||route).vehicle_totals);text:{var r=candidate||route;if(!r||!r.vehicle_totals)return "";var v=candidate?r.vehicle_totals:{distance_m:routeProgress.remaining_distance_m,duration_s:routeProgress.remaining_duration_s};return "차량 거리 "+panel.formatDistance(v.distance_m)+" · 차량 시간 "+panel.formatDuration(v.duration_s)+" · 왕복";} Accessible.name:text;wrapMode:Text.Wrap;Layout.fillWidth:true}
-                Label {objectName:"mappedMetricSourceAccessibility";property string metricSourceValue:{var r=candidate||route;return r&&r.visits&&r.visits.length?String(r.visits[0].metric_source||""):"";} visible:metricSourceValue!=="";text:"도보 metric source "+metricSourceValue;Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true}
-                Repeater {
-                    id:visitAccessibilityRepeater
-                    objectName:"visitAccessibilityRepeater"
-                    model:{var r=candidate||route;return r&&r.visits?r.visits.length:0;}
-                    delegate:Label {
-                        required property int index
-                        objectName:"visitAccessibilityDelegate-"+index
-                        property var visitValue:panel.visitAccessibilityValue(index)
-                        visible:text!==""
-                        text:panel.visitAccessibilityText(index)
-                        Accessible.name:text
-                        Accessible.role:Accessible.StaticText
-                        wrapMode:Text.Wrap
-                        Layout.fillWidth:true
-                    }
-                }
-                Label {objectName:"walkingTotalsAccessibility";property real metricValue:{var r=candidate||route,w=candidate?r.walking_totals:routeProgress.remaining_walking;return w?Number(w.mapped_distance_m):0;} visible:(candidate||route)&&Boolean((candidate||route).walking_totals);text:"지도 도보 거리 "+panel.formatDistance(metricValue);Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true}
-                Label {objectName:"mappedWalkingDurationAccessibility";property real metricValue:{var r=candidate||route,w=candidate?r.walking_totals:routeProgress.remaining_walking;return w?panel.mappedWalkingDuration(r,w):0;} visible:(candidate||route)&&Boolean((candidate||route).walking_totals);text:"지도 도보 시간 "+panel.formatDuration(metricValue);Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true}
-                Label {objectName:"straightLineLowerBoundAccessibility";property real metricValue:{var r=candidate||route,w=candidate?r.walking_totals:routeProgress.remaining_walking;return w?Number(w.lower_bound_distance_m):0;} visible:metricValue>0;text:"직선거리 하한 "+panel.formatDistance(metricValue)+" · 도보 시간 사용 불가";Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true}
-                Label {id:mixedFallbackLabel;objectName:"mixedFallbackLabel";visible:(candidate||route)&&Boolean((candidate||route).visits&&((candidate||route).visits.some(function(v){return v.walking_mode==="unmapped_estimate";})));text:{var r=candidate||route;if(!r||!r.visits)return "";var visits=r.visits.filter(function(v){return v.walking_mode==="unmapped_estimate";});return "직선거리 하한 · 경로/시간 사용 불가 · 영향 조사지: "+visits.map(function(v){var stop=r.stops.find(function(s){return s.site_id===v.site_id;});return (stop&&stop.name)||v.site_id;}).join(", ")+" · metric source "+visits.map(function(v){return v.metric_source;}).filter(function(value,index,values){return values.indexOf(value)===index;}).join(", ");} Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true}
-                CheckBox {id:unmappedAck;objectName:"unmappedAcknowledgement";visible:(candidate||route)&&Boolean((candidate||route).visits&&((candidate||route).visits.some(function(v){return v.walking_mode==="unmapped_estimate";})));text:"지도에 없는 도보 구간 포함";onClicked:controller.acknowledgeUnmapped(checked)}
-                FloatingTextField {id:routeName;objectName:"routeName";floatingLabel:"저장할 경로 이름";placeholderText:"경로 이름";Layout.fillWidth:true}
-                Button {objectName:"saveRouteButton";text:"계산 결과 저장";enabled:candidate!==null&&panel.mappingValidation===""&&(!unmappedAck.visible||unmappedAck.checked);onClicked:{try{applyControls(true);if(controller.save(routeName.text)){var point=messageLabel.mapToItem(routeScroll.contentItem,Qt.point(0,0));routeScroll.contentItem.contentY=Math.max(0,point.y-routeScroll.contentItem.height/2+messageLabel.height/2);}}catch(e){controller.error(e);}}}
                 FloatingComboBox {id:savedCombo;objectName:"savedCombo";floatingLabel:"저장 경로 불러오기";Layout.fillWidth:true;model:panel.savedRoutes;textRole:"name"}
                 Button {objectName:"loadRouteButton";text:"저장 경로 불러오기";enabled:savedCombo.currentIndex>=0;onClicked:selectRoute(panel.savedRoutes[savedCombo.currentIndex].route_id)}
                 Button {objectName:"navigateButton";text:"다음 지점 지도 안내";enabled:controller!==null&&route!==null;onClicked:{var stop=controller.next();if(stop)controller.navigate(stop);else message="남은 조사지가 없습니다.";}}
@@ -769,6 +780,7 @@ Rectangle {
                         CheckBox {id:completionBox;text:(modelData.sequence||"")+". "+modelData.name+" · "+panel.completionState(modelData,index);checked:modelData.completed;enabled:panel.completionEnabled(modelData,index);Accessible.description:enabled?"":"다음 방문 지점부터 순서대로 완료하세요.";onClicked:controller.complete(modelData.site_id,checked)}
                         Button {objectName:"blockedCompletionAction";property string siteId:String(modelData.site_id);visible:panel.candidate===null&&panel.route!==null&&!panel.completionEnabled(modelData,index)&&!modelData.completed;text:"다음 방문 지점부터 순서대로 완료하세요.";flat:true;Layout.fillWidth:true;Accessible.name:completionBox.text+". "+text;contentItem:Label{text:parent.text;wrapMode:Text.Wrap;horizontalAlignment:Text.AlignLeft} onClicked:controller.complete(modelData.site_id,true)}
                     }
+                }
                 }
             }
         }

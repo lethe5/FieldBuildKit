@@ -3,7 +3,7 @@ function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function create(deps) {
     var state = {message: "", busy: false, expanded: false, listed: [], candidate: null, candidateGeneration: 0, snapshot: null, lastError: null,
         mapping: {layer: "site", id: "site_id", name: "site_name", completed: ""}, scope: "selected", startMode: "gps", mapStart: null, targetStart: "", roundtrip: true, showRouteLine: true,
-        unmappedAcknowledged:false, calculationGeneration:0, settings: {server_url: "https://api.heigit.org/openrouteservice", optimizer_url: "https://api.heigit.org/vroom/v0", backend: "ors-vroom", profile: "driving-car", key: "", timeout_ms: 30000, max_road_offset_m: 1000, max_access_distance_m:2000, objective: "time"}};
+        calculationGeneration:0, settings: {server_url: "https://api.heigit.org/openrouteservice", optimizer_url: "https://api.heigit.org/vroom/v0", backend: "ors-vroom", profile: "driving-car", key: "", timeout_ms: 30000, max_road_offset_m: 1000, max_access_distance_m:2000, objective: "time"}};
     function calculationInputs() {
         return JSON.stringify({mapping:state.mapping,scope:state.scope,startMode:state.startMode,mapStart:state.mapStart,
             targetStart:state.targetStart,roundtrip:state.roundtrip,settings:state.settings});
@@ -136,7 +136,7 @@ function create(deps) {
             var now = deps.now ? deps.now() : new Date();
             if (!(now instanceof Date)) now = new Date(now);
             state.candidate = {route_id: previous ? previous.route_id : deps.uuid(), name: localSurveyName(now), created_at: previous ? previous.created_at : now.toISOString(), backend: state.settings.backend, status: "ready", mapping: clone(state.mapping), revision: previous ? previous.revision + 1 : 1, start: origin, end: state.roundtrip ? origin : result.stops[result.stops.length-1].coordinate, roundtrip: state.roundtrip, distance_m: result.distance_m, duration_s: result.duration_s, stops: stops, road_geometry: result.road_geometry, legs: result.legs, eta: result.eta, eta_basis: result.eta ? result.eta_basis : null, optimality_guaranteed: false};
-            if(result.visits){state.candidate.route_schema=3;state.candidate.vehicle_legs=clone(result.vehicle_legs);state.candidate.visits=clone(result.visits);state.candidate.vehicle_totals=clone(result.vehicle_totals);state.candidate.walking_totals=clone(result.walking_totals);state.candidate.combined_totals=clone(result.combined_totals);state.unmappedAcknowledged=false;}
+            if(result.visits){state.candidate.route_schema=3;state.candidate.vehicle_legs=clone(result.vehicle_legs);state.candidate.visits=clone(result.visits);state.candidate.vehicle_totals=clone(result.vehicle_totals);state.candidate.walking_totals=clone(result.walking_totals);state.candidate.combined_totals=clone(result.combined_totals);}
             state.candidateGeneration++;
             state.lastError = null; state.message = "계산되었습니다. 저장 전에는 기존 경로가 유지됩니다. 최적해를 보장하지 않습니다.";
             return true;
@@ -151,7 +151,6 @@ function create(deps) {
     function save(name) {
         try {
             if (!state.candidate) throw new Error("먼저 경로를 계산하세요.");
-            if(state.candidate.visits&&state.candidate.visits.some(function(v){return v.walking_mode==="unmapped_estimate";})&&!state.unmappedAcknowledged)throw new Error("지도에 없는 도보 구간 포함을 확인한 뒤 저장하세요.");
             refresh();
             if (state.candidateInputSignature !== calculationInputs()) throw new Error("calculation_input 변경으로 계산 결과가 오래되었습니다. 새 경로를 계산하세요.");
             if (state.candidateTargetSignature !== targetInputs(targets())) throw new Error("calculation_input 대상이 변경되어 계산 결과가 오래되었습니다. 새 경로를 계산하세요.");
@@ -217,5 +216,6 @@ function create(deps) {
     function navigate(stop) {try{var result=deps.navigation.open(stop,deps.openUrl,deps.platform?deps.platform():"",deps.callerId?deps.callerId():"");state.message=result&&result.message?result.message:"지도 앱에 길안내를 요청했습니다. 앱 실행·목적지 수락·안내 시작 여부는 확인할 수 없습니다.";notify();return true;}catch(e){error(e);return false;}}
     reload();
     return {state: state, active: active, reload: reload, configure: settings, targets: targets, preflight: preflight, calculate: calculate, cancel:cancel, save: save, select: select, complete: complete, refresh: refresh, saveDefault: saveDefault, saveSettings: saveSettings, toggleRouteLine: toggleRouteLine, progress: progress, navigate: navigate,
-        acknowledgeUnmapped:function(value){state.unmappedAcknowledged=value===true;notify();}, next: function(){var r=active();return r ? r.stops.filter(function(s){return !s.completed;}).sort(function(a,b){return a.sequence-b.sequence;})[0] || null : null;}, error:error};
+        // Compatibility for older generated test/project callers; fallback is no longer gated state.
+        acknowledgeUnmapped:function(){}, next: function(){var r=active();return r ? r.stops.filter(function(s){return !s.completed;}).sort(function(a,b){return a.sequence-b.sequence;})[0] || null : null;}, error:error};
 }

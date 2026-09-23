@@ -6,7 +6,7 @@ from urllib.parse import unquote
 os.environ['QT_QPA_PLATFORM']='offscreen'
 os.environ['QT_QUICK_CONTROLS_STYLE']='Basic'
 os.environ['QT_QPA_FONTDIR']='C:/Windows/Fonts'
-from PySide6.QtCore import QObject, Slot, QUrl, QMetaObject, Qt, QPoint, QPointF, QCoreApplication, QEvent, qInstallMessageHandler
+from PySide6.QtCore import QObject, Slot, QUrl, QMetaObject, Qt, QPoint, QPointF, QCoreApplication, QEvent, QEventLoop, qInstallMessageHandler
 from PySide6.QtGui import QGuiApplication, QAccessible, QInputMethodEvent, QInputMethodQueryEvent, QKeyEvent, QPalette, QColor
 from PySide6.QtQml import QQmlAbstractUrlInterceptor, QQmlEngine, QQmlComponent, QQmlNetworkAccessManagerFactory
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
@@ -60,7 +60,7 @@ class HTTP(BaseHTTPRequestHandler):
         requests.append(req);logs.append('HTTP '+req['url'])
         fault_applies=kind in ('matrix','optimizer','directions')
         if fault_applies and fault in ('timeout','network','status_0') and (op!='remaining' or 'jobs' in body):
-            if fault=='timeout':time.sleep(.15)
+            if fault=='timeout':threading.Event().wait(.15)
             self.close_connection=True;return
         if fault_applies and fault.startswith('http_'):
             self.send_response(int(fault[5:]));self.end_headers();self.wfile.write(('failure '+case.get('key','')).encode());return
@@ -320,8 +320,11 @@ iface=Iface();engine.rootContext().setContextProperty('iface',iface)
 qInstallMessageHandler(lambda typ,ctx,msg:logs.append(str(msg)))
 component=QQmlComponent(engine,QUrl.fromLocalFile(str(folder/'qfield_routes/RoutePanel.qml')));panel=None;components=[component]
 project_owner=QObject();project_owner.setObjectName('qfieldProjectOwner')
-fixture_rows=generated_provider_rows if generated_provider_rows is not None else [{'attributes':{'site_id':f.get('id'),'site_name':f.get('name'),'inventory_id':f.get('id'),'selected_korean_name':f.get('name'),**f},'geometry':f.get('geometry') or {'type':'Point','coordinates':f['xy']}} for f in features]
+def current_fixture_rows():
+    if generated_provider_rows is not None:return generated_provider_rows
+    return [{'attributes':{'site_id':f.get('id'),'site_name':f.get('name'),'inventory_id':f.get('id'),'selected_korean_name':f.get('name'),**f},'geometry':f.get('geometry') or {'type':'Point','coordinates':f['xy']}} for f in features]
 def device_inputs():
+    fixture_rows=current_fixture_rows()
     engine.rootContext().setContextProperty('fixtureFeatures',fixture_rows)
     selected=[r for r in fixture_rows if 'selected_ids' not in case or str(r['attributes'].get('id',r['attributes'].get('custom_id',r['attributes'].get('site_id')))) in case['selected_ids']]
     js('device.canvas=hostCanvas;hostCanvas.mapSettings={destinationCrs:"EPSG:4326",getCenter:function(){return '+json.dumps({'x':map_center[0],'y':map_center[1]})+'}};device.gps='+json.dumps({'active':gps is not None,'positionInformation':{'latitudeValid':gps is not None,'longitudeValid':gps is not None,'longitude':gps[0] if gps else None,'latitude':gps[1] if gps else None}})+';device.locator={positionInformation:device.gps.positionInformation};device.form={model:{selectedLayer:qgisProject.mapLayersByName('+json.dumps('custom_targets' if case.get('mapping') else '조사지')+')[0],selectedFeatures:'+json.dumps(selected)+'}};')
@@ -338,20 +341,37 @@ def click(text):
     if not candidates:raise RuntimeError('missing button '+text)
     if not QMetaObject.invokeMethod(candidates[0],'clicked',Qt.DirectConnection):raise RuntimeError('click failed '+text)
     drain()
+def settlement_snapshot():
+    window.update()
+    if window.isVisible():window.grabWindow()
+    app.processEvents(QEventLoop.AllEvents,10)
+    if not panel:return ()
+    names=('x','y','width','height','implicitWidth','implicitHeight','visible','enabled','opacity','text','checked','currentIndex','count','contentX','contentY','contentWidth','contentHeight')
+    rows=[]
+    for item in visual_objects(panel):
+        values=[]
+        for name in names:
+            value=item.property(name)
+            if value is not None:values.append((name,round(value,6) if isinstance(value,float) else value))
+        rows.append((str(getCppPointer(item)[0]),tuple(values)))
+    focus=window.activeFocusItem()
+    return (val('p.controller.state'),tuple(rows),str(getCppPointer(focus)[0]) if focus else None)
 def drain():
-    end=time.monotonic()+5
-    while True:
-        app.processEvents()
-        if not panel or panel.property('controller') is None or not state()['busy']:
-            app.processEvents();break
-        if time.monotonic()>end:raise RuntimeError('QML action did not settle')
-        time.sleep(.001)
+    end=time.monotonic()+5;previous=None;stable_frames=0
+    while time.monotonic()<end:
+        app.processEvents(QEventLoop.AllEvents,10)
+        if panel and panel.property('controller') is not None and state()['busy']:
+            previous=None;stable_frames=0;continue
+        current=settlement_snapshot()
+        stable_frames=stable_frames+1 if current==previous else 1
+        if stable_frames>=2:return
+        previous=current
+    raise RuntimeError('QML action did not settle')
 def wait_for(predicate, timeout=2):
     end=time.monotonic()+timeout
     while time.monotonic()<end:
-        app.processEvents()
+        app.processEvents(QEventLoop.AllEvents,10)
         if predicate():return
-        time.sleep(.005)
     raise RuntimeError('QML observation did not settle')
 def open_panel():
     global panel
@@ -794,10 +814,11 @@ def main():
         case['walking_responses']=walking
         assert calculate()
         candidate_totals_before_save=detached(object_value(panel,'candidate').get('walking_totals')) if snapped else None
-        calculation_disclosure=panel.findChild(QObject,'endpointGapCalculationDisclosure') if snapped else None
-        calculation_observation=accessibility(calculation_disclosure) if calculation_disclosure else None
         js('p.controller.acknowledgeUnmapped(true)');assert save('표시 혼합 경로')
         open_panel();window.show();app.processEvents()
+        if snapped:
+            disclosure=panel.findChild(QObject,'routeDetailsDisclosure')
+            QMetaObject.invokeMethod(disclosure,'clicked',Qt.DirectConnection);drain()
         provider_start=len(transport_dispatches);storage_start=len(writes);source_start=len(source_writes)
         action_windows=[]
         for action in case.get('actions',[]):
@@ -826,7 +847,7 @@ def main():
             semantic=row.pop('semantic_class');row['object_ids']=[str(getCppPointer(item)[0])];line_classes[semantic]=row
         unmapped_item=next((item for item in walking_items if item.property('linePattern')=='dotted'),None)
         accessibility_observations=[]
-        for semantic_id,object_name in [('mapped_metric_source','mappedMetricSourceAccessibility'),('mapped_walking_totals','walkingTotalsAccessibility'),('fallback_lower_bound_status','mixedFallbackLabel')]:
+        for semantic_id,object_name in [('mapped_walking_totals','walkingTotalsAccessibility'),('mapped_walking_duration','mappedWalkingDurationAccessibility'),('fallback_notice','fallbackNotice')]:
             item=panel.findChild(QObject,object_name);observed=accessibility(item)
             accessibility_observations.append({'semantic_id':semantic_id,'object_id':str(getCppPointer(item)[0]),'source':'QAccessible.queryAccessibleInterface','name':observed['name'],'role':observed['role']})
         repeater=panel.findChild(QObject,'visitAccessibilityRepeater');engine.globalObject().setProperty('visitRepeater',engine.newQObject(repeater));count=int(repeater.property('count'))
@@ -844,23 +865,22 @@ def main():
             access_markers=[item for item in all_walking_items if item.property('accessCoordinate') is not None]
             access_marker_observations=[{'object_id':str(getCppPointer(item)[0]),'object_name':item.objectName() or 'accessMarkerFactory',
                 'coordinate_property':'accessCoordinate','coordinate':detached(object_value(item,'accessCoordinate'))} for item in access_markers]
-            provider_rows=generated_provider_rows if generated_provider_rows is not None else fixture_rows
+            provider_rows=generated_provider_rows if generated_provider_rows is not None else current_fixture_rows()
             source_feature_observations=[{'provider_layer_id':site_layer_id(),'provider_feature_id':row['attributes']['site_id'],
                 'coordinate_source':'provider feature geometry','coordinate':row['geometry']['coordinates']} for row in provider_rows]
             walking_line_observations=[{'object_id':str(getCppPointer(item)[0]),'object_name':item.objectName() or 'walkingFactory',
                 'coordinates_property':'coordinates','coordinates':detached(object_value(item,'coordinates')),
                 'line_pattern':str(item.property('linePattern'))} for item in walking_items if item.property('linePattern')]
             route_value=active();visit_values=detached(route_value.get('visits',[]));totals_value=candidate_totals_before_save
-            saved_disclosure=panel.findChild(QObject,'endpointGapSavedDisclosure');legend_disclosure=panel.findChild(QObject,'endpointGapLegendAccessibility')
-            def disclosure(item):
-                observed=accessibility(item)
-                return {'text':str(item.property('text')),'accessible_name':observed['name'],'object_id':str(getCppPointer(item)[0]),'source':'QAccessible.queryAccessibleInterface'}
+            gap_detail=panel.findChild(QObject,'endpointGapDetails');gap_observation=accessibility(gap_detail)
             result.update(snapped_endpoint_observation={'access_marker_observations':access_marker_observations,
                 'source_feature_observations':source_feature_observations,'walking_line_observations':walking_line_observations,
                 'visit_model_observation':{'model_source':'panel.route.visits','visits':visit_values},
                 'walking_totals_observation':{'model_source':'panel.candidate.walking_totals','value':totals_value},
                 'source_coordinate_write_attempts':detached(source_writes)},
-                endpoint_gap_disclosures={'calculation_result':{'text':str(calculation_disclosure.property('text')),'accessible_name':calculation_observation['name'],'object_id':str(getCppPointer(calculation_disclosure)[0]),'source':'QAccessible.queryAccessibleInterface'},'saved_detail':disclosure(saved_disclosure),'legend_accessibility':disclosure(legend_disclosure)})
+                endpoint_gap_details=[{'text':str(gap_detail.property('text')),
+                    'accessible_name':gap_observation['name'],'object_id':str(getCppPointer(gap_detail)[0]),
+                    'source':'QAccessible.queryAccessibleInterface','inside_details':True}])
     elif op=='project_dropdowns':
         selected=case.get('selected_layer_id') or (case.get('stored_mapping') or {}).get('layer_id')
         if selected:js('p.refreshProjectSelectors('+json.dumps(selected)+')')

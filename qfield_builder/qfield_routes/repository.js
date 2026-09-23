@@ -202,7 +202,13 @@ function save(io, base, data, expectedRevision) {
     var payload = JSON.stringify(data), revision = latest.revision + 1;
     var slot = latest.slot === "a" ? "b" : "a", path = base + "." + slot + ".json";
     var text = JSON.stringify({revision: revision, checksum: checksum(payload), payload: payload});
-    if (io.write(path, text) !== true) throw new Error("경로 저장 실패: 이전 저장본은 보존됩니다.");
+    var previousText = io.exists(path) ? String(io.read(path)) : null;
+    if (io.write(path, text) !== true) {
+        var currentText = io.exists(path) ? String(io.read(path)) : null;
+        throw new Error(currentText !== previousText ?
+            "경로 저장 확인 실패: 이전 저장본은 보존됩니다." :
+            "경로 저장 실패: 이전 저장본은 보존됩니다.");
+    }
     var readback = readSlot(io, path);
     if (!readback || readback.revision !== revision || JSON.stringify(readback.data) !== payload)
         throw new Error("경로 저장 확인 실패: 이전 저장본은 보존됩니다.");
