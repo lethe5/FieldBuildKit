@@ -147,9 +147,11 @@ function validate(data) {
                     if(leg.duration_s===null)unavailableCount++;else walkingDuration+=leg.duration_s;
                 });
             });
-            if(route.walking_totals.mapped_distance_m!==mappedDistance||route.walking_totals.lower_bound_distance_m!==lowerDistance||
+            if(Math.abs(route.walking_totals.mapped_distance_m-mappedDistance)>1e-6||
+                Math.abs(route.walking_totals.lower_bound_distance_m-lowerDistance)>1e-6||
                 route.walking_totals.unavailable_duration_count!==unavailableCount||
-                route.walking_totals.duration_s!==(unavailableCount?null:walkingDuration))throw new Error("저장된 도보 경로 합계가 손상되었습니다.");
+                (unavailableCount?route.walking_totals.duration_s!==null:
+                    route.walking_totals.duration_s===null||Math.abs(route.walking_totals.duration_s-walkingDuration)>1e-6))throw new Error("저장된 도보 경로 합계가 손상되었습니다.");
             if(route.walking_totals.unavailable_duration_count?(route.combined_totals!==null||route.walking_totals.duration_s!==null):
                 (!route.combined_totals||!number(route.combined_totals.distance_m)||!number(route.combined_totals.duration_s)||
                  Math.abs(route.combined_totals.distance_m-(route.vehicle_totals.distance_m+route.walking_totals.mapped_distance_m))>1e-6||
