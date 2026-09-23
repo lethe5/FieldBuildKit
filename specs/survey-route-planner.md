@@ -1642,3 +1642,36 @@ Phase 4는 제공된 도로선·네이버지도, Phase 5는 완료·남은 대�
 승인된 기준본 및 이번 slice의 2026-09-17 이해관계자 승인 유지 → 새 test-designer 정합 → acceptance 산출물 승인 →
 새 implementer 정합 → 검사 → 새 reviewer. 이번 문서 정합에서 앱 테스트·실서비스·QField 기기 검사를 실행하지
 않았고 implementation attempt 2의 기존 104 passed/2 failed/12 skipped를 최종 PASS로 승격하지 않는다.
+
+## 2026-09-23 회귀 정합 (APPROVED): 결과 순서 보존 및 `origin-validation` HTTP 오류
+
+> 상태: **APPROVED — 2026-09-23 사용자 명시 승인.** 저장 control 위치 보고는 기존 승인 기준에 대한
+> Category A conformance defect이고 새 요구가 아니다. `origin-validation`의 provider-HTTP 적용 범위만
+> Category B 누락을 좁게 보완한다. endpoint, request shape, `Authorization` 전달 방식, provider 선택,
+> key 저장/노출 경계 또는 자동 fallback은 변경하지 않는다.
+
+### 변경 분류와 Decision Log
+
+- **저장 control/layout 보고 — Category A, 명세 변경 없음:** 승인된 AC-SRP-066의 live visual,
+  keyboard 및 accessibility 순서는 이미 `기본 결과 → fallback notice(적용 시) → 상세 정보(펼쳐진 내용
+  포함) → 저장할 경로 이름 → 계산 결과 저장 → disabled reason(적용 시) → outcome status(저장 시도 후)`로
+  고정되어 있다. `저장할 경로 이름` 또는 `계산 결과 저장`이 결과/disclosure보다 위로 이동한 구현은
+  AC-SRP-066 위반이다. 이 정합은 그 순서를 supersede, 완화 또는 재번호화하지 않는다.
+- **D-SRP-068 (2026-09-23 APPROVED, Category B):** `origin-validation`은 D-SRP-052의 첫 provider stage이며,
+  그 HTTP non-2xx는 D-SRP-049/FR-SRP-047/NFR-SRP-007의 bounded safe error record, redaction, status
+  preservation, no-retry, no-write 및 last-good/candidate-preservation 규칙을 동일하게 적용받는다. 이는
+  D-SRP-049/FR-SRP-047의 열거에서 뒤에 도입된 `origin-validation`이 빠진 문서 누락만 보완한다.
+  FR-SRP-052의 기존 401/403 분류가 그대로 적용되므로 HTTP 403은 key/permission 확인을 사용자가
+  실행할 수 있는 visible/accessibility action으로 제시해야 한다. 403 status만으로 잘못된 key인지,
+  key 권한/plan/provider policy인지 더 좁게 단정하지 않으며, 이 진단 때문에 key를 다른 header/query/body로
+  옮기거나 endpoint를 바꾸거나 요청을 자동 재시도/fallback하지 않는다.
+
+### Acceptance criterion
+
+| ID | APPROVED criterion |
+|---|---|
+| AC-SRP-067 (2026-09-23 APPROVED) | Given a calculation whose first `origin-validation` request returns HTTP 403, when the failure reaches the live route panel, then the visible message and matching accessibility status identify `출발지 차량 경로 확인(origin-validation)`, preserve `HTTP 403`, and provide actionable key/permission guidance without asserting whether the cause is an invalid key, insufficient plan/permission, or provider policy. Any unsafe/secret-bearing response detail is omitted under D-SRP-049; the raw key, `Authorization`, URL query/body, and raw response are absent from UI/log/storage. Downstream `access-snap`, walking, vehicle-matrix, optimizer and directions requests, automatic retry/fallback, and route/settings/source/completion writes are all zero; any pre-existing candidate, saved route, revision and last-good bytes remain unchanged. A companion safe provider-message fixture may display only D-SRP-049-allowlisted sanitized detail and must not change those invariants. |
+
+AC-SRP-066 remains the complete, approved regression criterion for the reported save-control order; no duplicate
+criterion is added here. AC-SRP-067 is limited to the omitted `origin-validation` HTTP-error stage and does not
+claim that the observed 403's external provider-side cause has been diagnosed.

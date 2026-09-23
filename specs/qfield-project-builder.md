@@ -2376,3 +2376,46 @@ QField/iOS/Android와 live provider/Naver 실행은 미수행이다. 기술 제�
 
 No product ambiguity remains for this approved slice: canonical `site` identity is the exclusion boundary;
 the examples above are illustrative eligible layers, not a fragile allowlist.
+
+## 2026-09-23: one unlock per application process/session (APPROVED)
+
+> Status: **APPROVED — explicitly approved by the stakeholder on 2026-09-23.** This is a Category A conformance-defect
+> clarification with a narrow Category B regression boundary. It does not change the password, encryption,
+> consent, retention, generated-project secret, or failure contracts already approved under D-53/D-55,
+> NFR-QPB-018/072/073, AC-QPB-058/089–093/097, D-SRP-063, or D-101.
+
+### Decision Log
+
+- **D-103 (2026-09-23 APPROVED, Category A/B):** A successful encrypted-store password confirmation unlocks
+  the single canonical FieldBuild Kit `credentials.enc` store for the remainder of the same running desktop
+  application process/session. The unlock is store-scoped, not key-type-, wizard-page-, or operation-scoped:
+  after that one success, remembered VWorld, Pl@ntNet, and ORS route keys in the store are available through
+  their existing consent and secret-boundary rules without another encrypted-store password prompt. Returning
+  to or revisiting any key-bearing wizard page, moving among those pages in any order, and review/build-time
+  persistence of any checked `이 키 기억하기` choice must reuse the same unlocked in-memory store state and
+  must not prompt again. A cancelled prompt or an incorrect password is not a successful unlock and therefore
+  does not establish this session state; the existing decline/manual-entry and failed-decryption behavior remains
+  unchanged, and this clarification adds no recovery flow, automatic retry, provider authentication change, or
+  second credential store. This records the regression boundary implied by D-55's “password has not yet been
+  supplied in the current application session” condition and D-SRP-063's one shared compatibility namespace;
+  it does not replace either approved rule.
+
+### Clarified requirement and acceptance criterion
+
+- **NFR-QPB-073 (further clarified by D-103; APPROVED addition only):** For the confirmed retrieval-time trigger,
+  “the password has not yet been supplied in the current application session” means that no successful unlock
+  of the canonical `credentials.enc` store has occurred in the current desktop application process. Once one
+  password submission successfully unlocks that store, the unlocked state is shared by every remembered key
+  type and every wizard/build consumer in that process and lasts until that process/session ends. Page teardown,
+  navigation, revisiting a page, reading another remembered key type, or entering review/build persistence is not
+  a session boundary and must not clear or replace the successful unlock state.
+- **AC-QPB-097 (further clarified by D-103; APPROVED regression criterion):** Given one canonical `credentials.enc`
+  contains remembered VWorld, Pl@ntNet, and ORS route keys and the desktop process begins locked, when the first
+  reached key-bearing page requests retrieval and the user supplies the correct password, then exactly one
+  encrypted-store password prompt has been accepted and all three remembered values can be retrieved under their
+  existing masking/consent rules. When the user then visits and revisits the other key-bearing pages in any order,
+  returns to the first page, and runs review/build with any one or more nonblank keys still opted into
+  `이 키 기억하기`, the cumulative encrypted-store password-prompt count for that process remains exactly one;
+  build/persistence neither prompts nor creates a second store. In separate locked-session cases, cancellation or
+  an incorrect password does not count as the one successful confirmation and does not falsely mark the store
+  unlocked; the already-approved manual/session-only, failure, redaction, and no-recovery behavior remains in force.
