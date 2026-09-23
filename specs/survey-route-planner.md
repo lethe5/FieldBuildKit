@@ -1,6 +1,6 @@
 # Feature: 도로망 조사 경로 및 조사대상 도형 확장
 
-> Status: **APPROVED clarification D-SRP-069 / FR-SRP-065 / AC-SRP-068 (2026-09-23).** The approved baseline through D-SRP-068 / FR-SRP-064 / NFR-SRP-012 / AC-SRP-067 remains unchanged.
+> Status: **APPROVED clarification D-SRP-070 / FR-SRP-066 / AC-SRP-069 (2026-09-24).** The approved baseline through D-SRP-069 / FR-SRP-065 / AC-SRP-068 remains unchanged.
 > Approved baseline preserved: specification checkpoint `e382c77`; 2026-09-15 approved reconciliation; acceptance checkpoint `ed8ac81`; 2026-09-16 approved workflow/progress slice; D-SRP-031~035, FR-SRP-029~033 and AC-SRP-031~035 approved 2026-09-16; D-SRP-036~041, FR-SRP-034~039, NFR-SRP-004 and AC-SRP-036~041 approved 2026-09-17; D-SRP-042~045, FR-SRP-040~043, NFR-SRP-005 and AC-SRP-042~045 approved 2026-09-17; D-SRP-046~048, FR-SRP-044~046, NFR-SRP-006 and AC-SRP-046~048 approved 2026-09-17; D-SRP-049~056, FR-SRP-047~053, NFR-SRP-007~009 and AC-SRP-049~055 approved 2026-09-18. Broad target-QField verification remains **NOT RUN (미검증)** except for the narrowly scoped user-observed steps recorded in the 2026-09-23 approved section below.
 > Owner: spec-writer
 > Extends: [통합 명세](qfield-project-builder.md)
@@ -9,6 +9,19 @@
 
 
 ## 0. 문서 권한과 현재 상태 (2026-09-14)
+
+**2026-09-24 저장 성공 outcome과 disabled reason 정합 (승인):** 실제 저장과 성공 status는
+정상인데 같은 화면과 accessibility flow에 빨간색 `저장할 수 없음: 먼저 새 경로를 계산하세요.`가
+함께 나타나 실패처럼 읽히는 현상은, 승인된 D-SRP-067/FR-SRP-064/AC-SRP-066이 성공 직후
+candidate clear와 candidate-none reason의 동시 표시를 요구해서 생긴 Category B 직접 충돌이자
+Category D feedback refinement다. 아래 D-SRP-070/FR-SRP-066/AC-SRP-069는 성공 저장 뒤에도
+candidate `null`과 disabled button을 유지하면서, 그 성공 outcome과 모순되는 candidate-none reason만
+같은 post-save-success 상태에서 시각·접근성 모두 숨기는 최소 정합 제안이다. 초기 상태, 새 계산을
+시작했지만 아직 candidate가 없는 상태, 계산 실패 뒤 candidate가 없는 상태, saved-route load·재시작·
+재초기화 등 일반적인 candidate-none 상태의 기존 reason과 mapping-invalid reason은 유지한다. 이 정합은
+기존 성공 status, 단일 announcement, viewport 이동, focus/name/disclosure 보존, atomic save 또는
+last-good 계약을 바꾸지 않으며, 사용자 승인 뒤 fresh test-designer가 별도 acceptance 산출물을 작성하고
+그 산출물도 별도로 승인받아야 한다.
 
 **2026-09-22 저장 성공 후 disabled/focus·읽기 순서 정합 (승인):** 승인된
 D-SRP-065/AC-SRP-063의 `candidate 없음` 최우선 disabled 규칙과 AC-SRP-064/NFR-SRP-011의
@@ -1727,3 +1740,51 @@ claim that the observed 403's external provider-side cause has been diagnosed.
 이 정합은 저장 합계 비교 경계만 좁게 명확히 한다. walking leg 자체의 exact outbound/return 관계,
 provenance, geometry, finite/non-negative validation, fallback lower-bound와 unavailable 의미, schema version,
 atomicity 또는 corruption detection을 완화하지 않는다.
+
+## 2026-09-24 저장 성공 outcome과 candidate-none 사유 정합 (승인)
+
+> 상태: **APPROVED — 2026-09-24 사용자 승인.** Category B/D clarification이며,
+> D-SRP-067/FR-SRP-064/AC-SRP-066의 성공 직후 candidate-none reason 표시 부분만 아래 규칙으로
+> supersede한다. candidate clear, save button disabled, success status, focus와 상태 보존 및 일반
+> disabled-reason 규칙은 유지한다.
+
+### Decision Log와 요구사항
+
+- **D-SRP-070 (2026-09-24 승인, Category B/D):** successful atomic save가 candidate를 `null`로
+  clear하고 새 route를 active로 만든 같은 outcome update는 `post-save-success` 표시 상태다. 이 상태에서
+  save button은 계속 disabled이지만 exact candidate-none reason `저장할 수 없음: 먼저 새 경로를
+  계산하세요.`는 화면에 렌더링하지 않고 accessibility name, description, help, status, live region 또는
+  reading order에도 노출하지 않는다. 성공 status는 기존 exact content와 위치에서 전체가 보이고 한 번만
+  announce한다. 이는 enabled-state 예외나 새 저장 가능 상태가 아니며 candidate를 복원하지 않는다.
+
+  `post-save-success` 표시는 route-name 편집, disclosure 펼침/접힘, theme·viewport·focus 변화만으로
+  해제하지 않는다. 다음 explicit `새 경로 계산` 시작, 새 candidate 생성, 계산 실패, candidate의 별도
+  무효화, saved-route load, project reload/restart 또는 route panel 재초기화가 일어나면 해제하고 그 전이의
+  실제 candidate/mapping 상태에 D-SRP-065의 일반 disabled-reason 규칙을 즉시 다시 적용한다. 따라서
+  초기·재초기화·load 뒤 candidate가 없을 때, 새 계산이 진행 중이라 아직 candidate가 없을 때, 또는
+  실패한 계산 뒤 보존할 candidate가 없을 때는 candidate-none reason을 다시 visible/accessibility text로
+  표시한다. 새 계산이 성공해 candidate가 생기면 candidate-none reason은 없고, mapping이 invalid이면
+  기존 mapping-invalid reason을 표시한다. save 실패는 기존대로 candidate를 보존하고 성공 표시 상태를
+  만들지 않으며, 그 실패 outcome과 당시 실제 candidate/mapping에 따른 일반 enabled/disabled 규칙을
+  적용한다. `post-save-success` 중에도 mapping invalid가 실제로 발생하면 이 예외는 mapping reason을
+  숨기지 않으며, candidate-none 문구 대신 기존 mapping-invalid reason을 표시한다.
+- **FR-SRP-066 (2026-09-24 승인):** 저장 UI는 성공한 commit 직후 disabled save button과 성공 outcome을
+  함께 제시할 때 candidate-none disabled reason을 시각·접근성에서 제외하여 성공과 실패가 동시에
+  전달되지 않게 해야 한다. 이 제외는 D-SRP-070의 `post-save-success` 표시 상태에만 적용하며, 새 계산
+  시작/성공/실패와 candidate invalidation, saved-route load, project reload/restart 및 panel initialization은
+  실제 상태에 맞는 일반 reason 표시로 결정적으로 전이해야 한다. mapping-invalid reason은 어떤 경우에도
+  이 성공 표시 예외로 숨기지 않는다. 이 표시 규칙은 candidate, active route, persisted bytes/revision,
+  route name, disclosure, focus, provider request 또는 save atomicity를 변경하지 않는다.
+
+### Acceptance criterion
+
+| ID | 승인 criterion |
+|---|---|
+| AC-SRP-069 (2026-09-24 승인) | Given a valid candidate, nonblank route name and valid mapping, when one explicit save completes its atomic write/readback successfully, then the same outcome update clears the candidate, makes the saved route active, disables `계산 결과 저장`, shows the complete success status in the current viewport and announces it exactly once, while the exact candidate-none reason `저장할 수 없음: 먼저 새 경로를 계산하세요.` has zero visible instances and zero accessibility name/description/help/status/live-region instances. Route-name edits, disclosure toggles, theme/viewport changes and focus changes after that success preserve this absence and do not change persisted bytes, active revision or request/write counts. Starting the next explicit calculation ends the exception: while no candidate exists the candidate-none reason is visible and accessible; a successful calculation replaces it with the normal candidate state, while a failed calculation with no preservable candidate shows both the actionable calculation-failure outcome and the candidate-none disabled reason. Separate initial, saved-route-load, project-restart and panel-reinitialization fixtures with no candidate show the candidate-none reason, and a candidate or post-save-success fixture with invalid mapping shows the existing mapping-invalid reason rather than suppressing it. A save-failure fixture preserves its candidate and last-good route, never enters the success display state, and follows the ordinary enabled/disabled reason rules. Across all fixtures there is no enabled-state exception, candidate restoration, automatic retry/provider request, unintended storage write, application-initiated focus transfer, or route-name/disclosure mutation. |
+
+### 승인 시 후속 정합 범위
+
+승인에 따라 fresh test-designer는 D-SRP-070/FR-SRP-066/AC-SRP-069를 기존
+D-SRP-065/067, FR-SRP-064, NFR-SRP-011~012 및 AC-SRP-066과 함께 읽고, 성공 직후 candidate-none
+문구의 visible/accessibility instance 0개와 일반 candidate-none·mapping-invalid 전이의 보존을 각각
+독립적으로 설계·추적해야 한다. 기존 acceptance artifact를 이번 draft에서 수정하거나 미리 승인하지 않는다.
