@@ -1,7 +1,7 @@
 """APPROVED AC-SRP-069 save-success clarity acceptance extension (2026-09-24).
 
-User approval is required.  It adds independent tests for approved D-SRP-070 / FR-SRP-066 /
-AC-SRP-069 without changing the earlier approved acceptance expectations below.
+Approved D-SRP-070 / FR-SRP-066 / AC-SRP-069 supersedes only the earlier AC-SRP-066
+success-immediate candidate-none reason expectation; all non-success expectations remain unchanged.
 
 APPROVED AC-SRP-068 reopen-evidence correction (2026-09-23).
 
@@ -4398,9 +4398,12 @@ def test_ac064_ac066_every_save_outcome_is_visible_once_and_preserves_required_s
         assert observed["save_enabled_immediate"] is False
         assert observed["save_enabled_after"] is False
         assert observed["disabled_reason_immediate"] == {
-            "text": "저장할 수 없음: 먼저 새 경로를 계산하세요.",
-            "visible": True,
+            "text": "",
+            "visible": False,
         }
+        assert "disabled_reason" not in semantic["expected_order"]
+        assert "disabled_reason" not in semantic["visual_order"]
+        assert "disabled_reason" not in semantic["accessibility_order"]
         for focus in [observed["focus_after_platform_clear"], observed["focus_after"],
                       *observed["focus_transitions"]]:
             assert focus is None or (

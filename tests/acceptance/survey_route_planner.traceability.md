@@ -556,7 +556,8 @@ performed no design checks.
 ## APPROVED AC-SRP-069 traceability (2026-09-24)
 
 Status: **APPROVED TEST DESIGN — user approved 2026-09-24.** Earlier approved artifacts are preserved; the
-success-only candidate-none assertion in AC-SRP-066 is not edited by this draft.
+approved D-SRP-070 / FR-SRP-066 / AC-SRP-069 authority supersedes only AC-SRP-066's success-immediate
+candidate-none reason assertion.
 
 | Approved authority | Proposed direct automated evidence | Explicit boundary / intended result |
 | --- | --- | --- |
@@ -567,6 +568,15 @@ success-only candidate-none assertion in AC-SRP-066 is not edited by this draft.
 | D-SRP-070; FR-SRP-066; AC-SRP-069 — mapping-invalid priority | `test_ac069_mapping_invalid_reason_has_priority_over_candidate_none_suppression` crosses candidate-present and post-success fixtures through the real mapping control | Exact mapping validation suffix comes from production QML |
 | D-SRP-065/067; FR-SRP-064/066; AC-SRP-064/066/069 — save failure preservation | `test_ac069_save_failure_never_enters_success_display_state_and_preserves_last_good` injects commit failure and compares candidate, active route, document, revision and raw slots | Synthetic storage failure; no disk-full claim |
 | NFR-SRP-011/012; AC-SRP-069 target-device behavior | `test_ac069_target_qfield_screen_reader_and_viewport_handoff_is_user_run_and_unverified` skips explicitly | M23 remains `미검증` |
+
+### APPROVED AC-SRP-066/069 success-only supersession reconciliation (2026-09-24)
+
+| Supersession boundary | Corrected executable mapping | Preserved boundary |
+| --- | --- | --- |
+| D-SRP-070 / FR-SRP-066 / AC-SRP-069 supersedes D-SRP-067 / FR-SRP-064 / AC-SRP-066 only for the candidate-none reason immediately after successful save | `test_ac064_ac066_every_save_outcome_is_visible_once_and_preserves_required_state` now requires empty rendered reason text, hidden visibility and `disabled_reason` absent from success visual/QAccessible semantic order; the dedicated AC-SRP-069 success test independently requires zero visible/accessibility instances | All failure outcomes, focus/name/disclosure/persistence/status/layout assertions, and ordinary candidate-none meaning outside the post-success state remain unchanged; AC-SRP-069 retains initial/load/restart/reinit and next-calculation start/failure coverage |
+
+Correction verification: design verifier **PASS**; localhost-enabled combined AC-SRP-066/069 result
+**26 passed, 2 skipped, 508 deselected**; acceptance-only `git diff --check` **PASS**. M22/M23 remain `미검증`.
 
 DRAFT-correction verification: design verifier **PASS**; localhost-enabled focused AC-SRP-069 result **2 failed,
 10 passed, 1 skipped, 523 deselected**. Save request count `0` and separate transition counts `1`/`7`/`5`

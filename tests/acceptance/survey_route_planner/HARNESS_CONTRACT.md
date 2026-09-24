@@ -630,3 +630,12 @@ credential, user profile, project, native QField speech or device result is used
 outcome. `requests_during_success` covers only the save window; calculation-transition requests are returned
 separately as `transition_request_count` and `transition_request_stages`. The approved synthetic fixtures
 expect `1`, `7`, and `5` requests for calculation start, success, and failure respectively.
+
+### APPROVED AC-SRP-066/069 success-only supersession reconciliation (2026-09-24)
+
+D-SRP-070 / FR-SRP-066 / AC-SRP-069 supersedes the earlier AC-SRP-066 contract only for the
+candidate-none reason immediately after successful save. In `save_outcome_visibility`, success still clears
+the candidate synchronously and disables save, but `saveDisabledReason` must yield no rendered text and be
+excluded from the applicable visual and QAccessible semantic order. Failure outcomes and ordinary candidate-none states remain
+unchanged; the latter are still exercised by `save_success_clarity` for lifecycle and next-calculation
+start/failure scenarios.

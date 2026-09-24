@@ -594,6 +594,11 @@ assert all(token in ac064 for token in (
     'observed["last_good_bytes_unchanged"] is True',
     'observed["app_focus_recovery_api_occurrences"] == 0',
     'observed["save_enabled_immediate"] is False',
+    '"text": ""',
+    '"visible": False',
+    '"disabled_reason" not in semantic["expected_order"]',
+    '"disabled_reason" not in semantic["visual_order"]',
+    '"disabled_reason" not in semantic["accessibility_order"]',
     'focus["object_name"] == "" and focus["focusable_control"] is None',
     'observed["focus_after"]["object_name"] == "saveRouteButton"',
     'semantic["visual_order"] == semantic["expected_order"]',
@@ -708,6 +713,7 @@ print("survey route AC068 approved walking-total save-roundoff design verified")
 
 # APPROVED AC-SRP-069 guard: independent supersession evidence; user approved 2026-09-24.
 assert "069" in coverage
+assert '"visible": True' not in ac064
 ac069_success = inspect.getsource(
     module.test_ac069_success_hides_candidate_none_reason_and_stays_hidden_after_presentation_changes)
 assert all(token in ac069_success for token in (
@@ -767,3 +773,4 @@ manual069 = inspect.getsource(
     module.test_ac069_target_qfield_screen_reader_and_viewport_handoff_is_user_run_and_unverified)
 assert "pytest.skip" in manual069 and "미검증" in manual069 and "target QField" in manual069
 print("survey route AC069 approved save-success clarity design verified; target QField remains 미검증")
+print("survey route approved AC066/069 success-only supersession reconciliation verified")

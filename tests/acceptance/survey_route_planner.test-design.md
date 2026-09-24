@@ -1021,8 +1021,8 @@ run used the repository `.venv`.
 ## APPROVED AC-SRP-069 save-success clarity design (2026-09-24)
 
 Status: **APPROVED TEST DESIGN — user approved 2026-09-24.** Authority is approved D-SRP-070,
-FR-SRP-066 and AC-SRP-069. This design does not edit or weaken the approved AC-SRP-064/066 tests;
-approval must reconcile their superseded success-only candidate-none expectation.
+FR-SRP-066 and AC-SRP-069. These requirements explicitly supersede the approved AC-SRP-066
+success-immediate candidate-none reason expectation; all other AC-SRP-064/066 expectations remain intact.
 
 The generated-QML `save_success_clarity` operation uses the real controller, repository, save button,
 calculation control and mapping controls in a disposable generated project. Its exact-reason oracle counts
@@ -1060,6 +1060,22 @@ The save-success provider-request window closes at the immediate post-save snaps
 calculation transition. `requests_during_success` remains exactly zero. The subsequent explicit calculation
 is observed separately and must retain its normal synthetic-provider request count: start `1`, success `7`,
 and failure `5`. This corrects only the observation boundary; no approved requirement or assertion is relaxed.
+
+### APPROVED AC-SRP-066/069 success-only supersession reconciliation (2026-09-24)
+
+D-SRP-070 / FR-SRP-066 / AC-SRP-069 supersedes D-SRP-067 / FR-SRP-064 / AC-SRP-066 only for
+the candidate-none reason immediately after a successful save. The AC-SRP-066 seven-outcome matrix
+therefore still requires synchronous candidate clear, disabled save, focus clear, unchanged name and
+disclosure, one success status, persistence and the approved calculate/result/save ordering, but the
+candidate-none reason must yield no rendered text and be absent from the applicable visual and QAccessible semantic order
+for the success outcome. Failure outcomes are unchanged. The ordinary candidate-none reason remains required
+for initial/load/restart/reinitialization and for the next explicit calculation's start or failure, as covered
+by AC-SRP-069. Historical pre-D-SRP-070 statements above that require a visible success-immediate reason are
+retained as approval history but superseded by this narrow correction.
+
+Correction verification: design verifier **PASS**; localhost-enabled combined AC-SRP-066/069 result
+**26 passed, 2 skipped, 508 deselected**; acceptance-only `git diff --check` **PASS**. The two skips are the
+unchanged user-run target-QField handoffs M22/M23.
 
 ### DRAFT verification record (2026-09-24)
 
