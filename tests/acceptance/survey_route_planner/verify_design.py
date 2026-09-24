@@ -726,6 +726,9 @@ assert all(token in ac069_transition for token in (
     '"calculation_start", "calculation_success", "calculation_failure"',
     '_assert_candidate_none_reason(observed["transition"], present=True)',
     'observed["transition_candidate"] is not None',
+    'observed["transition_request_count"] == {',
+    '"calculation_start": 1', '"calculation_success": 7', '"calculation_failure": 5',
+    'len(observed["transition_request_stages"]) == observed["transition_request_count"]',
 ))
 ac069_lifecycle = inspect.getsource(
     module.test_ac069_non_success_lifecycle_with_no_candidate_shows_ordinary_reason)
@@ -756,6 +759,9 @@ assert all(token in qml_driver for token in (
     "scenario=='calculation_start'", "scenario=='calculation_success'",
     "scenario=='calculation_failure'", "scenario=='post_success_invalid_mapping'",
     "scenario=='save_failure'", "storage_bytes()",
+    'requests_after_success=len(requests)',
+    'requests_during_success=requests_after_success-requests_before',
+    'transition_request_count=len(requests)-requests_after_success',
 ))
 manual069 = inspect.getsource(
     module.test_ac069_target_qfield_screen_reader_and_viewport_handoff_is_user_run_and_unverified)

@@ -625,3 +625,8 @@ a fresh subprocess. Success/failure use the real save-button handler; calculatio
 calculate entry point; invalid mapping edits the real layer control; presentation stability mutates the live
 name, disclosure, palette, viewport and focus. Only backend/storage faults are injected. No live service,
 credential, user profile, project, native QField speech or device result is used or claimed.
+
+**APPROVED correction (2026-09-24):** the operation snapshots the request index immediately after the save
+outcome. `requests_during_success` covers only the save window; calculation-transition requests are returned
+separately as `transition_request_count` and `transition_request_stages`. The approved synthetic fixtures
+expect `1`, `7`, and `5` requests for calculation start, success, and failure respectively.

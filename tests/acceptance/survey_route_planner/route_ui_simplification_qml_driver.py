@@ -317,6 +317,7 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
                         save_button=named('saveRouteButton');save_button.forceActiveFocus(Qt.TabFocusReason)
                         before=invariant_snapshot();writes_before=len(writes);requests_before=len(requests)
                         pointer_click(save_button);after_success=invariant_snapshot()
+                        requests_after_success=len(requests)
                         success_status=item_text(named('saveStatus'))
                         success_observation=exact_reason_observation()
                         status_accessible=accessible_matches(success_status)
@@ -361,6 +362,10 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
                             invalidate_mapping();result.update(transition=exact_reason_observation(),
                                 mapping_validation=str(panel.property('mappingValidation')),
                                 transition_state=invariant_snapshot())
+                        if scenario in ('calculation_start','calculation_success','calculation_failure'):
+                            result.update(
+                                transition_request_count=len(requests)-requests_after_success,
+                                transition_request_stages=[row['kind'] for row in requests[requests_after_success:]])
                         qml_source=(folder/'qfield_routes/RoutePanel.qml').read_text(encoding='utf8')
                         result.update(scenario=scenario,before=before,after_success=after_success,
                             success_observation=success_observation,success_status=success_status,
@@ -368,7 +373,7 @@ branch = r'''    elif op in ('route_ui_simplification','save_outcome_visibility'
                             success_status_viewport=viewport(named('saveStatus')),
                             app_focus_recovery_api_occurrences=qml_source.count('saveRouteButton.forceActiveFocus'),
                             writes_during_success=len(writes)-writes_before,
-                            requests_during_success=len(requests)-requests_before)
+                            requests_during_success=requests_after_success-requests_before)
             result.update(qml_runtime={'loaded_generated_qml':True,
                 'generated_qml_path':str(folder/'qfield_routes/RoutePanel.qml')})
         elif op=='route_ui_simplification':

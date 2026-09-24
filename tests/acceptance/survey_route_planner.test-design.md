@@ -1054,12 +1054,17 @@ All automated fixtures reject unintended candidate restoration, extra write, aut
 request, persisted-state mutation and application-driven presentation mutation. M23 is the user-run target-
 QField check for actual pixels, touch, screen-reader speech and focus; it remains **NOT RUN (`미검증`)**.
 
+### APPROVED AC-SRP-069 harness-window correction (2026-09-24)
+
+The save-success provider-request window closes at the immediate post-save snapshot, before any requested
+calculation transition. `requests_during_success` remains exactly zero. The subsequent explicit calculation
+is observed separately and must retain its normal synthetic-provider request count: start `1`, success `7`,
+and failure `5`. This corrects only the observation boundary; no approved requirement or assertion is relaxed.
+
 ### DRAFT verification record (2026-09-24)
 
-Design verifier **PASS**; collection **536 tests**. The sandboxed focused run could not bind the disposable
-localhost server and therefore was not conformance evidence. The authorized localhost-enabled focused run
-returned **6 failed, 6 passed, 1 skipped, 523 deselected**. All six RED results are the current product's
-single exact candidate-none visual/QAccessible-name instance after successful save: both viewport/theme
-stability fixtures, all three next-calculation fixtures at their required post-save precondition, and the
-post-success invalid-mapping priority fixture. Initial/load/restart/reinit, candidate-present invalid mapping
-and save-failure preservation passed. M23 remains `미검증`.
+Design verifier **PASS**. The sandboxed focused run could not bind the disposable localhost server and is not
+conformance evidence. The localhost-enabled focused AC-SRP-069 run returned **2 failed, 10 passed, 1 skipped,
+523 deselected**. The corrected request-window checks all passed: save outcome request count `0`, followed by
+explicit calculation-transition counts `1`/`7`/`5`. RED is limited to the current product not restoring the
+candidate-none reason at calculation start and failure. M23 remains `미검증`.

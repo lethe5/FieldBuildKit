@@ -562,13 +562,13 @@ success-only candidate-none assertion in AC-SRP-066 is not edited by this draft.
 | --- | --- | --- |
 | D-SRP-070; FR-SRP-066; AC-SRP-069 — successful-save suppression | `test_ac069_success_hides_candidate_none_reason_and_stays_hidden_after_presentation_changes` at 320/light and 1024/dark counts exact visible and accessibility instances, save disable, active route, one status proxy and one write | Generated Qt/QML proxy; actual target speech remains M23 |
 | D-SRP-070; AC-SRP-069 — name/disclosure/theme/viewport/focus stability | Same test observes every mutation separately and compares candidate, active route, document, revision, slot bytes and request/write counts with the immediate post-success snapshot | Only the explicitly mutated presentation values may change |
-| D-SRP-070; FR-SRP-066; AC-SRP-069 — next calculation start/success/failure | `test_ac069_next_explicit_calculation_restores_ordinary_reason_state` uses the real calculation entry point; start/failure require the ordinary reason, success requires a new candidate and enabled save | Synthetic backend transport; no live provider or automatic retry |
+| D-SRP-070; FR-SRP-066; AC-SRP-069 — next calculation start/success/failure | `test_ac069_next_explicit_calculation_restores_ordinary_reason_state` uses the real calculation entry point; start/failure require the ordinary reason, success requires a new candidate and enabled save; approved harness correction separately verifies normal transition request counts `1`/`7`/`5` after an immediate zero-request save window | Synthetic backend transport; no live provider or automatic retry |
 | D-SRP-070; FR-SRP-066; AC-SRP-069 — initial/load/restart/reinit | `test_ac069_non_success_lifecycle_with_no_candidate_shows_ordinary_reason` runs separate subprocess fixtures with no candidate | Generated-panel lifecycle proxy; device process restart remains M23 |
 | D-SRP-070; FR-SRP-066; AC-SRP-069 — mapping-invalid priority | `test_ac069_mapping_invalid_reason_has_priority_over_candidate_none_suppression` crosses candidate-present and post-success fixtures through the real mapping control | Exact mapping validation suffix comes from production QML |
 | D-SRP-065/067; FR-SRP-064/066; AC-SRP-064/066/069 — save failure preservation | `test_ac069_save_failure_never_enters_success_display_state_and_preserves_last_good` injects commit failure and compares candidate, active route, document, revision and raw slots | Synthetic storage failure; no disk-full claim |
 | NFR-SRP-011/012; AC-SRP-069 target-device behavior | `test_ac069_target_qfield_screen_reader_and_viewport_handoff_is_user_run_and_unverified` skips explicitly | M23 remains `미검증` |
 
-Approved-design verification: design verifier **PASS**; **536 collected**; localhost-enabled focused AC-SRP-069 result
-**6 failed, 6 passed, 1 skipped, 523 deselected**. RED is limited to the current post-save candidate-none
-visual/QAccessible exposure (including the post-success invalid-mapping priority case). The first restricted-
-sandbox run failed only because all disposable localhost binds were denied and is not product evidence.
+DRAFT-correction verification: design verifier **PASS**; localhost-enabled focused AC-SRP-069 result **2 failed,
+10 passed, 1 skipped, 523 deselected**. Save request count `0` and separate transition counts `1`/`7`/`5`
+passed; RED is limited to candidate-none reason restoration at calculation start and failure. The restricted-
+sandbox run failed only because disposable localhost binds were denied and is not product evidence.

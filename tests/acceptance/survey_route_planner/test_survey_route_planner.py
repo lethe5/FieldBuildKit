@@ -4824,6 +4824,12 @@ def test_ac069_success_hides_candidate_none_reason_and_stays_hidden_after_presen
 def test_ac069_next_explicit_calculation_restores_ordinary_reason_state(tmp_path, scenario):
     observed = _run_ac069_clarity(tmp_path, scenario)
     _assert_post_save_success(observed)
+    assert observed["transition_request_count"] == {
+        "calculation_start": 1,
+        "calculation_success": 7,
+        "calculation_failure": 5,
+    }[scenario]
+    assert len(observed["transition_request_stages"]) == observed["transition_request_count"]
     if scenario == "calculation_success":
         assert observed["transition_candidate"] is not None
         assert observed["transition"]["save_enabled"] is True
