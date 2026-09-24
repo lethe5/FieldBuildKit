@@ -1102,6 +1102,30 @@ def main():
         relative=match[1] if match else None
         result.update(ok=success,feedback={'success':success,'text':message,'project_relative_path':relative,'filename':Path(relative).name if relative else None},
             committed_project_relative_path=relative,success_feedback_count=1 if success else 0,saved_after=saved(),errors=[] if success else [message])
+    elif op=='presentation_signal_order':
+        features=[{'id':str(i),'name':'조사지 '+str(i),'xy':[127.001+i*.001,37.001+i*.001]} for i in range(3)];device_inputs()
+        assert full_calculation(True);assert save('첫 경로')
+        first_id=active()['route_id']
+        events=[]
+        def presentation_event(signal):
+            route=panel.property('route');candidate=panel.property('candidate')
+            events.append({'signal':signal,'message':str(panel.property('message')),
+                'candidate_present':candidate is not None,'route_present':route is not None,
+                'route_id':json.loads(val('p.route.route_id')) if route is not None else None,
+                'save_enabled':bool(panel.findChild(QObject,'saveRouteButton').property('enabled')),
+                'post_save_success':bool(panel.property('postSaveSuccess'))})
+        panel.messageChanged.connect(lambda:presentation_event('messageChanged'))
+        panel.candidateChanged.connect(lambda:presentation_event('candidateChanged'))
+        panel.routeChanged.connect(lambda:presentation_event('routeChanged'))
+        js('p.controller.navigate(p.controller.active().stops[0])');drain()
+        unchanged_route_events=detached(events);events.clear()
+        assert full_calculation(True);events.clear()
+        assert save('둘째 경로')
+        save_events=detached(events);events.clear()
+        js('p.controller.select('+json.dumps(first_id)+')');drain()
+        result.update(unchanged_route_events=unchanged_route_events,save_signal_events=save_events,
+            select_signal_events=detached(events),first_route_id=first_id,
+            selected_route_id=active()['route_id'],qml_errors=[line for line in logs if 'TypeError' in line])
     elif op in ('calculate','start','road_cost','calculate_failure','configured_calculate','result_roundtrip','geometry_failure','generated_geometry_calculate'):
         if case.get('mapping'):
             for key,name in [('layer','layerEdit'),('id','idEdit'),('name','nameEdit'),('completed','completionEdit')]:control(name,case['mapping'][key])

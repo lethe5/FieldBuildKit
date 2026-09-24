@@ -18,13 +18,15 @@ Rectangle {
     property var routingBackend: Backend
     property var routingBackends: ({"ors-vroom": routingBackend})
     property var urlLauncher: Qt.openUrlExternally
-    property var route: null
-    property var candidate: null
+    property var presentationState: ({route:null,candidate:null,progress:{available:true,remaining_distance_m:0,remaining_duration_s:0}})
+    property var route: presentationState.route
+    property var candidate: presentationState.candidate
     property var stops: []
     property var savedRoutes: []
     property string message: ""
     property bool expanded: false
     property bool busy: false
+    property bool postSaveSuccess: false
     property int completedCount: 0
     property int selectedCount: 0
     property var layerOptions: []
@@ -33,7 +35,7 @@ Rectangle {
     signal targetOptionsRefreshed()
     signal startValidationStarted()
     ListModel { id: targetOptionsModel; objectName: "targetOptionsModel" }
-    property var routeProgress: ({available:true,remaining_distance_m:0,remaining_duration_s:0})
+    property var routeProgress: presentationState.progress
     property string mappingValidation: ""
     property string startValidation: ""
     property string remainingDistanceText: routeProgress.available ? formatDistance(routeProgress.remaining_distance_m) : "사용 불가"
@@ -348,6 +350,7 @@ Rectangle {
         return hours>0 ? hours+"시간 "+text+"분" : text+"분";
     }
     function mappedWalkingDuration(activeRoute, remainingWalking) {
+        if(!activeRoute)return 0;
         if(activeRoute===candidate)return (activeRoute.visits||[]).reduce(function(total,visit){return total+(visit.walking_mode==="unmapped_estimate"?0:visit.walking_legs.reduce(function(sum,leg){return sum+Number(leg.duration_s||0);},0));},0);
         return Number(remainingWalking&&remainingWalking.mapped_duration_s||0);
     }
@@ -356,7 +359,7 @@ Rectangle {
         var vehicle=activeRoute===candidate?activeRoute.vehicle_totals:{distance_m:remaining.remaining_distance_m,duration_s:remaining.remaining_duration_s};
         var counts=completedCount+"/"+activeRoute.stops.length;
         if(!activeRoute.vehicle_totals)return activeRoute.name+" · "+counts+" · 남은 "+formatDistance(vehicle.distance_m)+" · "+formatDuration(vehicle.duration_s);
-        var walking=activeRoute===candidate?activeRoute.walking_totals:remaining.remaining_walking;
+        var walking=(activeRoute===candidate?activeRoute.walking_totals:remaining.remaining_walking)||{};
         return activeRoute.name+" · "+counts+" · 남은 차량 "+formatDistance(vehicle.distance_m)+" · "+formatDuration(vehicle.duration_s)+
             " / 지도 도보 거리 "+formatDistance(walking.mapped_distance_m)+" · 지도 도보 시간 "+formatDuration(mappedWalkingDuration(activeRoute,walking))+
             (walking.lower_bound_distance_m?" / 직선거리 하한 "+formatDistance(walking.lower_bound_distance_m)+" · 시간 사용 불가":"");
@@ -545,12 +548,14 @@ Rectangle {
         if (!controller) return;
         var previousCandidate=candidate;
         var state=controller.state;
-        route=controller.active(); candidate=state.candidate; stops=(candidate||route) ? (candidate||route).stops : state.listed;
+        var nextRoute=controller.active(),nextCandidate=state.candidate,nextActive=nextCandidate||nextRoute;
+        var nextProgress=nextRoute?controller.progress(nextRoute):({available:true,remaining_distance_m:nextCandidate?nextCandidate.distance_m:0,remaining_duration_s:nextCandidate?nextCandidate.duration_s:0,remaining_geometry:nextCandidate?nextCandidate.road_geometry:null});
+        stops=nextActive ? nextActive.stops : state.listed;
         savedRoutes=state.snapshot ? state.snapshot.data.routes : [];
-        message=state.message;busy=state.busy;
-        completedCount=route ? route.stops.filter(function(s){return s.completed;}).length : 0;
-        routeProgress=route?controller.progress(route):({available:true,remaining_distance_m:candidate?candidate.distance_m:0,remaining_duration_s:candidate?candidate.duration_s:0,remaining_geometry:candidate?candidate.road_geometry:null});
+        busy=state.busy;postSaveSuccess=state.postSaveSuccess;
+        completedCount=nextRoute ? nextRoute.stops.filter(function(s){return s.completed;}).length : 0;
         showRouteLine=state.showRouteLine;
+        presentationState={route:nextRoute,candidate:nextCandidate,progress:nextProgress};
         if(candidate && state.candidateGeneration!==displayedCandidateGeneration) {
             displayedCandidateGeneration=state.candidateGeneration;
             routeName.text=candidate.name;
@@ -574,6 +579,7 @@ Rectangle {
         }
         refreshCompletedOverlays(route);
         refreshWalkingOverlays(candidate||route);
+        message=state.message;
     }
     function layerFor(mapping) {
         var layer=typeof qgisProject.mapLayer === "function" ? qgisProject.mapLayer(mapping.layer) : null;
@@ -766,7 +772,7 @@ Rectangle {
                 }
                 FloatingTextField {id:routeName;objectName:"routeName";floatingLabel:"저장할 경로 이름";placeholderText:"경로 이름";Layout.fillWidth:true;Layout.maximumWidth:routeScroll.availableWidth-24}
                 Button {id:saveRouteButton;objectName:"saveRouteButton";text:"계산 결과 저장";enabled:candidate!==null&&panel.mappingValidation==="";Accessible.name:text;Accessible.role:Accessible.Button;onClicked:{try{applyControls(true);controller.save(routeName.text);}catch(e){controller.error(e);}finally{Qt.callLater(function(){panel.revealSaveStatus(0);});}}}
-                Label {id:saveDisabledReason;objectName:"saveDisabledReason";visible:candidate===null||panel.mappingValidation!=="";text:candidate===null?"저장할 수 없음: 먼저 새 경로를 계산하세요.":"저장할 수 없음: "+panel.mappingValidation;color:panel.errorColor;Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true;Layout.maximumWidth:routeScroll.availableWidth-24}
+                Label {id:saveDisabledReason;objectName:"saveDisabledReason";visible:panel.mappingValidation!==""||(candidate===null&&!panel.postSaveSuccess);text:panel.mappingValidation!==""?"저장할 수 없음: "+panel.mappingValidation:(candidate===null&&!panel.postSaveSuccess?"저장할 수 없음: 먼저 새 경로를 계산하세요.":"");color:panel.errorColor;Accessible.name:text;Accessible.role:Accessible.StaticText;wrapMode:Text.Wrap;Layout.fillWidth:true;Layout.maximumWidth:routeScroll.availableWidth-24}
                 Label {id:saveStatus;objectName:"saveStatus";text:panel.message;Layout.fillWidth:true;Layout.maximumWidth:routeScroll.availableWidth-24;Layout.topMargin:routeScroll.availableWidth>600?routeScroll.height:0;wrapMode:Text.Wrap;Accessible.name:text;Accessible.role:Accessible.StatusBar;Item{objectName:"messageLabel";anchors.fill:parent}}
                 FloatingComboBox {id:savedCombo;objectName:"savedCombo";floatingLabel:"저장 경로 불러오기";Layout.fillWidth:true;model:panel.savedRoutes;textRole:"name"}
                 Button {objectName:"loadRouteButton";text:"저장 경로 불러오기";enabled:savedCombo.currentIndex>=0;onClicked:selectRoute(panel.savedRoutes[savedCombo.currentIndex].route_id)}

@@ -1,7 +1,7 @@
 // Production controller; external QField objects, transport and files are injected at the boundary.
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function create(deps) {
-    var state = {message: "", busy: false, expanded: false, listed: [], candidate: null, candidateGeneration: 0, snapshot: null, lastError: null,
+    var state = {message: "", busy: false, expanded: false, listed: [], candidate: null, candidateGeneration: 0, postSaveSuccess: false, snapshot: null, lastError: null,
         mapping: {layer: "site", id: "site_id", name: "site_name", completed: ""}, scope: "selected", startMode: "gps", mapStart: null, targetStart: "", roundtrip: true, showRouteLine: true,
         calculationGeneration:0, settings: {server_url: "https://api.heigit.org/openrouteservice", optimizer_url: "https://api.heigit.org/vroom/v0", backend: "ors-vroom", profile: "driving-car", key: "", timeout_ms: 30000, max_road_offset_m: 1000, max_access_distance_m:2000, objective: "time"}};
     function calculationInputs() {
@@ -32,7 +32,7 @@ function create(deps) {
     }
     function commit(data) {
         state.snapshot = deps.repository.save(deps.io, deps.base, data, state.snapshot.revision);
-        notify(); return storedPath();
+        return storedPath();
     }
     function providerUrl(value) {
         var url = String(value || "").trim();
@@ -46,6 +46,7 @@ function create(deps) {
     }
     function reload() {
         try {
+            state.postSaveSuccess = false;
             state.snapshot = deps.repository.load(deps.io, deps.base);
             Object.assign(state.settings, state.snapshot.data.settings);
             state.settings.server_url = persistedProviderUrl(state.settings.server_url);
@@ -104,6 +105,7 @@ function create(deps) {
     }
     function calculate(replaceActive) {
         if (state.busy) return Promise.resolve(false);
+        state.postSaveSuccess = false;
         var list, origin, previous, baseRevision, previousCandidate = state.candidate, generation=++state.calculationGeneration;
         state.message = ""; state.lastError = null; state.lastErrorClassification=null; state.suggestedActions=[];
         try {
@@ -171,11 +173,11 @@ function create(deps) {
                 });
                 data.schema=3;
             } else data.schema = data.routes.every(function(r) {return Array.isArray(r.legs);}) ? 2 : 1;
-            data.active_id = candidate.route_id; var path=commit(data); state.candidate = null;
+            data.active_id = candidate.route_id; var path=commit(data); state.candidate = null; state.postSaveSuccess = true;
             state.message="‘"+candidate.name+"’ 경로를 저장했습니다: "+path; notify(); return true;
         } catch(e) {error(e); return false;}
     }
-    function select(id) { try { var data=clone(state.snapshot.data); if (!data.routes.some(function(r){return r.route_id===id;})) throw new Error("저장 경로를 찾지 못했습니다."); data.active_id=id;commit(data);state.candidate=null;if(active().mapping)state.mapping=clone(active().mapping); refresh(); notify(); return true;} catch(e){error(e);return false;} }
+    function select(id) { try { var data=clone(state.snapshot.data); if (!data.routes.some(function(r){return r.route_id===id;})) throw new Error("저장 경로를 찾지 못했습니다."); data.active_id=id;commit(data);state.candidate=null;state.postSaveSuccess=false;if(active().mapping)state.mapping=clone(active().mapping); refresh(); notify(); return true;} catch(e){error(e);return false;} }
     function complete(id, value) {
         try {
             refresh();
@@ -188,7 +190,7 @@ function create(deps) {
                 state.message="다음 방문 지점부터 순서대로 완료하세요. 다음 지점: "+(nextStop ? nextStop.sequence+". "+nextStop.name : "없음");notify();return false;
             }
             if(state.mapping.completed) { deps.setCompleted(state.mapping,id,value); refresh(); notify(); }
-            else {var data=clone(state.snapshot.data), route=data.routes.find(function(r){return r.route_id===data.active_id;}); if(!route) throw new Error("활성 경로가 없습니다."); var stop=route.stops.find(function(s){return s.site_id===id;}); if(!stop) throw new Error("대상을 찾지 못했습니다.");stop.completed=value===true;commit(data);}
+            else {var data=clone(state.snapshot.data), route=data.routes.find(function(r){return r.route_id===data.active_id;}); if(!route) throw new Error("활성 경로가 없습니다."); var stop=route.stops.find(function(s){return s.site_id===id;}); if(!stop) throw new Error("대상을 찾지 못했습니다.");stop.completed=value===true;commit(data);notify();}
             return true;
         } catch(e){error(e);return false;}
     }

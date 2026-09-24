@@ -537,6 +537,28 @@ def test_candidate_transitions_depend_on_production_timer(tmp_path):
     with pytest.raises(RuntimeError,match='QML observation did not settle'):_node(case,project['project_dir'])
 
 
+def test_presentation_signals_never_publish_success_with_a_candidate_or_an_empty_route(tmp_path):
+    project=_build(tmp_path)
+    result=_node({'operation':'presentation_signal_order'},project['project_dir'])
+    success=[event for event in result['save_signal_events']
+             if event['signal']=='messageChanged' and '저장했습니다' in event['message']]
+    assert success
+    assert all(not event['candidate_present'] and not event['save_enabled']
+               and event['post_save_success'] and event['route_present'] for event in success)
+    assert any(event['signal']=='messageChanged' for event in result['unchanged_route_events'])
+    assert all(event['route_present'] for event in result['unchanged_route_events']
+               if event['signal']=='routeChanged')
+    assert any(event['signal']=='candidateChanged' for event in result['save_signal_events'])
+    assert any(event['signal']=='routeChanged' for event in result['save_signal_events'])
+    assert all(event['route_present'] for event in result['save_signal_events']
+               if event['signal']=='routeChanged')
+    assert any(event['signal']=='routeChanged' for event in result['select_signal_events'])
+    assert all(event['route_present'] for event in result['select_signal_events']
+               if event['signal']=='routeChanged')
+    assert result['selected_route_id']==result['first_route_id']
+    assert result['qml_errors']==[]
+
+
 def _assert_selected_floating_values(result, mapping):
     assert result['stored_mapping_before']==result['stored_mapping_after']==mapping
     for selector in result['floating_selectors'].values():
