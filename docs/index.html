@@ -986,6 +986,22 @@
     .db-arrow { color:var(--clay); font-size:28px; font-weight:950; }
     .db-flow-card p { margin-top:20px; color:var(--ink-soft); font-size:18px; line-height:1.4; font-weight:700; }
 
+    /* === OPTIMIZED SURVEY ROUTE === */
+    .route-layout { position:relative; z-index:2; height:790px; margin-top:24px; padding:0 70px 0 32px; display:grid; grid-template-columns:1fr 470px; gap:105px; align-items:center; }
+    .route-story { align-self:center; }
+    .route-lede { max-width:1000px; font-family:var(--font-display); font-size:38px; line-height:1.25; letter-spacing:-.025em; }
+    .route-sequence { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:34px; }
+    .route-sequence span { padding:9px 13px; border:2px solid var(--moss); border-radius:999px; background:#fff; color:var(--moss-dark); font-size:17px; font-weight:900; }
+    .route-sequence i { color:var(--clay); font-style:normal; font-size:24px; font-weight:950; }
+    .route-features { display:grid; gap:14px; margin-top:34px; }
+    .route-feature { display:grid; grid-template-columns:54px 1fr; gap:16px; align-items:center; min-height:104px; padding:16px 20px; border:2px solid var(--line); border-radius:16px; background:rgba(255,255,255,.68); box-shadow:7px 8px 0 var(--shadow); }
+    .route-feature b { display:grid; place-items:center; width:50px; height:50px; border-radius:50%; background:var(--lime); color:var(--moss-dark); font-size:18px; }
+    .route-feature h3 { font-size:25px; line-height:1.15; }
+    .route-feature p { margin-top:5px; color:var(--ink-soft); font-size:18px; line-height:1.35; font-weight:700; }
+    .route-phone { position:relative; width:390px; height:785px; justify-self:center; padding:8px; border-radius:50px; background:var(--moss-dark); box-shadow:16px 19px 0 var(--shadow); }
+    .route-phone img { width:100%; height:100%; object-fit:contain; object-position:top center; border-radius:39px; }
+    .route-phone figcaption { position:absolute; left:-42px; top:44px; padding:12px 15px; transform:rotate(-3deg); border:3px solid var(--ink); border-radius:8px; background:var(--lime-soft); color:var(--ink); font-size:18px; font-weight:900; box-shadow:6px 7px 0 var(--clay); }
+
     /* === FINAL TAKEAWAY === */
     .closing-final { padding:0; color:#fff; background:var(--moss-dark); }
     .closing-final::before { content:""; position:absolute; inset:0; width:auto; height:auto; border-radius:0; opacity:1; background:linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px); background-size:72px 72px; box-shadow:none; }
@@ -1055,7 +1071,7 @@
             <p class="front-cover-lede reveal delay-3" data-editable>QGIS 호환 조사 프로젝트를 자동 생성하고, QField로 현장 기록하는 독립 실행형 데스크톱 앱</p>
             <div class="front-cover-tags reveal delay-4"><span class="accent">STANDALONE</span><span>4 SURVEY TEMPLATES</span><span>QFIELD READY</span></div>
             <a class="front-download reveal delay-4" href="https://github.com/lethe5/FieldBuildKit/releases/latest" target="_blank" rel="noopener noreferrer" aria-label="FieldBuild Kit 최신 버전 다운로드"><span aria-hidden="true">↓</span>앱 다운로드 · GitHub Releases</a>
-            <p>앱 0.2.9 · <a href="https://github.com/lethe5/FieldBuildKit/blob/main/docs/README.md" target="_blank" rel="noopener noreferrer">현재 문서와 검증 상태</a> · 조사 경로·도형 확장은 명세 초안 단계입니다.</p>
+            <p>앱 0.2.9 · <a href="https://github.com/lethe5/FieldBuildKit/blob/main/docs/README.md" target="_blank" rel="noopener noreferrer">현재 문서와 검증 상태</a> · 최적 조사경로 QML 위젯 포함</p>
           </div>
           <div class="front-cover-visual reveal-right delay-2">
             <div class="front-window"><div class="front-window-bar"><i></i><i></i><i></i></div><img src="assets/standalone-step-1.png?v=20260908" alt="FieldBuild Kit 독립 실행형 앱 화면"></div>
@@ -1296,17 +1312,27 @@
         </div>
       </section>
 
-      <!-- === SLIDE 19: FINAL TAKEAWAY === -->
-      <section class="slide closing-final" data-order="19" aria-label="FieldBuild Kit 핵심 요약">
-        <div class="closing-shell">
-          <div class="closing-kicker reveal-left" data-editable>FROM SETUP TO FIELD DATA</div>
-          <h2 class="reveal delay-1" data-editable>만드는 시간은 줄이고,<br>조사 데이터의 일관성은 높입니다</h2>
-          <div class="closing-grid">
-            <article class="closing-point reveal delay-2"><b>01 · BUILD</b><h3 data-editable>QGIS 설치 없이</h3><p data-editable>7단계 입력으로 네 가지 생태조사 프로젝트를 생성합니다.</p></article>
-            <article class="closing-point reveal delay-3"><b>02 · FIELD</b><h3 data-editable>QField 현장 기록</h3><p data-editable>완성 폴더를 휴대폰에서 열어 위치·사진·관찰값을 기록합니다.</p></article>
-            <article class="closing-point reveal delay-4"><b>03 · SHARE</b><h3 data-editable>HTML로 공유</h3><p data-editable>현장 기록을 지도가 포함된 보고서로 바로 내보냅니다.</p></article>
+      <!-- === SLIDE 19: OPTIMIZED SURVEY ROUTE === -->
+      <section class="slide" data-order="19" aria-label="최적 조사경로 계산 기능">
+        <header class="slide-header">
+          <div><div class="eyebrow" data-editable>OPTIMIZED SURVEY ROUTE</div><h2 class="slide-title" data-editable>여러 조사 지점을, 가장 효율적인 순서로</h2></div>
+          <div class="qml-badge" data-editable>QML 프로젝트 위젯으로 추가된 기능</div>
+          <div class="folio">19 / 20</div>
+        </header>
+        <div class="route-layout">
+          <div class="route-story">
+            <p class="route-lede reveal-left" data-editable>OpenRouteService(ORS)를 이용해<br>방문 순서와 차량·도보 경로를 한 번에 계산합니다.</p>
+            <div class="route-sequence reveal delay-1" aria-label="최적화된 조사 순서 예시"><span>출발지</span><i>→</i><span>site_3</span><i>→</i><span>site_4</span><i>→</i><span>site_1</span><i>→</i><span>site_2</span><i>→</i><span>site_5</span></div>
+            <div class="route-features">
+              <article class="route-feature reveal delay-2"><b>01</b><div><h3 data-editable>방문 순서 최적화</h3><p data-editable>여러 조사 사이트를 효율적인 순서로 연결해 불필요한 이동을 줄입니다.</p></div></article>
+              <article class="route-feature reveal delay-3"><b>02</b><div><h3 data-editable>차량·도보 경로를 함께</h3><p data-editable>차량 접근 구간과 현장 도보 구간을 지도 위에서 구분해 확인합니다.</p></div></article>
+              <article class="route-feature reveal delay-4"><b>03</b><div><h3 data-editable>거리와 예상시간 확인</h3><p data-editable>전체·남은 거리와 예상 소요시간을 표시해 하루 조사 일정을 판단합니다.</p></div></article>
+            </div>
           </div>
-          <div class="closing-route reveal delay-5" data-editable>FieldBuild Kit → 프로젝트 폴더 → QField 4.2.11 → HTML 보고서</div>
+          <figure class="route-phone reveal-right delay-2">
+            <img src="assets/qfield-route-optimization.png" alt="QField에서 여러 조사 지점의 최적 차량·도보 경로를 계산한 화면">
+            <figcaption data-editable>출발지 설정 → 새 경로 계산</figcaption>
+          </figure>
         </div>
       </section>
 
